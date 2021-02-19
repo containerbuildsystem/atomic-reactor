@@ -1172,6 +1172,57 @@ def test_orchestrate_override_content_versions(tmpdir, caplog, content_versions)
         assert not build_result.is_failed()
 
 
+def test_orchestrate_operator_csv_modifications_url(tmpdir):
+    """Test if operator_csv_modifications_url is passed to worker build when defined"""
+    csv_mods_url = "https://example.com/test.json"
+    workflow = mock_workflow(tmpdir, platforms=['x86_64'])
+    expected_kwargs = {
+        'git_uri': SOURCE['uri'],
+        'git_ref': 'master',
+        'git_branch': 'master',
+        'user': 'bacon',
+        'is_auto': False,
+        'platform': 'x86_64',
+        'release': '10',
+        'arrangement_version': 6,
+        'parent_images_digests': {},
+        'operator_csv_modifications_url': csv_mods_url,
+        'operator_manifests_extract_platform': 'x86_64',
+    }
+
+    reactor_config_override = mock_reactor_config(tmpdir)
+    reactor_config_override['openshift'] = {
+        'auth': {'enable': None},
+        'build_json_dir': None,
+        'insecure': False,
+        'url': 'https://worker_x86_64.com/'
+    }
+    expected_kwargs['reactor_config_override'] = reactor_config_override
+    mock_osbs(worker_expect=expected_kwargs)
+
+    plugin_args = {
+        'platforms': ['x86_64'],
+        'build_kwargs': make_worker_build_kwargs(),
+        'worker_build_image': 'fedora:latest',
+        'osbs_client_config': str(tmpdir),
+    }
+
+    # defined as user param
+    workflow.user_params['operator_csv_modifications_url'] = csv_mods_url
+
+    runner = BuildStepPluginsRunner(
+        workflow.builder.tasker,
+        workflow,
+        [{
+            'name': OrchestrateBuildPlugin.key,
+            'args': plugin_args,
+        }]
+    )
+
+    build_result = runner.run()
+    assert not build_result.is_failed()
+
+
 @pytest.mark.parametrize(('build', 'exc_str', 'bc', 'bc_cont', 'ims', 'ims_cont',
                           'ml', 'ml_cont'), [
     ({"spec": {
