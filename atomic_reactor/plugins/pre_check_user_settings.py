@@ -15,6 +15,7 @@ from atomic_reactor.util import (
     is_isolated_build,
     read_content_sets,
     read_fetch_artifacts_koji,
+    read_fetch_artifacts_pnc,
     read_fetch_artifacts_url
 )
 
@@ -99,6 +100,7 @@ class CheckUserSettingsPlugin(PreBuildPlugin):
     def validate_user_config_files(self):
         """Validate some user config files"""
         read_fetch_artifacts_koji(self.workflow)
+        read_fetch_artifacts_pnc(self.workflow)
         read_fetch_artifacts_url(self.workflow)
         read_content_sets(self.workflow)
 

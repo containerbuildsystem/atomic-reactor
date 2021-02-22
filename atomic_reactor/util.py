@@ -43,6 +43,7 @@ from atomic_reactor.constants import (DOCKERFILE_FILENAME, REPO_CONTAINER_CONFIG
                                       DOCKERIGNORE, DEFAULT_DOWNLOAD_BLOCK_SIZE,
                                       REPO_CONTENT_SETS_CONFIG,
                                       REPO_FETCH_ARTIFACTS_URL,
+                                      REPO_FETCH_ARTIFACTS_PNC,
                                       USER_CONFIG_FILES, REPO_FETCH_ARTIFACTS_KOJI)
 
 from atomic_reactor.auth import HTTPRegistryAuth
@@ -1862,6 +1863,10 @@ def read_user_config_file(workflow, filename):
 
 def read_fetch_artifacts_url(workflow):
     return read_user_config_file(workflow, REPO_FETCH_ARTIFACTS_URL)
+
+
+def read_fetch_artifacts_pnc(workflow):
+    return read_user_config_file(workflow, REPO_FETCH_ARTIFACTS_PNC)
 
 
 def read_fetch_artifacts_koji(workflow):

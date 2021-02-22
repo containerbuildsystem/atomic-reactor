@@ -14,7 +14,9 @@ import os
 import responses
 import yaml
 
-from atomic_reactor.constants import REPO_FETCH_ARTIFACTS_KOJI, REPO_FETCH_ARTIFACTS_URL
+from atomic_reactor.constants import (REPO_FETCH_ARTIFACTS_KOJI,
+                                      REPO_FETCH_ARTIFACTS_PNC,
+                                      REPO_FETCH_ARTIFACTS_URL)
 from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.pre_fetch_maven_artifacts import FetchMavenArtifactsPlugin
 from osbs.utils import ImageName
@@ -202,6 +204,82 @@ REMOTE_FILE_MULTI_HASH = {
 DEFAULT_REMOTE_FILES = [REMOTE_FILE_SPAM, REMOTE_FILE_BACON, REMOTE_FILE_WITH_TARGET,
                         REMOTE_FILE_SHA1, REMOTE_FILE_SHA256, REMOTE_FILE_MULTI_HASH]
 
+ARTIFACT_MD5 = {
+    'build_id': 12,
+    'artifacts': [
+        {
+            'id': 122,
+            'target': 'md5.jar'
+        }
+    ]
+}
+
+ARTIFACT_SHA1 = {
+    'build_id': 12,
+    'artifacts': [
+        {
+            'id': 123,
+            'target': 'sha1.jar'
+        }
+    ]
+}
+
+ARTIFACT_SHA256 = {
+    'build_id': 12,
+    'artifacts': [
+        {
+            'id': 124,
+            'target': 'sha256.jar'
+        }
+    ]
+}
+
+ARTIFACT_MULTI_HASH = {
+    'build_id': 12,
+    'artifacts': [
+        {
+            'id': 125,
+            'target': 'multi-hash.jar'
+        }
+    ]
+}
+
+RESPONSE_MD5 = {
+    'id': 122,
+    'publicUrl': FILER_ROOT + '/md5.jar',
+    'md5': '900150983cd24fb0d6963f7d28e17f72'
+}
+
+RESPONSE_SHA1 = {
+    'id': 123,
+    'publicUrl': FILER_ROOT + '/sha1.jar',
+    'sha1': 'a9993e364706816aba3e25717850c26c9cd0d89d'
+}
+
+RESPONSE_SHA256 = {
+    'id': 124,
+    'publicUrl': FILER_ROOT + '/sha256.jar',
+    'sha256': 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'
+}
+
+RESPONSE_MULTI_HASH = {
+    'id': 125,
+    'publicUrl': FILER_ROOT + '/multi-hash.jar',
+    'sha256': 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
+    'sha1': 'a9993e364706816aba3e25717850c26c9cd0d89d',
+    'md5': '900150983cd24fb0d6963f7d28e17f72'
+}
+
+DEFAULT_PNC_ARTIFACTS = {'builds': [ARTIFACT_MD5, ARTIFACT_SHA1, ARTIFACT_SHA256,
+                                    ARTIFACT_MULTI_HASH]}
+
+DEFAULT_PNC_RESPONSES = {
+    RESPONSE_MD5['id']: RESPONSE_MD5,
+    RESPONSE_SHA1['id']: RESPONSE_SHA1,
+    RESPONSE_SHA256['id']: RESPONSE_SHA256,
+    RESPONSE_MULTI_HASH['id']: RESPONSE_MULTI_HASH
+}
+
 
 class MockSource(object):
     def __init__(self, tmpdir):
@@ -294,6 +372,18 @@ def mock_fetch_artifacts_by_nvr(tmpdir, contents=None):
             """)
 
     with open(os.path.join(tmpdir, REPO_FETCH_ARTIFACTS_KOJI), 'w') as f:
+        f.write(contents)
+        f.flush()
+
+
+def mock_fetch_artifacts_from_pnc(tmpdir, contents=None):
+    if contents is None:
+        contents = dedent("""\
+            builds:
+              - build_id: 12345
+            """)
+
+    with open(os.path.join(tmpdir, REPO_FETCH_ARTIFACTS_PNC), 'w') as f:
         f.write(contents)
         f.flush()
 
@@ -512,6 +602,60 @@ def test_fetch_maven_artifacts_nvr_schema_error(tmpdir, docker_tasker, user_para
     mock_koji_session()
     mock_fetch_artifacts_by_nvr(tmpdir, contents=contents)
     mock_nvr_downloads()
+
+    with pytest.raises(PluginFailedException) as e:
+        mock_env(tmpdir).create_runner(docker_tasker).run()
+
+    assert 'OsbsValidationException' in str(e.value)
+
+
+@pytest.mark.parametrize('contents', (  # noqa
+    dedent("""\
+        metadata:
+            anything: information
+        builds:
+          - buid_id: invalid attribute
+        """),
+
+    dedent("""\
+        metadata:
+            anything: information
+        builds:
+          build_id: not a list
+        """),
+
+    dedent("""\
+        metadata:
+            anything: information
+        builds:
+          - build_id: 12345
+            artifacts: not a list
+        """),
+
+    dedent("""\
+        metadata:
+            anything: information
+        builds:
+          - build_id: 12345
+            artifacts:
+              - ids: invalid attribute
+        """),
+
+    dedent("""\
+        metadata:
+          create_by: author
+        builds:
+          - build_id: 12345
+            artifacts:
+              - id: invalid value
+        """),
+
+))
+@responses.activate
+def test_fetch_maven_artifacts_pnc_schema_error(tmpdir, docker_tasker, user_params, contents):
+    """Err on invalid format for fetch-artifacts-pnc.yaml"""
+    mock_koji_session()
+    mock_fetch_artifacts_from_pnc(str(tmpdir), contents=contents)
 
     with pytest.raises(PluginFailedException) as e:
         mock_env(tmpdir).create_runner(docker_tasker).run()
