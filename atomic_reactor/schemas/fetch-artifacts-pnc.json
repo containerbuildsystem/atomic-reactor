@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "title": "Artifacts to be fetched from PNC builds",
+  "type": ["object", "null"],
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "description": "Metadata about the fetch-artifacts-pnc.yaml",
+      "additionalProperties": true
+    },
+    "builds": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "description": "A specific PNC build and artifacts to be fetched",
+        "properties": {
+          "build_id": {
+            "description": "The Build ID of a PNC build",
+            "type": "integer"
+          },
+          "artifacts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "Matcher for artifacts in PNC build",
+              "properties": {
+                "id": {
+                  "description": "Match by artifact id",
+                  "type": "integer"
+                },
+                "target": {
+                  "description": "Name and or destination path to be used when saving artifact to disk",
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "target"
+              ]
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "build_id",
+          "artifacts"
+        ]
+      }
+    }
+  }
+}
+

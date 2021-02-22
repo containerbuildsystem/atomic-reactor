@@ -144,6 +144,7 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
             util.read_fetch_artifacts_koji(self.workflow) or []
         ]
         url_requests = util.read_fetch_artifacts_url(self.workflow) or []
+        util.read_fetch_artifacts_pnc(self.workflow) or {}
 
         download_queue = (self.process_by_nvr(nvr_requests) +
                           self.process_by_url(url_requests))
