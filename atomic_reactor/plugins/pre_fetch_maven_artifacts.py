@@ -66,6 +66,14 @@ class NvrRequest(object):
 DownloadRequest = namedtuple('DownloadRequest', 'url dest checksums')
 
 
+class PNCRequest(object):
+    # TODO implement logic to interact with PNC and process artifacts
+
+    def __init__(self, build_id, artifacts=None):
+        self.build_id = build_id
+        self.artifacts = artifacts or []
+
+
 class FetchMavenArtifactsPlugin(PreBuildPlugin):
 
     key = PLUGIN_FETCH_MAVEN_KEY
@@ -124,6 +132,10 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
             raise ValueError('Errors found while processing {}: {}'
                              .format(REPO_FETCH_ARTIFACTS_KOJI, ', '.join(errors)))
         return download_queue
+
+    def process_by_pnc_build_id(self, pnc_requests):
+        # TODO use PNC request to process all the build ids
+        pass
 
     def process_by_url(self, url_requests):
         download_queue = []
@@ -190,10 +202,15 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
             NvrRequest(**nvr_request) for nvr_request in
             util.read_fetch_artifacts_koji(self.workflow) or []
         ]
+        pnc_requests = [
+            PNCRequest(**pnc_request) for pnc_request in
+            (util.read_fetch_artifacts_pnc(self.workflow) or {'builds': []})['builds']
+        ]
         url_requests = util.read_fetch_artifacts_url(self.workflow) or []
 
         download_queue = (self.process_by_nvr(nvr_requests) +
-                          self.process_by_url(url_requests))
+                          self.process_by_url(url_requests) +
+                          (self.process_by_pnc_build_id(pnc_requests) or []))
 
         self.download_files(download_queue)
 

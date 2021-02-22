@@ -14,7 +14,9 @@ import os
 import responses
 import yaml
 
-from atomic_reactor.constants import REPO_FETCH_ARTIFACTS_KOJI, REPO_FETCH_ARTIFACTS_URL
+from atomic_reactor.constants import (REPO_FETCH_ARTIFACTS_KOJI,
+                                      REPO_FETCH_ARTIFACTS_URL,
+                                      REPO_FETCH_ARTIFACTS_PNC)
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_fetch_maven_artifacts import FetchMavenArtifactsPlugin
@@ -296,6 +298,18 @@ def mock_fetch_artifacts_by_nvr(tmpdir, contents=None):
             """)
 
     with open(os.path.join(tmpdir, REPO_FETCH_ARTIFACTS_KOJI), 'w') as f:
+        f.write(contents)
+        f.flush()
+
+
+def mock_fetch_artifacts_by_pnc_build_id(tmpdir, contents=None):
+    if contents is None:
+        contents = dedent("""\
+            builds:
+              - build_id: 12345
+            """)
+
+    with open(os.path.join(tmpdir, REPO_FETCH_ARTIFACTS_PNC), 'w') as f:
         f.write(contents)
         f.flush()
 
@@ -604,6 +618,64 @@ def test_fetch_maven_artifacts_nvr_schema_error(tmpdir, docker_tasker, user_para
     mock_koji_session()
     mock_fetch_artifacts_by_nvr(str(tmpdir), contents=contents)
     mock_nvr_downloads()
+
+    make_and_store_reactor_config_map(workflow)
+
+    runner = PreBuildPluginsRunner(
+        docker_tasker,
+        workflow,
+        [{
+            'name': FetchMavenArtifactsPlugin.key,
+            'args': {}
+        }]
+    )
+
+    with pytest.raises(PluginFailedException) as e:
+        runner.run()
+
+    assert 'OsbsValidationException' in str(e.value)
+
+
+@pytest.mark.parametrize('contents', (  # noqa
+    dedent("""\
+        builds:
+          - buid_id: invalid attribute
+        """),
+
+    dedent("""\
+        builds:
+          build_id: not a list
+        """),
+
+    dedent("""\
+        builds:
+          - build_id: 12345
+            artifacts: not a list
+        """),
+
+    dedent("""\
+        builds:
+          - build_id: 12345
+            artifacts:
+              - filenamo: invalid attribute
+        """),
+
+    dedent("""\
+        metadata:
+          create_by: author
+        builds:
+          - build_id: 12345
+            artifacts:
+              - filename: invalid attribute
+        """),
+
+))
+@responses.activate
+def test_fetch_maven_artifacts_pnc_schema_error(tmpdir, docker_tasker, user_params, contents):
+    """Err on invalid format for fetch-artifacts-pnc.yaml"""
+    workflow = mock_workflow(tmpdir)
+    mock_koji_session()
+    mock_fetch_artifacts_by_pnc_build_id(str(tmpdir), contents=contents)
 
     make_and_store_reactor_config_map(workflow)
 

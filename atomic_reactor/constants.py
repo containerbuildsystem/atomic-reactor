@@ -162,6 +162,7 @@ MEDIA_TYPE_OCI_V1_INDEX = "application/vnd.oci.image.index.v1+json"
 REPO_CONTAINER_CONFIG = 'container.yaml'
 REPO_CONTENT_SETS_CONFIG = 'content_sets.yml'
 REPO_FETCH_ARTIFACTS_URL = 'fetch-artifacts-url.yaml'
+REPO_FETCH_ARTIFACTS_PNC = 'fetch-artifacts-pnc.yaml'
 REPO_FETCH_ARTIFACTS_KOJI = 'fetch-artifacts-koji.yaml'
 
 DOCKERIGNORE = '.dockerignore'
@@ -195,6 +196,7 @@ IMAGE_BUILD_INFO_DIR = '/root/buildinfo/'
 USER_CONFIG_FILES = {
     # filename: json schema file
     REPO_FETCH_ARTIFACTS_URL: 'schemas/fetch-artifacts-url.json',
+    REPO_FETCH_ARTIFACTS_PNC: 'schemas/fetch-artifacts-pnc.json',
     REPO_FETCH_ARTIFACTS_KOJI: 'schemas/fetch-artifacts-nvr.json',
     REPO_CONTENT_SETS_CONFIG: 'schemas/content_sets.json',
 }
