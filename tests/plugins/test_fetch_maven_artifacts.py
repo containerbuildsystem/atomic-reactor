@@ -169,40 +169,54 @@ DEFAULT_ARCHIVES = [
 
 REMOTE_FILE_SPAM = {
     'url': FILER_ROOT + '/spam/spam.jar',
+    'source-url': FILER_ROOT + '/spam/spam-sources.tar',
     'md5': 'ec61f019a3d0826c04ab20c55462aa24',
+    'source-md5': 'b4dbaf349d175aa5bbd5c5d076c00393',
 }
 
 
 REMOTE_FILE_BACON = {
     'url': FILER_ROOT + '/bacon/bacon.jar',
+    'source-url': FILER_ROOT + '/bacon/bacon-sources.tar',
     'md5': 'b4dbaf349d175aa5bbd5c5d076c00393',
+    'source-md5': 'b1605c846e03035a6538873e993847e5',
 }
 
 
 REMOTE_FILE_WITH_TARGET = {
     'url': FILER_ROOT + '/eggs/eggs.jar',
+    'source-url': FILER_ROOT + '/eggs/eggs-sources.tar',
     'md5': 'b1605c846e03035a6538873e993847e5',
+    'source-md5': 'ec61f019a3d0826c04ab20c55462aa24',
     'target': 'sgge.jar'
 }
 
 
 REMOTE_FILE_SHA1 = {
     'url': FILER_ROOT + '/ham/ham.jar',
+    'source-url': FILER_ROOT + '/ham/ham-sources.tar',
     'sha1': 'c4f8d66d78f5ed17299ae88fed9f8a8c6f3c592a',
+    'source-sha1': '0eb3dc253aeda45e272f07cf6e77fcc8bcf6628a',
 }
 
 
 REMOTE_FILE_SHA256 = {
     'url': FILER_ROOT + '/sausage/sausage.jar',
+    'source-url': FILER_ROOT + '/sausage/sausage-sources.tar',
     'sha256': '0da8e7df6c45b1006b10e4d0df5e1a8d5c4dc17c2c9c0ab53c5714dadb705d1c',
+    'source-sha256': '05892a95a8257a6c51a5ee4ba122e14e9719d7ead3b1d44e7fbea604da2fc8d1'
 }
 
 
 REMOTE_FILE_MULTI_HASH = {
     'url': FILER_ROOT + '/biscuit/biscuit.jar',
+    'source-url': FILER_ROOT + '/biscuit/biscuit-sources.tar',
     'sha256': '05892a95a8257a6c51a5ee4ba122e14e9719d7ead3b1d44e7fbea604da2fc8d1',
+    'source-sha256': '0da8e7df6c45b1006b10e4d0df5e1a8d5c4dc17c2c9c0ab53c5714dadb705d1c',
     'sha1': '0eb3dc253aeda45e272f07cf6e77fcc8bcf6628a',
+    'source-sha1': 'c4f8d66d78f5ed17299ae88fed9f8a8c6f3c592a',
     'md5': '24e4dec8666658ec7141738dbde951c5',
+    'source-md5': 'b1605c846e03035a6538873e993847e5',
 }
 
 
@@ -723,6 +737,12 @@ def test_fetch_maven_artifacts_url_bad_url(tmpdir, docker_tasker, user_params):
 
     dedent("""\
         - url: missing hashing
+        """),
+
+    dedent("""\
+        - url: missing source hashing
+          source-url: source
+          md5: cac3a36cfefd5baced859ac3cd9e2329
         """),
 
     dedent("""\
