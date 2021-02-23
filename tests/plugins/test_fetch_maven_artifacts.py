@@ -15,18 +15,12 @@ import responses
 import yaml
 
 from atomic_reactor.constants import REPO_FETCH_ARTIFACTS_KOJI, REPO_FETCH_ARTIFACTS_URL
-from atomic_reactor.inner import DockerBuildWorkflow
-from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
+from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.pre_fetch_maven_artifacts import FetchMavenArtifactsPlugin
-from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY,
-                                                       ReactorConfig)
 from osbs.utils import ImageName
-from tests.constants import MOCK_SOURCE, MOCK
 from textwrap import dedent
 
-if MOCK:
-    from tests.retry_mock import mock_get_retry_session
+from tests.mock_env import MockEnv
 
 KOJI_HUB = 'https://koji-hub.com'
 KOJI_ROOT = 'https://koji-root.com'
@@ -34,9 +28,7 @@ KOJI_ROOT = 'https://koji-root.com'
 FILER_ROOT_DOMAIN = 'filer.com'
 FILER_ROOT = 'https://' + FILER_ROOT_DOMAIN
 
-
 DEFAULT_KOJI_BUILD_ID = 472397
-
 
 DEFAULT_KOJI_BUILD = {
     'build_id': DEFAULT_KOJI_BUILD_ID,
@@ -46,7 +38,6 @@ DEFAULT_KOJI_BUILD = {
     'release': '1',
     'version': '2.2.11.4',
 }
-
 
 ARCHIVE_JAXB_SUN_POM = {
     'artifact_id': 'jaxb-core',
@@ -60,7 +51,6 @@ ARCHIVE_JAXB_SUN_POM = {
     'version': '2.2.11-4'
 }
 
-
 ARCHIVE_JAXB_SUN_JAR = {
     'artifact_id': 'jaxb-core',
     'build_id': 472397,
@@ -72,7 +62,6 @@ ARCHIVE_JAXB_SUN_JAR = {
     'size': 252461,
     'version': '2.2.11-4'
 }
-
 
 ARCHIVE_JAXB_JAVADOC_SUN_JAR = {
     'artifact_id': 'jaxb-core',
@@ -86,7 +75,6 @@ ARCHIVE_JAXB_JAVADOC_SUN_JAR = {
     'version': '2.2.11-4'
 }
 
-
 ARCHIVE_JAXB_GLASSFISH_POM = {
     'artifact_id': 'jaxb-core',
     'build_id': 472397,
@@ -98,7 +86,6 @@ ARCHIVE_JAXB_GLASSFISH_POM = {
     'size': 3092,
     'version': '2.2.11-4'
 }
-
 
 ARCHIVE_JAXB_GLASSFISH_JAR = {
     'artifact_id': 'jaxb-core',
@@ -112,7 +99,6 @@ ARCHIVE_JAXB_GLASSFISH_JAR = {
     'version': '2.2.11-4'
 }
 
-
 ARCHIVE_JAXB_JAVADOC_GLASSFIX_JAR = {
     'artifact_id': 'jaxb-core',
     'build_id': 472397,
@@ -124,7 +110,6 @@ ARCHIVE_JAXB_JAVADOC_GLASSFIX_JAR = {
     'size': 524417,
     'version': '2.2.11-4'
 }
-
 
 ARCHIVE_SHA1 = {
     'artifact_id': 'jaxb-sha1',
@@ -138,7 +123,6 @@ ARCHIVE_SHA1 = {
     'version': '2.2.11-4'
 }
 
-
 ARCHIVE_SHA256 = {
     'artifact_id': 'jaxb-sha256',
     'build_id': 472397,
@@ -150,7 +134,6 @@ ARCHIVE_SHA256 = {
     'size': 524417,
     'version': '2.2.11-4'
 }
-
 
 # To avoid having to actually download archives during testing,
 # the checksum value is based on the mocked download response,
@@ -166,45 +149,52 @@ DEFAULT_ARCHIVES = [
     ARCHIVE_SHA256,
 ]
 
-
 REMOTE_FILE_SPAM = {
     'url': FILER_ROOT + '/spam/spam.jar',
+    'source-url': FILER_ROOT + '/spam/spam-sources.tar',
     'md5': 'ec61f019a3d0826c04ab20c55462aa24',
+    'source-md5': 'b4dbaf349d175aa5bbd5c5d076c00393',
 }
-
 
 REMOTE_FILE_BACON = {
     'url': FILER_ROOT + '/bacon/bacon.jar',
+    'source-url': FILER_ROOT + '/bacon/bacon-sources.tar',
     'md5': 'b4dbaf349d175aa5bbd5c5d076c00393',
+    'source-md5': 'b1605c846e03035a6538873e993847e5',
 }
-
 
 REMOTE_FILE_WITH_TARGET = {
     'url': FILER_ROOT + '/eggs/eggs.jar',
+    'source-url': FILER_ROOT + '/eggs/eggs-sources.tar',
     'md5': 'b1605c846e03035a6538873e993847e5',
+    'source-md5': 'ec61f019a3d0826c04ab20c55462aa24',
     'target': 'sgge.jar'
 }
 
-
 REMOTE_FILE_SHA1 = {
     'url': FILER_ROOT + '/ham/ham.jar',
+    'source-url': FILER_ROOT + '/ham/ham-sources.tar',
     'sha1': 'c4f8d66d78f5ed17299ae88fed9f8a8c6f3c592a',
+    'source-sha1': '0eb3dc253aeda45e272f07cf6e77fcc8bcf6628a',
 }
-
 
 REMOTE_FILE_SHA256 = {
     'url': FILER_ROOT + '/sausage/sausage.jar',
+    'source-url': FILER_ROOT + '/sausage/sausage-sources.tar',
     'sha256': '0da8e7df6c45b1006b10e4d0df5e1a8d5c4dc17c2c9c0ab53c5714dadb705d1c',
+    'source-sha256': '05892a95a8257a6c51a5ee4ba122e14e9719d7ead3b1d44e7fbea604da2fc8d1'
 }
-
 
 REMOTE_FILE_MULTI_HASH = {
     'url': FILER_ROOT + '/biscuit/biscuit.jar',
+    'source-url': FILER_ROOT + '/biscuit/biscuit-sources.tar',
     'sha256': '05892a95a8257a6c51a5ee4ba122e14e9719d7ead3b1d44e7fbea604da2fc8d1',
+    'source-sha256': '0da8e7df6c45b1006b10e4d0df5e1a8d5c4dc17c2c9c0ab53c5714dadb705d1c',
     'sha1': '0eb3dc253aeda45e272f07cf6e77fcc8bcf6628a',
+    'source-sha1': 'c4f8d66d78f5ed17299ae88fed9f8a8c6f3c592a',
     'md5': '24e4dec8666658ec7141738dbde951c5',
+    'source-md5': 'b1605c846e03035a6538873e993847e5',
 }
-
 
 # To avoid having to actually download archives during testing,
 # the md5 value is based on the mocked download response,
@@ -215,7 +205,6 @@ DEFAULT_REMOTE_FILES = [REMOTE_FILE_SPAM, REMOTE_FILE_BACON, REMOTE_FILE_WITH_TA
 
 class MockSource(object):
     def __init__(self, tmpdir):
-        tmpdir = str(tmpdir)
         self.dockerfile_path = os.path.join(tmpdir, 'Dockerfile')
         self.path = tmpdir
 
@@ -241,10 +230,30 @@ class MockedPathInfo(object):
         return '{group_id}/{artifact_id}/{version}/{filename}'.format(**maveninfo)
 
 
+def mock_env(tmpdir, domains_override=None):
+    r_c_m = {'version': 1,
+             'koji': {
+                 'hub_url': KOJI_HUB,
+                 'root_url': KOJI_ROOT,
+                 'auth': {}
+             }}
+
+    if domains_override:
+        r_c_m.setdefault('artifacts_allowed_domains', domains_override)
+
+    env = (MockEnv()
+           .for_plugin('prebuild', FetchMavenArtifactsPlugin.key)
+           .make_orchestrator()
+           .set_reactor_config(r_c_m))
+
+    env.workflow.source = MockSource(tmpdir)
+
+    return env
+
+
 def mock_koji_session(koji_proxyuser=None, koji_ssl_certs_dir=None,
                       koji_krb_principal=None, koji_krb_keytab=None,
                       build_info=None, archives=None):
-
     if not build_info:
         build_info = DEFAULT_KOJI_BUILD
     if not archives:
@@ -276,17 +285,6 @@ def mock_koji_session(koji_proxyuser=None, koji_ssl_certs_dir=None,
         .should_receive('krb_login')
         .and_return(True))
     return session
-
-
-def mock_workflow(tmpdir):
-    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
-    mock_source = MockSource(tmpdir)
-    setattr(workflow, 'builder', X)
-    workflow.builder.source = mock_source
-    flexmock(workflow, source=mock_source)
-    mock_get_retry_session()
-
-    return workflow
 
 
 def mock_fetch_artifacts_by_nvr(tmpdir, contents=None):
@@ -334,7 +332,7 @@ def mock_url_downloads(remote_files=None, overrides=None):
     if not overrides:
         overrides = {}
 
-    for remote_file in DEFAULT_REMOTE_FILES:
+    for remote_file in remote_files:
         url = remote_file['url']
         # Use any overrides for this url
         remote_file_overrides = overrides.get(url, {})
@@ -343,51 +341,21 @@ def mock_url_downloads(remote_files=None, overrides=None):
         responses.add(responses.GET, url, body=body, status=status)
 
 
-def make_and_store_reactor_config_map(workflow, additional=None):
-    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-
-    reactor_map = {
-        'version': 1,
-        'koji': {
-            'hub_url': KOJI_HUB,
-            'root_url': KOJI_ROOT,
-            'auth': {}
-        }
-    }
-    if additional:
-        reactor_map.update(additional)
-
-    workflow.plugin_workspace[ReactorConfigPlugin.key] = {
-        WORKSPACE_CONF_KEY: ReactorConfig(reactor_map)
-    }
-
-
 @responses.activate  # noqa
 def test_fetch_maven_artifacts(tmpdir, docker_tasker, user_params):
-    workflow = mock_workflow(tmpdir)
     mock_koji_session()
-    mock_fetch_artifacts_by_nvr(str(tmpdir))
-    mock_fetch_artifacts_by_url(str(tmpdir))
+    mock_fetch_artifacts_by_nvr(tmpdir)
+    mock_fetch_artifacts_by_url(tmpdir)
     mock_nvr_downloads()
     mock_url_downloads()
 
-    make_and_store_reactor_config_map(workflow)
+    results = mock_env(tmpdir).create_runner(docker_tasker).run()
 
-    runner = PreBuildPluginsRunner(
-        docker_tasker,
-        workflow,
-        [{
-            'name': FetchMavenArtifactsPlugin.key,
-            'args': {}
-        }]
-    )
-
-    results = runner.run()
     plugin_result = results[FetchMavenArtifactsPlugin.key]
 
     assert len(plugin_result) == len(DEFAULT_ARCHIVES) + len(DEFAULT_REMOTE_FILES)
     for download in plugin_result:
-        dest = os.path.join(str(tmpdir), FetchMavenArtifactsPlugin.DOWNLOAD_DIR, download.dest)
+        dest = os.path.join(tmpdir, FetchMavenArtifactsPlugin.DOWNLOAD_DIR, download.dest)
         assert os.path.exists(dest)
 
 
@@ -422,23 +390,12 @@ def test_fetch_maven_artifacts(tmpdir, docker_tasker, user_params):
 def test_fetch_maven_artifacts_nvr_filtering(tmpdir, docker_tasker, user_params,
                                              nvr_requests, expected):
     """Test filtering of archives in a Koji build."""
-    workflow = mock_workflow(tmpdir)
     mock_koji_session()
-    mock_fetch_artifacts_by_nvr(str(tmpdir), contents=yaml.safe_dump(nvr_requests))
+    mock_fetch_artifacts_by_nvr(tmpdir, contents=yaml.safe_dump(nvr_requests))
     mock_nvr_downloads(archives=expected)
 
-    make_and_store_reactor_config_map(workflow)
+    results = mock_env(tmpdir).create_runner(docker_tasker).run()
 
-    runner = PreBuildPluginsRunner(
-        docker_tasker,
-        workflow,
-        [{
-            'name': FetchMavenArtifactsPlugin.key,
-            'args': {}
-        }]
-    )
-
-    results = runner.run()
     plugin_result = results[FetchMavenArtifactsPlugin.key]
 
     assert len(plugin_result) == len(expected)
@@ -447,7 +404,7 @@ def test_fetch_maven_artifacts_nvr_filtering(tmpdir, docker_tasker, user_params,
     assert (set(list(download.checksums.values())[0] for download in plugin_result) ==
             set(expectation['checksum'] for expectation in expected))
     for download in plugin_result:
-        dest = os.path.join(str(tmpdir), FetchMavenArtifactsPlugin.DOWNLOAD_DIR, download.dest)
+        dest = os.path.join(tmpdir, FetchMavenArtifactsPlugin.DOWNLOAD_DIR, download.dest)
         assert os.path.exists(dest)
 
 
@@ -475,24 +432,12 @@ def test_fetch_maven_artifacts_nvr_filtering(tmpdir, docker_tasker, user_params,
 def test_fetch_maven_artifacts_nvr_no_match(tmpdir, docker_tasker, user_params,
                                             nvr_requests, error_msg):
     """Err when a requested archive is not found in Koji build."""
-    workflow = mock_workflow(tmpdir)
     mock_koji_session()
-    mock_fetch_artifacts_by_nvr(str(tmpdir), contents=yaml.safe_dump(nvr_requests))
+    mock_fetch_artifacts_by_nvr(tmpdir, contents=yaml.safe_dump(nvr_requests))
     mock_nvr_downloads()
 
-    make_and_store_reactor_config_map(workflow)
-
-    runner = PreBuildPluginsRunner(
-        docker_tasker,
-        workflow,
-        [{
-            'name': FetchMavenArtifactsPlugin.key,
-            'args': {}
-        }]
-    )
-
     with pytest.raises(PluginFailedException) as e:
-        runner.run()
+        mock_env(tmpdir).create_runner(docker_tasker).run()
 
     assert 'failed to find archives' in str(e.value)
     assert error_msg in str(e.value)
@@ -501,24 +446,12 @@ def test_fetch_maven_artifacts_nvr_no_match(tmpdir, docker_tasker, user_params,
 @responses.activate  # noqa
 def test_fetch_maven_artifacts_nvr_bad_checksum(tmpdir, docker_tasker, user_params):
     """Err when downloaded archive from Koji build has unexpected checksum."""
-    workflow = mock_workflow(tmpdir)
     mock_koji_session()
-    mock_fetch_artifacts_by_nvr(str(tmpdir))
+    mock_fetch_artifacts_by_nvr(tmpdir)
     mock_nvr_downloads(overrides={1269850: {'body': 'corrupted-file'}})
 
-    make_and_store_reactor_config_map(workflow)
-
-    runner = PreBuildPluginsRunner(
-        docker_tasker,
-        workflow,
-        [{
-            'name': FetchMavenArtifactsPlugin.key,
-            'args': {}
-        }]
-    )
-
     with pytest.raises(PluginFailedException) as e:
-        runner.run()
+        mock_env(tmpdir).create_runner(docker_tasker).run()
 
     assert 'does not match expected checksum' in str(e.value)
 
@@ -526,24 +459,12 @@ def test_fetch_maven_artifacts_nvr_bad_checksum(tmpdir, docker_tasker, user_para
 @responses.activate  # noqa
 def test_fetch_maven_artifacts_nvr_bad_url(tmpdir, docker_tasker, user_params):
     """Err on download errors for artifact from Koji build."""
-    workflow = mock_workflow(tmpdir)
     mock_koji_session()
-    mock_fetch_artifacts_by_nvr(str(tmpdir))
+    mock_fetch_artifacts_by_nvr(tmpdir)
     mock_nvr_downloads(overrides={1269850: {'status': 404}})
 
-    make_and_store_reactor_config_map(workflow)
-
-    runner = PreBuildPluginsRunner(
-        docker_tasker,
-        workflow,
-        [{
-            'name': FetchMavenArtifactsPlugin.key,
-            'args': {}
-        }]
-    )
-
     with pytest.raises(PluginFailedException) as e:
-        runner.run()
+        mock_env(tmpdir).create_runner(docker_tasker).run()
 
     assert '404 Client Error' in str(e.value)
 
@@ -551,27 +472,15 @@ def test_fetch_maven_artifacts_nvr_bad_url(tmpdir, docker_tasker, user_params):
 @responses.activate  # noqa
 def test_fetch_maven_artifacts_nvr_bad_nvr(tmpdir, docker_tasker, user_params):
     """Err when given nvr is not a valid build in Koji."""
-    workflow = mock_workflow(tmpdir)
     mock_koji_session()
     contents = dedent("""\
         - nvr: where-is-this-build-3.0-2
         """)
-    mock_fetch_artifacts_by_nvr(str(tmpdir), contents=contents)
+    mock_fetch_artifacts_by_nvr(tmpdir, contents=contents)
     mock_nvr_downloads()
 
-    make_and_store_reactor_config_map(workflow)
-
-    runner = PreBuildPluginsRunner(
-        docker_tasker,
-        workflow,
-        [{
-            'name': FetchMavenArtifactsPlugin.key,
-            'args': {}
-        }]
-    )
-
     with pytest.raises(PluginFailedException) as e:
-        runner.run()
+        mock_env(tmpdir).create_runner(docker_tasker).run()
 
     assert 'Build where-is-this-build-3.0-2 not found' in str(e.value)
 
@@ -600,24 +509,12 @@ def test_fetch_maven_artifacts_nvr_bad_nvr(tmpdir, docker_tasker, user_params):
 @responses.activate
 def test_fetch_maven_artifacts_nvr_schema_error(tmpdir, docker_tasker, user_params, contents):
     """Err on invalid format for fetch-artifacts-koji.yaml"""
-    workflow = mock_workflow(tmpdir)
     mock_koji_session()
-    mock_fetch_artifacts_by_nvr(str(tmpdir), contents=contents)
+    mock_fetch_artifacts_by_nvr(tmpdir, contents=contents)
     mock_nvr_downloads()
 
-    make_and_store_reactor_config_map(workflow)
-
-    runner = PreBuildPluginsRunner(
-        docker_tasker,
-        workflow,
-        [{
-            'name': FetchMavenArtifactsPlugin.key,
-            'args': {}
-        }]
-    )
-
     with pytest.raises(PluginFailedException) as e:
-        runner.run()
+        mock_env(tmpdir).create_runner(docker_tasker).run()
 
     assert 'OsbsValidationException' in str(e.value)
 
@@ -630,24 +527,12 @@ def test_fetch_maven_artifacts_nvr_schema_error(tmpdir, docker_tasker, user_para
 def test_fetch_maven_artifacts_url_with_target(tmpdir, docker_tasker, user_params,
                                                contents, expected):
     """Remote file is downloaded into specified filename."""
-    workflow = mock_workflow(tmpdir)
     mock_koji_session()
     remote_files = contents
-    mock_fetch_artifacts_by_url(str(tmpdir), contents=yaml.safe_dump(remote_files))
+    mock_fetch_artifacts_by_url(tmpdir, contents=yaml.safe_dump(remote_files))
     mock_url_downloads(remote_files)
 
-    make_and_store_reactor_config_map(workflow)
-
-    runner = PreBuildPluginsRunner(
-        docker_tasker,
-        workflow,
-        [{
-            'name': FetchMavenArtifactsPlugin.key,
-            'args': {}
-        }]
-    )
-
-    results = runner.run()
+    results = mock_env(tmpdir).create_runner(docker_tasker).run()
     plugin_result = results[FetchMavenArtifactsPlugin.key]
 
     assert len(plugin_result) == len(expected)
@@ -656,7 +541,7 @@ def test_fetch_maven_artifacts_url_with_target(tmpdir, docker_tasker, user_param
         return
 
     download = plugin_result[0]
-    dest = os.path.join(str(tmpdir), FetchMavenArtifactsPlugin.DOWNLOAD_DIR, download.dest)
+    dest = os.path.join(tmpdir, FetchMavenArtifactsPlugin.DOWNLOAD_DIR, download.dest)
     assert os.path.exists(dest)
     assert download.dest == REMOTE_FILE_WITH_TARGET['target']
     assert not REMOTE_FILE_WITH_TARGET['url'].endswith(download.dest)
@@ -665,24 +550,12 @@ def test_fetch_maven_artifacts_url_with_target(tmpdir, docker_tasker, user_param
 @responses.activate  # noqa
 def test_fetch_maven_artifacts_url_bad_checksum(tmpdir, docker_tasker, user_params):
     """Err when downloaded remote file has unexpected checksum."""
-    workflow = mock_workflow(tmpdir)
     mock_koji_session()
-    mock_fetch_artifacts_by_url(str(tmpdir))
+    mock_fetch_artifacts_by_url(tmpdir)
     mock_url_downloads(overrides={REMOTE_FILE_SPAM['url']: {'body': 'corrupted-file'}})
 
-    make_and_store_reactor_config_map(workflow)
-
-    runner = PreBuildPluginsRunner(
-        docker_tasker,
-        workflow,
-        [{
-            'name': FetchMavenArtifactsPlugin.key,
-            'args': {}
-        }]
-    )
-
     with pytest.raises(PluginFailedException) as e:
-        runner.run()
+        mock_env(tmpdir).create_runner(docker_tasker).run()
 
     assert 'does not match expected checksum' in str(e.value)
 
@@ -690,24 +563,12 @@ def test_fetch_maven_artifacts_url_bad_checksum(tmpdir, docker_tasker, user_para
 @responses.activate  # noqa
 def test_fetch_maven_artifacts_url_bad_url(tmpdir, docker_tasker, user_params):
     """Err on download errors for remote file."""
-    workflow = mock_workflow(tmpdir)
     mock_koji_session()
-    mock_fetch_artifacts_by_url(str(tmpdir))
+    mock_fetch_artifacts_by_url(tmpdir)
     mock_url_downloads(overrides={REMOTE_FILE_SPAM['url']: {'status': 404}})
 
-    make_and_store_reactor_config_map(workflow)
-
-    runner = PreBuildPluginsRunner(
-        docker_tasker,
-        workflow,
-        [{
-            'name': FetchMavenArtifactsPlugin.key,
-            'args': {}
-        }]
-    )
-
     with pytest.raises(PluginFailedException) as e:
-        runner.run()
+        mock_env(tmpdir).create_runner(docker_tasker).run()
 
     assert '404 Client Error' in str(e.value)
 
@@ -723,6 +584,12 @@ def test_fetch_maven_artifacts_url_bad_url(tmpdir, docker_tasker, user_params):
 
     dedent("""\
         - url: missing hashing
+        """),
+
+    dedent("""\
+        - url: missing source hashing
+          source-url: source
+          md5: cac3a36cfefd5baced859ac3cd9e2329
         """),
 
     dedent("""\
@@ -743,23 +610,12 @@ def test_fetch_maven_artifacts_url_bad_url(tmpdir, docker_tasker, user_params):
 @responses.activate
 def test_fetch_maven_artifacts_url_schema_error(tmpdir, docker_tasker, user_params, contents):
     """Err on invalid format for fetch-artifacts-url.yaml"""
-    workflow = mock_workflow(tmpdir)
     mock_koji_session()
-    mock_fetch_artifacts_by_url(str(tmpdir), contents=contents)
+    mock_fetch_artifacts_by_url(tmpdir, contents=contents)
     mock_url_downloads()
 
-    make_and_store_reactor_config_map(workflow)
-    runner = PreBuildPluginsRunner(
-        docker_tasker,
-        workflow,
-        [{
-            'name': FetchMavenArtifactsPlugin.key,
-            'args': {}
-        }]
-    )
-
     with pytest.raises(PluginFailedException) as e:
-        runner.run()
+        mock_env(tmpdir).create_runner(docker_tasker).run()
 
     assert 'OsbsValidationException' in str(e.value)
 
@@ -785,23 +641,11 @@ def test_fetch_maven_artifacts_url_schema_error(tmpdir, docker_tasker, user_para
 def test_fetch_maven_artifacts_url_allowed_domains(tmpdir, docker_tasker, user_params,
                                                    domains, raises):
     """Validate URL domain is allowed when fetching remote file."""
-    workflow = mock_workflow(tmpdir)
     mock_koji_session()
-    mock_fetch_artifacts_by_url(str(tmpdir))
+    mock_fetch_artifacts_by_url(tmpdir)
     mock_url_downloads()
 
-    make_and_store_reactor_config_map(workflow, {'artifacts_allowed_domains': domains})
-
-    runner = PreBuildPluginsRunner(
-        docker_tasker,
-        workflow,
-        [{
-            'name': FetchMavenArtifactsPlugin.key,
-            'args': {
-                'allowed_domains': domains,
-            }
-        }]
-    )
+    runner = mock_env(tmpdir, domains_override=domains).create_runner(docker_tasker)
 
     if raises:
         with pytest.raises(PluginFailedException) as e:
@@ -812,13 +656,12 @@ def test_fetch_maven_artifacts_url_allowed_domains(tmpdir, docker_tasker, user_p
         results = runner.run()
         plugin_result = results[FetchMavenArtifactsPlugin.key]
         for download in plugin_result:
-            dest = os.path.join(str(tmpdir), FetchMavenArtifactsPlugin.DOWNLOAD_DIR, download.dest)
+            dest = os.path.join(tmpdir, FetchMavenArtifactsPlugin.DOWNLOAD_DIR, download.dest)
             assert os.path.exists(dest)
 
 
 @responses.activate  # noqa
 def test_fetch_maven_artifacts_commented_out_files(tmpdir, docker_tasker, user_params):
-    workflow = mock_workflow(tmpdir)
     mock_koji_session()
     contents = dedent("""\
         # This file
@@ -827,25 +670,14 @@ def test_fetch_maven_artifacts_commented_out_files(tmpdir, docker_tasker, user_p
         # and absolutely
         # commented out!
         """)
-    mock_fetch_artifacts_by_nvr(str(tmpdir), contents=contents)
-    mock_fetch_artifacts_by_url(str(tmpdir), contents=contents)
+    mock_fetch_artifacts_by_nvr(tmpdir, contents=contents)
+    mock_fetch_artifacts_by_url(tmpdir, contents=contents)
     mock_nvr_downloads()
     mock_url_downloads()
 
-    make_and_store_reactor_config_map(workflow)
-
-    runner = PreBuildPluginsRunner(
-        docker_tasker,
-        workflow,
-        [{
-            'name': FetchMavenArtifactsPlugin.key,
-            'args': {}
-        }]
-    )
-
-    results = runner.run()
+    results = mock_env(tmpdir).create_runner(docker_tasker).run()
     plugin_result = results[FetchMavenArtifactsPlugin.key]
 
     assert len(plugin_result) == 0
-    artifacts_dir = os.path.join(str(tmpdir), FetchMavenArtifactsPlugin.DOWNLOAD_DIR)
+    artifacts_dir = os.path.join(tmpdir, FetchMavenArtifactsPlugin.DOWNLOAD_DIR)
     assert not os.path.exists(artifacts_dir)
