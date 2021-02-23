@@ -27,6 +27,25 @@
         "type": "string",
         "pattern": "^[a-f0-9]{64}$"
       },
+      "source-url": {
+        "description": "The URL to be used to fetch artifact source",
+        "type": "string"
+      },
+      "source-md5": {
+        "description": "The md5 checksum of the artifact source",
+        "type": "string",
+        "pattern": "^[a-f0-9]{32}$"
+      },
+      "source-sha1": {
+        "description": "The sha1 checksum of the artifact source",
+        "type": "string",
+        "pattern": "^[a-f0-9]{40}$"
+      },
+      "source-sha256": {
+        "description": "The sha256 checksum of the artifact source",
+        "type": "string",
+        "pattern": "^[a-f0-9]{64}$"
+      },
       "target": {
         "description": "Name to be used when saving artifact to disk",
         "type": "string"
@@ -44,6 +63,21 @@
       {
         "required": ["sha256"]
       }
-    ]
+    ],
+    "dependencies": {
+      "source-url": {
+        "anyOf": [
+          {
+            "required": ["source-md5"]
+          },
+          {
+            "required": ["source-sha1"]
+          },
+          {
+            "required": ["source-sha256"]
+          }
+        ]
+      }
+    }
   }
 }
