@@ -18,7 +18,7 @@ import logging
 
 from urllib.parse import unquote, urlsplit
 import configparser
-from io import BytesIO, StringIO
+from io import StringIO
 
 
 logger = logging.getLogger(__name__)
@@ -78,22 +78,13 @@ class YumRepo(object):
         self.content = response.content
 
     def is_valid(self):
-        # Using BytesIO as configparser in 2.7 can't work with unicode
-        # see http://bugs.python.org/issue11597
-        with BytesIO(self.content) as buf:
+        try:
             self.config = configparser.ConfigParser()
-            try:
-                try:
-                    # Try python3 method
-                    self.config.read_string(self._content)
-                except AttributeError:
-                    # Fall back to python2 method
-                    self.config.readfp(buf)  # pylint: disable=deprecated-method
-            except configparser.Error:
-                logger.warning("Invalid repo file found: '%s'", self.content)
-                return False
-            else:
-                return True
+            self.config.read_string(self._content)
+        except configparser.Error:
+            logger.warning("Invalid repo file found: '%s'", self.content)
+            return False
+        return True
 
     def set_proxy_for_all_repos(self, proxy_name):
         for section in self.config.sections():

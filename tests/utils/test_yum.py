@@ -10,7 +10,6 @@ is done in test_add_yum_repo_by_url
 """
 from fnmatch import fnmatch
 import os
-import sys
 from atomic_reactor.utils.yum import YumRepo
 import pytest
 
@@ -32,10 +31,7 @@ def test_add_repo_to_url(repourl, add_hash, pattern):
 
 def test_invalid_config():
     repo = YumRepo('http://example.com/a/b/c/myrepo.repo', 'line noise')
-    if (sys.version_info < (3, 0)):
-        assert not repo.is_valid()
-    else:
-        assert True
+    assert not repo.is_valid()
 
 
 def test_write_content(tmpdir):
