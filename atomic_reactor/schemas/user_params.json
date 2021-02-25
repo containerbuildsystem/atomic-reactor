@@ -63,6 +63,7 @@
         ".*": {"type": "string"}
       }
     },
+    "operator_csv_modifications_url": {"type": "string"},
     "operator_manifests_extract_platform": {"type": "string"},
     "orchestrator_deadline": {"type": "integer"},
     "platform": {"type": "string"},
