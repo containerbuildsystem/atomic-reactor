@@ -5,7 +5,6 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
-import fnmatch
 import hashlib
 import koji
 import os
@@ -20,54 +19,17 @@ from atomic_reactor.plugins.pre_reactor_config import (get_koji_session,
                                                        get_koji_path_info,
                                                        get_artifacts_allowed_domains)
 from collections import namedtuple
+from atomic_reactor.utils.koji import NvrRequest
 
 try:
     from urlparse import urlparse
 except ImportError:
     from urllib.parse import urlparse
 
-
-class NvrRequest(object):
-
-    def __init__(self, nvr, archives=None):
-        self.nvr = nvr
-        self.archives = archives or []
-
-        for archive in self.archives:
-            archive['matched'] = False
-
-    def match(self, build_archive):
-        if not self.archives:
-            return True
-
-        for archive in self.archives:
-            req_filename = archive.get('filename')
-            req_group_id = archive.get('group_id')
-
-            if req_filename and not fnmatch.filter([build_archive['filename']],
-                                                   req_filename):
-                continue
-
-            if req_group_id and req_group_id != build_archive['group_id']:
-                continue
-
-            archive['matched'] = True
-            return True
-
-        return False
-
-    def match_all(self, build_archives):
-        return [archive for archive in build_archives if self.match(archive)]
-
-    def unmatched(self):
-        return [archive for archive in self.archives if not archive['matched']]
-
-
 DownloadRequest = namedtuple('DownloadRequest', 'url dest checksums')
 
 
 class FetchMavenArtifactsPlugin(PreBuildPlugin):
-
     key = PLUGIN_FETCH_MAVEN_KEY
     is_allowed_to_fail = False
 
@@ -197,5 +159,4 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
 
         self.download_files(download_queue)
 
-        # TODO: Return a list of files for koji metadata
         return download_queue

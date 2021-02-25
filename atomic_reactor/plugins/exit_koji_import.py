@@ -27,7 +27,8 @@ from atomic_reactor.utils.koji import get_buildroot as koji_get_buildroot
 from atomic_reactor.utils.koji import get_output as koji_get_output
 from atomic_reactor.utils.koji import (
         generate_koji_upload_dir, add_custom_type,
-        get_source_tarball_output, get_remote_source_json_output
+        get_source_tarball_output, get_remote_source_json_output,
+        get_maven_components
 )
 from atomic_reactor.plugins.pre_reactor_config import get_openshift_session
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
@@ -373,6 +374,14 @@ class KojiImportBase(ExitPlugin):
         metadata_version = 0
 
         worker_metadatas = self.workflow.postbuild_results.get(PLUGIN_FETCH_WORKER_METADATA_KEY)
+        maven_components = get_maven_components(self.workflow)
+
+        # add maven components alongside RPM components
+        for platform in worker_metadatas.keys():
+            for worker_output in worker_metadatas[platform]['output']:
+                if worker_output['type'] == 'docker-image':
+                    worker_output['components'] += maven_components
+
         build = self.get_build(metadata, worker_metadatas)
         buildroot = self.get_buildroot(worker_metadatas)
         buildroot_id = buildroot[0]['id']
