@@ -606,11 +606,6 @@
         "description": "Command to retrieve artifacts in lookaside cache",
         "type": "string"
     },
-    "list_rpms_from_scratch": {
-        "description": "List rpms in FROM scratch base image",
-        "type": "boolean",
-        "default": true
-    },
     "allow_multiple_remote_sources": {
         "description": "Allow using multiple remote sources",
         "type": "boolean",
