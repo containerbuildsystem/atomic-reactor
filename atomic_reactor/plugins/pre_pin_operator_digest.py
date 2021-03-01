@@ -20,6 +20,10 @@ from atomic_reactor.util import (RegistrySession,
                                  RegistryClient,
                                  has_operator_bundle_manifest,
                                  read_yaml_from_url, df_parser)
+from osbs.utils.yaml import (
+    load_schema,
+    validate_with_schema,
+)
 from atomic_reactor.plugins.pre_reactor_config import get_operator_manifests
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
 from atomic_reactor.utils.operator import OperatorManifest
@@ -68,6 +72,18 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
         self.replacement_pullspecs = replacement_pullspecs or {}
         self.operator_csv_modifications_url = operator_csv_modifications_url
 
+    def _validate_operator_csv_modifications_schema(self, modifications):
+        """Validate if provided operator CSV modification are valid according schema"""
+        schema = load_schema(
+            'atomic_reactor',
+            'schemas/operator_csv_modifications.json'
+        )
+        validate_with_schema(modifications, schema)
+
+    def _validate_operator_csv_modifications(self, modifications):
+        """Validate if provided operator CSV modification correct"""
+        self._validate_operator_csv_modifications_schema(modifications)
+
     def _fetch_operator_csv_modifications(self):
         """Fetch operator CSV modifications"""
 
@@ -101,6 +117,7 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
 
         self.log.info("Operator CSV modifications: %s", csv_modifications)
 
+        self._validate_operator_csv_modifications(csv_modifications)
         return csv_modifications
 
     def run(self):
