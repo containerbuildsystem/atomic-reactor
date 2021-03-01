@@ -23,8 +23,10 @@ from atomic_reactor.constants import INSPECT_CONFIG, PLUGIN_PIN_OPERATOR_DIGESTS
 from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.build_orchestrate_build import (OrchestrateBuildPlugin,
                                                             WORKSPACE_KEY_OVERRIDE_KWARGS)
-from atomic_reactor.plugins.pre_pin_operator_digest import (PinOperatorDigestsPlugin,
-                                                            PullspecReplacer)
+from atomic_reactor.plugins.pre_pin_operator_digest import (
+    PinOperatorDigestsPlugin,
+    PullspecReplacer,
+    terminal_key_paths)
 from tests.util import OPERATOR_MANIFESTS_DIR
 
 from osbs.exceptions import OsbsValidationException
@@ -249,10 +251,12 @@ def get_build_kwarg(workflow, k, platform=None):
 
 
 def get_site_config(allowed_registries=None, registry_post_replace=None, repo_replacements=None,
-                    skip_all_allow_list=None):
+                    skip_all_allow_list=None,
+                    operator_csv_modifications_allowed_attributes=None):
     registry_post_replace = registry_post_replace or {}
     repo_replacements = repo_replacements or {}
     skip_allow_list = skip_all_allow_list or []
+    allowed_attributes = operator_csv_modifications_allowed_attributes or []
     return {
         'allowed_registries': allowed_registries,
         'registry_post_replace': [
@@ -262,7 +266,10 @@ def get_site_config(allowed_registries=None, registry_post_replace=None, repo_re
             {'registry': registry, 'package_mappings_url': path}
             for registry, path in repo_replacements.items()
         ],
-        'skip_all_allow_list': [package for package in skip_allow_list]
+        'skip_all_allow_list': [package for package in skip_allow_list],
+        'csv_modifications': {
+            'allowed_attributes': allowed_attributes,
+        },
     }
 
 
@@ -1058,12 +1065,18 @@ PULLSPEC_REPLACEMENTS = [
 class TestOperatorCSVModifications:
     """Test suite for user modifications for Operator CSV file"""
 
-    def _test_assert_error(self, *, tmpdir, docker_tasker, test_url, pull_specs, exc_msg):
+    def _test_assert_error(
+        self, *, tmpdir, docker_tasker, test_url, pull_specs, exc_msg,
+        operator_csv_modifications_allowed_attributes=None,
+    ):
         manifests_dir = tmpdir.join(OPERATOR_MANIFESTS_DIR).mkdir()
         mock_operator_csv(manifests_dir, 'csv.yaml', pull_specs)
 
         user_config = get_user_config(OPERATOR_MANIFESTS_DIR)
-        site_config = get_site_config()
+        allowed_attrs = operator_csv_modifications_allowed_attributes
+        site_config = get_site_config(
+            operator_csv_modifications_allowed_attributes=allowed_attrs,
+        )
 
         runner = mock_env(
             docker_tasker, tmpdir, orchestrator=True,
@@ -1297,3 +1310,61 @@ class TestOperatorCSVModifications:
             exc_msg=f"Provided CSV modifications contain duplicated "
                     f"original entries in pullspec_replacement: {test_pullspec}",
         )
+
+    @pytest.mark.parametrize('mods,exc_msg', [
+        (
+            {'update': {'spec': {'test.test': 'something'}}},
+            (
+                "Operator CSV attributes: spec.test\\.test; are not allowed to be modified "
+                "by service configuration. Attributes allowed for modification "
+                "are: spec.version"
+            )
+        ), (
+            {'append': {'spec': {'test.test': ['something']}}},
+            (
+                "Operator CSV attributes: spec.test\\.test; are not allowed to be modified "
+                "by service configuration. Attributes allowed for modification "
+                "are: spec.version"
+            )
+        )
+    ])
+    @responses.activate
+    def test_not_allowed_attributes_for_modifications(self, tmpdir, docker_tasker, mods, exc_msg):
+        """Test if not allowed attributes causes expected error"""
+        test_pullspec = "thesameimage:v1"
+        test_url = "https://example.com/modifications.json"
+        modification_data = {
+            "pullspec_replacements": [
+                {"original": test_pullspec, 'new': 'different:v1', 'pinned': False},
+            ]
+        }
+        modification_data.update(mods)
+        responses.add(responses.GET, test_url, json=modification_data)
+
+        self._test_assert_error(
+            tmpdir=tmpdir,
+            docker_tasker=docker_tasker,
+            test_url=test_url,
+            pull_specs=[test_pullspec],
+            exc_msg=exc_msg,
+            operator_csv_modifications_allowed_attributes=[
+                ['spec', 'version'],
+            ]
+        )
+
+
+@pytest.mark.parametrize('data,expected', [
+    (
+        {},
+        set()
+    ), (
+        {'a': 1},
+        {('a',)}
+    ), (
+        {'a': {'b': {'c': {'d1': 1, 'd2': 2}, 'c2': []}}},
+        {('a', 'b', 'c2'), ('a', 'b', 'c', 'd1'), ('a', 'b', 'c', 'd2')}
+    )
+])
+def test_terminal_key_paths(data, expected):
+    """Unittest for terminal_key_paths data"""
+    assert set(terminal_key_paths(data)) == expected

@@ -746,6 +746,25 @@
               "type": "string"
             },
             "examples": [null, ["centos-container", "rsyslog-container"]]
+          },
+          "csv_modifications": {
+              "description": "Section for configuration of operator CSV modifications",
+              "type": "object",
+              "properties": {
+                  "allowed_attributes": {
+                      "description": "Attributes allowed to be modified represented as sequence of nested keys",
+                      "examples": ["[[\"spec\", \"version\"], [\"metadata\", \"name\"]]"],
+                      "type": "array",
+                      "items": {
+                          "type": "array",
+                          "items": {
+                              "type": "string",
+                              "minItems": 1
+                          }
+                      }
+                  }
+              },
+              "additionalProperties": false
           }
         },
         "required": ["allowed_registries"],
