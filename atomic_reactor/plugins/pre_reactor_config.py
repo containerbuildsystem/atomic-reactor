@@ -335,10 +335,6 @@ def get_sources_command(workflow, fallback=NO_FALLBACK):
     return get_value(workflow, 'sources_command', fallback)
 
 
-def get_list_rpms_from_scratch(workflow):
-    return get_value(workflow, 'list_rpms_from_scratch', True)
-
-
 def get_required_secrets(workflow, fallback=NO_FALLBACK):
     return get_value(workflow, 'required_secrets', fallback)
 
