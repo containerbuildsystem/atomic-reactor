@@ -1,0 +1,80 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+
+  "title": "Operator CSV modifications",
+
+  "type": ["object"],
+  "properties": {
+    "pullspec_replacements": {
+      "description": "Definition of the pullspecs replacements in CSV file",
+      "type": "array",
+      "items": { "$ref": "#/definitions/pullspec_replacement" }
+    },
+    "append": {
+      "type": "object",
+      "description": "A nested map of attributes and values to append into current value of their counterparts in the CSV file. Final value must be a list",
+      "examples": ["{\"spec\": { \"skips\": [\"1.0.0\"]}"],
+      "additionalProperties": {"$ref": "#/definitions/recursive_append"}
+    },
+    "update": {
+      "type": "object",
+      "description": "A nested map of attributes and values to update their counterparts in the CSV file",
+      "examples": ["\"metadata: {\"name\": \"app.v1.0.0-patched\"}\""],
+      "additionalProperties": {"$ref": "#/definitions/recursive_update"}
+    }
+  },
+  "required": ["pullspec_replacements"],
+  "additionalProperties": false,
+
+  "definitions": {
+    "pullspec_replacement": {
+      "description": "A single pullspec to be replaced",
+      "properties": {
+        "original": {
+          "type": "string",
+          "description": "An original pullspec in the CSV file",
+          "examples": ["registry.example.com/image:v1.5"]
+        },
+        "new": {
+          "type": "string",
+          "description": "An replacement of the original pullspec to be replaced in CSV file",
+          "examples": [
+            "registry.example.com/image@sha256:a0ae15b2c8b2c7ba115d37625e750848658b76bed7fa9f7e7f6a5e8ab3c71bac"
+          ]
+        },
+        "pinned": {
+          "type": "boolean",
+          "description": "true if the new pullspec has been pinned to its digest"
+        }
+      },
+      "required": ["original", "new", "pinned"]
+    },
+    "recursive_update": {
+      "description": "updates can be nested and done in recursion",
+      "anyOf": [
+        {
+          "type": ["string"]
+        },
+        {
+          "type": "object",
+          "additionalProperties": {"$ref": "#/definitions/recursive_update"}
+        }
+      ]
+    },
+    "recursive_append": {
+      "description": "appending can be nested and done in recursion",
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": ["string"]
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": {"$ref": "#/definitions/recursive_append"}
+        }
+      ]
+    }
+  }
+}

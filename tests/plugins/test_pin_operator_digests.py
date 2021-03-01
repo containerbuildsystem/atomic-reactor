@@ -29,6 +29,10 @@ from tests.util import OPERATOR_MANIFESTS_DIR
 
 from osbs.exceptions import OsbsValidationException
 from osbs.utils import ImageName
+from osbs.utils.yaml import (
+    validate_with_schema,
+    load_schema,
+)
 
 from tests.stubs import StubConfig
 from tests.mock_env import MockEnv
@@ -1206,3 +1210,68 @@ class TestOperatorCSVModifications:
         }
 
         assert result['pin_operator_digest'] == expected
+
+    @pytest.mark.parametrize('data,valid', [
+        ({}, False),
+        ({'pullspec_replacements': []}, True),
+        ({'unknonw_attr': {}}, False),
+        ([], False),  # list instead of object
+        ({'pullspec_replacements': [
+            {'original': 'image:1', 'new': 'image@sha:123456', 'pinned': True}
+        ]}, True),
+        ({'pullspec_replacements': [
+            {'original': 'image:1', 'new': 'image@sha:123456', 'pinned': 'wrong type'}
+        ]}, False),
+        ({'pullspec_replacements': [
+            {'original': 'image:1', 'new': 10, 'pinned': True}
+        ]}, False),
+        ({'pullspec_replacements': [
+            {'original': 10, 'new': 'image@sha:123456', 'pinned': True}
+        ]}, False),
+        ({'pullspec_replacements': [
+            {'original': 'missing:new', 'pinned': True}
+        ]}, False),
+        ({'pullspec_replacements': [],
+          'append': {},
+          'update': {}},
+         True),
+        ({'pullspec_replacements': [],
+          'append': []},
+         False),
+        ({'pullspec_replacements': [],
+          'append': {'test': ['v1', 'v2']}},
+         True),
+        ({'pullspec_replacements': [],
+          'append': {'test': {'test2': ['v1', 'v2']}}},
+         True),
+        ({'pullspec_replacements': [],
+          'append': {'test': {'test2': 'must_be_a_list'}}},
+         False),
+        ({'pullspec_replacements': [],
+          'append': {'test': {'test2': [{'no_dict_here': ':-('}, 'v2']}}},
+         False),
+        ({'pullspec_replacements': [],
+          'append': {'test': {'test2': [['no_nested_list']]}}},
+         False),
+        ({'pullspec_replacements': [],
+          'update': []},
+         False),
+        ({'pullspec_replacements': [],
+          'update': {'test': 'val'}}, True),
+        ({'pullspec_replacements': [],
+          'update': {'test': {'test2': 'val'}}}, True),
+        ({'pullspec_replacements': [],
+          'update': {'test': ['list_not_allowed_in_recursive_update']}},
+         False),
+    ])
+    def test_operator_csv_modification_schema(self, data, valid):
+        """Unittests for operators CSV modification schema validating user input"""
+        schema = load_schema(
+            'atomic_reactor',
+            'schemas/operator_csv_modifications.json'
+        )
+        if valid:
+            validate_with_schema(data, schema)
+        else:
+            with pytest.raises(OsbsValidationException):
+                validate_with_schema(data, schema)
