@@ -1275,3 +1275,25 @@ class TestOperatorCSVModifications:
         else:
             with pytest.raises(OsbsValidationException):
                 validate_with_schema(data, schema)
+
+    @responses.activate
+    def test_duplicated_pullspec_replacements(self, tmpdir, docker_tasker):
+        """Fail when duplicated pullspecs are detected"""
+        test_pullspec = "thesameimage:v1"
+        test_url = "https://example.com/modifications.json"
+        modification_data = {
+            "pullspec_replacements": [
+                {"original": test_pullspec, 'new': 'different:v1', 'pinned': False},
+                {"original": test_pullspec, 'new': 'different:v2', 'pinned': False},
+            ]
+        }
+        responses.add(responses.GET, test_url, json=modification_data)
+
+        self._test_assert_error(
+            tmpdir=tmpdir,
+            docker_tasker=docker_tasker,
+            test_url=test_url,
+            pull_specs=[test_pullspec],
+            exc_msg=f"Provided CSV modifications contain duplicated "
+                    f"original entries in pullspec_replacement: {test_pullspec}",
+        )
