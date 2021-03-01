@@ -7,6 +7,7 @@ of the BSD license. See the LICENSE file for details.
 """
 
 import logging
+from typing import Iterator, Sequence
 
 from osbs.utils import Labels, ImageName
 
@@ -28,6 +29,24 @@ from atomic_reactor.plugins.pre_reactor_config import get_operator_manifests
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
 from atomic_reactor.utils.operator import OperatorManifest
 from atomic_reactor.utils.retries import get_retrying_requests_session
+
+
+def terminal_key_paths(obj: dict) -> Iterator[Sequence]:
+    """Generates path to all terminal keys of nested dicts by yielding
+    tuples of nested dict keys represented as path
+
+    From `{'a': {'b': {'c': 1, 'd': 2}}}` yields `('a', 'b', 'c')`, `('a', 'b', 'd')`
+    """
+    stack = [
+        (obj, tuple())
+    ]
+    while stack:
+        data, path = stack.pop()
+        if isinstance(data, dict):
+            for k, v in data.items():
+                stack.append((v, path + (k, )))
+        else:
+            yield path
 
 
 class PinOperatorDigestsPlugin(PreBuildPlugin):
@@ -72,6 +91,16 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
         self.replacement_pullspecs = replacement_pullspecs or {}
         self.operator_csv_modifications_url = operator_csv_modifications_url
 
+        site_config = get_operator_manifests(self.workflow, fallback={})
+        self.operator_csv_modification_allowed_attributes = set(
+            tuple(key_path)
+            for key_path in (
+                site_config
+                .get('csv_modifications', {})
+                .get('allowed_attributes', [])
+            )
+        )
+
     def _validate_operator_csv_modifications_schema(self, modifications):
         """Validate if provided operator CSV modification are valid according schema"""
         schema = load_schema(
@@ -99,10 +128,39 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
                 f"{', '.join(sorted(str(dup) for dup in duplicated))}"
             )
 
+    def _validate_operator_csv_modifications_allowed_keys(self, modifications):
+        """Validate if used attributes in update/append are allowed to be modified"""
+        allowed_attrs = self.operator_csv_modification_allowed_attributes
+
+        def to_str(path):
+            return '.'.join(part.replace('.', r'\.') for part in path)
+
+        def validate(mods):
+            not_allowed = []
+            for key_path in terminal_key_paths(mods):
+                if key_path not in allowed_attrs:
+                    self.log.error(
+                        "Operator CSV attribute %s is not allowed to be modified",
+                        key_path
+                    )
+                    not_allowed.append(key_path)
+
+            if not_allowed:
+                raise RuntimeError(
+                    f"Operator CSV attributes: {', '.join(to_str(attr) for attr in not_allowed)}; "
+                    f"are not allowed to be modified "
+                    f"by service configuration. Attributes allowed for modification "
+                    f"are: {', '.join(to_str(attr) for attr in allowed_attrs) or 'N/A'}"
+                )
+
+        validate(modifications.get('update', {}))
+        validate(modifications.get('append', {}))
+
     def _validate_operator_csv_modifications(self, modifications):
         """Validate if provided operator CSV modification correct"""
         self._validate_operator_csv_modifications_schema(modifications)
         self._validate_operator_csv_modifications_duplicated_images(modifications)
+        self._validate_operator_csv_modifications_allowed_keys(modifications)
 
     def _fetch_operator_csv_modifications(self):
         """Fetch operator CSV modifications"""
