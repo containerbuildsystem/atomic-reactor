@@ -80,9 +80,29 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
         )
         validate_with_schema(modifications, schema)
 
+    def _validate_operator_csv_modifications_duplicated_images(self, modifications):
+        """Validate if provided operator CSV modifications doesn't provide duplicated entries"""
+        original_pullspecs = set()
+        duplicated = set()
+        for repl in modifications.get('pullspec_replacements', ()):
+            pullspec = ImageName.parse(repl['original'])
+            if pullspec in original_pullspecs:
+                duplicated.add(pullspec)
+                self.log.error(
+                    "Operator CSV modifications contains duplicated "
+                    "original replacement pullspec %s", pullspec)
+            original_pullspecs.add(pullspec)
+        if duplicated:
+            raise RuntimeError(
+                f"Provided CSV modifications contain duplicated "
+                f"original entries in pullspec_replacement: "
+                f"{', '.join(sorted(str(dup) for dup in duplicated))}"
+            )
+
     def _validate_operator_csv_modifications(self, modifications):
         """Validate if provided operator CSV modification correct"""
         self._validate_operator_csv_modifications_schema(modifications)
+        self._validate_operator_csv_modifications_duplicated_images(modifications)
 
     def _fetch_operator_csv_modifications(self):
         """Fetch operator CSV modifications"""
