@@ -29,7 +29,7 @@ if MOCK:
 
 pytestmark = pytest.mark.usefixtures('user_params')
 
-repocontent = b'''[repo]\n'''
+repocontent = '''[repo]\n'''
 
 
 def prepare(scratch=False):
@@ -65,14 +65,14 @@ def test_no_repourls(inject_proxy):
 def test_single_repourl(inject_proxy):
     tasker, workflow = prepare()
     url = 'http://example.com/example%20repo.repo'
-    filename = 'example repo-4ca91.repo'
+    filename = 'example repo-a8b44.repo'
     runner = PreBuildPluginsRunner(tasker, workflow, [{
         'name': AddYumRepoByUrlPlugin.key,
         'args': {'repourls': [url], 'inject_proxy': inject_proxy}}])
     runner.run()
     repo_content = repocontent
     if inject_proxy:
-        repo_content = b'%sproxy = %s\n\n' % (repocontent, inject_proxy.encode('utf-8'))
+        repo_content = '%sproxy = %s\n\n' % (repocontent, inject_proxy)
     # next(iter(...)) is for py 2/3 compatibility
     assert next(iter(workflow.files.keys())) == os.path.join(YUM_REPOS_DIR, filename)
     assert next(iter(workflow.files.values())) == repo_content
@@ -84,9 +84,9 @@ def test_single_repourl(inject_proxy):
 @pytest.mark.parametrize('inject_proxy', [None, 'http://proxy.example.com'])
 @pytest.mark.parametrize(('repos', 'filenames'), (
     (['http://example.com/a/b/c/myrepo.repo', 'http://example.com/repo-2.repo'],
-     ['myrepo-d0856.repo', 'repo-2-ba4b3.repo']),
+     ['myrepo-b9003.repo', 'repo-2-e5f47.repo']),
     (['http://example.com/spam/myrepo.repo', 'http://example.com/bacon/myrepo.repo'],
-     ['myrepo-608de.repo', 'myrepo-a1f78.repo']),
+     ['myrepo-91be9.repo', 'myrepo-c8e02.repo']),
 ))
 def test_multiple_repourls(caplog,
                            base_from_scratch, parent_images, inject_proxy,
@@ -112,7 +112,7 @@ def test_multiple_repourls(caplog,
     else:
         repo_content = repocontent
         if inject_proxy:
-            repo_content = b'%sproxy = %s\n\n' % (repocontent, inject_proxy.encode('utf-8'))
+            repo_content = '%sproxy = %s\n\n' % (repocontent, inject_proxy)
 
         for filename in filenames:
             assert workflow.files[os.path.join(YUM_REPOS_DIR, filename)]
@@ -132,7 +132,7 @@ def test_single_repourl_no_suffix(inject_proxy):
     runner.run()
     repo_content = repocontent
     if inject_proxy:
-        repo_content = b'%sproxy = %s\n\n' % (repocontent, inject_proxy.encode('utf-8'))
+        repo_content = '%sproxy = %s\n\n' % (repocontent, inject_proxy)
     # next(iter(...)) is for py 2/3 compatibility
     assert fnmatch(next(iter(workflow.files.keys())), os.path.join(YUM_REPOS_DIR, pattern))
     assert next(iter(workflow.files.values())) == repo_content
@@ -162,7 +162,7 @@ def test_multiple_repourls_no_suffix(inject_proxy, repos, patterns):
     runner.run()
     repo_content = repocontent
     if inject_proxy:
-        repo_content = b'%sproxy = %s\n\n' % (repocontent, inject_proxy.encode('utf-8'))
+        repo_content = '%sproxy = %s\n\n' % (repocontent, inject_proxy)
 
     assert len(workflow.files) == 2
     for pattern in patterns:
