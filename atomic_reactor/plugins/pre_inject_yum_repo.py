@@ -9,13 +9,18 @@ of the BSD license. See the LICENSE file for details.
 Pre build plugin which injects custom yum repository in dockerfile.
 """
 import os
+import shutil
+from io import StringIO
 from atomic_reactor.constants import YUM_REPOS_DIR, RELATIVE_REPOS_PATH, INSPECT_CONFIG
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import df_parser
 from atomic_reactor.utils.yum import YumRepo
 
+BUILDER_CA_BUNDLE = '/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem'
+CA_BUNDLE_PEM = os.path.basename(BUILDER_CA_BUNDLE)
 
-def add_yum_repos_to_dockerfile(yumrepos, df, inherited_user, base_from_scratch):
+
+def add_yum_repos_to_dockerfile(repo_dir, yumrepos, df, inherited_user, base_from_scratch):
     if df.baseimage is None:
         raise RuntimeError("No FROM line in Dockerfile")
 
@@ -29,16 +34,19 @@ def add_yum_repos_to_dockerfile(yumrepos, df, inherited_user, base_from_scratch)
         if insndesc['instruction'] == 'FROM':
             break  # no USER specified in final stage
 
+    shutil.copyfile(BUILDER_CA_BUNDLE, os.path.join(repo_dir, CA_BUNDLE_PEM))
+
     # Insert the ADD line at the beginning of each stage
     df.add_lines(
+        f'ADD {CA_BUNDLE_PEM} /tmp/{CA_BUNDLE_PEM}',
         "ADD %s* %s" % (RELATIVE_REPOS_PATH, YUM_REPOS_DIR),
         all_stages=True, at_start=True, skip_scratch=True
     )
 
     # Insert line(s) to remove the repos
     cleanup_lines = [
-        "RUN rm -f " +
-        " ".join(["'%s'" % repo for repo in yumrepos])
+        "RUN rm -f " + " ".join(["'%s'" % repo for repo in yumrepos]),
+        f'RUN rm -f /tmp/{CA_BUNDLE_PEM}',
     ]
     # If needed, change to root in order to RUN rm, then change back.
     if final_user_line:
@@ -65,10 +73,21 @@ class InjectYumRepoPlugin(PreBuildPlugin):
         self.log.info("creating directory for yum repos: %s", host_repos_path)
         os.mkdir(host_repos_path)
 
-        for repo, repo_content in self.workflow.files.items():
-            yum_repo = YumRepo(repourl=repo, content=repo_content, dst_repos_dir=host_repos_path,
-                               add_hash=False)
-            yum_repo.write_content()
+        for repo_filename, repo_content in self.workflow.files.items():
+            # Update every repo accordingly in a repofile
+            # input_buf ---- updated ----> updated_buf
+            with StringIO(repo_content) as input_buf, StringIO() as updated_buf:
+                for line in input_buf:
+                    updated_buf.write(line)
+                    # Apply sslcacert to every repo in a repofile
+                    if line.lstrip().startswith('['):
+                        updated_buf.write(f'sslcacert=/tmp/{CA_BUNDLE_PEM}\n')
+
+                yum_repo = YumRepo(repourl=repo_filename,
+                                   content=updated_buf.getvalue(),
+                                   dst_repos_dir=host_repos_path,
+                                   add_hash=False)
+                yum_repo.write_content()
 
         # Find out the USER inherited from the base image
         inspect = self.workflow.builder.base_image_inspect
@@ -77,7 +96,10 @@ class InjectYumRepoPlugin(PreBuildPlugin):
             inherited_user = inspect.get(INSPECT_CONFIG).get('User', '')
         df = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
         yum_repos = list(self.workflow.files)
-        add_yum_repos_to_dockerfile(yum_repos, df, inherited_user,
-                                    self.workflow.builder.dockerfile_images.base_from_scratch)
+        base_from_scratch = self.workflow.builder.dockerfile_images.base_from_scratch
+        repo_dir = self.workflow.builder.df_dir
+        add_yum_repos_to_dockerfile(
+            repo_dir, yum_repos, df, inherited_user, base_from_scratch
+        )
         for repo in yum_repos:
             self.log.info("injected yum repo: %s", repo)

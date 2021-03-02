@@ -10,8 +10,7 @@ name and the .repo suffix.
 
 """
 from atomic_reactor.constants import YUM_REPOS_DIR
-from atomic_reactor.util import get_retrying_requests_session
-from hashlib import md5
+from atomic_reactor.util import get_retrying_requests_session, sha256sum
 import os
 import os.path
 import logging
@@ -42,7 +41,7 @@ class YumRepo(object):
 
         The filename is derived from the repo url by injecting a suffix
         after the name and before the file extension. This suffix is a
-        partial md5 checksum of the full repourl. This avoids multiple
+        partial sha256 checksum of the full repourl. This avoids multiple
         repos from being written to the same file.
         '''
         urlpath = unquote(urlsplit(self.repourl, allow_fragments=False).path)
@@ -50,7 +49,7 @@ class YumRepo(object):
         if not basename.endswith(REPO_SUFFIX):
             basename += REPO_SUFFIX
         if self.add_hash:
-            suffix = '-' + md5(self.repourl.encode('utf-8')).hexdigest()[:5]  # nosec
+            suffix = '-' + sha256sum(self.repourl, abbrev_len=5)
         else:
             suffix = ''
         final_name = suffix.join(os.path.splitext(basename))

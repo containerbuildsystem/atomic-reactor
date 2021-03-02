@@ -91,6 +91,6 @@ class AddYumRepoByUrlPlugin(PreBuildPlugin):
             if self.inject_proxy:
                 if yumrepo.is_valid():
                     yumrepo.set_proxy_for_all_repos(self.inject_proxy)
-            self.workflow.files[yumrepo.dst_filename] = yumrepo.content
+            self.workflow.files[yumrepo.dst_filename] = yumrepo.content.decode()
             self.log.debug("saving yum repo '%s', length %d", yumrepo.dst_filename,
                            len(yumrepo.content))
