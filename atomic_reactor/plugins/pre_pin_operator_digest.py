@@ -7,7 +7,6 @@ of the BSD license. See the LICENSE file for details.
 """
 
 import logging
-from typing import Iterator, Sequence
 
 from osbs.utils import Labels, ImageName
 
@@ -20,7 +19,8 @@ from atomic_reactor.constants import (
 from atomic_reactor.util import (RegistrySession,
                                  RegistryClient,
                                  has_operator_bundle_manifest,
-                                 read_yaml_from_url, df_parser)
+                                 read_yaml_from_url, df_parser,
+                                 terminal_key_paths,)
 from osbs.utils.yaml import (
     load_schema,
     validate_with_schema,
@@ -29,24 +29,6 @@ from atomic_reactor.plugins.pre_reactor_config import get_operator_manifests
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
 from atomic_reactor.utils.operator import OperatorManifest
 from atomic_reactor.utils.retries import get_retrying_requests_session
-
-
-def terminal_key_paths(obj: dict) -> Iterator[Sequence]:
-    """Generates path to all terminal keys of nested dicts by yielding
-    tuples of nested dict keys represented as path
-
-    From `{'a': {'b': {'c': 1, 'd': 2}}}` yields `('a', 'b', 'c')`, `('a', 'b', 'd')`
-    """
-    stack = [
-        (obj, tuple())
-    ]
-    while stack:
-        data, path = stack.pop()
-        if isinstance(data, dict):
-            for k, v in data.items():
-                stack.append((v, path + (k, )))
-        else:
-            yield path
 
 
 class PinOperatorDigestsPlugin(PreBuildPlugin):
