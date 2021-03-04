@@ -16,6 +16,7 @@ import requests
 from requests.exceptions import SSLError, HTTPError, RetryError
 import shutil
 import tempfile
+from typing import Iterator, Sequence
 import logging
 import uuid
 import yaml
@@ -1870,3 +1871,21 @@ def read_fetch_artifacts_koji(workflow):
 
 def read_content_sets(workflow):
     return read_user_config_file(workflow, REPO_CONTENT_SETS_CONFIG)
+
+
+def terminal_key_paths(obj: dict) -> Iterator[Sequence]:
+    """Generates path to all terminal keys of nested dicts by yielding
+    tuples of nested dict keys represented as path
+
+    From `{'a': {'b': {'c': 1, 'd': 2}}}` yields `('a', 'b', 'c')`, `('a', 'b', 'd')`
+    """
+    stack = [
+        (obj, tuple())
+    ]
+    while stack:
+        data, path = stack.pop()
+        if isinstance(data, dict):
+            for k, v in data.items():
+                stack.append((v, path + (k, )))
+        else:
+            yield path

@@ -62,6 +62,7 @@ from atomic_reactor.util import (wait_for_command,
                                  allow_repo_dir_in_dockerignore,
                                  has_operator_appregistry_manifest,
                                  has_operator_bundle_manifest, DockerfileImages,
+                                 terminal_key_paths,
                                  )
 from tests.constants import (DOCKERFILE_GIT,
                              INPUT_IMAGE, MOCK, MOCK_SOURCE,
@@ -1939,3 +1940,20 @@ def test_dockerfile_images(source_registry, organization, dockerfile_images, bas
     # setting non-existing image
     with pytest.raises(KeyError):
         df_image['non-existing'] = 'test'
+
+
+@pytest.mark.parametrize('data,expected', [
+    (
+        {},
+        set()
+    ), (
+        {'a': 1},
+        {('a',)}
+    ), (
+        {'a': {'b': {'c': {'d1': 1, 'd2': 2}, 'c2': []}}},
+        {('a', 'b', 'c2'), ('a', 'b', 'c', 'd1'), ('a', 'b', 'c', 'd2')}
+    )
+])
+def test_terminal_key_paths(data, expected):
+    """Unittest for terminal_key_paths data"""
+    assert set(terminal_key_paths(data)) == expected
