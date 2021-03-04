@@ -51,13 +51,16 @@ class SourceContainerPlugin(BuildStepPlugin):
         fetch_sources_result = self.workflow.prebuild_results.get(PLUGIN_FETCH_SOURCES_KEY, {})
         source_data_dir = fetch_sources_result.get('image_sources_dir')
         remote_source_data_dir = fetch_sources_result.get('remote_sources_dir')
+        maven_source_data_dir = fetch_sources_result.get('maven_sources_dir')
 
         source_exists = source_data_dir and os.path.isdir(source_data_dir)
         remote_source_exists = remote_source_data_dir and os.path.isdir(remote_source_data_dir)
+        maven_source_exists = maven_source_data_dir and os.path.isdir(maven_source_data_dir)
 
-        if not source_exists and not remote_source_exists:
+        if not any([source_exists, remote_source_exists, maven_source_exists]):
             err_msg = "No SRPMs directory '{}' available".format(source_data_dir)
             err_msg += "\nNo Remote source directory '{}' available".format(remote_source_data_dir)
+            err_msg += "\nNo Maven source directory '{}' available".format(maven_source_data_dir)
             self.log.error(err_msg)
             return BuildResult(logs=err_msg, fail_reason=err_msg)
 
@@ -65,20 +68,28 @@ class SourceContainerPlugin(BuildStepPlugin):
             self.log.warning("SRPMs directory '%s' is empty", source_data_dir)
         if remote_source_exists and not os.listdir(remote_source_data_dir):
             self.log.warning("Remote source directory '%s' is empty", remote_source_data_dir)
+        if maven_source_exists and not os.listdir(maven_source_data_dir):
+            self.log.warning("Maven source directory '%s' is empty", maven_source_data_dir)
 
         image_output_dir = tempfile.mkdtemp()
         cmd = ['bsi', '-d']
-        drivers = []
+        drivers = set()
 
         if source_exists:
-            drivers.append('sourcedriver_rpm_dir')
+            drivers.add('sourcedriver_rpm_dir')
             cmd.append('-s')
             cmd.append('{}'.format(source_data_dir))
 
         if remote_source_exists:
-            drivers.append('sourcedriver_extra_src_dir')
+            drivers.add('sourcedriver_extra_src_dir')
             cmd.append('-e')
             cmd.append('{}'.format(remote_source_data_dir))
+
+        if maven_source_exists:
+            drivers.add('sourcedriver_extra_src_dir')
+            for maven_source_subdir in os.listdir(maven_source_data_dir):
+                cmd.append('-e')
+                cmd.append('{}'.format(os.path.join(maven_source_data_dir, maven_source_subdir)))
 
         driver_str = ','.join(drivers)
         cmd.insert(2, driver_str)
