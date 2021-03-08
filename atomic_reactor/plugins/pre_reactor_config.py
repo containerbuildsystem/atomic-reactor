@@ -446,6 +446,10 @@ def get_image_size_limit(workflow):
     }
 
 
+def get_builder_ca_bundle(workflow, fallback=NO_FALLBACK):
+    return get_value(workflow, 'builder_ca_bundle', fallback)
+
+
 class ClusterConfig(object):
     """
     Configuration relating to a particular cluster
