@@ -8,20 +8,16 @@ of the BSD license. See the LICENSE file for details.
 """
 
 from textwrap import dedent
+import os.path
 import pytest
 import responses
 import shutil
 from atomic_reactor.constants import RELATIVE_REPOS_PATH, INSPECT_CONFIG
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
-from atomic_reactor.plugin import PreBuildPluginsRunner
+from atomic_reactor.plugin import PluginFailedException, PreBuildPluginsRunner
 from atomic_reactor.plugins.pre_add_yum_repo_by_url import AddYumRepoByUrlPlugin
-from atomic_reactor.plugins.pre_inject_yum_repo import (
-    add_yum_repos_to_dockerfile,
-    BUILDER_CA_BUNDLE,
-    CA_BUNDLE_PEM,
-    InjectYumRepoPlugin,
-)
+from atomic_reactor.plugins.pre_inject_yum_repo import InjectYumRepoPlugin
 from atomic_reactor.plugins.pre_reactor_config import (
     ReactorConfig, ReactorConfigPlugin, WORKSPACE_CONF_KEY
 )
@@ -33,11 +29,14 @@ from tests.stubs import StubInsideBuilder, StubSource
 if MOCK:
     from tests.docker_mock import mock_docker
 
+BUILDER_CA_BUNDLE = '/path/to/tls-ca-bundle.pem'
+CA_BUNDLE_PEM = os.path.basename(BUILDER_CA_BUNDLE)
+
 
 pytestmark = pytest.mark.usefixtures('user_params')
 
 
-def prepare(df_path, inherited_user):
+def prepare(df_path, inherited_user=''):
     if MOCK:
         mock_docker()
     tasker = DockerTasker()
@@ -55,23 +54,33 @@ def prepare(df_path, inherited_user):
     return tasker, workflow
 
 
-def test_empty_dockerfile(tmpdir):
-    df = df_parser(str(tmpdir))
-    df.content = ''
-    with pytest.raises(RuntimeError) as exc:
-        add_yum_repos_to_dockerfile(str(tmpdir), [], df, '', False)
-    assert "No FROM" in str(exc.value)
+def test_no_base_image_in_dockerfile(tmpdir):
+    dockerfile = tmpdir.join('Dockerfile')
+    dockerfile.write_text('', encoding='utf8')
+
+    tasker, workflow = prepare(str(dockerfile))
+    workflow.files = {'/etc/yum.repos.d/foo.repo': 'repo'}
+
+    runner = PreBuildPluginsRunner(tasker, workflow, [{
+        'name': InjectYumRepoPlugin.key,
+        'args': {},
+    }])
+
+    with pytest.raises(PluginFailedException) as exc:
+        runner.run()
+    assert "No FROM line in Dockerfile" in str(exc.value)
 
 
 @pytest.mark.parametrize(
-    'inherited_user,repos,dockerfile_content,expected_final_dockerfile',
+    'configure_ca_bundle,inherited_user,'
+    'repos,dockerfile_content,expected_final_dockerfile',
     # repos: [
     #   (repofile_url, repofile_content, expected_final_repofile)
     # ]
     [
         # normal simplest image build
         [
-            '',
+            True, '',
             [
                 (
                     'http://repos.host/custom.repo',
@@ -105,7 +114,7 @@ def test_empty_dockerfile(tmpdir):
         # a multi-stage build, every non-scratch stage should be handled
         # every repo inside a repofile should have sslcacert set
         [
-            '',
+            True, '',
             [
                 (
                     'http://odcs.example.com/Temporary/odcs-1234.repo',
@@ -158,7 +167,7 @@ def test_empty_dockerfile(tmpdir):
         # multi-stage build based on scratch at last
         # The last scratch stage should not have cleanup instructions
         [
-            '',
+            True, '',
             [
                 (
                     'http://repos.host/custom.repo',
@@ -211,7 +220,7 @@ def test_empty_dockerfile(tmpdir):
 
         # Respect the USER from the image inspection data
         [
-            'johncleese',
+            True, 'johncleese',
             [
                 (
                     'http://repos.host/custom.repo',
@@ -252,7 +261,7 @@ def test_empty_dockerfile(tmpdir):
 
         # Respect the USER from the inpsection data even if USER is set in previous build stage.
         [
-            'johncleese',
+            True, 'johncleese',
             [
                 (
                     'http://repos.host/custom.repo',
@@ -295,8 +304,7 @@ def test_empty_dockerfile(tmpdir):
 
         # Multiple repourls
         [
-
-            '',
+            True, '',
             [
                 (
                     'http://repos.host/custom.repo',
@@ -343,7 +351,7 @@ def test_empty_dockerfile(tmpdir):
 
         # No repourls, Dockerfile should have no change.
         [
-            '',
+            True, '',
             [],
             'FROM fedora:33\nRUN dnf update -y\n',
             'FROM fedora:33\nRUN dnf update -y\n',
@@ -351,7 +359,7 @@ def test_empty_dockerfile(tmpdir):
 
         # Dockerfile contains continuous lines
         [
-            '',
+            True, '',
             [
                 (
                     'http://repos.host/custom.repo',
@@ -382,23 +390,57 @@ RUN yum install -y httpd \
             RUN rm -f /tmp/{CA_BUNDLE_PEM}
             '''),
         ],
+
+        # builder_ca_bundle is optional. When not set, the plugin should work.
+        [
+            False, '',
+            [
+                (
+                    'http://repos.host/custom.repo',
+                    dedent('''\
+                    [new-packages]
+                    name=repo1
+                    baseurl=http://repo.host/latest/$basearch/os
+                    '''),
+                    dedent('''\
+                    [new-packages]
+                    name=repo1
+                    baseurl=http://repo.host/latest/$basearch/os
+                    '''),
+                ),
+            ],
+            dedent('''\
+            FROM fedora:33
+            RUN dnf update -y
+            '''),
+            dedent('''\
+            FROM fedora:33
+            ADD atomic-reactor-repos/* /etc/yum.repos.d/
+            RUN dnf update -y
+            RUN rm -f '/etc/yum.repos.d/custom-{}.repo'
+            '''),
+
+        ]
     ]
 )
 @responses.activate
-def test_inject_repos(inherited_user, repos,
-                      dockerfile_content, expected_final_dockerfile,
+def test_inject_repos(configure_ca_bundle, inherited_user,
+                      repos, dockerfile_content, expected_final_dockerfile,
                       tmpdir):
     dockerfile = tmpdir.join('Dockerfile')
     dockerfile.write_text(dockerfile_content, encoding='utf8')
 
     tasker, workflow = prepare(str(dockerfile), inherited_user)
 
+    config = {
+        'version': 1,
+        # Ensure the AddYumRepoByUrlPlugin plugin is able to run
+        'yum_repo_allowed_domains': ['odcs.example.com', 'repos.host'],
+    }
+    if configure_ca_bundle:
+        config['builder_ca_bundle'] = BUILDER_CA_BUNDLE
     workflow.plugin_workspace[ReactorConfigPlugin.key] = {
-        WORKSPACE_CONF_KEY: ReactorConfig({
-            'version': 1,
-            # Ensure the AddYumRepoByUrlPlugin plugin is able to run
-            'yum_repo_allowed_domains': ['odcs.example.com', 'repos.host'],
-        })
+        WORKSPACE_CONF_KEY: ReactorConfig(config)
     }
 
     # Ensure the ca_bundle PEM file is copied into build context

@@ -855,6 +855,11 @@
         },
         "additionalProperties": false,
         "required": ["url"]
+    },
+    "builder_ca_bundle": {
+        "description": "An absolute path to the custom ca-bundle certificate inside the buildroot.",
+        "type": "string",
+        "examples": ["/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem"]
     }
   },
   "required": ["version", "koji"]
