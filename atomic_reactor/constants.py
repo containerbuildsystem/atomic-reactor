@@ -173,6 +173,7 @@ OPERATOR_MANIFESTS_ARCHIVE = 'operator_manifests.zip'
 KOJI_BTYPE_IMAGE = 'image'
 KOJI_BTYPE_OPERATOR_MANIFESTS = 'operator-manifests'
 KOJI_BTYPE_REMOTE_SOURCES = 'remote-sources'
+KOJI_BTYPE_REMOTE_SOURCE_FILE = 'remote-source-file'
 
 # Path to where the remote source bundle is copied to during the build process
 REMOTE_SOURCE_DIR = '/remote-source'

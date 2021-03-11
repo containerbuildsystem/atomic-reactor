@@ -5,13 +5,22 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
+import hashlib
+import os
+import re
+from collections import namedtuple
+
 import koji
 
 from atomic_reactor import util
-from atomic_reactor.constants import PLUGIN_GENERATE_MAVEN_METADATA_KEY
+from atomic_reactor.constants import (DEFAULT_DOWNLOAD_BLOCK_SIZE,
+                                      KOJI_BTYPE_REMOTE_SOURCE_FILE,
+                                      PLUGIN_GENERATE_MAVEN_METADATA_KEY)
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.pre_reactor_config import get_koji_session
 from atomic_reactor.utils.koji import NvrRequest
+
+DownloadRequest = namedtuple('DownloadRequest', 'url dest checksums')
 
 
 class GenerateMavenMetadataPlugin(PostBuildPlugin):
@@ -21,6 +30,7 @@ class GenerateMavenMetadataPlugin(PostBuildPlugin):
 
     key = PLUGIN_GENERATE_MAVEN_METADATA_KEY
     is_allowed_to_fail = False
+    DOWNLOAD_DIR = 'url_sources'
 
     def __init__(self, tasker, workflow):
         """
@@ -29,6 +39,9 @@ class GenerateMavenMetadataPlugin(PostBuildPlugin):
         """
         super(GenerateMavenMetadataPlugin, self).__init__(tasker, workflow)
         self.session = None
+        self.workdir = self.workflow.source.get_build_file_path()[1]
+        self.no_source_artifacts = []
+        self.source_url_to_artifacts = {}
 
     def get_nvr_components(self, nvr_requests):
         components = []
@@ -56,6 +69,103 @@ class GenerateMavenMetadataPlugin(PostBuildPlugin):
 
         return components
 
+    def process_url_requests(self, url_requests):
+        download_queue = []
+
+        for url_request in url_requests:
+            artifact_checksums = {algo: url_request[algo] for algo in
+                                  hashlib.algorithms_guaranteed
+                                  if algo in url_request}
+
+            artifact = {
+                'url': url_request['url'],
+                'checksums': artifact_checksums,
+                'filename': os.path.basename(url_request['url'])
+            }
+
+            if 'source-url' not in url_request:
+                self.no_source_artifacts.append(artifact)
+                msg = f"No source-url found for {url_request['url']}.\n"
+                msg += 'fetch-artifacts-url without source-url is deprecated'
+                self.log.warning(msg)
+                self.log.user_warning(msg)
+                continue
+
+            source_url = url_request['source-url']
+
+            checksums = {algo: url_request[('source-' + algo)] for algo in
+                         hashlib.algorithms_guaranteed
+                         if ('source-' + algo) in url_request}
+
+            if source_url not in self.source_url_to_artifacts:
+                self.source_url_to_artifacts[source_url] = [artifact]
+                # source_url will mostly be gerrit URLs that don't have filename
+                #  in the URL itself so we'll have to get filename from URL response
+                target = os.path.basename(source_url)
+
+                download_queue.append(DownloadRequest(source_url, target, checksums))
+            else:
+                self.source_url_to_artifacts[source_url].append(artifact)
+        return download_queue
+
+    def download_sources(self, download_queue):
+        remote_source_files = []
+        downloads_path = os.path.join(self.workdir, self.DOWNLOAD_DIR)
+
+        session = util.get_retrying_requests_session()
+
+        self.log.debug('%d files to download', len(download_queue))
+
+        for index, download in enumerate(download_queue):
+            dest_filename = download.dest
+            if not re.fullmatch(r'^[\w\-.]+$', dest_filename):
+                dest_filename = session.get(download.url).headers.get(
+                    "Content-disposition").split("filename=")[1].replace('"', '')
+
+            dest_path = os.path.join(downloads_path, dest_filename)
+            dest_dir = os.path.dirname(dest_path)
+            if not os.path.exists(dest_dir):
+                os.makedirs(dest_dir)
+
+            self.log.debug('%d/%d downloading %s', index + 1, len(download_queue),
+                           download.url)
+
+            checksums = {algo: hashlib.new(algo) for algo in download.checksums}
+            request = session.get(download.url, stream=True)
+            request.raise_for_status()
+
+            with open(dest_path, 'wb') as f:
+                for chunk in request.iter_content(chunk_size=DEFAULT_DOWNLOAD_BLOCK_SIZE):
+                    f.write(chunk)
+                    for checksum in checksums.values():
+                        checksum.update(chunk)
+
+            for algo, checksum in checksums.items():
+                if checksum.hexdigest() != download.checksums[algo]:
+                    raise ValueError(
+                        'Computed {} checksum, {}, does not match expected checksum, {}'
+                        .format(algo, checksum.hexdigest(), download.checksums[algo]))
+
+            checksum_type = list(checksums.keys())[0]
+            remote_source_files.append({
+                'file': dest_path,
+                'metadata': {
+                    'type': KOJI_BTYPE_REMOTE_SOURCE_FILE,
+                    'checksum_type': checksum_type,
+                    'checksum': download.checksums[checksum_type],
+                    'filename': download.dest,
+                    'filesize': os.path.getsize(dest_path),
+                    'extra': {
+                        'source-url': download.url,
+                        'artifacts': self.source_url_to_artifacts[download.url],
+                        'typeinfo': {
+                            KOJI_BTYPE_REMOTE_SOURCE_FILE: {}
+                        },
+                    },
+                }})
+
+        return remote_source_files
+
     def run(self):
         """
         Run the plugin.
@@ -67,7 +177,12 @@ class GenerateMavenMetadataPlugin(PostBuildPlugin):
             NvrRequest(**nvr_request) for nvr_request in
             util.read_fetch_artifacts_koji(self.workflow) or []
         ]
+        url_requests = util.read_fetch_artifacts_url(self.workflow) or []
 
         components = self.get_nvr_components(nvr_requests)
+        download_queue = self.process_url_requests(url_requests)
+        remote_source_files = self.download_sources(download_queue)
 
-        return {'components': components}
+        return {'remote_source_files': remote_source_files,
+                'no_source': self.no_source_artifacts,
+                'components': components}
