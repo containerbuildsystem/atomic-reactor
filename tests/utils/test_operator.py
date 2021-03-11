@@ -1174,6 +1174,70 @@ class TestOperatorCSV(object):
         csv = OperatorCSV('csv.yaml', csv_content)
         assert expected_pullspecs == csv.get_related_image_pullspecs()
 
+    @pytest.mark.parametrize('csv_content,mods,expected', [
+        (
+            {}, {}, {}
+        ),
+        (
+            {}, {'t': 'this'}, {'t': 'this'}
+        ),
+        (
+            {'e': 'exists'}, {'a': 'another'}, {'e': 'exists', 'a': 'another'}
+        ),
+        (
+            {'e': 'exists'}, {'e': 'replaced'}, {'e': 'replaced'}
+        ),
+        (
+            {'n': {'t1': 1}},
+            {'n': {'t2': {'x': 'added'}}},
+            {'n': {'t1': 1, 't2': {'x': 'added'}}}
+        ),
+        (
+            {'n': {}},
+            {'n': {'nn': {'nnn': 'nested'}}},
+            {'n': {'nn': {'nnn': 'nested'}}}
+        ),
+    ])
+    def test_modifications_update(self, csv_content, mods, expected):
+        """Tests for modification_update"""
+        self._mock_check_csv()
+        csv = OperatorCSV('csv.yaml', csv_content)
+        csv.modifications_update(mods)
+        assert csv.data == expected
+
+    @pytest.mark.parametrize('csv_content,mods,expected', [
+        (
+            {}, {}, {}
+        ),
+        (
+            {}, {'t': ['this']}, {'t': ['this']}
+        ),
+        (
+            {'e': 'exists'}, {'a': ['another']}, {'e': 'exists', 'a': ['another']}
+        ),
+        (
+            {'e': ['exists']},
+            {'e': ['added1', 'added2']},
+            {'e': ['exists', 'added1', 'added2']}
+        ),
+        (
+            {'n': {'t1': 1}},
+            {'n': {'t2': {'x': ['added']}}},
+            {'n': {'t1': 1, 't2': {'x': ['added']}}}
+        ),
+        (
+            {'n': {}},
+            {'n': {'nn': {'nnn': ['nested']}}},
+            {'n': {'nn': {'nnn': ['nested']}}}
+        ),
+    ])
+    def test_modifications_append(self, csv_content, mods, expected):
+        """Tests for modification_append"""
+        self._mock_check_csv()
+        csv = OperatorCSV('csv.yaml', csv_content)
+        csv.modifications_append(mods)
+        assert csv.data == expected
+
 
 class TestOperatorManifest(object):
     def test_from_directory_multiple_csvs(self, tmpdir):
