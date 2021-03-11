@@ -1263,12 +1263,12 @@ class TestOperatorCSV(object):
         (
             {'t': 1},
             {'t': [2]},
-            "CSV value to append to is not a list (found 1)"
+            "CSV value to append to is not a list (found 1) in {'t': 1}"
         ),
         (
             {'t': [1]},
             {'t': 2},
-            "Modification value to append to is not a list (found 2)"
+            "Modification value to append to is not a list (found 2) in {'t': 2}"
         ),
     ])
     def test_modifications_append_failures(self, csv_content, mods, err_msg):
