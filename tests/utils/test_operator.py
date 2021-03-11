@@ -18,6 +18,7 @@ from ruamel.yaml.comments import CommentedMap, CommentedSeq
 import atomic_reactor.utils.operator as operator_module
 from atomic_reactor.util import chain_get
 from atomic_reactor.utils.operator import (
+    CSVModifyError,
     OperatorCSV,
     OperatorManifest,
     NotOperatorCSV,
@@ -1205,6 +1206,21 @@ class TestOperatorCSV(object):
         csv.modifications_update(mods)
         assert csv.data == expected
 
+    @pytest.mark.parametrize('csv_content,mods,err_msg', [
+        (
+            {'t': 1},
+            {'t': {'tt': {}}},
+            "Expected nested dictionary in CSV at 't' but got '1' for {'t': {'tt': {}}}"
+        ),
+    ])
+    def test_modifications_update_failures(self, csv_content, mods, err_msg):
+        """Tests for modification_update failure cases"""
+        self._mock_check_csv()
+        csv = OperatorCSV('csv.yaml', csv_content)
+        with pytest.raises(CSVModifyError) as exc_info:
+            csv.modifications_update(mods)
+        assert err_msg in str(exc_info.value)
+
     @pytest.mark.parametrize('csv_content,mods,expected', [
         (
             {}, {}, {}
@@ -1237,6 +1253,31 @@ class TestOperatorCSV(object):
         csv = OperatorCSV('csv.yaml', csv_content)
         csv.modifications_append(mods)
         assert csv.data == expected
+
+    @pytest.mark.parametrize('csv_content,mods,err_msg', [
+        (
+            {'t': 1},
+            {'t': {'tt': []}},
+            "Expected nested dictionary in CSV at 't' but got '1' for {'t': {'tt': []}}"
+        ),
+        (
+            {'t': 1},
+            {'t': [2]},
+            "CSV value to append to is not a list (found 1)"
+        ),
+        (
+            {'t': [1]},
+            {'t': 2},
+            "Modification value to append to is not a list (found 2)"
+        ),
+    ])
+    def test_modifications_append_failures(self, csv_content, mods, err_msg):
+        """Tests for modifications_append failure cases"""
+        self._mock_check_csv()
+        csv = OperatorCSV('csv.yaml', csv_content)
+        with pytest.raises(CSVModifyError) as exc_info:
+            csv.modifications_append(mods)
+        assert err_msg in str(exc_info.value)
 
 
 class TestOperatorManifest(object):
