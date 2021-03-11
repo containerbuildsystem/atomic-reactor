@@ -31,6 +31,7 @@ from atomic_reactor.util import (ManifestDigest,
 from atomic_reactor.source import GitSource, PathSource
 from atomic_reactor.build import BuildResult
 from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI_TAR,
+                                      PLUGIN_GENERATE_MAVEN_METADATA_KEY,
                                       PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_KOJI_PARENT_KEY,
                                       PLUGIN_RESOLVE_COMPOSES_KEY, BASE_IMAGE_KOJI_BUILD,
                                       PARENT_IMAGES_KOJI_BUILDS, BASE_IMAGE_BUILD_ID_KEY,
@@ -42,6 +43,7 @@ from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI_
                                       REMOTE_SOURCES_FILENAME,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
+                                      KOJI_BTYPE_REMOTE_SOURCE_FILE,
                                       KOJI_KIND_IMAGE_BUILD,
                                       KOJI_KIND_IMAGE_SOURCE_BUILD,
                                       KOJI_SUBTYPE_OP_APPREGISTRY,
@@ -68,6 +70,7 @@ NAMESPACE = 'mynamespace'
 BUILD_ID = 'build-1'
 SOURCES_FOR_KOJI_NVR = 'component-release-version'
 SOURCES_SIGNING_INTENT = 'some_intent'
+REMOTE_SOURCE_FILE_FILENAME = 'pnc-sources.tar.gz'
 
 PUSH_OPERATOR_MANIFESTS_RESULTS = {
     "endpoint": 'registry.url/endpoint',
@@ -236,7 +239,8 @@ def mock_environment(tmpdir, session=None, name=None,
                      has_op_appregistry_manifests=False,
                      has_op_bundle_manifests=False,
                      push_operator_manifests_enabled=False, source_build=False,
-                     has_remote_source=False, build_method='docker', scratch=False):
+                     has_remote_source=False, has_remote_source_file=False,
+                     build_method='docker', scratch=False):
     if session is None:
         session = MockedClientSession('')
     if source is None:
@@ -514,6 +518,48 @@ def mock_environment(tmpdir, session=None, name=None,
         workflow.prebuild_results[PLUGIN_RESOLVE_REMOTE_SOURCE] = remote_source_result
     else:
         workflow.prebuild_results[PLUGIN_RESOLVE_REMOTE_SOURCE] = None
+
+    if has_remote_source_file:
+        filepath = os.path.join(str(tmpdir), REMOTE_SOURCE_FILE_FILENAME)
+        with open(filepath, 'wt') as fp:
+            fp.write('dummy file')
+        remote_source_file_result = {
+            'remote_source_files': [
+                {
+                    'file': filepath,
+                    'metadata': {
+                        'type': KOJI_BTYPE_REMOTE_SOURCE_FILE,
+                        'checksum_type': 'md5',
+                        'checksum': '5151c',
+                        'filename': REMOTE_SOURCE_FILE_FILENAME,
+                        'filesize': os.path.getsize(filepath),
+                        'extra': {
+                            'source-url': 'example.com/dummy.tar.gz',
+                            'artifacts': [
+                                {
+                                    'url': 'example.com/dummy.jar',
+                                    'checksum_type': 'md5',
+                                    'checksum': 'abc',
+                                    'filename': 'dummy.jar'
+                                }
+                            ],
+                            'typeinfo': {
+                                KOJI_BTYPE_REMOTE_SOURCE_FILE: {}
+                            },
+                        },
+                    }
+                }
+            ],
+            'no_source': [{
+                'url': 'example.com/dummy-no-source.jar',
+                'checksum_type': 'md5',
+                'checksum': 'abc',
+                'filename': 'dummy-no-source.jar'
+            }],
+        }
+        workflow.postbuild_results[PLUGIN_GENERATE_MAVEN_METADATA_KEY] = remote_source_file_result
+    else:
+        workflow.postbuild_results[PLUGIN_GENERATE_MAVEN_METADATA_KEY] = None
 
     if push_operator_manifests_enabled:
         workflow.postbuild_results[PLUGIN_PUSH_OPERATOR_MANIFESTS_KEY] = \
@@ -2239,6 +2285,37 @@ class TestKojiImport(object):
             assert 'typeinfo' not in extra
             assert REMOTE_SOURCES_FILENAME not in session.uploaded_files.keys()
             assert 'remote-source.json' not in session.uploaded_files.keys()
+
+    @pytest.mark.parametrize('has_remote_source_file', [True, False])
+    def test_remote_source_files(self, tmpdir, os_env, has_remote_source_file):
+        session = MockedClientSession('')
+        tasker, workflow = mock_environment(
+            tmpdir,
+            name='ns/name',
+            version='1.0',
+            release='1',
+            session=session,
+            has_remote_source_file=has_remote_source_file)
+
+        runner = create_runner(tasker, workflow)
+        runner.run()
+
+        data = session.metadata
+        assert 'build' in data
+        build = data['build']
+        assert isinstance(build, dict)
+        assert 'extra' in build
+        extra = build['extra']
+        assert isinstance(extra, dict)
+        # https://github.com/PyCQA/pylint/issues/2186
+        # pylint: disable=W1655
+        if has_remote_source_file:
+            assert 'typeinfo' in extra
+            assert 'remote-source-file' in extra['typeinfo']
+            assert REMOTE_SOURCE_FILE_FILENAME in session.uploaded_files.keys()
+        else:
+            assert 'typeinfo' not in extra
+            assert REMOTE_SOURCE_FILE_FILENAME not in session.uploaded_files.keys()
 
     @pytest.mark.parametrize('blocksize', (None, 1048576))
     @pytest.mark.parametrize('has_config', (True, False))

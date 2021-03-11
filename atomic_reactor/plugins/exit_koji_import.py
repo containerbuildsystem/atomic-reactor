@@ -28,7 +28,7 @@ from atomic_reactor.utils.koji import get_output as koji_get_output
 from atomic_reactor.utils.koji import (
         generate_koji_upload_dir, add_custom_type,
         get_source_tarball_output, get_remote_source_json_output,
-        get_maven_components
+        get_maven_metadata
 )
 from atomic_reactor.plugins.pre_reactor_config import get_openshift_session
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
@@ -48,6 +48,7 @@ from atomic_reactor.constants import (
     PLUGIN_PIN_OPERATOR_DIGESTS_KEY,
     PLUGIN_PUSH_OPERATOR_MANIFESTS_KEY,
     PLUGIN_RESOLVE_REMOTE_SOURCE,
+    PLUGIN_GENERATE_MAVEN_METADATA_KEY,
     METADATA_TAG, OPERATOR_MANIFESTS_ARCHIVE,
     KOJI_BTYPE_REMOTE_SOURCES,
     KOJI_BTYPE_OPERATOR_MANIFESTS,
@@ -56,6 +57,7 @@ from atomic_reactor.constants import (
     KOJI_SUBTYPE_OP_APPREGISTRY,
     KOJI_SUBTYPE_OP_BUNDLE,
     KOJI_SOURCE_ENGINE,
+    KOJI_BTYPE_REMOTE_SOURCE_FILE,
 )
 from atomic_reactor.util import (Output, get_build_json,
                                  df_parser, get_primary_images,
@@ -229,6 +231,25 @@ class KojiImportBase(ExitPlugin):
             # TODO: is setting it in the image metadata also needed?
             extra['image']['remote_source_url'] = url
 
+    def set_remote_source_file_metadata(self, extra):
+        plugin_results = self.workflow.postbuild_results.get(PLUGIN_GENERATE_MAVEN_METADATA_KEY) \
+                         or {}
+        remote_source_files = plugin_results.get('remote_source_files')
+        no_source_artifacts = plugin_results.get('no_source')
+        if remote_source_files or no_source_artifacts:
+            r_s_f_typeinfo = {
+                KOJI_BTYPE_REMOTE_SOURCE_FILE: {},
+            }
+            if remote_source_files:
+                r_s_f_typeinfo[KOJI_BTYPE_REMOTE_SOURCE_FILE]['remote_source_files'] = []
+                for remote_source_file in remote_source_files:
+                    r_s_f_extra = remote_source_file['metadata']['extra']
+                    r_s_f_typeinfo[KOJI_BTYPE_REMOTE_SOURCE_FILE]['remote_source_files'].append(
+                        {r_s_f_extra['source-url']: r_s_f_extra['artifacts']})
+            if no_source_artifacts:
+                r_s_f_typeinfo[KOJI_BTYPE_REMOTE_SOURCE_FILE]['no_source'] = no_source_artifacts
+            extra.setdefault('typeinfo', {}).update(r_s_f_typeinfo)
+
     def set_group_manifest_info(self, extra, worker_metadatas):
         version_release = None
         primary_images = get_primary_images(self.workflow)
@@ -374,7 +395,7 @@ class KojiImportBase(ExitPlugin):
         metadata_version = 0
 
         worker_metadatas = self.workflow.postbuild_results.get(PLUGIN_FETCH_WORKER_METADATA_KEY)
-        maven_components = get_maven_components(self.workflow)
+        remote_source_file_outputs, kojifile_components = get_maven_metadata(self.workflow)
 
         build = self.get_build(metadata, worker_metadatas)
         buildroot = self.get_buildroot(worker_metadatas)
@@ -391,7 +412,7 @@ class KojiImportBase(ExitPlugin):
         # add maven components alongside RPM components
         for worker_output in output:
             if worker_output['type'] == 'docker-image':
-                worker_output['components'] += maven_components
+                worker_output['components'] += kojifile_components
 
         # add remote source tarball and remote-source.json files to output
         for remote_source_output in [
@@ -403,6 +424,11 @@ class KojiImportBase(ExitPlugin):
                 remote_source = add_buildroot_id(remote_source_output, buildroot_id)
                 output_files.append(remote_source)
                 output.append(remote_source.metadata)
+
+        for remote_source_file_output in remote_source_file_outputs:
+            remote_source_file = add_buildroot_id(remote_source_file_output, buildroot_id)
+            output_files.append(remote_source_file)
+            output.append(remote_source_file.metadata)
 
         koji_metadata = {
             'metadata_version': metadata_version,
@@ -645,6 +671,7 @@ class KojiImportPlugin(KojiImportBase):
         self.set_help(extra, worker_metadatas)
         self.set_operators_metadata(extra, worker_metadatas)
         self.set_remote_sources_metadata(extra)
+        self.set_remote_source_file_metadata(extra)
 
         self.set_go_metadata(extra)
         self.set_group_manifest_info(extra, worker_metadatas)
