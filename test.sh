@@ -106,13 +106,6 @@ function setup_osbs() {
   # Setuptools install atomic-reactor from source
   $RUN $PYTHON setup.py install
 
-  if (( "$OS_VERSION" < "33" )); then
-    # Since 0.13, flatpak_module_tools uses functools.cache which is only
-    # available since Python 3.9
-    $RUN "$PIP" uninstall -y flatpak_module_tools
-    $RUN "${PIP_INST[@]}" 'flatpak_module_tools<0.13'
-  fi
-
   # Pip install packages for unit tests
   $RUN "${PIP_INST[@]}" -r tests/requirements.txt
 }
