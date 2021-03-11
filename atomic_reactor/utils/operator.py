@@ -786,7 +786,8 @@ class OperatorCSV(object):
 
         Also checks the result against schema.
 
-        :param append_mods: a dict
+        :param append_mods: a dict (or nested dictionaries) that contains changes to be
+                            applied to CSV. Values of terminal dict mus be lists.
         :return: None; this modifies 'self.data' in-place
         """
         modify_dict_recursively(self.data, append_mods, append=True)
@@ -797,7 +798,8 @@ class OperatorCSV(object):
 
         Also checks the result against schema.
 
-        :param update_mods: a dict
+        :param update_mods: a dict (or nested dictionaries) that contains changes to be
+                            applied to CSV.
         :return: None; this modifies 'self.data' in-place
         """
         modify_dict_recursively(self.data, update_mods)
