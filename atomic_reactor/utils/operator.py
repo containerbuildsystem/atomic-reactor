@@ -216,7 +216,13 @@ def modify_dict_recursively(target, mods, append=False):
     for key, value in mods.items():
         if isinstance(value, dict):
             # recursive call
-            target[key] = modify_dict_recursively(target.get(key, {}), value, append=append)
+            nested = target.get(key, {})
+            if not isinstance(nested, dict):
+                raise CSVModifyError(
+                    f"Expected nested dictionary in CSV at '{key}' "
+                    f"but got '{nested}' for {mods}"
+                )
+            target[key] = modify_dict_recursively(nested, value, append=append)
         else:
             if append:
                 field = target.setdefault(key, [])
@@ -225,6 +231,10 @@ def modify_dict_recursively(target, mods, append=False):
                     # a list for appending.
                     raise CSVModifyError('CSV value to append to is not a list'
                                          f' (found {target[key]})')
+                if not isinstance(value, list):
+                    raise CSVModifyError('Modification value to append to is '
+                                         f'not a list (found {value})')
+
                 field.extend(value)
             else:
                 target[key] = value
