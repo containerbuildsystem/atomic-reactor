@@ -230,10 +230,10 @@ def modify_dict_recursively(target, mods, append=False):
                     # There's a type mismatch in the original CSV - we only *ever* allow
                     # a list for appending.
                     raise CSVModifyError('CSV value to append to is not a list'
-                                         f' (found {target[key]})')
+                                         f' (found {target[key]}) in {target}')
                 if not isinstance(value, list):
                     raise CSVModifyError('Modification value to append to is '
-                                         f'not a list (found {value})')
+                                         f'not a list (found {value}) in {mods}')
 
                 field.extend(value)
             else:
