@@ -26,7 +26,7 @@ from atomic_reactor.plugins.build_orchestrate_build import (OrchestrateBuildPlug
 from atomic_reactor.plugins.pre_pin_operator_digest import (
     PinOperatorDigestsPlugin,
     PullspecReplacer,
-    terminal_key_paths)
+)
 
 from atomic_reactor.source import PathSource
 
@@ -1464,20 +1464,3 @@ class TestOperatorCSVModifications:
             final_csv = yaml.load(csv.read())
 
         assert final_csv == expected_final_csv
-
-
-@pytest.mark.parametrize('data,expected', [
-    (
-        {},
-        set()
-    ), (
-        {'a': 1},
-        {('a',)}
-    ), (
-        {'a': {'b': {'c': {'d1': 1, 'd2': 2}, 'c2': []}}},
-        {('a', 'b', 'c2'), ('a', 'b', 'c', 'd1'), ('a', 'b', 'c', 'd2')}
-    )
-])
-def test_terminal_key_paths(data, expected):
-    """Unittest for terminal_key_paths data"""
-    assert set(terminal_key_paths(data)) == expected
