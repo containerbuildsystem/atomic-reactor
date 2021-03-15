@@ -17,12 +17,8 @@ import time
 
 from atomic_reactor.version import __version__  # noqa
 
-try:
-    from osbs.constants import ATOMIC_REACTOR_LOGGING_FMT
-except ImportError:
-    # not available in osbs < 0.41
-    fmt = '%(asctime)s platform:%(arch)s - %(name)s - %(levelname)s - %(message)s'
-    ATOMIC_REACTOR_LOGGING_FMT = fmt
+from osbs.constants import (ATOMIC_REACTOR_LOGGING_FMT, USER_WARNING_LEVEL)
+from osbs.utils import user_warning_log_handler
 
 start_time = time.time()
 
@@ -66,6 +62,10 @@ def get_logging_encoding(name="atomic_reactor"):
 
 
 def set_logging(name="atomic_reactor", level=logging.DEBUG, handler=None):
+    # add new level to loggers
+    logging.addLevelName(USER_WARNING_LEVEL, "USER_WARNING")
+    logging.Logger.user_warning = user_warning_log_handler
+
     # create logger
     logger = logging.getLogger(name)
     for hdlr in list(logger.handlers):  # make a copy so it doesn't change
