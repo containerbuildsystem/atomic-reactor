@@ -17,7 +17,7 @@ import time
 
 from atomic_reactor.version import __version__  # noqa
 
-from osbs.constants import (ATOMIC_REACTOR_LOGGING_FMT, USER_WARNING_LEVEL)
+from osbs.constants import ATOMIC_REACTOR_LOGGING_FMT, USER_WARNING_LEVEL
 from osbs.utils import user_warning_log_handler
 
 start_time = time.time()
