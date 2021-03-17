@@ -309,3 +309,32 @@ def test_download_sources_bad_request_type(tmpdir):
 def test_assemble_download_url(tmpdir, cachito_request):
     url = CachitoAPI(CACHITO_URL).assemble_download_url(cachito_request)
     assert url == CACHITO_REQUEST_DOWNLOAD_URL
+
+
+@responses.activate
+def test_get_request_env_vars():
+    env_vars = {
+        'GO111MODULE': {'kind': 'literal', 'value': 'on'},
+        'GOPATH': {'kind': 'path', 'value': 'deps/gomod'},
+        'GOCACHE': {'kind': 'path', 'value': 'deps/gomod'},
+    }
+    responses.add(
+        responses.GET,
+        f'{CACHITO_URL}/api/v1/requests/{CACHITO_REQUEST_ID}/environment-variables',
+        json=env_vars,
+    )
+
+    session = CachitoAPI(CACHITO_URL)
+    assert env_vars == session.get_request_env_vars(CACHITO_REQUEST_ID)
+
+
+@responses.activate
+def test_non_json_data_for_get_request_env_vars():
+    responses.add(
+        responses.GET,
+        f'{CACHITO_URL}/api/v1/requests/{CACHITO_REQUEST_ID}/environment-variables',
+        body='something wrong',
+    )
+    session = CachitoAPI(CACHITO_URL)
+    with pytest.raises(ValueError, match=r'JSON data.*something wrong'):
+        session.get_request_env_vars(CACHITO_REQUEST_ID)

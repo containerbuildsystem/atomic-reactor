@@ -114,6 +114,20 @@ REMOTE_SOURCE_JSON = {
     'content_manifest': CACHITO_ICM_URL,
 }
 
+CACHITO_ENV_VARS_JSON = {
+    'GO111MODULE': {'kind': 'literal', 'value': 'on'},
+    'GOPATH': {'kind': 'path', 'value': 'deps/gomod'},
+    'GOCACHE': {'kind': 'path', 'value': 'deps/gomod'},
+}
+
+# Assert this with the CACHITO_ENV_VARS_JSON
+CACHITO_BUILD_ARGS = {
+    'GO111MODULE': 'on',
+    'GOPATH': '/remote-source/deps/gomod',
+    'GOCACHE': '/remote-source/deps/gomod',
+    'CACHITO_ENV_FILE': '/remote-source/cachito.env',
+}
+
 
 @pytest.fixture
 def workflow(tmpdir, user_params):
@@ -189,7 +203,8 @@ def mock_repo_config(workflow, data=None):
 
 
 def mock_cachito_api(workflow, user=KOJI_TASK_OWNER, source_request=None,
-                     dependency_replacements=None):
+                     dependency_replacements=None,
+                     env_vars_json=None):
     if source_request is None:
         source_request = CACHITO_SOURCE_REQUEST
     (flexmock(CachitoAPI)
@@ -216,6 +231,11 @@ def mock_cachito_api(workflow, user=KOJI_TASK_OWNER, source_request=None,
         .should_receive('assemble_download_url')
         .with_args(source_request)
         .and_return(CACHITO_REQUEST_DOWNLOAD_URL))
+
+    (flexmock(CachitoAPI)
+        .should_receive('get_request_env_vars')
+        .with_args(source_request['id'])
+        .and_return(env_vars_json or CACHITO_ENV_VARS_JSON))
 
 
 def mock_koji(user=KOJI_TASK_OWNER):
@@ -255,10 +275,34 @@ def teardown_function(*args):
                             'new_name': 'newproject',
                             'version': '2'}]),
                           (['gomod:foo.bar/project'], None)))
-def test_resolve_remote_source(workflow, scratch, dr_strs, dependency_replacements):
+@pytest.mark.parametrize('env_vars_json, expected_build_args', [
+    [CACHITO_ENV_VARS_JSON, CACHITO_BUILD_ARGS],
+    [
+        {
+            'GOPATH': {'kind': 'path', 'value': 'deps/gomod'},
+            'GOCACHE': {'kind': 'path', 'value': 'deps/gomod'},
+        },
+        {
+            'GOPATH': '/remote-source/deps/gomod',
+            'GOCACHE': '/remote-source/deps/gomod',
+            'CACHITO_ENV_FILE': '/remote-source/cachito.env',
+        },
+    ],
+    [
+        {'GO111MODULE': {'kind': 'literal', 'value': 'on'}},
+        {
+            'GO111MODULE': 'on',
+            'CACHITO_ENV_FILE': '/remote-source/cachito.env',
+        },
+    ],
+])
+def test_resolve_remote_source(workflow, scratch, dr_strs, dependency_replacements,
+                               env_vars_json, expected_build_args):
     build_json = {'metadata': {'labels': {'koji-task-id': str(KOJI_TASK_ID)}}}
     mock_build_json(build_json=build_json)
-    mock_cachito_api(workflow, dependency_replacements=dependency_replacements)
+    mock_cachito_api(workflow,
+                     dependency_replacements=dependency_replacements,
+                     env_vars_json=env_vars_json)
     workflow.user_params['scratch'] = scratch
     err = None
     if dr_strs and not scratch:
@@ -270,7 +314,8 @@ def test_resolve_remote_source(workflow, scratch, dr_strs, dependency_replacemen
     run_plugin_with_args(
         workflow,
         dependency_replacements=dr_strs,
-        expect_error=err
+        expect_error=err,
+        expected_build_args=expected_build_args,
     )
 
 
@@ -364,7 +409,7 @@ def test_bad_build_metadata(workflow, build_json, log_entry, caplog):
 
 
 def run_plugin_with_args(workflow, dependency_replacements=None, expect_error=None,
-                         expect_result=True):
+                         expect_result=True, expected_build_args=None):
     runner = PreBuildPluginsRunner(
         workflow.builder.tasker,
         workflow,
@@ -392,12 +437,8 @@ def run_plugin_with_args(workflow, dependency_replacements=None, expect_error=No
         worker_params = orchestrator_build_workspace[WORKSPACE_KEY_OVERRIDE_KWARGS][None]
         assert worker_params['remote_source_url'] == CACHITO_REQUEST_DOWNLOAD_URL
         assert worker_params['remote_source_configs'] == CACHITO_REQUEST_CONFIG_URL
-        assert worker_params['remote_source_build_args'] == {
-            'GO111MODULE': 'on',
-            'GOPATH': '/remote-source/deps/gomod',
-            'GOCACHE': '/remote-source/deps/gomod',
-            'CACHITO_ENV_FILE': '/remote-source/cachito.env',
-        }
+        assert worker_params['remote_source_build_args'] == \
+            expected_build_args or CACHITO_BUILD_ARGS
         assert worker_params['remote_source_icm_url'] == CACHITO_ICM_URL
 
     return results

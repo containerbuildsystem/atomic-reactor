@@ -6,7 +6,6 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 import os.path
-import re
 
 from atomic_reactor.constants import (
     PLUGIN_RESOLVE_REMOTE_SOURCE, REMOTE_SOURCE_DIR, CACHITO_ENV_ARG_ALIAS, CACHITO_ENV_FILENAME)
@@ -112,21 +111,18 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
     def set_worker_params(self, source_request, remote_source_url, remote_source_conf_url,
                           remote_source_icm_url):
         build_args = {}
-        # This matches values such as 'deps/gomod' but not 'true'
-        rel_path_regex = re.compile(r'^[^/]+/[^/]+(?:/[^/]+)*$')
-        for env_var, value in source_request.get('environment_variables', {}).items():
-            # Turn the environment variables that are relative paths into absolute paths that
-            # represent where the remote sources are copied to during the build process.
-            if re.match(rel_path_regex, value):
-                abs_path = os.path.join(REMOTE_SOURCE_DIR, value)
+        env_vars = self.cachito_session.get_request_env_vars(source_request['id'])
+
+        for env_var, value_info in env_vars.items():
+            build_arg_value = value_info['value']
+            if value_info['kind'] == 'path':
+                build_arg_value = os.path.join(REMOTE_SOURCE_DIR, value_info['value'])
                 self.log.debug(
                     'Setting the Cachito environment variable "%s" to the absolute path "%s"',
                     env_var,
-                    abs_path,
+                    build_arg_value,
                 )
-                build_args[env_var] = abs_path
-            else:
-                build_args[env_var] = value
+            build_args[env_var] = build_arg_value
 
         # Alias for absolute path to cachito.env script added into buildargs
         build_args[CACHITO_ENV_ARG_ALIAS] = os.path.join(REMOTE_SOURCE_DIR, CACHITO_ENV_FILENAME)
