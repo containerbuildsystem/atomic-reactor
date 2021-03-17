@@ -201,6 +201,29 @@ class CachitoAPI(object):
             return request['id']
         raise ValueError('Unexpected request type: {}'.format(request))
 
+    def get_request_env_vars(self, rid):
+        """Get the environment variables from endpoint /requests/$id/environment-variables
+
+        :param int rid: the Cachito request id whose environment variables will
+            be returned.
+        :return: a mapping containing the environment variables. For example:
+            ``{"GOCACHE": {"kind": "path", "value": "deps/gomod"}, ...}``.
+        :rtype: dict[str, dict[str, str]]
+        :raises: TypeError if the server does not response a JSON data to be
+            parsed.
+        :raises: HTTP error raised from the underlying requests library in any
+            case of the request cannot be completed.
+        """
+        endpoint = f'{self.api_url}/api/v1/requests/{rid}/environment-variables'
+        resp = self.session.get(endpoint)
+        resp.raise_for_status()
+        try:
+            return resp.json()
+        except Exception as exc:
+            msg = (f'JSON data is expected from Cachito endpoint {endpoint}, '
+                   f'but the response contains: {resp.content}.')
+            raise ValueError(msg) from exc
+
 
 if __name__ == '__main__':
     logging.basicConfig()
