@@ -1,5 +1,5 @@
 """
-Copyright (c) 2019 Red Hat, Inc
+Copyright (c) 2019, 2021 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -82,7 +82,7 @@ class FetchSourcesPlugin(PreBuildPlugin):
         insecure = koji_config.get('insecure_download', False)
         urls = self.get_srpm_urls(signing_intent['keys'], insecure=insecure)
         urls_remote, remote_sources_map = self.get_remote_urls()
-        urls_maven = self.get_kojifile_source_urls()
+        urls_maven = self.get_kojifile_source_urls() + self.get_remote_file_urls()
 
         if not any([urls, urls_remote, urls_maven]):
             msg = "No srpms or remote sources or maven sources found for source" \
@@ -301,6 +301,35 @@ class FetchSourcesPlugin(PreBuildPlugin):
 
         return sources
 
+    def _get_remote_file_urls_helper(self, koji_build):
+        """Fetch remote source file urls from specific build
+
+        :param koji_build: dict, koji build
+        :return: str, URL pointing to remote source files
+        """
+
+        self.log.debug('get remote_file_urls: %s', koji_build['build_id'])
+
+        archives = self.session.listArchives(koji_build['build_id'], type='remote-source-file')
+        self.log.debug('archives: %s', archives)
+
+        remote_source_files_path = self.pathinfo.typedir(koji_build, btype='remote-source-file')
+        sources = []
+
+        for archive in archives:
+            if archive['type_name'] == 'tar':
+                # download each remote-source-file archive into it's own subdirectory
+                #  with the same name as the archive
+                source = {'url': os.path.join(remote_source_files_path,
+                                              archive['filename']),
+                          'subdir': archive['filename'].rsplit('.', 2)[0],
+                          'dest': archive['filename'],
+                          'checksums': {koji.CHECKSUM_TYPES[archive['checksum_type']]:
+                                        archive['checksum']}}
+                sources.append(source)
+
+        return sources
+
     def get_remote_urls(self):
         """Fetch remote source urls from all builds
 
@@ -343,6 +372,26 @@ class FetchSourcesPlugin(PreBuildPlugin):
             kojifile_sources.extend(kojifile_source)
 
         return kojifile_sources
+
+    def get_remote_file_urls(self):
+        """Fetch remote source file urls from all builds
+
+        :return: list, dicts with URL pointing to remote source files
+        """
+        sources = []
+
+        source = self._get_remote_file_urls_helper(self.koji_build)
+        sources.extend(source)
+
+        koji_build = self.koji_build
+
+        while 'parent_build_id' in koji_build['extra']['image']:
+            koji_build = self.session.getBuild(koji_build['extra']['image']['parent_build_id'],
+                                               strict=True)
+            source = self._get_remote_file_urls_helper(koji_build)
+            sources.extend(source)
+
+        return sources
 
     def get_denylisted_srpms(self):
         src_config = get_source_container(self.workflow, fallback={})
