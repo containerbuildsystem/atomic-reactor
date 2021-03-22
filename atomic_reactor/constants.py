@@ -160,6 +160,9 @@ MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST = "application/vnd.docker.distribution.manife
 MEDIA_TYPE_OCI_V1 = "application/vnd.oci.image.manifest.v1+json"
 MEDIA_TYPE_OCI_V1_INDEX = "application/vnd.oci.image.index.v1+json"
 
+# PNC related constants
+PNC_SYSTEM_USER = "newcastle"
+
 REPO_CONTAINER_CONFIG = 'container.yaml'
 REPO_CONTENT_SETS_CONFIG = 'content_sets.yml'
 REPO_FETCH_ARTIFACTS_URL = 'fetch-artifacts-url.yaml'

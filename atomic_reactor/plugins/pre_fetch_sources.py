@@ -13,19 +13,21 @@ import koji
 import tarfile
 import yaml
 
-from atomic_reactor.constants import PLUGIN_FETCH_SOURCES_KEY
+from atomic_reactor.constants import PLUGIN_FETCH_SOURCES_KEY, PNC_SYSTEM_USER
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.pre_reactor_config import (
     get_koji,
     get_koji_path_info,
     get_koji_session,
     get_config,
-    get_source_container
+    get_pnc,
+    get_source_container,
 )
 from atomic_reactor.source import GitSource
 from atomic_reactor.util import get_retrying_requests_session
 from atomic_reactor.download import download_url
 from atomic_reactor.metadata import label_map
+from atomic_reactor.utils import pnc
 
 
 @label_map('sources_for_koji_build_id')
@@ -34,7 +36,8 @@ class FetchSourcesPlugin(PreBuildPlugin):
     key = PLUGIN_FETCH_SOURCES_KEY
     is_allowed_to_fail = False
     SRPMS_DOWNLOAD_DIR = 'image_sources'
-    REMOTE_SOUCES_DOWNLOAD_DIR = 'remote_sources'
+    REMOTE_SOURCES_DOWNLOAD_DIR = 'remote_sources'
+    MAVEN_SOURCES_DOWNLOAD_DIR = 'maven_sources'
 
     def __init__(
         self, tasker, workflow, koji_build_id=None, koji_build_nvr=None, signing_intent=None,
@@ -79,26 +82,34 @@ class FetchSourcesPlugin(PreBuildPlugin):
         insecure = koji_config.get('insecure_download', False)
         urls = self.get_srpm_urls(signing_intent['keys'], insecure=insecure)
         urls_remote, remote_sources_map = self.get_remote_urls()
+        urls_maven = self.get_kojifile_source_urls()
 
-        if not urls and not urls_remote:
-            msg = "No srpms or remote sources found for source container," \
-                  " would produce empty source container image"
+        if not any([urls, urls_remote, urls_maven]):
+            msg = "No srpms or remote sources or maven sources found for source" \
+                  " container, would produce empty source container image"
             self.log.error(msg)
             raise RuntimeError(msg)
 
         sources_dir = None
         remote_sources_dir = None
+        maven_sources_dir = None
         if urls:
             sources_dir = self.download_sources(urls, insecure=insecure)
         if urls_remote:
             remote_sources_dir = self.download_sources(urls_remote, insecure=insecure,
-                                                       download_dir=self.REMOTE_SOUCES_DOWNLOAD_DIR)
+                                                       download_dir=self.REMOTE_SOURCES_DOWNLOAD_DIR
+                                                       )
             self.exclude_files_from_remote_sources(remote_sources_map, remote_sources_dir)
+        if urls_maven:
+            maven_sources_dir = self.download_sources(urls_maven, insecure=insecure,
+                                                      download_dir=self.MAVEN_SOURCES_DOWNLOAD_DIR)
+
         return {
                 'sources_for_koji_build_id': self.koji_build_id,
                 'sources_for_nvr': self.koji_build_nvr,
                 'image_sources_dir': sources_dir,
                 'remote_sources_dir': remote_sources_dir,
+                'maven_sources_dir': maven_sources_dir,
                 'signing_intent': self.signing_intent,
         }
 
@@ -120,8 +131,13 @@ class FetchSourcesPlugin(PreBuildPlugin):
 
         req_session = get_retrying_requests_session()
         for source in sources:
-            download_url(source['url'], dest_dir, insecure=insecure,
-                         session=req_session, dest_filename=source.get('dest'))
+            subdir = os.path.join(dest_dir, source.get('subdir', ''))
+            checksums = source.get('checksums', {})
+            if not os.path.exists(subdir):
+                os.makedirs(subdir)
+            download_url(source['url'], subdir, insecure=insecure,
+                         session=req_session, dest_filename=source.get('dest'),
+                         expected_checksums=checksums)
 
         return dest_dir
 
@@ -229,6 +245,62 @@ class FetchSourcesPlugin(PreBuildPlugin):
 
         return remote_sources_urls, remote_json_map
 
+    def _get_kojifile_source_urls_helper(self, koji_build):
+        """Fetch kojifile source urls from specific build
+
+        :param koji_build: dict, koji build
+        :return: list, dicts with URL pointing to kojifile sources
+        """
+
+        self.log.debug('get kojifile_source_urls: %s', koji_build['build_id'])
+        images = self.session.listArchives(koji_build['build_id'], type='image')
+
+        self.log.debug('images: %s', images)
+
+        sources = []
+        pnc_map = get_pnc(self.workflow)
+        # using urljoin here causes the API path in the base_api_url to be removed
+        api_request_url = pnc_map['base_api_url'] + '/' + pnc_map['get_scm_archive_path']
+        req_session = get_retrying_requests_session()
+
+        kojifile_build_ids = {kojifile['build_id'] for image in images
+                              for kojifile in self.session.listArchives(imageID=image['id'],
+                                                                        type='maven')}
+
+        for build_id in kojifile_build_ids:
+            source_build = self.session.getBuild(build_id, strict=True)
+            if source_build['owner_name'] == PNC_SYSTEM_USER:
+                pnc_build_id = source_build['extra']['external_build_id']
+                url, dest_filename = pnc.get_scm_archive_from_build_id(
+                                                                    api_request_url=api_request_url,
+                                                                    build_id=pnc_build_id,
+                                                                    session=req_session)
+                source = {'url': url,
+                          'subdir': source_build['nvr'],
+                          'dest': '__'.join([source_build['nvr'], dest_filename])}
+            else:
+                source_archive = None
+                maven_build_path = self.pathinfo.mavenbuild(source_build)
+                for archive in self.session.listArchives(buildID=source_build['build_id'],
+                                                         type='maven'):
+                    if archive['filename'].endswith('-project-sources.tar.gz'):
+                        source_archive = archive
+                        break
+                if not source_archive:
+                    raise RuntimeError(f"No sources found for {source_build['nvr']}")
+
+                maven_file_path = self.pathinfo.mavenfile(source_archive)
+                url = maven_build_path + '/' + maven_file_path
+                source = {'url': url,
+                          'subdir': source_build['nvr'],
+                          'dest': '__'.join([source_build['nvr'], source_archive['filename']]),
+                          'checksums': {
+                              koji.CHECKSUM_TYPES[source_archive['checksum_type']]:
+                                  source_archive['checksum']}}
+            sources.append(source)
+
+        return sources
+
     def get_remote_urls(self):
         """Fetch remote source urls from all builds
 
@@ -251,6 +323,26 @@ class FetchSourcesPlugin(PreBuildPlugin):
             remote_sources_map.update(remote_json)
 
         return remote_sources_urls, remote_sources_map
+
+    def get_kojifile_source_urls(self):
+        """Fetch kojifile source urls from all builds
+
+        :return: list, dicts with URL pointing to kojifile source files
+        """
+        kojifile_sources = []
+
+        kojifile_source = self._get_kojifile_source_urls_helper(self.koji_build)
+        kojifile_sources.extend(kojifile_source)
+
+        koji_build = self.koji_build
+
+        while 'parent_build_id' in koji_build['extra']['image']:
+            koji_build = self.session.getBuild(koji_build['extra']['image']['parent_build_id'],
+                                               strict=True)
+            kojifile_source = self._get_kojifile_source_urls_helper(koji_build)
+            kojifile_sources.extend(kojifile_source)
+
+        return kojifile_sources
 
     def get_denylisted_srpms(self):
         src_config = get_source_container(self.workflow, fallback={})
