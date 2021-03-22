@@ -65,6 +65,10 @@ def get_koji(workflow):
     return koji_map
 
 
+def get_pnc(workflow):
+    return get_value(workflow, 'pnc', NO_FALLBACK)
+
+
 def get_koji_session(workflow):
     config = get_koji(workflow)
 
