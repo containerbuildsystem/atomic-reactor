@@ -16,9 +16,11 @@ import time
 import tarfile
 import shutil
 
+import atomic_reactor
 import koji
 import pytest
 import requests
+from atomic_reactor.constants import PNC_SYSTEM_USER
 from flexmock import flexmock
 
 from atomic_reactor import constants
@@ -28,12 +30,13 @@ from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_fetch_sources import FetchSourcesPlugin
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY, ReactorConfig)
-import atomic_reactor
+from atomic_reactor.util import get_checksums
 from tests.stubs import StubInsideBuilder
-
 
 KOJI_HUB = 'http://koji.com/hub'
 KOJI_ROOT = 'http://koji.localhost/kojiroot'
+PNC_BASE_API_URL = 'http://pnc.localhost/pnc-rest/v2'
+PNC_GET_SCM_ARCHIVE_PATH = 'builds/{}/scm-archive'
 KOJI_UPLOAD_TEST_WORKDIR = 'temp_workdir'
 KOJI_BUILD = {'build_id': 1, 'nvr': 'foobar-1-1', 'name': 'foobar', 'version': 1, 'release': 1,
               'extra': {'image': {'parent_build_id': 10}, 'operator-manifests': {}},
@@ -41,9 +44,27 @@ KOJI_BUILD = {'build_id': 1, 'nvr': 'foobar-1-1', 'name': 'foobar', 'version': 1
 KOJI_PARENT_BUILD = {'build_id': 10, 'nvr': 'parent-1-1', 'name': 'parent', 'version': 1,
                      'release': 1,
                      'extra': {'image': {''}, 'operator-manifests': {}}}
+KOJI_PNC_BUILD = {'build_id': 25, 'nvr': 'foobar-1-1', 'name': 'foobar', 'version': 1, 'release': 1,
+                  'extra': {'image': {'parent_build_id': 10}, 'operator-manifests': {},
+                            'external_build_id': '1234'},
+                  'source': 'registry.com/repo#ref', 'owner_name': PNC_SYSTEM_USER}
+KOJI_MEAD_BUILD = {'build_id': 26, 'nvr': 'foobar-1-1', 'name': 'foobar', 'version': 1,
+                   'release': 1, 'source': 'registry.com/repo#ref', 'owner_name': 'foo',
+                   'extra': {'image': {'parent_build_id': 10}, 'operator-manifests': {}}}
+
 constants.HTTP_BACKOFF_FACTOR = 0
+
 REMOTE_SOURCES_FILE = 'remote-source.tar.gz'
 REMOTE_SOURCES_JSON = 'remote-source.json'
+KOJIFILE_PNC_FILENAME = 'kojifile_pnc.jar'
+KOJIFILE_MEAD_FILENAME = 'kojifile_mead.jar'
+KOJIFILE_PNC_SOURCE_FILENAME = 'pnc-project-sources.tar.gz'
+KOJIFILE_MEAD_SOURCE_FILENAME = 'mead-project-sources.tar.gz'
+
+KOJIFILE_MEAD_SOURCE_ARCHIVE = {'id': 27, 'type_name': 'tar',
+                                'filename': KOJIFILE_MEAD_SOURCE_FILENAME, 'checksum_type': 0,
+                                'version': 1.0, 'build_id': 26, 'group_id': 'foo.bar',
+                                'artifact_id': 1}
 
 DEFAULT_SIGNING_INTENT = 'empty'
 
@@ -54,7 +75,10 @@ BASE_CONFIG_MAP = dedent("""\
        root_url: {}
        auth:
            ssl_certs_dir: not_needed_here
-    """.format(KOJI_HUB, KOJI_ROOT))
+    pnc:
+      base_api_url: {}
+      get_scm_archive_path: {}
+    """.format(KOJI_HUB, KOJI_ROOT, PNC_BASE_API_URL, PNC_GET_SCM_ARCHIVE_PATH))
 
 
 def mock_reactor_config(workflow, tmpdir, data=None, default_si=DEFAULT_SIGNING_INTENT):
@@ -66,6 +90,9 @@ def mock_reactor_config(workflow, tmpdir, data=None, default_si=DEFAULT_SIGNING_
                root_url: {}
                auth:
                    ssl_certs_dir: not_needed_here
+            pnc:
+              base_api_url: {}
+              get_scm_archive_path: {}
             odcs:
                signing_intents:
                - name: invalid
@@ -82,7 +109,8 @@ def mock_reactor_config(workflow, tmpdir, data=None, default_si=DEFAULT_SIGNING_
                api_url: invalid
                auth:
                    ssl_certs_dir: {}
-            """.format(KOJI_HUB, KOJI_ROOT, default_si, tmpdir))
+            """.format(KOJI_HUB, KOJI_ROOT, PNC_BASE_API_URL, PNC_GET_SCM_ARCHIVE_PATH,
+                       default_si, tmpdir))
 
     workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
 
@@ -133,12 +161,34 @@ def koji_session():
     (flexmock(session)
      .should_receive('listArchives')
      .with_args(object, type='image')
-     .and_return([{'id': 1}, {'id': 2}]))
+     .and_return([{'id': 1}, {'id': 2}, {'id': 3}]))
     (flexmock(session)
      .should_receive('listArchives')
      .with_args(object, type='remote-sources')
      .and_return([{'id': 1, 'type_name': 'tar', 'filename': REMOTE_SOURCES_FILE},
                   {'id': 20, 'type_name': 'json', 'filename': REMOTE_SOURCES_JSON}]))
+    (flexmock(session)
+     .should_receive('listArchives')
+     .with_args(imageID=1, type='maven')
+     .and_return([]))
+    (flexmock(session)
+     .should_receive('listArchives')
+     .with_args(imageID=2, type='maven')
+     .and_return([]))
+    (flexmock(session)
+     .should_receive('listArchives')
+     .with_args(imageID=3, type='maven')
+     .and_return([{'id': 9, 'type_name': 'jar', 'filename': KOJIFILE_PNC_FILENAME,
+                   'checksum_type': 0, 'checksum': '7e79f2ea63aadf1948c82bb3bca74f26',
+                   'build_id': 25},
+                  {'id': 10, 'type_name': 'jar', 'filename': KOJIFILE_MEAD_FILENAME,
+                   'checksum_type': 0, 'checksum': '7e79f2ea63aadf1948c82bb3bca74f26',
+                   'build_id': 26}
+                  ]))
+    (flexmock(session)
+     .should_receive('listArchives')
+     .with_args(buildID=26, type='maven')
+     .and_return([KOJIFILE_MEAD_SOURCE_ARCHIVE]))
     flexmock(session).should_receive('listRPMs').with_args(imageID=1).and_return([
         {'id': 1,
          'build_id': 1,
@@ -153,6 +203,7 @@ def koji_session():
          'arch': 'x86_64',
          'external_repo_name': 'INTERNAL'}
     ])
+    flexmock(session).should_receive('listRPMs').with_args(imageID=3).and_return([])
     (flexmock(session)
      .should_receive('getRPMHeaders')
      .and_return({'SOURCERPM': 'foobar-1-1.src.rpm'}))
@@ -168,6 +219,14 @@ def koji_session():
      .should_receive('getBuild')
      .with_args(KOJI_PARENT_BUILD['build_id'], strict=True)
      .and_return(KOJI_PARENT_BUILD))
+    (flexmock(session)
+     .should_receive('getBuild')
+     .with_args(KOJI_PNC_BUILD['build_id'], strict=True)
+     .and_return(KOJI_PNC_BUILD))
+    (flexmock(session)
+     .should_receive('getBuild')
+     .with_args(KOJI_MEAD_BUILD['build_id'], strict=True)
+     .and_return(KOJI_MEAD_BUILD))
     flexmock(session).should_receive('krb_login').and_return(True)
     flexmock(koji).should_receive('ClientSession').and_return(session)
     return session
@@ -187,6 +246,23 @@ def get_remote_url(koji_build, file_name=REMOTE_SOURCES_FILE):
     base = '{}/packages/{}/{}/{}'.format(KOJI_ROOT, koji_build['name'], koji_build['version'],
                                          koji_build['release'])
     return '{}/files/remote-sources/{}'.format(base, file_name)
+
+
+def get_kojifile_source_mead_url(koji_build, source_archive):
+    base = '{}/packages/{}/{}/{}'.format(KOJI_ROOT, koji_build['name'], koji_build['version'],
+                                         koji_build['release'])
+    group_path = '/'.join(source_archive['group_id'].split('.'))
+    return '{}/maven/{}/{}/{}/{}'.format(base, group_path, source_archive['artifact_id'],
+                                         source_archive['version'],
+                                         source_archive['filename'])
+
+
+def get_pnc_api_url(build_id):
+    return (PNC_BASE_API_URL + '/' + PNC_GET_SCM_ARCHIVE_PATH).format(build_id)
+
+
+def get_kojifile_pnc_source_url():
+    return f'http://code.gerrit.localhost/{KOJIFILE_PNC_SOURCE_FILENAME};sf=tgz'
 
 
 def mock_koji_manifest_download(tmpdir, requests_mock, retries=0, dirs_in_remote=('app', 'deps'),
@@ -241,6 +317,10 @@ def mock_koji_manifest_download(tmpdir, requests_mock, retries=0, dirs_in_remote
     shutil.rmtree(os.path.join(str(tmpdir), 'deps'))
 
     targz_bytes = open(os.path.join(str(tmpdir), 'test.tar.gz'), 'rb').read()
+    targz_checksum = get_checksums(os.path.join(str(tmpdir), 'test.tar.gz'),
+                                   ['md5']).get('md5sum')
+    KOJIFILE_MEAD_SOURCE_ARCHIVE['checksum'] = targz_checksum
+
     os.unlink(os.path.join(str(tmpdir), 'test.tar.gz'))
 
     def body_remote_json_callback(request, context):
@@ -265,6 +345,20 @@ def mock_koji_manifest_download(tmpdir, requests_mock, retries=0, dirs_in_remote
     requests_mock.register_uri('GET', get_remote_url(KOJI_PARENT_BUILD,
                                                      file_name=REMOTE_SOURCES_JSON),
                                body=body_remote_json_callback)
+    requests_mock.register_uri('GET', get_kojifile_pnc_source_url(),
+                               body=body_remote_callback)
+    requests_mock.register_uri('HEAD', get_kojifile_pnc_source_url(),
+                               body='',
+                               headers={'Content-disposition':
+                                        'inline; filename="{}"'
+                               .format(KOJIFILE_PNC_SOURCE_FILENAME)})
+    requests_mock.register_uri('GET', get_pnc_api_url(KOJI_PNC_BUILD['extra']['external_build_id']),
+                               headers={'Location': get_kojifile_pnc_source_url()},
+                               body=body_remote_callback,
+                               status_code=302)
+    requests_mock.register_uri('GET', get_kojifile_source_mead_url(KOJI_MEAD_BUILD,
+                                                                   KOJIFILE_MEAD_SOURCE_ARCHIVE),
+                               body=body_remote_callback)
 
 
 @pytest.mark.usefixtures('user_params')
@@ -292,10 +386,16 @@ class TestFetchSources(object):
             results = result[constants.PLUGIN_FETCH_SOURCES_KEY]
             sources_dir = results['image_sources_dir']
             remote_sources_dir = results['remote_sources_dir']
+            maven_sources_dir = results['maven_sources_dir']
             orig_build_id = results['sources_for_koji_build_id']
             orig_build_nvr = results['sources_for_nvr']
             sources_list = os.listdir(sources_dir)
             remote_list = set(os.listdir(remote_sources_dir))
+            maven_list = set()
+            for maven_sources_subdir in os.listdir(maven_sources_dir):
+                for source_archive in os.listdir(os.path.join(maven_sources_dir,
+                                                              maven_sources_subdir)):
+                    maven_list.add(source_archive.split('__')[-1])
             assert orig_build_id == 1
             assert orig_build_nvr == 'foobar-1-1'
             assert len(sources_list) == 1
@@ -304,6 +404,11 @@ class TestFetchSources(object):
             expected_remotes.add('-'.join([KOJI_BUILD['nvr'], REMOTE_SOURCES_FILE]))
             expected_remotes.add('-'.join([KOJI_PARENT_BUILD['nvr'], REMOTE_SOURCES_FILE]))
             assert remote_list == expected_remotes
+            maven_source_archives = set()
+            maven_source_archives.add(KOJIFILE_MEAD_SOURCE_FILENAME)
+            maven_source_archives.add(KOJIFILE_PNC_SOURCE_FILENAME)
+            assert maven_list == maven_source_archives
+
             with open(os.path.join(sources_dir, sources_list[0]), 'rb') as f:
                 assert f.read() == b'Source RPM'
             if signing_intent in ['unsigned, empty']:
@@ -325,6 +430,9 @@ class TestFetchSources(object):
         koji_build = deepcopy(KOJI_BUILD)
         koji_build['extra'].update({'image': extra_image})
         flexmock(koji_session).should_receive('getBuild').and_return(koji_build)
+        (flexmock(koji_session).should_receive('listArchives')
+         .with_args(imageID=3, type='maven')
+         .and_return([]))
 
         mock_koji_manifest_download(tmpdir, requests_mock)
         runner = mock_env(tmpdir, docker_tasker, koji_build_id=1, default_si=signing_intent)
@@ -431,6 +539,21 @@ class TestFetchSources(object):
 
         assert msg in str(exc.value)
 
+    def test_no_source_archive_for_mead_build(self, requests_mock, docker_tasker, koji_session,
+                                              tmpdir):
+        mock_koji_manifest_download(tmpdir, requests_mock)
+        (flexmock(koji_session)
+         .should_receive('listArchives')
+         .with_args(buildID=26, type='maven')
+         .and_return([]))
+
+        with pytest.raises(PluginFailedException) as exc:
+            mock_env(tmpdir, docker_tasker, koji_build_id=KOJI_MEAD_BUILD['build_id']).run()
+
+        msg = f"No sources found for {KOJI_MEAD_BUILD['nvr']}"
+
+        assert msg in str(exc.value)
+
     @pytest.mark.parametrize('signing_key', [None, 'usedKey'])
     @pytest.mark.parametrize('srpm_filename', [
         'baz-1-1.src.rpm',
@@ -445,6 +568,10 @@ class TestFetchSources(object):
         (flexmock(koji_session)
             .should_receive('listArchives')
             .with_args(object, type='remote-sources')
+            .and_return([]))
+        (flexmock(koji_session)
+            .should_receive('listArchives')
+            .with_args(imageID=3, type='maven')
             .and_return([]))
 
         key = None if signing_key is None else signing_key.lower()
@@ -587,6 +714,10 @@ class TestFetchSources(object):
             .with_args(object, type='remote-sources')
             .and_return([]))
         (flexmock(koji_session)
+            .should_receive('listArchives')
+            .with_args(object, type='maven')
+            .and_return([]))
+        (flexmock(koji_session)
             .should_receive('listRPMs')
             .with_args(imageID=1)
             .and_return([]))
@@ -595,7 +726,7 @@ class TestFetchSources(object):
         with pytest.raises(PluginFailedException) as exc_info:
             runner.run()
 
-        assert 'No srpms or remote sources found' in str(exc_info.value)
+        assert 'No srpms or remote sources or maven sources found' in str(exc_info.value)
 
     @pytest.mark.parametrize(('excludelist', 'excludelist_json', 'cachito_pkg_names',
                               'exclude_messages', 'exc_str'), [
