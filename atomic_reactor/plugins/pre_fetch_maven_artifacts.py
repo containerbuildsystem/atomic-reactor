@@ -1,5 +1,5 @@
 """
-Copyright (c) 2017 Red Hat, Inc
+Copyright (c) 2017, 2021 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -10,14 +10,14 @@ import koji
 import os
 
 from atomic_reactor import util
-from atomic_reactor.constants import (DEFAULT_DOWNLOAD_BLOCK_SIZE,
-                                      PLUGIN_FETCH_MAVEN_KEY,
+from atomic_reactor.constants import (PLUGIN_FETCH_MAVEN_KEY,
                                       REPO_FETCH_ARTIFACTS_URL,
                                       REPO_FETCH_ARTIFACTS_KOJI)
+from atomic_reactor.download import download_url
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.pre_reactor_config import (get_koji_session,
                                                        get_koji_path_info,
-                                                       get_artifacts_allowed_domains)
+                                                       get_artifacts_allowed_domains, get_koji)
 from collections import namedtuple
 from atomic_reactor.utils.koji import NvrRequest
 
@@ -116,6 +116,8 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
 
     def download_files(self, downloads):
         artifacts_path = os.path.join(self.workdir, self.DOWNLOAD_DIR)
+        koji_config = get_koji(self.workflow)
+        insecure = koji_config.get('insecure_download', False)
 
         self.log.debug('%d files to download', len(downloads))
         session = util.get_retrying_requests_session()
@@ -123,27 +125,16 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
         for index, download in enumerate(downloads):
             dest_path = os.path.join(artifacts_path, download.dest)
             dest_dir = dest_path.rsplit('/', 1)[0]
+            dest_filename = dest_path.rsplit('/', 1)[-1]
+
             if not os.path.exists(dest_dir):
                 os.makedirs(dest_dir)
 
             self.log.debug('%d/%d downloading %s', index + 1, len(downloads),
                            download.url)
 
-            checksums = {algo: hashlib.new(algo) for algo in download.checksums}
-            request = session.get(download.url, stream=True)
-            request.raise_for_status()
-
-            with open(dest_path, 'wb') as f:
-                for chunk in request.iter_content(chunk_size=DEFAULT_DOWNLOAD_BLOCK_SIZE):
-                    f.write(chunk)
-                    for checksum in checksums.values():
-                        checksum.update(chunk)
-
-            for algo, checksum in checksums.items():
-                if checksum.hexdigest() != download.checksums[algo]:
-                    raise ValueError(
-                        'Computed {} checksum, {}, does not match expected checksum, {}'
-                        .format(algo, checksum.hexdigest(), download.checksums[algo]))
+            download_url(url=download.url, dest_dir=dest_dir, insecure=insecure, session=session,
+                         dest_filename=dest_filename, expected_checksums=download.checksums)
 
     def run(self):
         self.session = get_koji_session(self.workflow)

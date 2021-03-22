@@ -231,11 +231,14 @@ def mock_env(tmpdir):
                  'root_url': KOJI_ROOT,
                  'auth': {}
              }}
+
     env = (MockEnv()
            .for_plugin('postbuild', GenerateMavenMetadataPlugin.key)
            .make_orchestrator()
            .set_reactor_config(r_c_m))
+
     env.workflow.source = MockSource(tmpdir)
+
     return env
 
 

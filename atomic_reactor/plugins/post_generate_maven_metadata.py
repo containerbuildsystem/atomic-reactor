@@ -13,10 +13,11 @@ from collections import namedtuple
 import koji
 
 from atomic_reactor import util
-from atomic_reactor.constants import (DEFAULT_DOWNLOAD_BLOCK_SIZE,
-                                      KOJI_BTYPE_REMOTE_SOURCE_FILE,
+from atomic_reactor.constants import (KOJI_BTYPE_REMOTE_SOURCE_FILE,
                                       PLUGIN_GENERATE_MAVEN_METADATA_KEY)
+from atomic_reactor.download import download_url
 from atomic_reactor.plugin import PostBuildPlugin
+from atomic_reactor.plugins.pre_reactor_config import get_koji
 from atomic_reactor.plugins.pre_reactor_config import get_koji_session
 from atomic_reactor.utils.koji import NvrRequest
 
@@ -116,6 +117,9 @@ class GenerateMavenMetadataPlugin(PostBuildPlugin):
 
         self.log.debug('%d files to download', len(download_queue))
 
+        koji_config = get_koji(self.workflow)
+        insecure = koji_config.get('insecure_download', False)
+
         for index, download in enumerate(download_queue):
             dest_filename = download.dest
             if not re.fullmatch(r'^[\w\-.]+$', dest_filename):
@@ -124,36 +128,26 @@ class GenerateMavenMetadataPlugin(PostBuildPlugin):
 
             dest_path = os.path.join(downloads_path, dest_filename)
             dest_dir = os.path.dirname(dest_path)
+
             if not os.path.exists(dest_dir):
                 os.makedirs(dest_dir)
 
             self.log.debug('%d/%d downloading %s', index + 1, len(download_queue),
                            download.url)
 
-            checksums = {algo: hashlib.new(algo) for algo in download.checksums}
-            request = session.get(download.url, stream=True)
-            request.raise_for_status()
+            download_url(url=download.url, dest_dir=dest_dir, insecure=insecure,
+                         session=session, dest_filename=dest_filename,
+                         expected_checksums=download.checksums)
 
-            with open(dest_path, 'wb') as f:
-                for chunk in request.iter_content(chunk_size=DEFAULT_DOWNLOAD_BLOCK_SIZE):
-                    f.write(chunk)
-                    for checksum in checksums.values():
-                        checksum.update(chunk)
+            checksum_type = list(download.checksums.keys())[0]
 
-            for algo, checksum in checksums.items():
-                if checksum.hexdigest() != download.checksums[algo]:
-                    raise ValueError(
-                        'Computed {} checksum, {}, does not match expected checksum, {}'
-                        .format(algo, checksum.hexdigest(), download.checksums[algo]))
-
-            checksum_type = list(checksums.keys())[0]
             remote_source_files.append({
                 'file': dest_path,
                 'metadata': {
                     'type': KOJI_BTYPE_REMOTE_SOURCE_FILE,
                     'checksum_type': checksum_type,
                     'checksum': download.checksums[checksum_type],
-                    'filename': download.dest,
+                    'filename': dest_filename,
                     'filesize': os.path.getsize(dest_path),
                     'extra': {
                         'source-url': download.url,
