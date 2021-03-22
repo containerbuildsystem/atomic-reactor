@@ -135,6 +135,22 @@
         "additionalProperties": false,
         "required": ["hub_url", "root_url", "auth"]
     },
+    "pnc": {
+        "description": "Project Newcastle instance",
+        "type": "object",
+        "properties": {
+            "base_api_url": {
+                "description": "Project Newcastle API base url",
+                "type": "string"
+            },
+            "get_scm_archive_path": {
+                "description": "Project Newcastle API path to get scm archive for given build ID",
+                "type": "string"
+            }
+        },
+        "additionalProperties": false,
+        "required": ["base_api_url", "get_scm_archive_path"]
+    },
     "pulp": {
         "description": "Pulp registry instance (deprecated)",
         "type": "object",
