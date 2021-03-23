@@ -420,7 +420,51 @@ RUN yum install -y httpd \
             RUN rm -f '/etc/yum.repos.d/custom-{}.repo'
             '''),
 
-        ]
+        ],
+
+        # Reset the USER found from the last stage properly.
+        # `USER 1001` should be reset after the removal commands
+        [
+            True, '',
+            [
+                (
+                    'http://repos.host/custom.repo',
+                    dedent('''\
+                    [new-packages]
+                    name=repo1
+                    baseurl=http://repo.host/latest/$basearch/os
+                    '''),
+                    dedent(f'''\
+                    [new-packages]
+                    sslcacert=/tmp/{CA_BUNDLE_PEM}
+                    name=repo1
+                    baseurl=http://repo.host/latest/$basearch/os
+                    '''),
+                ),
+            ],
+            dedent('''\
+            FROM base
+            RUN gcc main.c
+            FROM fedora:33
+            USER 1001
+            WORKDIR /src
+            '''),
+            dedent(f'''\
+            FROM base
+            ADD {CA_BUNDLE_PEM} /tmp/{CA_BUNDLE_PEM}
+            ADD atomic-reactor-repos/* /etc/yum.repos.d/
+            RUN gcc main.c
+            FROM fedora:33
+            ADD {CA_BUNDLE_PEM} /tmp/{CA_BUNDLE_PEM}
+            ADD atomic-reactor-repos/* /etc/yum.repos.d/
+            USER 1001
+            WORKDIR /src
+            USER root
+            RUN rm -f '/etc/yum.repos.d/custom-{{}}.repo'
+            RUN rm -f /tmp/{CA_BUNDLE_PEM}
+            USER 1001
+            '''),
+        ],
     ]
 )
 @responses.activate
