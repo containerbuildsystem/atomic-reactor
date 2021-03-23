@@ -26,7 +26,7 @@ class InjectYumRepoPlugin(PreBuildPlugin):
     def _final_user_line(self):
         user = self._find_final_user()
         if user:
-            return f'USER {user}'
+            return user
 
         builder = self.workflow.builder
         if not builder.dockerfile_images.base_from_scratch:
