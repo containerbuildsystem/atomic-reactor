@@ -115,14 +115,18 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
 
         for env_var, value_info in env_vars.items():
             build_arg_value = value_info['value']
-            if value_info['kind'] == 'path':
+            kind = value_info['kind']
+            if kind == 'path':
                 build_arg_value = os.path.join(REMOTE_SOURCE_DIR, value_info['value'])
                 self.log.debug(
                     'Setting the Cachito environment variable "%s" to the absolute path "%s"',
                     env_var,
                     build_arg_value,
                 )
-            build_args[env_var] = build_arg_value
+            elif kind == 'literal':
+                build_args[env_var] = build_arg_value
+            else:
+                raise RuntimeError(f'Unknown kind {kind} got from Cachito.')
 
         # Alias for absolute path to cachito.env script added into buildargs
         build_args[CACHITO_ENV_ARG_ALIAS] = os.path.join(REMOTE_SOURCE_DIR, CACHITO_ENV_FILENAME)

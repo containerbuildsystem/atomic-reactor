@@ -319,6 +319,22 @@ def test_resolve_remote_source(workflow, scratch, dr_strs, dependency_replacemen
     )
 
 
+@pytest.mark.parametrize(
+    'env_vars_json',
+    [
+        {
+            'GOPATH': {'kind': 'path', 'value': 'deps/gomod'},
+            'GOCACHE': {'kind': 'path', 'value': 'deps/gomod'},
+            'GO111MODULE': {'kind': 'literal', 'value': 'on'},
+            'GOX': {'kind': 'new', 'value': 'new-kind'},
+        },
+    ]
+)
+def test_fail_build_if_unknown_kind(workflow, env_vars_json):
+    mock_cachito_api(workflow, env_vars_json=env_vars_json)
+    run_plugin_with_args(workflow, expect_error=r'.*Unknown kind new got from Cachito')
+
+
 @pytest.mark.parametrize('build_json', ({}, {'metadata': {}}))
 def test_no_koji_user(workflow, build_json, caplog):
     reactor_config = dedent("""\
