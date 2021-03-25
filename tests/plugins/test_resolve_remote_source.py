@@ -424,6 +424,23 @@ def test_bad_build_metadata(workflow, build_json, log_entry, caplog):
     assert 'unknown_user' in caplog.text
 
 
+def test_remote_sources_in_config_fail(workflow):
+    container_yaml_config = dedent("""\
+            remote_sources:
+            - name: a-remote-source
+              remote-_source:
+                repo: https://some.repo/here.git
+                ref: e1be527f39ec31323f0454f7d1422c6260b00580
+            """)
+    err_msg = (
+        "Multiple remote sources are not supported, "
+        "use single remote source in container.yaml"
+    )
+    mock_repo_config(workflow, data=container_yaml_config)
+    result = run_plugin_with_args(workflow, expect_result=False, expect_error=err_msg)
+    assert result is None
+
+
 def run_plugin_with_args(workflow, dependency_replacements=None, expect_error=None,
                          expect_result=True, expected_build_args=None):
     runner = PreBuildPluginsRunner(
