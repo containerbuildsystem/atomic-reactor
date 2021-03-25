@@ -341,7 +341,8 @@ class FetchSourcesPlugin(PreBuildPlugin):
             for sigkey in sigkeys:
                 # koji uses lowercase for paths. We make sure the sigkey is in lower case
                 url_candidate = self.assemble_srpm_url(base_url, srpm_filename, sigkey.lower())
-                request = req_session.head(url_candidate, verify=not insecure)
+                # allow redirects, head call doesn't do it by default
+                request = req_session.head(url_candidate, verify=not insecure, allow_redirects=True)
                 if request.ok:
                     srpm_urls.append({'url': url_candidate})
                     self.log.debug('%s is available for signing key "%s"', srpm_filename, sigkey)
