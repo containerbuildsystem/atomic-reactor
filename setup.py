@@ -10,7 +10,10 @@ of the BSD license. See the LICENSE file for details.
 import re
 
 from setuptools import setup, find_packages
-from atomic_reactor.constants import DESCRIPTION, HOMEPAGE
+
+
+DESCRIPTION = "Python library with command line interface for building docker images."
+HOMEPAGE = "https://github.com/containerbuildsystem/atomic-reactor"
 
 data_files = {
     "share/atomic-reactor/images/privileged-builder": [
