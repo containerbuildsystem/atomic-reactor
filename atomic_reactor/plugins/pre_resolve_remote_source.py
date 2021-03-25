@@ -71,6 +71,10 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
             self.log.info('Aborting plugin execution: missing Cachito configuration')
             return
 
+        if self.workflow.source.config.remote_sources:
+            raise ValueError('Multiple remote sources are not supported, use single '
+                             'remote source in container.yaml')
+
         remote_source_params = self.workflow.source.config.remote_source
         if not remote_source_params:
             self.log.info('Aborting plugin execution: missing remote_source configuration')
