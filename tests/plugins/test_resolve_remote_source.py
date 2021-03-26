@@ -453,8 +453,8 @@ def run_plugin_with_args(workflow, dependency_replacements=None, expect_error=No
         worker_params = orchestrator_build_workspace[WORKSPACE_KEY_OVERRIDE_KWARGS][None]
         assert worker_params['remote_source_url'] == CACHITO_REQUEST_DOWNLOAD_URL
         assert worker_params['remote_source_configs'] == CACHITO_REQUEST_CONFIG_URL
-        assert worker_params['remote_source_build_args'] == \
-            expected_build_args or CACHITO_BUILD_ARGS
+        expected = expected_build_args or CACHITO_BUILD_ARGS
+        assert worker_params['remote_source_build_args'] == expected
         assert worker_params['remote_source_icm_url'] == CACHITO_ICM_URL
 
     return results
