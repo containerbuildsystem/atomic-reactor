@@ -123,7 +123,13 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
                     env_var,
                     build_arg_value,
                 )
+                build_args[env_var] = build_arg_value
             elif kind == 'literal':
+                self.log.debug(
+                    'Setting the Cachito environment variable "%s" to a literal value "%s"',
+                    env_var,
+                    build_arg_value,
+                )
                 build_args[env_var] = build_arg_value
             else:
                 raise RuntimeError(f'Unknown kind {kind} got from Cachito.')
