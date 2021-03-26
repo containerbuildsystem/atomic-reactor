@@ -96,7 +96,8 @@ class ManifestUtil(object):
 
         # Check that it exists in the source repository
         url = "/v2/{}/blobs/{}".format(source_repo, digest)
-        result = session.head(url)
+        # allow redirects, head call doesn't do it by default
+        result = session.head(url, allow_redirects=True)
         if result.status_code == requests.codes.NOT_FOUND:
             self.log.debug("%s: blob %s, not present in %s, skipping",
                            session.registry, digest, source_repo)
