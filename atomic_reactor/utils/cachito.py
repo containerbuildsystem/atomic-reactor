@@ -224,6 +224,27 @@ class CachitoAPI(object):
                    f'but the response contains: {resp.content}.')
             raise ValueError(msg) from exc
 
+    def get_image_content_manifest(self, request_ids):
+        """
+        Get the image content manifest from endpoint /content-manifest
+        :param list[int] request_ids: cachito request ids
+        :return: image content manifest data
+        :rtype: dict
+        :raises: TypeError if the server does not response a JSON data to be
+            parsed.
+        :raises: HTTP error raised from the underlying requests library in any
+            case of the request cannot be completed.
+        """
+        endpoint = f'{self.api_url}/api/v1/content-manifest'
+        resp = self.session.get(endpoint, params={'requests': ','.join(map(str, request_ids))})
+        resp.raise_for_status()
+        try:
+            return resp.json()
+        except Exception as exc:
+            msg = (f'JSON data is expected from Cachito endpoint {endpoint}, '
+                   f'but the response contains: {resp.content}.')
+            raise ValueError(msg) from exc
+
 
 if __name__ == '__main__':
     logging.basicConfig()

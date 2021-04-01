@@ -94,28 +94,32 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
         source_request = self.cachito_session.wait_for_request(source_request)
 
         remote_source_json = self.source_request_to_json(source_request)
-        remote_source_url = self.cachito_session.assemble_download_url(source_request)
-        remote_source_conf_url = remote_source_json.get('configuration_files')
-        remote_source_icm_url = remote_source_json.get('content_manifest')
-        self.set_worker_params(source_request, remote_source_url, remote_source_conf_url,
-                               remote_source_icm_url)
+        remote_sources = [
+            {
+                "build_args": None,
+                "configs": remote_source_json.get('configuration_files'),
+                "request_id": self.cachito_session._get_request_id(source_request),
+                "url": self.cachito_session.assemble_download_url(source_request),
+                "name": None,
+            }
+        ]
+        self.set_worker_params(remote_sources)
 
         dest_dir = self.workflow.source.workdir
         dest_path = self.cachito_session.download_sources(source_request, dest_dir=dest_dir)
 
         return {
             # Annotations to be added to the current Build object
-            'annotations': {'remote_source_url': remote_source_url},
+            'annotations': {'remote_source_url': remote_sources[0]['url']},
             # JSON representation of the remote source request
             'remote_source_json': remote_source_json,
             # Local path to the remote source archive
             'remote_source_path': dest_path,
         }
 
-    def set_worker_params(self, source_request, remote_source_url, remote_source_conf_url,
-                          remote_source_icm_url):
+    def set_worker_params(self, remote_sources):
         build_args = {}
-        env_vars = self.cachito_session.get_request_env_vars(source_request['id'])
+        env_vars = self.cachito_session.get_request_env_vars(remote_sources[0]['request_id'])
 
         for env_var, value_info in env_vars.items():
             build_arg_value = value_info['value']
@@ -141,10 +145,8 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
         # Alias for absolute path to cachito.env script added into buildargs
         build_args[CACHITO_ENV_ARG_ALIAS] = os.path.join(REMOTE_SOURCE_DIR, CACHITO_ENV_FILENAME)
 
-        override_build_kwarg(self.workflow, 'remote_source_url', remote_source_url)
-        override_build_kwarg(self.workflow, 'remote_source_build_args', build_args)
-        override_build_kwarg(self.workflow, 'remote_source_configs', remote_source_conf_url)
-        override_build_kwarg(self.workflow, 'remote_source_icm_url', remote_source_icm_url)
+        remote_sources[0]['build_args'] = build_args
+        override_build_kwarg(self.workflow, 'remote_sources', remote_sources)
 
     def source_request_to_json(self, source_request):
         """Create a relevant representation of the source request"""

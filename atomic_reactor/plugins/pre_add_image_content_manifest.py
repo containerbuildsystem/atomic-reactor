@@ -17,9 +17,8 @@ from atomic_reactor.constants import (IMAGE_BUILD_INFO_DIR, INSPECT_ROOTFS,
                                       INSPECT_ROOTFS_LAYERS,
                                       PLUGIN_ADD_IMAGE_CONTENT_MANIFEST)
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.plugins.pre_reactor_config import get_cachito
+from atomic_reactor.plugins.pre_reactor_config import get_cachito, get_cachito_session
 from atomic_reactor.util import (base_image_is_scratch, df_parser, read_yaml,
-                                 get_retrying_requests_session,
                                  read_content_sets
                                  )
 
@@ -83,16 +82,24 @@ class AddImageContentManifestPlugin(PreBuildPlugin):
         'image_contents': [],
     }
 
-    def __init__(self, tasker, workflow, remote_source_icm_url=None, destdir=IMAGE_BUILD_INFO_DIR):
+    def __init__(self, tasker, workflow, remote_sources=None, destdir=IMAGE_BUILD_INFO_DIR):
         """
         :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param icm_url: str, URL of the ICM from the Cachito request.
+        :param remote_sources: list of dicts, each dict contains info about particular
+        remote source with the following keys:
+            build_args: dict, extra args for `builder.build_args`, if any
+            configs: list of str, configuration files to be injected into
+            the exploded remote sources dir
+            request_id: int, cachito request id; used to request the
+            Image Content Manifest
+            url: str, URL from which to download a source archive
+            name: str, name of remote source
         :param destdir: image path to carry content_manifests data dir
         """
         super(AddImageContentManifestPlugin, self).__init__(tasker, workflow)
         self.content_manifests_dir = os.path.join(destdir, 'content_manifests')
-        self.icm_url = remote_source_icm_url
+        self.remote_sources = remote_sources
         self.dfp = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
         labels = Labels(self.dfp.labels)
         _, image_name = labels.get_name_and_value(Labels.LABEL_TYPE_COMPONENT)
@@ -103,6 +110,7 @@ class AddImageContentManifestPlugin(PreBuildPlugin):
         self._cachito_verify = None
         self._layer_index = None
         self._icm = None
+        self._cachito_session = None
 
     @property
     def layer_index(self):
@@ -116,34 +124,19 @@ class AddImageContentManifestPlugin(PreBuildPlugin):
         return self._layer_index
 
     @property
-    def cachito_verify(self):
-        if self._cachito_verify is None:
-            try:
-                cachito_conf = get_cachito(self.workflow)
-            except KeyError:
-                cachito_conf = {}
-            # Get the value of Cachito's 'insecure' key from the active reactor config map,
-            #    *flip it*, and let the result tell us whether to verify or not
-            self._cachito_verify = not cachito_conf.get('insecure', False)
-        return self._cachito_verify
-
-    @property
     def icm(self):
         """
         Get and validate the ICM from the Cachito API `content-manifest` endpoint.
 
         :return: dict, the ICM as a Python dict
         """
-        if self.icm_url is None and self._icm is None:
+        if not self.remote_sources and self._icm is None:
             self._icm = deepcopy(self.minimal_icm)
-        if self._icm is None:
-            session = get_retrying_requests_session()
-            session.verify = self.cachito_verify
-            self.log.debug('Making request to "%s"', self.icm_url)
-            response = session.get(self.icm_url)
-            response.raise_for_status()
-            self._icm = response.json()  # Returns dict
-
+        elif self._icm is None:
+            request_ids = [remote_source['request_id'] for remote_source in self.remote_sources]
+            self._icm = self.cachito_session.get_image_content_manifest(
+                request_ids
+            )
             # Validate; `json.dumps()` converts `icm` to str. Confusingly, `read_yaml`
             #     *will* validate JSON
             read_yaml(json.dumps(self._icm), 'schemas/content_manifest.json')
@@ -201,8 +194,19 @@ class AddImageContentManifestPlugin(PreBuildPlugin):
         """
         run the plugin
         """
+        try:
+            get_cachito(self.workflow)
+        except KeyError:
+            self.log.info('Aborting plugin execution: missing Cachito configuration')
+            return
         self._populate_content_sets()
         self._update_icm_data()
         self._write_json_file()
         self._add_to_dockerfile()
         self.log.info('added "%s" to "%s"', self.icm_file_name, self.content_manifests_dir)
+
+    @property
+    def cachito_session(self):
+        if not self._cachito_session:
+            self._cachito_session = get_cachito_session(self.workflow)
+        return self._cachito_session

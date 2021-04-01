@@ -26,22 +26,22 @@ class DownloadRemoteSourcePlugin(PreBuildPlugin):
     is_allowed_to_fail = False
     REMOTE_SOURCE = 'unpacked_remote_sources'
 
-    def __init__(self, tasker, workflow, remote_source_url=None,
-                 remote_source_build_args=None,
-                 remote_source_configs=None):
+    def __init__(self, tasker, workflow, remote_sources=None):
         """
         :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param remote_source_url: URL to download source archive from
-        :param remote_source_build_args: dict of container build args
-                                         to be used when building the image
-        :param remote_source_configs: URL to fetch a list with configuration files data to be
-                                      injected in the exploded remote sources dir
+        :param remote_sources: list of dicts, each dict contains info about particular
+        remote source with the following keys:
+            build_args: dict, extra args for `builder.build_args`, if any
+            configs: list of str, configuration files to be injected into
+            the exploded remote sources dir
+            request_id: int, cachito request id; used to request the
+            Image Content Manifest
+            url: str, URL from which to download a source archive
+            name: str, name of remote source
         """
         super(DownloadRemoteSourcePlugin, self).__init__(tasker, workflow)
-        self.url = remote_source_url
-        self.buildargs = remote_source_build_args or {}
-        self.remote_source_conf_url = remote_source_configs
+        self.remote_sources = remote_sources
 
     def get_remote_source_config(self, session, url, insecure=False):
         """Get the configuration files associated with the remote sources
@@ -71,15 +71,15 @@ class DownloadRemoteSourcePlugin(PreBuildPlugin):
                                 self.REMOTE_SOURCE, CACHITO_ENV_FILENAME)
         with open(abs_path, 'w') as f:
             f.write('#!/bin/bash\n')
-            for env_var, value in self.buildargs.items():
+            for env_var, value in self.remote_sources[0]['build_args'].items():
                 f.write('export {}={}\n'.format(env_var, quote(value)))
 
     def run(self):
         """
         Run the plugin.
         """
-        if not self.url:
-            self.log.info('No remote source url to download, skipping plugin')
+        if not self.remote_sources:
+            self.log.info('Missing remote_sources parameters, skipping plugin')
             return
 
         session = get_retrying_requests_session()
@@ -88,7 +88,10 @@ class DownloadRemoteSourcePlugin(PreBuildPlugin):
         cachito_config = get_cachito(self.workflow)
         insecure_ssl_conn = cachito_config.get('insecure', False)
         archive = download_url(
-            self.url, self.workflow.source.workdir, session=session, insecure=insecure_ssl_conn
+            self.remote_sources[0]['url'],
+            self.workflow.source.workdir,
+            session=session,
+            insecure=insecure_ssl_conn
         )
 
         # Unpack the source code archive into a dedicated dir in container build workdir
@@ -103,8 +106,9 @@ class DownloadRemoteSourcePlugin(PreBuildPlugin):
             tf.extractall(dest_dir)
 
         config_files = (
-            self.get_remote_source_config(session, self.remote_source_conf_url, insecure_ssl_conn)
-            if self.remote_source_conf_url else []
+            self.get_remote_source_config(
+                session, self.remote_sources[0]["configs"], insecure_ssl_conn
+            )
         )
 
         # Inject cachito provided configuration files
@@ -121,7 +125,7 @@ class DownloadRemoteSourcePlugin(PreBuildPlugin):
             os.chmod(config_path, 0o444)
 
         # Set build args
-        self.workflow.builder.buildargs.update(self.buildargs)
+        self.workflow.builder.buildargs.update(self.remote_sources[0]['build_args'])
 
         # Create cachito.env file with environment variables received from cachito request
         self.generate_cachito_env_file()
