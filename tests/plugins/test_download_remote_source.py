@@ -56,7 +56,6 @@ def mock_reactor_config(workflow, insecure=False):
 
 class TestDownloadRemoteSource(object):
     @responses.activate
-    @pytest.mark.parametrize('source_url', [True, False])
     @pytest.mark.parametrize('insecure', [True, False])
     @pytest.mark.parametrize('buildargs', [
         {'spam': 'maps', 'foo': 'somefile; rm -rf ~'},
@@ -69,7 +68,7 @@ class TestDownloadRemoteSource(object):
         ['unknown', 'shouldNotMatter']
         ))
     def test_download_remote_source(
-        self, tmpdir, docker_tasker, user_params, source_url, archive_dir_exists,
+        self, tmpdir, docker_tasker, user_params, archive_dir_exists,
         has_configuration, configuration_type, configuration_content, insecure, buildargs
     ):
         workflow = DockerBuildWorkflow(
@@ -79,9 +78,7 @@ class TestDownloadRemoteSource(object):
         workflow.builder = StubInsideBuilder().for_workflow(workflow).set_df_path(df_path)
         mock_reactor_config(workflow, insecure=insecure)
         filename = 'source.tar.gz'
-        url = None
-        if source_url:
-            url = 'https://example.com/dir/{}'.format(filename)
+        url = 'https://example.com/dir/{}'.format(filename)
 
         # Make a compressed tarfile with a single file 'abc'
         member = 'abc'
@@ -93,8 +90,7 @@ class TestDownloadRemoteSource(object):
             tf.addfile(ti, fileobj=BytesIO(abc_content))
 
         # GET from the url returns the compressed tarfile
-        if source_url:
-            responses.add(responses.GET, url, body=content.getvalue())
+        responses.add(responses.GET, url, body=content.getvalue())
 
         config_url = 'https://example.com/dir/configurations'
         config_data = []
@@ -116,11 +112,16 @@ class TestDownloadRemoteSource(object):
                 body=json.dumps(config_data)
                 )
 
+        remote_sources = [{
+            'build_args': buildargs,
+            'configs': config_url,
+            'request_id': 1,
+            'url': url,
+            'name': None,
+        }]
         plugin = DownloadRemoteSourcePlugin(docker_tasker, workflow,
-                                            remote_source_url=url,
-                                            remote_source_build_args=buildargs,
-                                            remote_source_configs=config_url)
-        if archive_dir_exists and source_url:
+                                            remote_sources=remote_sources)
+        if archive_dir_exists:
             dest_dir = os.path.join(workflow.builder.df_dir, plugin.REMOTE_SOURCE)
             os.makedirs(dest_dir)
             with pytest.raises(RuntimeError):
@@ -128,16 +129,12 @@ class TestDownloadRemoteSource(object):
             os.rmdir(dest_dir)
             return
 
-        if source_url and has_configuration and configuration_type == 'unknown':
+        if has_configuration and configuration_type == 'unknown':
             with pytest.raises(ValueError):
                 plugin.run()
             return
 
         result = plugin.run()
-
-        if not source_url:
-            assert result is None
-            return
 
         # Test content of cachito.env file
         cachito_env_path = os.path.join(plugin.workflow.builder.df_dir,

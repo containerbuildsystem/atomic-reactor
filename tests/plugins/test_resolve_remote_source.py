@@ -41,7 +41,7 @@ CACHITO_REQUEST_CONFIG_URL = '{}/api/v1/requests/{}/configuration-files'.format(
     CACHITO_URL,
     CACHITO_REQUEST_ID
 )
-CACHITO_ICM_URL = '{}/api/v1/requests/{}/content-manifest'.format(
+CACHITO_ICM_URL = '{}/api/v1/content-manifest?requests={}'.format(
     CACHITO_URL,
     CACHITO_REQUEST_ID
 )
@@ -468,10 +468,14 @@ def run_plugin_with_args(workflow, dependency_replacements=None, expect_error=No
         # Let's verify the expected side effects.
         orchestrator_build_workspace = workflow.plugin_workspace[OrchestrateBuildPlugin.key]
         worker_params = orchestrator_build_workspace[WORKSPACE_KEY_OVERRIDE_KWARGS][None]
-        assert worker_params['remote_source_url'] == CACHITO_REQUEST_DOWNLOAD_URL
-        assert worker_params['remote_source_configs'] == CACHITO_REQUEST_CONFIG_URL
-        expected = expected_build_args or CACHITO_BUILD_ARGS
-        assert worker_params['remote_source_build_args'] == expected
-        assert worker_params['remote_source_icm_url'] == CACHITO_ICM_URL
+        expected_build_args = expected_build_args or CACHITO_BUILD_ARGS
+        expected_worker_params = [{
+            'build_args': expected_build_args,
+            'configs': CACHITO_REQUEST_CONFIG_URL,
+            'request_id': CACHITO_REQUEST_ID,
+            'url': CACHITO_REQUEST_DOWNLOAD_URL,
+            'name': None,
+        }]
+        assert worker_params['remote_sources'] == expected_worker_params
 
     return results

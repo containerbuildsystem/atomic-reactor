@@ -31,7 +31,7 @@ CONTENT_SETS = {
     'ppc64': ['pulp-spamppc64-rpms', 'pulp-baconppc64-rpms'],
     's390x': ['pulp-spams390x-rpms', 'pulp-bacons390x-rpms'],
 }
-CACHITO_ICM_URL = '{}/api/v1/requests/{}/content-manifest'.format(CACHITO_URL,
+CACHITO_ICM_URL = '{}/api/v1/content-manifest?requests={}'.format(CACHITO_URL,
                                                                   CACHITO_REQUEST_ID)
 ICM_MINIMAL_DICT = {
     'metadata': {
@@ -97,6 +97,14 @@ ICM_JSON = dedent(
     '''
 )
 
+REMOTE_SOURCES = [{
+    'build_args': None,
+    'configs': None,
+    'request_id': CACHITO_REQUEST_ID,
+    'url': None,
+    'name': None,
+}]
+
 
 def setup_function(*args):
     # IMPORTANT: This needs to be done to ensure mocks at the module
@@ -123,8 +131,8 @@ def mock_get_icm(requests_mock):
 
 
 def mock_env(tmpdir, docker_tasker, platform='x86_64', base_layers=0,
-             icm_url=CACHITO_ICM_URL, r_c_m_override=None,
-             ):
+             remote_sources=REMOTE_SOURCES, r_c_m_override=None,
+             ):  # pylint: disable=W0102
     inspection_data = {
         INSPECT_ROOTFS: {
             INSPECT_ROOTFS_LAYERS: list(range(base_layers))
@@ -142,9 +150,10 @@ def mock_env(tmpdir, docker_tasker, platform='x86_64', base_layers=0,
         }
     else:
         r_c_m = r_c_m_override
+
     env = (MockEnv()
            .for_plugin('prebuild', AddImageContentManifestPlugin.key,
-                       {'remote_source_icm_url': icm_url})
+                       {'remote_sources': remote_sources})
            .set_reactor_config(r_c_m)
            .make_orchestrator()
            )
@@ -261,39 +270,11 @@ def test_none_remote_source_icm_url(requests_mock, tmpdir, docker_tasker, caplog
     mock_content_sets_config(tmpdir, empty=(not content_sets))
     dfp = util.df_parser(str(tmpdir))
     dfp.content = df_content
-    runner = mock_env(tmpdir, docker_tasker, platform, base_layers, icm_url=None)
+    runner = mock_env(tmpdir, docker_tasker, platform, base_layers, remote_sources=None)
     runner.workflow.builder.set_df_path(dfp.dockerfile_path)
     expected_output = deepcopy(ICM_MINIMAL_DICT)
     if content_sets:
         expected_output['content_sets'] = CONTENT_SETS[platform]
-    expected_output['metadata']['image_layer_index'] = base_layers
-    runner.run()
-    output_file = os.path.join(str(tmpdir), manifest_file)
-    with open(output_file) as f:
-        json_data = f.read()
-    output = json.loads(json_data)
-    assert expected_output == output
-
-
-def test_missing_cachito_conf(requests_mock, tmpdir, docker_tasker, caplog,):
-    df_content = dedent("""\
-            FROM base_image
-            CMD build /spam/eggs
-            LABEL com.redhat.component=eggs version=1.0 release=42
-        """)
-
-    # No 'cachito' conf in the reactor-config
-    r_c_m = {
-        'version': 1,
-    }
-    base_layers = 0
-    manifest_file = 'eggs-1.0-42.json'
-    mock_get_icm(requests_mock)
-    dfp = util.df_parser(str(tmpdir))
-    dfp.content = df_content
-    runner = mock_env(tmpdir, docker_tasker, r_c_m_override=r_c_m)
-    runner.workflow.builder.set_df_path(dfp.dockerfile_path)
-    expected_output = deepcopy(ICM_DICT)
     expected_output['metadata']['image_layer_index'] = base_layers
     runner.run()
     output_file = os.path.join(str(tmpdir), manifest_file)
