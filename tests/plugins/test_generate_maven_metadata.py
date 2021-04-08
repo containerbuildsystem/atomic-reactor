@@ -327,6 +327,10 @@ def mock_url_downloads(remote_files=None, overrides=None):
         body = remote_file_overrides.get('body', url)
         headers = remote_file_overrides.get('headers', {})
         status = remote_file_overrides.get('status', 200)
+        head = remote_file_overrides.get('head', False)
+        if head:
+            responses.add(responses.HEAD, url, body='', status=status,
+                          headers=headers)
         responses.add(responses.GET, url, body=body, status=status,
                       headers=headers)
 
@@ -403,7 +407,8 @@ def test_generate_maven_metadata_source_url_no_headers(tmpdir, docker_tasker, us
                    'md5': 'b1605c846e03035a6538873e993847e5',
                    'source-md5': '927c5b0c62a57921978de1a0421247ea'}
     mock_fetch_artifacts_by_url(tmpdir, contents=yaml.safe_dump([remote_file]))
-    mock_url_downloads(remote_files=[remote_file])
+    mock_url_downloads(remote_files=[remote_file],
+                       overrides={remote_file['source-url']: {'head': True}})
 
     with pytest.raises(PluginFailedException) as e:
         mock_env(tmpdir).create_runner(docker_tasker).run()
@@ -425,7 +430,8 @@ def test_generate_maven_metadata_source_url_no_filename_in_headers(tmpdir, docke
     mock_fetch_artifacts_by_url(tmpdir, contents=yaml.safe_dump([remote_file]))
     mock_url_downloads(remote_files=[remote_file],
                        overrides={remote_file['source-url']:
-                                  {'headers': {'Content-disposition': 'no filename'}}})
+                                  {'headers': {'Content-disposition': 'no filename'},
+                                   'head': True}})
 
     with pytest.raises(PluginFailedException) as e:
         mock_env(tmpdir).create_runner(docker_tasker).run()
