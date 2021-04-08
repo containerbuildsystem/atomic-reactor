@@ -123,7 +123,7 @@ class GenerateMavenMetadataPlugin(PostBuildPlugin):
         for index, download in enumerate(download_queue):
             dest_filename = download.dest
             if not re.fullmatch(r'^[\w\-.]+$', dest_filename):
-                dest_filename = session.get(download.url).headers.get(
+                dest_filename = session.head(download.url).headers.get(
                     "Content-disposition").split("filename=")[1].replace('"', '')
 
             dest_path = os.path.join(downloads_path, dest_filename)
