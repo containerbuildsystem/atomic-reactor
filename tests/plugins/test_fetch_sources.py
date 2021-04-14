@@ -574,6 +574,26 @@ class TestFetchSources(object):
 
         assert msg in str(exc.value)
 
+    def test_no_pnc_config_for_pnc_build(self, requests_mock, docker_tasker, koji_session, tmpdir):
+        mock_koji_manifest_download(tmpdir, requests_mock)
+
+        r_c_m = dedent("""\
+            version: 1
+            koji:
+               hub_url: {}
+               root_url: {}
+               auth:
+                   ssl_certs_dir: not_needed_here
+            """.format(KOJI_HUB, KOJI_ROOT))
+
+        with pytest.raises(PluginFailedException) as exc:
+            mock_env(tmpdir, docker_tasker, koji_build_id=KOJI_PNC_BUILD['build_id'],
+                     config_map=r_c_m).run()
+
+        msg = 'No PNC configuration found in reactor config map'
+
+        assert msg in str(exc.value)
+
     @pytest.mark.parametrize('signing_key', [None, 'usedKey'])
     @pytest.mark.parametrize('srpm_filename', [
         'baz-1-1.src.rpm',
