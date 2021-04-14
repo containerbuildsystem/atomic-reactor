@@ -27,7 +27,7 @@ from atomic_reactor.source import GitSource
 from atomic_reactor.util import get_retrying_requests_session
 from atomic_reactor.download import download_url
 from atomic_reactor.metadata import label_map
-from atomic_reactor.utils import pnc
+from atomic_reactor.utils.pnc import PNCUtil
 
 
 @label_map('sources_for_koji_build_id')
@@ -69,6 +69,17 @@ class FetchSourcesPlugin(PreBuildPlugin):
         self.signing_intent = signing_intent
         self.session = get_koji_session(self.workflow)
         self.pathinfo = get_koji_path_info(self.workflow)
+        self._pnc_util = None
+
+    @property
+    def pnc_util(self):
+        if not self._pnc_util:
+            try:
+                pnc_map = get_pnc(self.workflow)
+            except KeyError:
+                raise RuntimeError('No PNC configuration found in reactor config map') from KeyError
+            self._pnc_util = PNCUtil(pnc_map)
+        return self._pnc_util
 
     def run(self):
         """
@@ -258,10 +269,6 @@ class FetchSourcesPlugin(PreBuildPlugin):
         self.log.debug('images: %s', images)
 
         sources = []
-        pnc_map = get_pnc(self.workflow)
-        # using urljoin here causes the API path in the base_api_url to be removed
-        api_request_url = pnc_map['base_api_url'] + '/' + pnc_map['get_scm_archive_path']
-        req_session = get_retrying_requests_session()
 
         kojifile_build_ids = {kojifile['build_id'] for image in images
                               for kojifile in self.session.listArchives(imageID=image['id'],
@@ -271,10 +278,8 @@ class FetchSourcesPlugin(PreBuildPlugin):
             source_build = self.session.getBuild(build_id, strict=True)
             if source_build['owner_name'] == PNC_SYSTEM_USER:
                 pnc_build_id = source_build['extra']['external_build_id']
-                url, dest_filename = pnc.get_scm_archive_from_build_id(
-                                                                    api_request_url=api_request_url,
-                                                                    build_id=pnc_build_id,
-                                                                    session=req_session)
+                url, dest_filename = self.pnc_util.get_scm_archive_from_build_id(
+                    build_id=pnc_build_id)
                 source = {'url': url,
                           'subdir': source_build['nvr'],
                           'dest': '__'.join([source_build['nvr'], dest_filename])}
