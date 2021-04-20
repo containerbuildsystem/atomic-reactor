@@ -34,7 +34,6 @@ class ImagebuilderPlugin(BuildStepPlugin):
         builder = self.workflow.builder
 
         image = builder.image.to_str()
-        # TODO: directly invoke go imagebuilder library in shared object via python module
 
         allow_repo_dir_in_dockerignore(builder.df_dir)
 

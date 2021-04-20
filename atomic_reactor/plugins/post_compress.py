@@ -39,7 +39,6 @@ class CompressPlugin(PostBuildPlugin):
     key = 'compress'
     is_allowed_to_fail = False
 
-    # TODO: add remove_former_image?
     def __init__(self, tasker, workflow, load_exported_image=False, method='gzip'):
         """
         :param tasker: ContainerTasker instance

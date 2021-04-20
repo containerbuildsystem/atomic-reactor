@@ -229,7 +229,6 @@ class KojiImportBase(ExitPlugin):
             }
             extra.setdefault('typeinfo', {}).update(remote_source_typeinfo)
 
-            # TODO: is setting it in the image metadata also needed?
             extra['image']['remote_source_url'] = url
 
     def set_remote_source_file_metadata(self, extra):

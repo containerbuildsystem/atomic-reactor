@@ -99,9 +99,6 @@ class BuildContainerFactory(object):
             raise RuntimeError("Provided build image doesn't exist: '%s'" % image)
 
     def _obtain_source_from_path_if_needed(self, local_path, container_path=CONTAINER_SHARE_PATH):
-        # TODO: maybe we should do this for any provider? If we expand to various providers
-        # like mercurial, then we don't want to force the container to have mercurial
-        # installed, etc.
         build_json_path = os.path.join(local_path, BUILD_JSON)
         with open(build_json_path, 'r') as fp:
             build_json = json.load(fp)
@@ -515,7 +512,7 @@ class DockerTasker(CommonTasker):
         try:
             clone_git_repo(url, temp_dir, git_commit)
             build_file_path, build_file_dir = figure_out_build_file(temp_dir, git_path)
-            if copy_dockerfile_to:  # TODO: pre build plugin
+            if copy_dockerfile_to:
                 shutil.copyfile(build_file_path, copy_dockerfile_to)
             response = self.build_image_from_path(build_file_dir, image, use_cache=use_cache,
                                                   buildargs=buildargs)

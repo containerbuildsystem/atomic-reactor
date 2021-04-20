@@ -39,7 +39,7 @@ input_image_name = ImageName.parse(INPUT_IMAGE)
 def setup_module(module):
     if MOCK:
         return
-    d = docker.Client()  # TODO: current version of python-docker does not have Client anymore
+    d = docker.Client()
     try:
         d.inspect_image(INPUT_IMAGE)
         setattr(module, 'HAS_IMAGE', True)

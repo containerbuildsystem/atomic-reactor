@@ -272,10 +272,9 @@ def process_substitutions(mapping, substitutions):
         structure of given mapping.
     Also note: For non-plugin substitutions, additional dicts/key/value pairs
         are created on the way if they're missing. For plugin substitutions, only
-        existing values can be changed (TODO: do we want to change this behaviour?).
+        existing values can be changed.
     """
     def parse_val(v):
-        # TODO: do we need to recognize numbers,lists,dicts?
         if v.lower() == 'true':
             return True
         elif v.lower() == 'false':
