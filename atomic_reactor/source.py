@@ -79,7 +79,6 @@ class Source(object):
         self.uri = uri
         self.dockerfile_path = dockerfile_path
         self.provider_params = provider_params or {}
-        # TODO: do we want to delete tmpdir when destroying the object?
         self.tmpdir = tmpdir or tempfile.mkdtemp()
         logger.debug("workdir is %r", self.tmpdir)
         parsed_uri = urlparse(uri)
@@ -116,7 +115,6 @@ class Source(object):
         raise NotImplementedError('Must override in subclasses!')
 
     def get_build_file_path(self):
-        # TODO: will we need figure_out_build_file as a separate method?
         return util.figure_out_build_file(self.path, self.dockerfile_path)
 
     @property

@@ -332,7 +332,6 @@ class TestPinOperatorDigest(object):
         msg = "operator_manifests configuration missing in container.yaml"
         assert msg in str(exc_info.value)
 
-    # FIXME: !!!
     @pytest.mark.parametrize('orchestrator', [True, False])
     @pytest.mark.parametrize('manifests_dir, symlinks', [
         ('foo', {'foo': '/tmp/foo'}),
@@ -421,7 +420,6 @@ class TestPinOperatorDigest(object):
         assert "Missing ClusterServiceVersion in operator manifests" in str(exc_info.value)
 
     def test_orchestrator_disallowed_registry(self, docker_tasker, tmpdir):
-        # TODO: ImageName parses x/y as namespace/repo and not registry/repo - does it matter?
         pullspecs = ['allowed-registry/ns/foo:1', 'disallowed-registry/ns/bar:2']
         mock_operator_csv(tmpdir.join(OPERATOR_MANIFESTS_DIR).mkdir(), 'csv.yaml', pullspecs)
 

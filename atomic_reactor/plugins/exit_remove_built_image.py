@@ -44,8 +44,6 @@ class GarbageCollectionPlugin(ExitPlugin):
             self.remove_image(image, force=True)
 
         if self.remove_base_image and self.workflow.pulled_base_images:
-            # FIXME: we may need to add force here, let's try it like this for now
-            # FIXME: when ID of pulled img matches an ID of an image already present, don't remove
             for base_image_tag in self.workflow.pulled_base_images:
                 self.remove_image(base_image_tag, force=False)
 

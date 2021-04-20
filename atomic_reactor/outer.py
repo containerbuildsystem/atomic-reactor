@@ -81,7 +81,6 @@ class BuildManager(BuilderStateMachine):
         """
         if self.temp_dir:
             dt = DockerTasker()
-            # FIXME: load results only when requested
             # results_path = os.path.join(self.temp_dir, RESULTS_JSON)
             # df_path = os.path.join(self.temp_dir, 'Dockerfile')
             # try:
