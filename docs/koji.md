@@ -88,6 +88,8 @@ Data which is placed here includes
   Registry HTTP API V1 image; currently this key is only set when Pulp
   integration is enabled
 - `build.extra.image.operator_manifests` (map): Operator bundle images metadata
+- `build.extra.image.operator_manifests.custom_csv_modifications_applied` (boolean):
+  indicates if custom user modifications were done to operator bundle images metadata
 - `build.extra.image.operator_manifests.related_images` (map): Metadata about
   related_images in operator bundle
 - `build.extra.image.operator_manifests.related_images.pullspecs` (map list):

@@ -2187,6 +2187,7 @@ class TestKojiImport(object):
 
         if has_bundle_manifests:
             workflow.prebuild_results[PLUGIN_PIN_OPERATOR_DIGESTS_KEY] = {
+                'custom_csv_modifications_applied': False,
                 'related_images': {
                     'pullspecs': [
                         {
@@ -2225,6 +2226,7 @@ class TestKojiImport(object):
         if has_bundle_manifests:
             assert 'operator_manifests' in extra['image']
             expected = {
+                'custom_csv_modifications_applied': False,
                 'related_images': {
                     'pullspecs': [
                         {
@@ -2247,6 +2249,52 @@ class TestKojiImport(object):
             assert extra['image']['operator_manifests'] == expected
         else:
             assert 'operator_manifests' not in extra['image']
+
+    @pytest.mark.usefixtures('os_env')
+    @pytest.mark.parametrize('has_op_csv_modifications', [True, False])
+    def test_operators_bundle_metadata_csv_modifications(
+            self, tmpdir, has_op_csv_modifications):
+        """Test if metadata (extra.image.operator_manifests.custom_csv_modifications_applied)
+        about operator bundles are properly exported"""
+        session = MockedClientSession('')
+        tasker, workflow = mock_environment(
+            tmpdir,
+            name='ns/name',
+            version='1.0',
+            release='1',
+            session=session,
+            has_op_bundle_manifests=True)
+
+        plugin_res = {
+            'custom_csv_modifications_applied': has_op_csv_modifications,
+            'related_images': {
+                'pullspecs': [],
+                'created_by_osbs': True,
+            }
+        }
+        workflow.prebuild_results[PLUGIN_PIN_OPERATOR_DIGESTS_KEY] = plugin_res
+
+        runner = create_runner(tasker, workflow)
+        runner.run()
+
+        data = session.metadata
+        assert 'build' in data
+        build = data['build']
+        assert isinstance(build, dict)
+        assert 'extra' in build
+        extra = build['extra']
+
+        assert isinstance(extra, dict)
+        assert 'operator_manifests' in extra['image']
+        expected = {
+            'custom_csv_modifications_applied': has_op_csv_modifications,
+            'related_images': {
+                'pullspecs': [],
+                'created_by_osbs': True,
+            }
+        }
+
+        assert extra['image']['operator_manifests'] == expected
 
     @pytest.mark.parametrize('has_remote_source', [True, False])
     def test_remote_sources(self, tmpdir, os_env, has_remote_source):

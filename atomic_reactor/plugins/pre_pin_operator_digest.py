@@ -233,7 +233,8 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
             'created_by_osbs': True,
         }
         operator_manifests_metadata = {
-            'related_images': related_images_metadata
+            'related_images': related_images_metadata,
+            'custom_csv_modifications_applied': bool(self.operator_csv_modifications_url)
         }
 
         operator_manifest = self._get_operator_manifest()
