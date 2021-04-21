@@ -397,6 +397,7 @@ class TestPinOperatorDigest(object):
         assert self._get_worker_arg(runner.workflow) is None
 
         expected = {
+            'custom_csv_modifications_applied': False,
             'related_images': {
                 'pullspecs': [],
                 'created_by_osbs': False,
@@ -577,6 +578,7 @@ class TestPinOperatorDigest(object):
         assert self._get_worker_arg(runner.workflow) == replacement_pullspecs
 
         expected_result = {
+            'custom_csv_modifications_applied': False,
             'related_images': {
                 'pullspecs': [
                     {
@@ -1208,6 +1210,7 @@ class TestOperatorCSVModifications:
         result = runner.run()
 
         expected = {
+            'custom_csv_modifications_applied': True,
             'related_images': {
                 'created_by_osbs': True,
                 'pullspecs': [

@@ -189,12 +189,15 @@ class KojiImportBase(ExitPlugin):
                 }
                 for p in op_related_images['pullspecs']
             ]
-            extra['image']['operator_manifests'] = {
+            koji_operator_manifests = {
+                'custom_csv_modifications_applied': op_bundle_metadata[
+                    'custom_csv_modifications_applied'],
                 'related_images': {
                     'pullspecs': pullspecs,
                     'created_by_osbs': op_related_images['created_by_osbs'],
                 }
             }
+            extra['image']['operator_manifests'] = koji_operator_manifests
 
         # update push plugin and uploaded manifests file independently as push plugin may fail
         op_push_res = self.workflow.postbuild_results.get(PLUGIN_PUSH_OPERATOR_MANIFESTS_KEY)
