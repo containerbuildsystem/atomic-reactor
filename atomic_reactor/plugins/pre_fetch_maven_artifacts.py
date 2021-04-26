@@ -15,11 +15,14 @@ from atomic_reactor.constants import (PLUGIN_FETCH_MAVEN_KEY,
                                       REPO_FETCH_ARTIFACTS_KOJI)
 from atomic_reactor.download import download_url
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.plugins.pre_reactor_config import (get_koji_session,
+from atomic_reactor.plugins.pre_reactor_config import (get_artifacts_allowed_domains,
+                                                       get_koji_session,
                                                        get_koji_path_info,
-                                                       get_artifacts_allowed_domains, get_koji)
+                                                       get_koji,
+                                                       get_pnc)
 from collections import namedtuple
 from atomic_reactor.utils.koji import NvrRequest
+from atomic_reactor.utils.pnc import PNCUtil
 
 try:
     from urlparse import urlparse
@@ -50,6 +53,17 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
         self.allowed_domains = set(domain.lower() for domain in all_allowed_domains or [])
         self.workdir = self.workflow.source.get_build_file_path()[1]
         self.session = None
+        self._pnc_util = None
+
+    @property
+    def pnc_util(self):
+        if not self._pnc_util:
+            try:
+                pnc_map = get_pnc(self.workflow)
+            except KeyError:
+                raise RuntimeError('No PNC configuration found in reactor config map') from KeyError
+            self._pnc_util = PNCUtil(pnc_map)
+        return self._pnc_util
 
     def process_by_nvr(self, nvr_requests):
         download_queue = []
@@ -114,6 +128,17 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
 
         return download_queue
 
+    def process_pnc_requests(self, pnc_requests):
+        download_queue = []
+        builds = pnc_requests.get('builds', [])
+
+        for build in builds:
+            for artifact in build['artifacts']:
+                url, checksums = self.pnc_util.get_artifact(artifact['id'])
+                download_queue.append(DownloadRequest(url, artifact['target'], checksums))
+
+        return download_queue
+
     def download_files(self, downloads):
         artifacts_path = os.path.join(self.workdir, self.DOWNLOAD_DIR)
         koji_config = get_koji(self.workflow)
@@ -143,10 +168,11 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
             NvrRequest(**nvr_request) for nvr_request in
             util.read_fetch_artifacts_koji(self.workflow) or []
         ]
+        pnc_requests = util.read_fetch_artifacts_pnc(self.workflow) or {}
         url_requests = util.read_fetch_artifacts_url(self.workflow) or []
-        util.read_fetch_artifacts_pnc(self.workflow) or {}
 
         download_queue = (self.process_by_nvr(nvr_requests) +
+                          self.process_pnc_requests(pnc_requests) +
                           self.process_by_url(url_requests))
 
         self.download_files(download_queue)

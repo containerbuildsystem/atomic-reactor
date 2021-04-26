@@ -5,6 +5,7 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
+import json
 
 from flexmock import flexmock
 
@@ -26,6 +27,7 @@ from tests.mock_env import MockEnv
 
 KOJI_HUB = 'https://koji-hub.com'
 KOJI_ROOT = 'https://koji-root.com'
+PNC_ROOT = 'https://pnc-root.com'
 
 FILER_ROOT_DOMAIN = 'filer.com'
 FILER_ROOT = 'https://' + FILER_ROOT_DOMAIN
@@ -308,13 +310,20 @@ class MockedPathInfo(object):
         return '{group_id}/{artifact_id}/{version}/{filename}'.format(**maveninfo)
 
 
-def mock_env(tmpdir, domains_override=None):
-    r_c_m = {'version': 1,
-             'koji': {
-                 'hub_url': KOJI_HUB,
-                 'root_url': KOJI_ROOT,
-                 'auth': {}
-             }}
+def mock_env(tmpdir, r_c_m=None, domains_override=None):
+    if not r_c_m:
+        r_c_m = {
+            'version': 1,
+            'koji': {
+                'hub_url': KOJI_HUB,
+                'root_url': KOJI_ROOT,
+                'auth': {}
+            },
+            'pnc': {
+                'base_api_url': PNC_ROOT,
+                'get_artifact_path': 'artifacts/{}',
+            },
+        }
 
     if domains_override:
         r_c_m.setdefault('artifacts_allowed_domains', domains_override)
@@ -378,10 +387,7 @@ def mock_fetch_artifacts_by_nvr(tmpdir, contents=None):
 
 def mock_fetch_artifacts_from_pnc(tmpdir, contents=None):
     if contents is None:
-        contents = dedent("""\
-            builds:
-              - build_id: 12345
-            """)
+        contents = yaml.safe_dump(DEFAULT_PNC_ARTIFACTS)
 
     with open(os.path.join(tmpdir, REPO_FETCH_ARTIFACTS_PNC), 'w') as f:
         f.write(contents)
@@ -431,19 +437,44 @@ def mock_url_downloads(remote_files=None, overrides=None):
         responses.add(responses.GET, url, body=body, status=status)
 
 
+def mock_pnc_downloads(contents=None, pnc_responses=None, overrides=None):
+    if not contents:
+        contents = DEFAULT_PNC_ARTIFACTS
+    if not pnc_responses:
+        pnc_responses = DEFAULT_PNC_RESPONSES
+    if not overrides:
+        overrides = {}
+
+    builds = contents['builds']
+    # Use any overrides for these builds
+    pnc_artifacts_overrides = overrides.get('builds', {})
+    for build in builds:
+        for artifact in build['artifacts']:
+            api_url = PNC_ROOT + '/artifacts/{}'.format(artifact['id'])
+            body = pnc_artifacts_overrides.get('body', b'abc')
+            status = pnc_artifacts_overrides.get('status', 200)
+            responses.add(responses.GET, api_url, body=json.dumps(pnc_responses[artifact['id']]),
+                          status=status)
+            responses.add(responses.GET, pnc_responses[artifact['id']]['publicUrl'], body=body,
+                          status=status)
+
+
 @responses.activate  # noqa
 def test_fetch_maven_artifacts(tmpdir, docker_tasker, user_params):
     mock_koji_session()
     mock_fetch_artifacts_by_nvr(tmpdir)
     mock_fetch_artifacts_by_url(tmpdir)
+    mock_fetch_artifacts_from_pnc(tmpdir)
     mock_nvr_downloads()
     mock_url_downloads()
+    mock_pnc_downloads()
 
     results = mock_env(tmpdir).create_runner(docker_tasker).run()
 
     plugin_result = results[FetchMavenArtifactsPlugin.key]
 
-    assert len(plugin_result) == len(DEFAULT_ARCHIVES) + len(DEFAULT_REMOTE_FILES)
+    assert len(plugin_result) == (len(DEFAULT_ARCHIVES) + len(DEFAULT_REMOTE_FILES)
+                                  + len(DEFAULT_PNC_ARTIFACTS['builds']))
     for download in plugin_result:
         dest = os.path.join(tmpdir, FetchMavenArtifactsPlugin.DOWNLOAD_DIR, download.dest)
         assert os.path.exists(dest)
@@ -661,6 +692,28 @@ def test_fetch_maven_artifacts_pnc_schema_error(tmpdir, docker_tasker, user_para
         mock_env(tmpdir).create_runner(docker_tasker).run()
 
     assert 'OsbsValidationException' in str(e.value)
+
+
+@responses.activate
+def test_fetch_maven_artifacts_no_pnc_config(tmpdir, docker_tasker, user_params):
+    r_c_m = {
+        'version': 1,
+        'koji': {
+            'hub_url': KOJI_HUB,
+            'root_url': KOJI_ROOT,
+            'auth': {}
+        }
+    }
+
+    with pytest.raises(PluginFailedException) as exc:
+        mock_koji_session()
+        mock_fetch_artifacts_from_pnc(tmpdir)
+        mock_pnc_downloads()
+        mock_env(tmpdir, r_c_m=r_c_m).create_runner(docker_tasker).run()
+
+    msg = 'No PNC configuration found in reactor config map'
+
+    assert msg in str(exc.value)
 
 
 @pytest.mark.parametrize(('contents', 'expected'), (  # noqa
