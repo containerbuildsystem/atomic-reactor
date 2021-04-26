@@ -146,6 +146,10 @@
             "get_scm_archive_path": {
                 "description": "Project Newcastle API path to get scm archive for given build ID",
                 "type": "string"
+            },
+            "get_artifact_path": {
+                "description": "Project Newcastle API path to get artifact for given artifact ID",
+                "type": "string"
             }
         },
         "additionalProperties": false,
