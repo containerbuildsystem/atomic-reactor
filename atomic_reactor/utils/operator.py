@@ -86,7 +86,8 @@ _mini_csv_schema = {
                                                                             'object',
                                                                             'required':
                                                                             [
-                                                                                'name'
+                                                                                'name',
+                                                                                'image'
                                                                             ],
                                                                             'properties':
                                                                             {
@@ -140,7 +141,8 @@ _mini_csv_schema = {
                                                                             'object',
                                                                             'required':
                                                                             [
-                                                                                'name'
+                                                                                'name',
+                                                                                'image'
                                                                             ],
                                                                             'properties':
                                                                             {
