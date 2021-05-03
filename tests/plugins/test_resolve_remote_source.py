@@ -125,7 +125,6 @@ CACHITO_BUILD_ARGS = {
     'GO111MODULE': 'on',
     'GOPATH': '/remote-source/deps/gomod',
     'GOCACHE': '/remote-source/deps/gomod',
-    'CACHITO_ENV_FILE': '/remote-source/cachito.env',
 }
 
 
@@ -285,14 +284,12 @@ def teardown_function(*args):
         {
             'GOPATH': '/remote-source/deps/gomod',
             'GOCACHE': '/remote-source/deps/gomod',
-            'CACHITO_ENV_FILE': '/remote-source/cachito.env',
         },
     ],
     [
         {'GO111MODULE': {'kind': 'literal', 'value': 'on'}},
         {
             'GO111MODULE': 'on',
-            'CACHITO_ENV_FILE': '/remote-source/cachito.env',
         },
     ],
 ])
