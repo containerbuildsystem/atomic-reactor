@@ -221,6 +221,14 @@ class KojiImportBase(ExitPlugin):
 
                     return  # only one worker can process operator manifests
 
+    def set_pnc_build_metadata(self, extra):
+        plugin_results = self.workflow.postbuild_results.get(PLUGIN_GENERATE_MAVEN_METADATA_KEY) \
+                         or {}
+        pnc_build_metadata = plugin_results.get('pnc_build_metadata')
+
+        if pnc_build_metadata:
+            extra['image']['pnc'] = pnc_build_metadata
+
     def set_remote_sources_metadata(self, extra):
         remote_source_result = self.workflow.prebuild_results.get(PLUGIN_RESOLVE_REMOTE_SOURCE)
         if remote_source_result:
@@ -673,6 +681,7 @@ class KojiImportPlugin(KojiImportBase):
 
         self.set_help(extra, worker_metadatas)
         self.set_operators_metadata(extra, worker_metadatas)
+        self.set_pnc_build_metadata(extra)
         self.set_remote_sources_metadata(extra)
         self.set_remote_source_file_metadata(extra)
 
