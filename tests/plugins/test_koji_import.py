@@ -240,7 +240,7 @@ def mock_environment(tmpdir, session=None, name=None,
                      has_op_bundle_manifests=False,
                      push_operator_manifests_enabled=False, source_build=False,
                      has_remote_source=False, has_remote_source_file=False,
-                     build_method='docker', scratch=False):
+                     has_pnc_build_metadata=False, build_method='docker', scratch=False):
     if session is None:
         session = MockedClientSession('')
     if source is None:
@@ -519,6 +519,8 @@ def mock_environment(tmpdir, session=None, name=None,
     else:
         workflow.prebuild_results[PLUGIN_RESOLVE_REMOTE_SOURCE] = None
 
+    workflow.postbuild_results[PLUGIN_GENERATE_MAVEN_METADATA_KEY] = None
+
     if has_remote_source_file:
         filepath = os.path.join(str(tmpdir), REMOTE_SOURCE_FILE_FILENAME)
         with open(filepath, 'wt') as fp:
@@ -558,8 +560,16 @@ def mock_environment(tmpdir, session=None, name=None,
             }],
         }
         workflow.postbuild_results[PLUGIN_GENERATE_MAVEN_METADATA_KEY] = remote_source_file_result
-    else:
-        workflow.postbuild_results[PLUGIN_GENERATE_MAVEN_METADATA_KEY] = None
+
+    if has_pnc_build_metadata:
+        workflow.postbuild_results[PLUGIN_GENERATE_MAVEN_METADATA_KEY] = {
+            'pnc_build_metadata': {
+                'builds': [
+                    {'id': 12345},
+                    {'id': 12346}
+                ]
+            }
+        }
 
     if push_operator_manifests_enabled:
         workflow.postbuild_results[PLUGIN_PUSH_OPERATOR_MANIFESTS_KEY] = \
@@ -2364,6 +2374,37 @@ class TestKojiImport(object):
         else:
             assert 'typeinfo' not in extra
             assert REMOTE_SOURCE_FILE_FILENAME not in session.uploaded_files.keys()
+
+    @pytest.mark.parametrize('has_pnc_build_metadata', [True, False])
+    def test_pnc_build_metadata(self, tmpdir, os_env, has_pnc_build_metadata):
+        session = MockedClientSession('')
+        tasker, workflow = mock_environment(
+            tmpdir,
+            name='ns/name',
+            version='1.0',
+            release='1',
+            session=session,
+            has_pnc_build_metadata=has_pnc_build_metadata)
+
+        runner = create_runner(tasker, workflow)
+        runner.run()
+
+        data = session.metadata
+        assert 'build' in data
+        build = data['build']
+        assert isinstance(build, dict)
+        assert 'extra' in build
+        extra = build['extra']
+        assert isinstance(extra, dict)
+        # https://github.com/PyCQA/pylint/issues/2186
+        # pylint: disable=W1655
+        if has_pnc_build_metadata:
+            assert 'pnc' in extra['image']
+            assert 'builds' in extra['image']['pnc']
+            for build in extra['image']['pnc']['builds']:
+                assert 'id' in build
+        else:
+            assert 'pnc' not in extra['image']
 
     @pytest.mark.parametrize('blocksize', (None, 1048576))
     @pytest.mark.parametrize('has_config', (True, False))

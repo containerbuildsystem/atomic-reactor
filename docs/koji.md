@@ -132,6 +132,8 @@ Data which is placed here includes
 - `build.extra.operator_manifests_archive` (string): Name of the archive
   containing operator manifest files. Included here for legacy reasons.
   `build.extra.typeinfo.operator-manifests.archive` Should be preferred
+- `build.extra.image.pnc` (map): Information about middleware artifacts fetched
+  using fetch-artifacts-pnc
 
 The index map has these entries
 

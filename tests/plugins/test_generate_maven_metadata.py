@@ -5,7 +5,7 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
-
+import json
 import os
 from textwrap import dedent
 
@@ -15,7 +15,8 @@ import responses
 import yaml
 from flexmock import flexmock
 
-from atomic_reactor.constants import REPO_FETCH_ARTIFACTS_KOJI
+from atomic_reactor.constants import (REPO_FETCH_ARTIFACTS_KOJI,
+                                      REPO_FETCH_ARTIFACTS_PNC)
 from atomic_reactor.constants import REPO_FETCH_ARTIFACTS_URL
 from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.post_generate_maven_metadata import GenerateMavenMetadataPlugin
@@ -26,6 +27,7 @@ KOJI_ROOT = 'https://koji-root.com'
 
 FILER_ROOT_DOMAIN = 'filer.com'
 FILER_ROOT = 'https://' + FILER_ROOT_DOMAIN
+PNC_ROOT = 'https://pnc-root.com'
 
 DEFAULT_KOJI_BUILD_ID = 472397
 
@@ -201,6 +203,82 @@ REMOTE_FILE_MULTI_HASH = {
 DEFAULT_REMOTE_FILES = [REMOTE_FILE_SPAM, REMOTE_FILE_BACON, REMOTE_FILE_WITH_TARGET,
                         REMOTE_FILE_SHA1, REMOTE_FILE_SHA256, REMOTE_FILE_MULTI_HASH]
 
+ARTIFACT_MD5 = {
+    'build_id': 12,
+    'artifacts': [
+        {
+            'id': 122,
+            'target': 'md5.jar'
+        }
+    ]
+}
+
+ARTIFACT_SHA1 = {
+    'build_id': 12,
+    'artifacts': [
+        {
+            'id': 123,
+            'target': 'sha1.jar'
+        }
+    ]
+}
+
+ARTIFACT_SHA256 = {
+    'build_id': 12,
+    'artifacts': [
+        {
+            'id': 124,
+            'target': 'sha256.jar'
+        }
+    ]
+}
+
+ARTIFACT_MULTI_HASH = {
+    'build_id': 12,
+    'artifacts': [
+        {
+            'id': 125,
+            'target': 'multi-hash.jar'
+        }
+    ]
+}
+
+RESPONSE_MD5 = {
+    'id': 122,
+    'publicUrl': FILER_ROOT + '/md5.jar',
+    'md5': '900150983cd24fb0d6963f7d28e17f72'
+}
+
+RESPONSE_SHA1 = {
+    'id': 123,
+    'publicUrl': FILER_ROOT + '/sha1.jar',
+    'sha1': 'a9993e364706816aba3e25717850c26c9cd0d89d'
+}
+
+RESPONSE_SHA256 = {
+    'id': 124,
+    'publicUrl': FILER_ROOT + '/sha256.jar',
+    'sha256': 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'
+}
+
+RESPONSE_MULTI_HASH = {
+    'id': 125,
+    'publicUrl': FILER_ROOT + '/multi-hash.jar',
+    'sha256': 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
+    'sha1': 'a9993e364706816aba3e25717850c26c9cd0d89d',
+    'md5': '900150983cd24fb0d6963f7d28e17f72'
+}
+
+DEFAULT_PNC_ARTIFACTS = {'builds': [ARTIFACT_MD5, ARTIFACT_SHA1, ARTIFACT_SHA256,
+                                    ARTIFACT_MULTI_HASH]}
+
+DEFAULT_PNC_RESPONSES = {
+    RESPONSE_MD5['id']: RESPONSE_MD5,
+    RESPONSE_SHA1['id']: RESPONSE_SHA1,
+    RESPONSE_SHA256['id']: RESPONSE_SHA256,
+    RESPONSE_MULTI_HASH['id']: RESPONSE_MULTI_HASH
+}
+
 
 class MockSource(object):
     def __init__(self, tmpdir):
@@ -307,6 +385,37 @@ def mock_nvr_downloads(build_info=None, archives=None, overrides=None):
         responses.add(responses.GET, url, body=body, status=status)
 
 
+def mock_pnc_downloads(contents=None, pnc_responses=None, overrides=None):
+    if not contents:
+        contents = DEFAULT_PNC_ARTIFACTS
+    if not pnc_responses:
+        pnc_responses = DEFAULT_PNC_RESPONSES
+    if not overrides:
+        overrides = {}
+
+    builds = contents['builds']
+    # Use any overrides for these builds
+    pnc_artifacts_overrides = overrides.get('builds', {})
+    for build in builds:
+        for artifact in build['artifacts']:
+            api_url = PNC_ROOT + '/artifacts/{}'.format(artifact['id'])
+            body = pnc_artifacts_overrides.get('body', b'abc')
+            status = pnc_artifacts_overrides.get('status', 200)
+            responses.add(responses.GET, api_url, body=json.dumps(pnc_responses[artifact['id']]),
+                          status=status)
+            responses.add(responses.GET, pnc_responses[artifact['id']]['publicUrl'], body=body,
+                          status=status)
+
+
+def mock_fetch_artifacts_from_pnc(tmpdir, contents=None):
+    if contents is None:
+        contents = yaml.safe_dump(DEFAULT_PNC_ARTIFACTS)
+
+    with open(os.path.join(tmpdir, REPO_FETCH_ARTIFACTS_PNC), 'w') as f:
+        f.write(contents)
+        f.flush()
+
+
 def mock_fetch_artifacts_by_url(tmpdir, contents=None):
     if not contents:
         contents = yaml.safe_dump(DEFAULT_REMOTE_FILES)
@@ -340,6 +449,8 @@ def test_generate_maven_metadata(tmpdir, docker_tasker, user_params):
     mock_koji_session()
     mock_fetch_artifacts_by_nvr(tmpdir)
     mock_nvr_downloads()
+    mock_fetch_artifacts_from_pnc(tmpdir)
+    mock_pnc_downloads()
     mock_fetch_artifacts_by_url(tmpdir)
     mock_url_downloads()
 
@@ -351,11 +462,25 @@ def test_generate_maven_metadata(tmpdir, docker_tasker, user_params):
 
     components = {(component['filename'], component['checksum'], component['checksum_type'])
                   for component in plugin_result.get('components')}
-    remote_source_files = results[GenerateMavenMetadataPlugin.key]['remote_source_files']
+    remote_source_files = plugin_result.get('remote_source_files')
 
     for archive in DEFAULT_ARCHIVES:
         assert (archive['filename'], archive['checksum'],
                 koji.CHECKSUM_TYPES[archive['checksum_type']]) in components
+
+    expected_build_ids = set()
+    builds = DEFAULT_PNC_ARTIFACTS['builds']
+    for build in builds:
+        expected_build_ids.add(build['build_id'])
+
+    assert 'pnc_build_metadata' in plugin_result
+    assert 'builds' in plugin_result['pnc_build_metadata']
+
+    found_build_ids = set()
+    for build in plugin_result['pnc_build_metadata']['builds']:
+        found_build_ids.add(build['id'])
+
+    assert expected_build_ids == found_build_ids
 
     for remote_source_file in remote_source_files:
         dest = os.path.join(str(tmpdir), GenerateMavenMetadataPlugin.DOWNLOAD_DIR,

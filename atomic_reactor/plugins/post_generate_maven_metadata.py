@@ -70,6 +70,19 @@ class GenerateMavenMetadataPlugin(PostBuildPlugin):
 
         return components
 
+    def get_pnc_build_metadata(self, pnc_requests):
+        builds = pnc_requests.get('builds', [])
+
+        if not builds:
+            return {}
+
+        pnc_build_metadata = {'builds': []}
+
+        for build in builds:
+            pnc_build_metadata['builds'].append({'id': build['build_id']})
+
+        return pnc_build_metadata
+
     def process_url_requests(self, url_requests):
         download_queue = []
 
@@ -171,12 +184,15 @@ class GenerateMavenMetadataPlugin(PostBuildPlugin):
             NvrRequest(**nvr_request) for nvr_request in
             util.read_fetch_artifacts_koji(self.workflow) or []
         ]
+        pnc_requests = util.read_fetch_artifacts_pnc(self.workflow) or {}
         url_requests = util.read_fetch_artifacts_url(self.workflow) or []
 
         components = self.get_nvr_components(nvr_requests)
+        pnc_build_metadata = self.get_pnc_build_metadata(pnc_requests)
         download_queue = self.process_url_requests(url_requests)
         remote_source_files = self.download_sources(download_queue)
 
-        return {'remote_source_files': remote_source_files,
+        return {'components': components,
                 'no_source': self.no_source_artifacts,
-                'components': components}
+                'pnc_build_metadata': pnc_build_metadata,
+                'remote_source_files': remote_source_files}
