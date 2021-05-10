@@ -93,7 +93,8 @@ class FetchSourcesPlugin(PreBuildPlugin):
         insecure = koji_config.get('insecure_download', False)
         urls = self.get_srpm_urls(signing_intent['keys'], insecure=insecure)
         urls_remote, remote_sources_map = self.get_remote_urls()
-        urls_maven = self.get_kojifile_source_urls() + self.get_remote_file_urls()
+        urls_maven = (self.get_kojifile_source_urls() + self.get_remote_file_urls() +
+                      self.get_pnc_source_urls())
 
         if not any([urls, urls_remote, urls_maven]):
             msg = "No srpms or remote sources or maven sources found for source" \
@@ -306,6 +307,33 @@ class FetchSourcesPlugin(PreBuildPlugin):
 
         return sources
 
+    def _get_pnc_source_urls_helper(self, koji_build):
+        """Fetch PNC source urls from specific build
+
+        :param koji_build: dict, koji build
+        :return: list, dicts with URL pointing to PNC sources
+        """
+        sources = []
+
+        if 'pnc' not in koji_build['extra']['image']:
+            self.log.info("No PNC build ids found")
+            return sources
+
+        build_ids = set()
+        for build in koji_build['extra']['image']['pnc']['builds']:
+            build_ids.add(build['id'])
+
+        self.log.debug('PNC build ids: %s', build_ids)
+
+        for build_id in build_ids:
+            url, dest_filename = self.pnc_util.get_scm_archive_from_build_id(build_id=build_id)
+            source = {'url': url,
+                      'subdir': str(build_id),
+                      'dest': '__'.join([str(build_id), dest_filename])}
+            sources.append(source)
+
+        return sources
+
     def _get_remote_file_urls_helper(self, koji_build):
         """Fetch remote source file urls from specific build
 
@@ -377,6 +405,24 @@ class FetchSourcesPlugin(PreBuildPlugin):
             kojifile_sources.extend(kojifile_source)
 
         return kojifile_sources
+
+    def get_pnc_source_urls(self):
+        """Fetch PNC build source urls from all builds
+
+        :return: list, dicts with URL pointing to PNC build source archives
+        """
+        sources = []
+        source = self._get_pnc_source_urls_helper(self.koji_build)
+        sources.extend(source)
+        koji_build = self.koji_build
+
+        while 'parent_build_id' in koji_build['extra']['image']:
+            koji_build = self.session.getBuild(koji_build['extra']['image']['parent_build_id'],
+                                               strict=True)
+            source = self._get_pnc_source_urls_helper(koji_build)
+            sources.extend(source)
+
+        return sources
 
     def get_remote_file_urls(self):
         """Fetch remote source file urls from all builds
