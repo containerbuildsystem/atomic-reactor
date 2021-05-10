@@ -153,7 +153,7 @@
             }
         },
         "additionalProperties": false,
-        "required": ["base_api_url", "get_scm_archive_path"]
+        "required": ["base_api_url", "get_scm_archive_path", "get_artifact_path"]
     },
     "pulp": {
         "description": "Pulp registry instance (deprecated)",

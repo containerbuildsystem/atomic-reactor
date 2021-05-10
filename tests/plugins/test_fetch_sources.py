@@ -37,16 +37,17 @@ KOJI_HUB = 'http://koji.com/hub'
 KOJI_ROOT = 'http://koji.localhost/kojiroot'
 PNC_BASE_API_URL = 'http://pnc.localhost/pnc-rest/v2'
 PNC_GET_SCM_ARCHIVE_PATH = 'builds/{}/scm-archive'
+PNC_GET_ARTIFACT_PATH = 'artifacts/{}'
 KOJI_UPLOAD_TEST_WORKDIR = 'temp_workdir'
 KOJI_BUILD = {'build_id': 1, 'nvr': 'foobar-1-1', 'name': 'foobar', 'version': 1, 'release': 1,
-              'extra': {'image': {'parent_build_id': 10}, 'operator-manifests': {}},
-              'source': 'registry.com/repo#ref'}
+              'extra': {'image': {'parent_build_id': 10, 'pnc': {'builds': [{'id': 1234}]}},
+                        'operator-manifests': {}}, 'source': 'registry.com/repo#ref'}
 KOJI_PARENT_BUILD = {'build_id': 10, 'nvr': 'parent-1-1', 'name': 'parent', 'version': 1,
                      'release': 1,
                      'extra': {'image': {''}, 'operator-manifests': {}}}
 KOJI_PNC_BUILD = {'build_id': 25, 'nvr': 'foobar-1-1', 'name': 'foobar', 'version': 1, 'release': 1,
                   'extra': {'image': {'parent_build_id': 10}, 'operator-manifests': {},
-                            'external_build_id': '1234'},
+                            'external_build_id': 1234},
                   'source': 'registry.com/repo#ref', 'owner_name': PNC_SYSTEM_USER}
 KOJI_MEAD_BUILD = {'build_id': 26, 'nvr': 'foobar-1-1', 'name': 'foobar', 'version': 1,
                    'release': 1, 'source': 'registry.com/repo#ref', 'owner_name': 'foo',
@@ -82,7 +83,9 @@ BASE_CONFIG_MAP = dedent("""\
     pnc:
       base_api_url: {}
       get_scm_archive_path: {}
-    """.format(KOJI_HUB, KOJI_ROOT, PNC_BASE_API_URL, PNC_GET_SCM_ARCHIVE_PATH))
+      get_artifact_path: {}
+    """.format(KOJI_HUB, KOJI_ROOT, PNC_BASE_API_URL, PNC_GET_SCM_ARCHIVE_PATH,
+               PNC_GET_ARTIFACT_PATH))
 
 
 def mock_reactor_config(workflow, tmpdir, data=None, default_si=DEFAULT_SIGNING_INTENT):
@@ -97,6 +100,7 @@ def mock_reactor_config(workflow, tmpdir, data=None, default_si=DEFAULT_SIGNING_
             pnc:
               base_api_url: {}
               get_scm_archive_path: {}
+              get_artifact_path: {}
             odcs:
                signing_intents:
                - name: invalid
@@ -114,7 +118,7 @@ def mock_reactor_config(workflow, tmpdir, data=None, default_si=DEFAULT_SIGNING_
                auth:
                    ssl_certs_dir: {}
             """.format(KOJI_HUB, KOJI_ROOT, PNC_BASE_API_URL, PNC_GET_SCM_ARCHIVE_PATH,
-                       default_si, tmpdir))
+                       PNC_GET_ARTIFACT_PATH, default_si, tmpdir))
 
     workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
 
@@ -269,7 +273,7 @@ def get_pnc_api_url(build_id):
     return (PNC_BASE_API_URL + '/' + PNC_GET_SCM_ARCHIVE_PATH).format(build_id)
 
 
-def get_kojifile_pnc_source_url():
+def get_pnc_source_url():
     return f'http://code.gerrit.localhost/{KOJIFILE_PNC_SOURCE_FILENAME};sf=tgz'
 
 
@@ -360,15 +364,15 @@ def mock_koji_manifest_download(tmpdir, requests_mock, retries=0, dirs_in_remote
     requests_mock.register_uri('GET', get_remote_url(KOJI_PARENT_BUILD,
                                                      file_name=REMOTE_SOURCES_JSON),
                                body=body_remote_json_callback)
-    requests_mock.register_uri('GET', get_kojifile_pnc_source_url(),
+    requests_mock.register_uri('GET', get_pnc_source_url(),
                                body=body_remote_callback)
-    requests_mock.register_uri('HEAD', get_kojifile_pnc_source_url(),
+    requests_mock.register_uri('HEAD', get_pnc_source_url(),
                                body='',
                                headers={'Content-disposition':
                                         'inline; filename="{}"'
                                .format(KOJIFILE_PNC_SOURCE_FILENAME)})
     requests_mock.register_uri('GET', get_pnc_api_url(KOJI_PNC_BUILD['extra']['external_build_id']),
-                               headers={'Location': get_kojifile_pnc_source_url()},
+                               headers={'Location': get_pnc_source_url()},
                                body=body_remote_callback,
                                status_code=302)
     requests_mock.register_uri('GET', get_kojifile_source_mead_url(KOJI_MEAD_BUILD,
@@ -617,6 +621,12 @@ class TestFetchSources(object):
          .should_receive('listArchives')
          .with_args(object, type='remote-source-file')
          .and_return([]))
+        koji_temp_build = deepcopy(KOJI_BUILD)
+        del koji_temp_build['extra']['image']['pnc']
+        (flexmock(koji_session)
+         .should_receive('getBuild')
+         .with_args(KOJI_BUILD['nvr'], strict=True)
+         .and_return(koji_temp_build))
 
         key = None if signing_key is None else signing_key.lower()
         srpm_url = get_srpm_url(key, srpm_filename_override=srpm_filename)
@@ -769,6 +779,12 @@ class TestFetchSources(object):
             .should_receive('listRPMs')
             .with_args(imageID=1)
             .and_return([]))
+        koji_temp_build = deepcopy(KOJI_BUILD)
+        del koji_temp_build['extra']['image']['pnc']
+        (flexmock(koji_session)
+         .should_receive('getBuild')
+         .with_args(KOJI_BUILD['nvr'], strict=True)
+         .and_return(koji_temp_build))
 
         runner = mock_env(tmpdir, docker_tasker, koji_build_nvr='foobar-1-1')
         with pytest.raises(PluginFailedException) as exc_info:
