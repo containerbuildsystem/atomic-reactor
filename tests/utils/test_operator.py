@@ -9,10 +9,12 @@ of the BSD license. See the LICENSE file for details.
 import copy
 
 from collections import Counter
+from io import StringIO
+import textwrap
+
 from flexmock import flexmock
 
 import pytest
-from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
 import atomic_reactor.utils.operator as operator_module
@@ -23,11 +25,12 @@ from atomic_reactor.utils.operator import (
     OperatorManifest,
     NotOperatorCSV,
     default_pullspec_heuristic,
+    get_yaml_parser,
 )
 from osbs.utils import ImageName
 
 
-yaml = YAML()
+yaml = get_yaml_parser()
 
 
 SHA = "5d141ae1081640587636880dbe8489439353df883379158fa8742d5a3be75475"
@@ -1359,3 +1362,33 @@ class TestOperatorManifest(object):
 
         msg = "Path does not exist or is not a directory: {}".format(regular_file)
         assert str(exc_info.value) == msg
+
+
+def test_annotations_with_preserved_quotes():
+    """Test special configuration of ruamel yaml
+      * don't do line breaks after 80 characters
+      * preserve quotes
+    """
+    yaml_content = textwrap.dedent(
+        '''\
+        annotations:
+          test: amq-streams
+          spam: "spam:maps"
+        '''
+    )
+
+    obj = yaml.load(yaml_content)
+    test_text = (
+        'random text longer than 80 characters with spaces included to '
+        'test line wraps of ruamel yaml'
+    )
+    obj['annotations']['test'] = test_text
+    yaml_content_updated = StringIO()
+    yaml.dump(obj, yaml_content_updated)
+    assert yaml_content_updated.getvalue() == textwrap.dedent(
+        '''\
+        annotations:
+          test: {}
+          spam: "spam:maps"
+        '''.format(test_text)
+    )
