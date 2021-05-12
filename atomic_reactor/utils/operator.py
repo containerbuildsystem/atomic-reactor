@@ -17,9 +17,29 @@ from atomic_reactor.util import chain_get, sha256sum
 from osbs.utils import ImageName
 from osbs.utils.yaml import validate_with_schema
 
-
-yaml = YAML()
 log = logging.getLogger(__name__)
+
+
+def get_yaml_parser():
+    """Returns tuned up YAML parser"""
+    yaml_parser = YAML()
+
+    # ruamel will introduce a line break if the yaml line is longer than
+    # yaml.width. Unfortunately, this causes issues for JSON values nested
+    # within a YAML file, e.g. metadata.annotations."alm-examples" in a CSV
+    # file. The default value is 80. Set it to a more forgiving higher
+    # number to avoid issues
+    yaml_parser.width = 200
+
+    # ruamel will also cause issues when normalizing a YAML object that contains
+    # a nested JSON object when it does not preserve quotes. Thus, it produces
+    # invalid YAML. Let's prevent this from happening at all.
+    yaml_parser.preserve_quotes = True
+
+    return yaml_parser
+
+
+yaml = get_yaml_parser()
 
 
 OPERATOR_CSV_KIND = "ClusterServiceVersion"
