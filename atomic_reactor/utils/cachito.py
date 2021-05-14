@@ -12,7 +12,7 @@ import logging
 import requests
 import time
 
-from atomic_reactor.constants import REMOTE_SOURCES_FILENAME
+from atomic_reactor.constants import REMOTE_SOURCE_TARBALL_FILENAME
 from atomic_reactor.download import download_url
 from atomic_reactor.util import get_retrying_requests_session
 
@@ -168,7 +168,7 @@ class CachitoAPI(object):
                 else:
                     time.sleep(burst_retry)
 
-    def download_sources(self, request, dest_dir='.', dest_filename=REMOTE_SOURCES_FILENAME):
+    def download_sources(self, request, dest_dir='.', dest_filename=REMOTE_SOURCE_TARBALL_FILENAME):
         """Download the sources from a Cachito request
 
         :param request: int or dict, either the Cachito request ID or a dict with 'id' key

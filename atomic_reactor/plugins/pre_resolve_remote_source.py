@@ -7,12 +7,17 @@ of the BSD license. See the LICENSE file for details.
 """
 import os.path
 
-from atomic_reactor.constants import PLUGIN_RESOLVE_REMOTE_SOURCE, REMOTE_SOURCE_DIR
+from atomic_reactor.constants import (
+    PLUGIN_RESOLVE_REMOTE_SOURCE,
+    REMOTE_SOURCE_DIR,
+    REMOTE_SOURCE_JSON_FILENAME,
+    REMOTE_SOURCE_TARBALL_FILENAME,
+)
 from atomic_reactor.utils.koji import get_koji_task_owner
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
 from atomic_reactor.plugins.pre_reactor_config import (
-    get_cachito, get_cachito_session, get_koji_session)
+    get_cachito, get_cachito_session, get_koji_session, get_allow_multiple_remote_sources)
 from atomic_reactor.util import get_build_json, is_scratch_build
 
 
@@ -70,7 +75,8 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
             self.log.info('Aborting plugin execution: missing Cachito configuration')
             return
 
-        if self.workflow.source.config.remote_sources:
+        if (not get_allow_multiple_remote_sources(self.workflow)
+                and self.workflow.source.config.remote_sources):
             raise ValueError('Multiple remote sources are not supported, use single '
                              'remote source in container.yaml')
 
@@ -107,14 +113,20 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
         dest_dir = self.workflow.source.workdir
         dest_path = self.cachito_session.download_sources(source_request, dest_dir=dest_dir)
 
-        return {
-            # Annotations to be added to the current Build object
-            'annotations': {'remote_source_url': remote_sources[0]['url']},
-            # JSON representation of the remote source request
-            'remote_source_json': remote_source_json,
-            # Local path to the remote source archive
-            'remote_source_path': dest_path,
-        }
+        return [
+            {
+                "name": remote_sources[0]["name"],
+                "url": remote_sources[0]["url"],
+                "remote_source_json": {
+                    "json": remote_source_json,
+                    "filename": REMOTE_SOURCE_JSON_FILENAME,
+                },
+                "remote_source_tarball": {
+                    "filename": REMOTE_SOURCE_TARBALL_FILENAME,
+                    "path": dest_path,
+                },
+            }
+        ]
 
     def set_worker_params(self, remote_sources):
         build_args = {}

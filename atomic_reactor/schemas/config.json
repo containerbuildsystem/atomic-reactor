@@ -611,6 +611,11 @@
         "type": "boolean",
         "default": true
     },
+    "allow_multiple_remote_sources": {
+        "description": "Allow using multiple remote sources",
+        "type": "boolean",
+        "default": false
+    },
     "required_secrets": {
         "description": "List of OpenShift secrets required by this configuration",
         "type": "array",
