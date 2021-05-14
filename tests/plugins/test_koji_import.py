@@ -26,7 +26,7 @@ from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
 from atomic_reactor.inner import DockerBuildWorkflow, TagConf, PushConf
-from atomic_reactor.util import (ManifestDigest,
+from atomic_reactor.util import (ManifestDigest, read_yaml,
                                  get_manifest_media_version, get_manifest_media_type)
 from atomic_reactor.source import GitSource, PathSource
 from atomic_reactor.build import BuildResult
@@ -40,7 +40,8 @@ from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI_
                                       PLUGIN_RESOLVE_REMOTE_SOURCE,
                                       PLUGIN_VERIFY_MEDIA_KEY, PARENT_IMAGE_BUILDS_KEY,
                                       PARENT_IMAGES_KEY, OPERATOR_MANIFESTS_ARCHIVE,
-                                      REMOTE_SOURCES_FILENAME,
+                                      REMOTE_SOURCE_TARBALL_FILENAME,
+                                      REMOTE_SOURCE_JSON_FILENAME,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
                                       KOJI_BTYPE_REMOTE_SOURCE_FILE,
@@ -49,6 +50,8 @@ from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI_
                                       KOJI_SUBTYPE_OP_APPREGISTRY,
                                       KOJI_SUBTYPE_OP_BUNDLE,
                                       KOJI_SOURCE_ENGINE)
+from atomic_reactor.plugins.pre_reactor_config import (
+    ReactorConfigPlugin, WORKSPACE_CONF_KEY, ReactorConfig)
 from tests.constants import SOURCE, MOCK
 from tests.flatpak import (MODULEMD_AVAILABLE,
                            setup_flatpak_composes,
@@ -228,6 +231,21 @@ class BuildInfo(object):
             annotations['digests'] = json.dumps(digest_annotation)
 
         self.build = BuildResponse({'metadata': {'annotations': annotations}})
+
+
+def mock_reactor_config(workflow, allow_multiple_remote_sources=False):
+    data = dedent("""\
+        version: 1
+        koji:
+            hub_url: /
+            root_url: ''
+            auth: {{}}
+        allow_multiple_remote_sources: {}
+        """.format(allow_multiple_remote_sources))
+
+    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+    config = read_yaml(data, 'schemas/config.json')
+    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] = ReactorConfig(config)
 
 
 def mock_environment(tmpdir, session=None, name=None,
@@ -508,13 +526,23 @@ def mock_environment(tmpdir, session=None, name=None,
          .append(manifests_entry))
 
     if has_remote_source:
-        source_path = os.path.join(str(tmpdir), REMOTE_SOURCES_FILENAME)
+        source_path = os.path.join(str(tmpdir), REMOTE_SOURCE_TARBALL_FILENAME)
         with open(source_path, 'wt') as fp:
             fp.write('dummy file')
-        remote_source_result = {
-            'annotations': {'remote_source_url': 'example.com'},
-            'remote_source_json': {'stub': 'data'},
-            'remote_source_path': source_path}
+        remote_source_result = [
+            {
+                "name": None,
+                "url": "https://cachito.com/api/v1/requests/21048/download",
+                "remote_source_json": {
+                    "filename": REMOTE_SOURCE_JSON_FILENAME,
+                    "json": {"stub": "data"},
+                },
+                "remote_source_tarball": {
+                    "filename": REMOTE_SOURCE_TARBALL_FILENAME,
+                    "path": source_path,
+                },
+            }
+        ]
         workflow.prebuild_results[PLUGIN_RESOLVE_REMOTE_SOURCE] = remote_source_result
     else:
         workflow.prebuild_results[PLUGIN_RESOLVE_REMOTE_SOURCE] = None
@@ -2307,7 +2335,8 @@ class TestKojiImport(object):
         assert extra['image']['operator_manifests'] == expected
 
     @pytest.mark.parametrize('has_remote_source', [True, False])
-    def test_remote_sources(self, tmpdir, os_env, has_remote_source):
+    @pytest.mark.parametrize('allow_multiple_remote_sources', [True, False])
+    def test_remote_sources(self, tmpdir, os_env, has_remote_source, allow_multiple_remote_sources):
         session = MockedClientSession('')
         tasker, workflow = mock_environment(
             tmpdir,
@@ -2316,6 +2345,7 @@ class TestKojiImport(object):
             release='1',
             session=session,
             has_remote_source=has_remote_source)
+        mock_reactor_config(workflow, allow_multiple_remote_sources)
 
         runner = create_runner(tasker, workflow)
         runner.run()
@@ -2330,19 +2360,40 @@ class TestKojiImport(object):
         # https://github.com/PyCQA/pylint/issues/2186
         # pylint: disable=W1655
         if has_remote_source:
-            assert 'remote_source_url' in extra['image']
-            assert extra['image']['remote_source_url'] == 'example.com'
-            assert 'typeinfo' in extra
-            assert 'remote-sources' in extra['typeinfo']
-            assert 'remote_source_url' in extra['typeinfo']['remote-sources']
-            assert extra['typeinfo']['remote-sources']['remote_source_url'] == 'example.com'
-            assert REMOTE_SOURCES_FILENAME in session.uploaded_files.keys()
-            assert 'remote-source.json' in session.uploaded_files.keys()
+            if allow_multiple_remote_sources:
+                assert extra['image']['remote_sources'] == [
+                    {
+                        'name': None,
+                        'url': 'https://cachito.com/api/v1/requests/21048',
+                    }
+                ]
+                assert 'typeinfo' in extra
+                assert 'remote-sources' in extra['typeinfo']
+                assert extra['typeinfo']['remote-sources'] == [
+                    {
+                        'name': None,
+                        'url': 'https://cachito.com/api/v1/requests/21048',
+                        'archives': ['remote-source.json', 'remote-source.tar.gz'],
+                    }
+                ]
+                assert REMOTE_SOURCE_TARBALL_FILENAME in session.uploaded_files.keys()
+                assert REMOTE_SOURCE_JSON_FILENAME in session.uploaded_files.keys()
+            else:
+                assert (
+                        extra['image']['remote_source_url']
+                        == 'https://cachito.com/api/v1/requests/21048/download'
+                )
+                assert extra['typeinfo']['remote-sources'] == {
+                    "remote_source_url": "https://cachito.com/api/v1/requests/21048/download"
+                }
+                assert REMOTE_SOURCE_TARBALL_FILENAME in session.uploaded_files.keys()
+                assert REMOTE_SOURCE_JSON_FILENAME in session.uploaded_files.keys()
+
         else:
             assert 'remote_source_url' not in extra['image']
             assert 'typeinfo' not in extra
-            assert REMOTE_SOURCES_FILENAME not in session.uploaded_files.keys()
-            assert 'remote-source.json' not in session.uploaded_files.keys()
+            assert REMOTE_SOURCE_TARBALL_FILENAME not in session.uploaded_files.keys()
+            assert REMOTE_SOURCE_JSON_FILENAME not in session.uploaded_files.keys()
 
     @pytest.mark.parametrize('has_remote_source_file', [True, False])
     def test_remote_source_files(self, tmpdir, os_env, has_remote_source_file):

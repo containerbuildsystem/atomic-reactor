@@ -195,10 +195,14 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
 
     def apply_remote_source_annotations(self, annotations):
         try:
-            rs_annotations = self.get_pre_result(PLUGIN_RESOLVE_REMOTE_SOURCE)['annotations']
+            remote_sources = self.get_pre_result(PLUGIN_RESOLVE_REMOTE_SOURCE)
+            remote_sources_annotations = [
+                {"name": remote_source["name"], "url": remote_source["url"]}
+                for remote_source in remote_sources
+            ]
         except (TypeError, KeyError):
             return
-        annotations.update(rs_annotations)
+        annotations.update(remote_sources_annotations)
 
     def run(self):
         metadata = get_build_json().get("metadata", {})

@@ -28,6 +28,7 @@ from atomic_reactor.util import get_retrying_requests_session
 from atomic_reactor.download import download_url
 from atomic_reactor.metadata import label_map
 from atomic_reactor.utils.pnc import PNCUtil
+from atomic_reactor.constants import REMOTE_SOURCE_JSON_FILENAME
 
 
 @label_map('sources_for_koji_build_id')
@@ -235,7 +236,8 @@ class FetchSourcesPlugin(PreBuildPlugin):
                 dest_name = remote_source['dest']
                 remote_sources_urls.append(remote_source)
 
-            elif archive['type_name'] == 'json' and archive['filename'] == 'remote-source.json':
+            elif (archive['type_name'] == 'json'
+                  and archive['filename'] == REMOTE_SOURCE_JSON_FILENAME):
                 cachito_json_url = os.path.join(remote_sources_path, archive['filename'])
 
         # we will add entry to remote_json_map only when

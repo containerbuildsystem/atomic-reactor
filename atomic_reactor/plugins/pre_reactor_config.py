@@ -160,6 +160,10 @@ def get_cachito_session(workflow):
     return CachitoAPI(config['api_url'], **api_kwargs)
 
 
+def get_allow_multiple_remote_sources(workflow):
+    return get_value(workflow, 'allow_multiple_remote_sources', False)
+
+
 def get_arrangement_version(workflow, fallback=NO_FALLBACK):
     return get_value(workflow, 'arrangement_version', fallback)
 

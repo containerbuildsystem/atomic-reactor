@@ -20,7 +20,11 @@ import atomic_reactor
 import koji
 import pytest
 import requests
-from atomic_reactor.constants import PNC_SYSTEM_USER
+from atomic_reactor.constants import (
+    PNC_SYSTEM_USER,
+    REMOTE_SOURCE_TARBALL_FILENAME,
+    REMOTE_SOURCE_JSON_FILENAME,
+)
 from flexmock import flexmock
 
 from atomic_reactor import constants
@@ -54,9 +58,7 @@ KOJI_MEAD_BUILD = {'build_id': 26, 'nvr': 'foobar-1-1', 'name': 'foobar', 'versi
 
 constants.HTTP_BACKOFF_FACTOR = 0
 
-REMOTE_SOURCES_FILENAME = 'remote-source.tar.gz'
 REMOTE_SOURCE_FILE_FILENAME = 'pnc-source.tar.gz'
-REMOTE_SOURCES_JSON = 'remote-source.json'
 KOJIFILE_PNC_FILENAME = 'kojifile_pnc.jar'
 KOJIFILE_MEAD_FILENAME = 'kojifile_mead.jar'
 KOJIFILE_PNC_SOURCE_FILENAME = 'pnc-project-sources.tar.gz'
@@ -169,8 +171,8 @@ def koji_session():
     (flexmock(session)
      .should_receive('listArchives')
      .with_args(object, type='remote-sources')
-     .and_return([{'id': 1, 'type_name': 'tar', 'filename': REMOTE_SOURCES_FILENAME},
-                  {'id': 20, 'type_name': 'json', 'filename': REMOTE_SOURCES_JSON}]))
+     .and_return([{'id': 1, 'type_name': 'tar', 'filename': REMOTE_SOURCE_TARBALL_FILENAME},
+                  {'id': 20, 'type_name': 'json', 'filename': REMOTE_SOURCE_JSON_FILENAME}]))
     (flexmock(session)
      .should_receive('listArchives')
      .with_args(imageID=1, type='maven')
@@ -250,7 +252,7 @@ def get_srpm_url(sign_key=None, srpm_filename_override=None):
         return '{}/data/signed/{}/src/{}'.format(base, sign_key, filename)
 
 
-def get_remote_url(koji_build, file_name=REMOTE_SOURCES_FILENAME):
+def get_remote_url(koji_build, file_name=REMOTE_SOURCE_TARBALL_FILENAME):
     base = '{}/packages/{}/{}/{}'.format(KOJI_ROOT, koji_build['name'], koji_build['version'],
                                          koji_build['release'])
     return '{}/files/remote-sources/{}'.format(base, file_name)
@@ -355,10 +357,11 @@ def mock_koji_manifest_download(tmpdir, requests_mock, retries=0, dirs_in_remote
     requests_mock.register_uri('GET', get_remote_url(KOJI_BUILD), body=body_remote_callback)
     requests_mock.register_uri('GET', get_remote_url(KOJI_PARENT_BUILD), body=body_remote_callback)
 
-    requests_mock.register_uri('GET', get_remote_url(KOJI_BUILD, file_name=REMOTE_SOURCES_JSON),
+    requests_mock.register_uri('GET', get_remote_url(KOJI_BUILD,
+                               file_name=REMOTE_SOURCE_JSON_FILENAME),
                                body=body_remote_json_callback)
     requests_mock.register_uri('GET', get_remote_url(KOJI_PARENT_BUILD,
-                                                     file_name=REMOTE_SOURCES_JSON),
+                               file_name=REMOTE_SOURCE_JSON_FILENAME),
                                body=body_remote_json_callback)
     requests_mock.register_uri('GET', get_kojifile_pnc_source_url(),
                                body=body_remote_callback)
@@ -420,8 +423,10 @@ class TestFetchSources(object):
             assert len(sources_list) == 1
             assert sources_list[0] == '.'.join([KOJI_BUILD['nvr'], 'src', 'rpm'])
             expected_remotes = set()
-            expected_remotes.add('-'.join([KOJI_BUILD['nvr'], REMOTE_SOURCES_FILENAME]))
-            expected_remotes.add('-'.join([KOJI_PARENT_BUILD['nvr'], REMOTE_SOURCES_FILENAME]))
+            expected_remotes.add('-'.join([KOJI_BUILD['nvr'],
+                                           REMOTE_SOURCE_TARBALL_FILENAME]))
+            expected_remotes.add('-'.join([KOJI_PARENT_BUILD['nvr'],
+                                           REMOTE_SOURCE_TARBALL_FILENAME]))
             assert remote_list == expected_remotes
             maven_source_archives = set()
             maven_source_archives.add(KOJIFILE_MEAD_SOURCE_FILENAME)
@@ -888,9 +893,11 @@ class TestFetchSources(object):
                                     source_json, raise_early):
         list_archives = []
         for n in range(source_archives):
-            list_archives.append({'id': n, 'type_name': 'tar', 'filename': REMOTE_SOURCES_FILENAME})
+            list_archives.append({'id': n, 'type_name': 'tar',
+                                  'filename': REMOTE_SOURCE_TARBALL_FILENAME})
         for n in range(source_json):
-            list_archives.append({'id': n, 'type_name': 'json', 'filename': REMOTE_SOURCES_JSON})
+            list_archives.append({'id': n, 'type_name': 'json',
+                                  'filename': REMOTE_SOURCE_JSON_FILENAME})
 
         (flexmock(koji_session)
          .should_receive('listArchives')
@@ -970,8 +977,10 @@ class TestFetchSources(object):
 
             remote_list = set(os.listdir(remote_sources_dir))
             expected_remotes = set()
-            expected_remotes.add('-'.join([KOJI_BUILD['nvr'], REMOTE_SOURCES_FILENAME]))
-            expected_remotes.add('-'.join([KOJI_PARENT_BUILD['nvr'], REMOTE_SOURCES_FILENAME]))
+            expected_remotes.add('-'.join([KOJI_BUILD['nvr'],
+                                           REMOTE_SOURCE_TARBALL_FILENAME]))
+            expected_remotes.add('-'.join([KOJI_PARENT_BUILD['nvr'],
+                                           REMOTE_SOURCE_TARBALL_FILENAME]))
             assert remote_list == expected_remotes
 
             if not excludelist or not exclude_messages:

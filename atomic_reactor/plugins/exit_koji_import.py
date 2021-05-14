@@ -27,7 +27,7 @@ from atomic_reactor.utils.koji import get_buildroot as koji_get_buildroot
 from atomic_reactor.utils.koji import get_output as koji_get_output
 from atomic_reactor.utils.koji import (
         generate_koji_upload_dir, add_custom_type,
-        get_source_tarball_output, get_remote_source_json_output,
+        get_source_tarballs_output, get_remote_sources_json_output,
         get_maven_metadata
 )
 from atomic_reactor.plugins.pre_reactor_config import get_openshift_session
@@ -69,7 +69,11 @@ from atomic_reactor.util import (Output, get_build_json,
                                  has_operator_appregistry_manifest,
                                  )
 from atomic_reactor.utils.koji import (KojiUploadLogger, get_koji_task_owner)
-from atomic_reactor.plugins.pre_reactor_config import get_koji_session, get_koji
+from atomic_reactor.plugins.pre_reactor_config import (
+    get_koji_session,
+    get_koji,
+    get_allow_multiple_remote_sources,
+)
 from atomic_reactor.metadata import label
 from osbs.utils import Labels, ImageName
 
@@ -230,17 +234,38 @@ class KojiImportBase(ExitPlugin):
             extra['image']['pnc'] = pnc_build_metadata
 
     def set_remote_sources_metadata(self, extra):
-        remote_source_result = self.workflow.prebuild_results.get(PLUGIN_RESOLVE_REMOTE_SOURCE)
+        remote_source_result = self.workflow.prebuild_results.get(
+            PLUGIN_RESOLVE_REMOTE_SOURCE
+        )
         if remote_source_result:
-            url = remote_source_result['annotations']['remote_source_url']
-            remote_source_typeinfo = {
-                KOJI_BTYPE_REMOTE_SOURCES: {
-                    'remote_source_url': url,
-                },
-            }
-            extra.setdefault('typeinfo', {}).update(remote_source_typeinfo)
+            if get_allow_multiple_remote_sources(self.workflow):
+                remote_sources_image_metadata = [
+                    {"name": remote_source["name"], "url": remote_source["url"].rstrip('/download')}
+                    for remote_source in remote_source_result
+                ]
+                extra["image"]["remote_sources"] = remote_sources_image_metadata
 
-            extra['image']['remote_source_url'] = url
+                remote_sources_typeinfo_metadata = [
+                    {
+                        "name": remote_source["name"],
+                        "url": remote_source["url"].rstrip('/download'),
+                        "archives": [
+                            remote_source["remote_source_json"]["filename"],
+                            remote_source["remote_source_tarball"]["filename"],
+                        ],
+                    }
+                    for remote_source in remote_source_result
+                ]
+            else:
+                extra["image"]["remote_source_url"] = remote_source_result[0]["url"]
+                remote_sources_typeinfo_metadata = {
+                    "remote_source_url": remote_source_result[0]["url"]
+                }
+
+            remote_source_typeinfo = {
+                KOJI_BTYPE_REMOTE_SOURCES: remote_sources_typeinfo_metadata,
+            }
+            extra.setdefault("typeinfo", {}).update(remote_source_typeinfo)
 
     def set_remote_source_file_metadata(self, extra):
         plugin_results = self.workflow.postbuild_results.get(PLUGIN_GENERATE_MAVEN_METADATA_KEY) \
@@ -425,10 +450,10 @@ class KojiImportBase(ExitPlugin):
             if worker_output['type'] == 'docker-image':
                 worker_output['components'] += kojifile_components
 
-        # add remote source tarball and remote-source.json files to output
+        # add remote sources tarballs and remote sources json files to output
         for remote_source_output in [
-            get_source_tarball_output(self.workflow),
-            get_remote_source_json_output(self.workflow)
+            *get_source_tarballs_output(self.workflow),
+            *get_remote_sources_json_output(self.workflow)
         ]:
             if remote_source_output:
                 add_custom_type(remote_source_output, KOJI_BTYPE_REMOTE_SOURCES)

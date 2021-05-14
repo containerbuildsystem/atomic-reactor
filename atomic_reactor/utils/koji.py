@@ -24,7 +24,7 @@ from atomic_reactor.constants import (DEFAULT_DOWNLOAD_BLOCK_SIZE, PROG,
                                       PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY,
                                       PLUGIN_RESOLVE_REMOTE_SOURCE,
                                       PLUGIN_GENERATE_MAVEN_METADATA_KEY,
-                                      REMOTE_SOURCES_FILENAME, KOJI_MAX_RETRIES,
+                                      KOJI_MAX_RETRIES,
                                       KOJI_RETRY_INTERVAL, KOJI_OFFLINE_RETRY_INTERVAL)
 from atomic_reactor.util import (get_version_of_tools, get_docker_architecture,
                                  Output, get_image_upload_filename,
@@ -367,32 +367,32 @@ def get_image_output(workflow, image_id, arch):
     return metadata, output
 
 
-def get_source_tarball_output(workflow):
+def get_source_tarballs_output(workflow):
     plugin_results = workflow.prebuild_results.get(PLUGIN_RESOLVE_REMOTE_SOURCE) or {}
-    remote_source_path = plugin_results.get('remote_source_path')
-    if not remote_source_path:
-        return None
+    output_tarball_files = []
+    for remote_source in plugin_results:
+        remote_source_tarball = remote_source['remote_source_tarball']
+        metadata = get_output_metadata(remote_source_tarball['path'],
+                                       remote_source_tarball['filename'])
+        output = Output(file=open(remote_source_tarball['path']), metadata=metadata)
+        output_tarball_files.append(output)
+    return output_tarball_files
 
-    metadata = get_output_metadata(remote_source_path, REMOTE_SOURCES_FILENAME)
-    output = Output(file=open(remote_source_path), metadata=metadata)
-    return output
 
-
-def get_remote_source_json_output(workflow):
+def get_remote_sources_json_output(workflow):
     plugin_results = workflow.prebuild_results.get(PLUGIN_RESOLVE_REMOTE_SOURCE) or {}
-    remote_source_json = plugin_results.get('remote_source_json')
-    if not remote_source_json:
-        return None
-
-    remote_source_json_filename = 'remote-source.json'
+    output_json_files = []
     tmpdir = tempfile.mkdtemp()
-    file_path = os.path.join(tmpdir, remote_source_json_filename)
-    with open(file_path, 'w') as f:
-        json.dump(remote_source_json, f, indent=4, sort_keys=True)
-
-    metadata = get_output_metadata(file_path, remote_source_json_filename)
-    output = Output(file=open(file_path), metadata=metadata)
-    return output
+    for remote_source in plugin_results:
+        remote_source_json = remote_source['remote_source_json']
+        remote_source_json_filename = remote_source_json['filename']
+        file_path = os.path.join(tmpdir, remote_source_json_filename)
+        with open(file_path, 'w') as f:
+            json.dump(remote_source_json, f, indent=4, sort_keys=True)
+        metadata = get_output_metadata(file_path, remote_source_json_filename)
+        output = Output(file=open(file_path), metadata=metadata)
+        output_json_files.append(output)
+    return output_json_files
 
 
 def get_maven_metadata(workflow):

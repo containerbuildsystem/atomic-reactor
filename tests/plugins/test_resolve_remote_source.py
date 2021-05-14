@@ -15,7 +15,11 @@ import pytest
 import atomic_reactor.utils.koji as koji_util
 from atomic_reactor import util
 from atomic_reactor.utils.cachito import CachitoAPI
-from atomic_reactor.constants import PLUGIN_BUILD_ORCHESTRATE_KEY
+from atomic_reactor.constants import (
+    PLUGIN_BUILD_ORCHESTRATE_KEY,
+    REMOTE_SOURCE_TARBALL_FILENAME,
+    REMOTE_SOURCE_JSON_FILENAME,
+)
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins import pre_reactor_config
@@ -457,9 +461,12 @@ def run_plugin_with_args(workflow, dependency_replacements=None, expect_error=No
     results = runner.run()[ResolveRemoteSourcePlugin.key]
 
     if expect_result:
-        assert results['annotations']['remote_source_url']
-        assert results['remote_source_json'] == REMOTE_SOURCE_JSON
-        assert results['remote_source_path'] == expected_dowload_path(workflow)
+        assert len(results) == 1
+        assert results[0]['url']
+        assert results[0]['remote_source_json']['json'] == REMOTE_SOURCE_JSON
+        assert results[0]['remote_source_json']['filename'] == REMOTE_SOURCE_JSON_FILENAME
+        assert results[0]['remote_source_tarball']['path'] == expected_dowload_path(workflow)
+        assert results[0]['remote_source_tarball']['filename'] == REMOTE_SOURCE_TARBALL_FILENAME
 
         # A result means the plugin was enabled and executed successfully.
         # Let's verify the expected side effects.
