@@ -20,11 +20,8 @@ import atomic_reactor
 import koji
 import pytest
 import requests
-from atomic_reactor.constants import (
-    PNC_SYSTEM_USER,
-    REMOTE_SOURCE_TARBALL_FILENAME,
-    REMOTE_SOURCE_JSON_FILENAME,
-)
+from atomic_reactor.constants import (PNC_SYSTEM_USER, REMOTE_SOURCE_TARBALL_FILENAME,
+                                      REMOTE_SOURCE_JSON_FILENAME)
 from flexmock import flexmock
 
 from atomic_reactor import constants
@@ -43,12 +40,55 @@ PNC_BASE_API_URL = 'http://pnc.localhost/pnc-rest/v2'
 PNC_GET_SCM_ARCHIVE_PATH = 'builds/{}/scm-archive'
 PNC_GET_ARTIFACT_PATH = 'artifacts/{}'
 KOJI_UPLOAD_TEST_WORKDIR = 'temp_workdir'
-KOJI_BUILD = {'build_id': 1, 'nvr': 'foobar-1-1', 'name': 'foobar', 'version': 1, 'release': 1,
-              'extra': {'image': {'parent_build_id': 10, 'pnc': {'builds': [{'id': 1234}]}},
-                        'operator-manifests': {}}, 'source': 'registry.com/repo#ref'}
-KOJI_PARENT_BUILD = {'build_id': 10, 'nvr': 'parent-1-1', 'name': 'parent', 'version': 1,
-                     'release': 1,
-                     'extra': {'image': {''}, 'operator-manifests': {}}}
+ALL_ARCHIVE_NAMES = ['remote-source-first.json', 'remote-source-first.tar.gz',
+                     'remote-source-second.json', 'remote-source-second.tar.gz']
+RS_TYPEINFO = [{'name': 'first', 'url': 'first_url',
+                'archives': ['remote-source-first.json', 'remote-source-first.tar.gz']},
+               {'name': 'second', 'url': 'second_url',
+                'archives': ['remote-source-second.json', 'remote-source-second.tar.gz']}]
+RS_TYPEINFO_NO_JSON = [{'name': 'first', 'url': 'first_url',
+                        'archives': ['remote-source-first.wrong', 'remote-source-first.tar.gz']},
+                       {'name': 'second', 'url': 'second_url',
+                        'archives': ['remote-source-second.bad', 'remote-source-second.tar.gz']}]
+RS_TYPEINFO_NO_2 = [{'name': 'first', 'url': 'first_url',
+                     'archives': ['remote-source-first.tar.gz']},
+                    {'name': 'second', 'url': 'second_url',
+                     'archives': ['remote-source-second.tar.gz']}]
+
+KOJI_BUILD_WO_RS = {'build_id': 1, 'nvr': 'foobar-1-1', 'name': 'foobar', 'version': 1,
+                    'release': 1,
+                    'extra': {'image': {'parent_build_id': 10,
+                                        'pnc': {'builds': [{'id': 1234}]}},
+                              'operator-manifests': {}},
+                    'source': 'registry.com/repo#ref'}
+KOJI_BUILD_RS = {'build_id': 1, 'nvr': 'foobar-1-1', 'name': 'foobar', 'version': 1, 'release': 1,
+                 'extra': {'image': {'parent_build_id': 10,
+                                     'pnc': {'builds': [{'id': 1234}]},
+                                     'remote_source_url': 'remote_url'},
+                           'operator-manifests': {}},
+                 'source': 'registry.com/repo#ref'}
+KOJI_BUILD_MRS = {'build_id': 1, 'nvr': 'foobar-1-1', 'name': 'foobar', 'version': 1, 'release': 1,
+                  'extra': {'image': {'parent_build_id': 10,
+                                      'pnc': {'builds': [{'id': 1234}]},
+                                      'remote_sources': []},
+                            'operator-manifests': {},
+                            'typeinfo': {'remote-sources': RS_TYPEINFO}},
+                  'source': 'registry.com/repo#ref'}
+
+KOJI_PARENT_BUILD_WO_RS = {'build_id': 10, 'nvr': 'parent-1-1', 'name': 'parent', 'version': 1,
+                           'release': 1,
+                           'extra': {'image': {},
+                                     'operator-manifests': {}}}
+KOJI_PARENT_BUILD_RS = {'build_id': 10, 'nvr': 'parent-1-1', 'name': 'parent', 'version': 1,
+                        'release': 1,
+                        'extra': {'image': {'remote_source_url': 'remote_url'},
+                                  'operator-manifests': {}}}
+KOJI_PARENT_BUILD_MRS = {'build_id': 10, 'nvr': 'parent-1-1', 'name': 'parent', 'version': 1,
+                         'release': 1,
+                         'extra': {'image': {'remote_sources': []},
+                                   'operator-manifests': {},
+                                   'typeinfo': {'remote-sources': RS_TYPEINFO}}}
+
 KOJI_PNC_BUILD = {'build_id': 25, 'nvr': 'foobar-1-1', 'name': 'foobar', 'version': 1, 'release': 1,
                   'extra': {'image': {'parent_build_id': 10}, 'operator-manifests': {},
                             'external_build_id': 1234},
@@ -223,16 +263,16 @@ def koji_session():
      .and_return({'SOURCERPM': 'foobar-1-1.src.rpm'}))
     (flexmock(session)
      .should_receive('getBuild')
-     .with_args(KOJI_BUILD['build_id'], strict=True)
-     .and_return(KOJI_BUILD))
+     .with_args(KOJI_BUILD_RS['build_id'], strict=True)
+     .and_return(KOJI_BUILD_RS))
     (flexmock(session)
      .should_receive('getBuild')
-     .with_args(KOJI_BUILD['nvr'], strict=True)
-     .and_return(KOJI_BUILD))
+     .with_args(KOJI_BUILD_RS['nvr'], strict=True)
+     .and_return(KOJI_BUILD_RS))
     (flexmock(session)
      .should_receive('getBuild')
-     .with_args(KOJI_PARENT_BUILD['build_id'], strict=True)
-     .and_return(KOJI_PARENT_BUILD))
+     .with_args(KOJI_PARENT_BUILD_RS['build_id'], strict=True)
+     .and_return(KOJI_PARENT_BUILD_RS))
     (flexmock(session)
      .should_receive('getBuild')
      .with_args(KOJI_PNC_BUILD['build_id'], strict=True)
@@ -246,10 +286,46 @@ def koji_session():
     return session
 
 
+def set_no_remote_source_in_koji_build(koji_session):
+    (flexmock(koji_session)
+        .should_receive('getBuild')
+        .with_args(KOJI_BUILD_WO_RS['build_id'], strict=True)
+        .and_return(KOJI_BUILD_WO_RS))
+    (flexmock(koji_session)
+        .should_receive('getBuild')
+        .with_args(KOJI_BUILD_WO_RS['nvr'], strict=True)
+        .and_return(KOJI_BUILD_WO_RS))
+    (flexmock(koji_session)
+        .should_receive('getBuild')
+        .with_args(KOJI_PARENT_BUILD_WO_RS['build_id'], strict=True)
+        .and_return(KOJI_PARENT_BUILD_WO_RS))
+
+
+def set_multiple_remote_sources_in_koji_build(koji_session, typeinfo):
+    koji_build = deepcopy(KOJI_BUILD_MRS)
+    koji_parent_build = deepcopy(KOJI_PARENT_BUILD_MRS)
+    rs_typeinfo = deepcopy(typeinfo)
+    koji_build['extra']['typeinfo']['remote-sources'] = rs_typeinfo
+    koji_parent_build['extra']['typeinfo']['remote-sources'] = rs_typeinfo
+
+    (flexmock(koji_session)
+        .should_receive('getBuild')
+        .with_args(koji_build['build_id'], strict=True)
+        .and_return(koji_build))
+    (flexmock(koji_session)
+        .should_receive('getBuild')
+        .with_args(koji_build['nvr'], strict=True)
+        .and_return(koji_build))
+    (flexmock(koji_session)
+        .should_receive('getBuild')
+        .with_args(koji_parent_build['build_id'], strict=True)
+        .and_return(koji_parent_build))
+
+
 def get_srpm_url(sign_key=None, srpm_filename_override=None):
-    base = '{}/packages/{}/{}/{}'.format(KOJI_ROOT, KOJI_BUILD['name'], KOJI_BUILD['version'],
-                                         KOJI_BUILD['release'])
-    filename = srpm_filename_override or '{}.src.rpm'.format(KOJI_BUILD['nvr'])
+    base = '{}/packages/{}/{}/{}'.format(KOJI_ROOT, KOJI_BUILD_RS['name'], KOJI_BUILD_RS['version'],
+                                         KOJI_BUILD_RS['release'])
+    filename = srpm_filename_override or '{}.src.rpm'.format(KOJI_BUILD_RS['nvr'])
     if not sign_key:
         return '{}/src/{}'.format(base, filename)
     else:
@@ -358,15 +434,26 @@ def mock_koji_manifest_download(tmpdir, requests_mock, retries=0, dirs_in_remote
         f = io.BytesIO(remote_bytes)
         return f
 
-    requests_mock.register_uri('GET', get_remote_url(KOJI_BUILD), body=body_remote_callback)
-    requests_mock.register_uri('GET', get_remote_url(KOJI_PARENT_BUILD), body=body_remote_callback)
+    for archive in [REMOTE_SOURCE_TARBALL_FILENAME, REMOTE_SOURCE_JSON_FILENAME]:
+        body_callback = body_remote_callback
+        if archive.endswith('json'):
+            body_callback = body_remote_json_callback
 
-    requests_mock.register_uri('GET', get_remote_url(KOJI_BUILD,
-                               file_name=REMOTE_SOURCE_JSON_FILENAME),
-                               body=body_remote_json_callback)
-    requests_mock.register_uri('GET', get_remote_url(KOJI_PARENT_BUILD,
-                               file_name=REMOTE_SOURCE_JSON_FILENAME),
-                               body=body_remote_json_callback)
+        requests_mock.register_uri('GET', get_remote_url(KOJI_BUILD_RS, file_name=archive),
+                                   body=body_callback)
+        requests_mock.register_uri('GET', get_remote_url(KOJI_PARENT_BUILD_RS, file_name=archive),
+                                   body=body_callback)
+
+    for archive in ALL_ARCHIVE_NAMES:
+        body_callback = body_remote_callback
+        if archive.endswith('json'):
+            body_callback = body_remote_json_callback
+
+        requests_mock.register_uri('GET', get_remote_url(KOJI_BUILD_MRS, file_name=archive),
+                                   body=body_callback)
+        requests_mock.register_uri('GET', get_remote_url(KOJI_PARENT_BUILD_MRS, file_name=archive),
+                                   body=body_callback)
+
     requests_mock.register_uri('GET', get_pnc_source_url(),
                                body=body_remote_callback)
     requests_mock.register_uri('HEAD', get_pnc_source_url(),
@@ -381,9 +468,9 @@ def mock_koji_manifest_download(tmpdir, requests_mock, retries=0, dirs_in_remote
     requests_mock.register_uri('GET', get_kojifile_source_mead_url(KOJI_MEAD_BUILD,
                                                                    KOJIFILE_MEAD_SOURCE_ARCHIVE),
                                body=body_remote_callback)
-    requests_mock.register_uri('GET', get_remote_file_url(KOJI_BUILD),
+    requests_mock.register_uri('GET', get_remote_file_url(KOJI_BUILD_RS),
                                body=body_remote_callback)
-    requests_mock.register_uri('GET', get_remote_file_url(KOJI_PARENT_BUILD),
+    requests_mock.register_uri('GET', get_remote_file_url(KOJI_PARENT_BUILD_RS),
                                body=body_remote_callback)
 
 
@@ -392,8 +479,8 @@ class TestFetchSources(object):
     @pytest.mark.parametrize('retries', (0, 1, constants.HTTP_MAX_RETRIES + 1))
     @pytest.mark.parametrize('custom_rcm', (None, BASE_CONFIG_MAP))
     @pytest.mark.parametrize('signing_intent', ('unsigned', 'empty', 'one', 'multiple', 'invalid'))
-    def test_fetch_sources(self, requests_mock, docker_tasker, koji_session, tmpdir, signing_intent,
-                           caplog, retries, custom_rcm):
+    def test_fetch_sources_remote_source(self, requests_mock, docker_tasker, koji_session, tmpdir,
+                                         signing_intent, caplog, retries, custom_rcm):
         mock_koji_manifest_download(tmpdir, requests_mock, retries)
         runner = mock_env(tmpdir, docker_tasker, koji_build_id=1, config_map=custom_rcm,
                           default_si=signing_intent)
@@ -425,11 +512,10 @@ class TestFetchSources(object):
             assert orig_build_id == 1
             assert orig_build_nvr == 'foobar-1-1'
             assert len(sources_list) == 1
-            assert sources_list[0] == '.'.join([KOJI_BUILD['nvr'], 'src', 'rpm'])
+            assert sources_list[0] == '.'.join([KOJI_BUILD_RS['nvr'], 'src', 'rpm'])
             expected_remotes = set()
-            expected_remotes.add('-'.join([KOJI_BUILD['nvr'],
-                                           REMOTE_SOURCE_TARBALL_FILENAME]))
-            expected_remotes.add('-'.join([KOJI_PARENT_BUILD['nvr'],
+            expected_remotes.add('-'.join([KOJI_BUILD_RS['nvr'], REMOTE_SOURCE_TARBALL_FILENAME]))
+            expected_remotes.add('-'.join([KOJI_PARENT_BUILD_RS['nvr'],
                                            REMOTE_SOURCE_TARBALL_FILENAME]))
             assert remote_list == expected_remotes
             maven_source_archives = set()
@@ -449,6 +535,105 @@ class TestFetchSources(object):
                 assert get_srpm_url('usedKey') not in caplog.text
             assert runner.workflow.labels['sources_for_koji_build_id'] == 1
 
+    @pytest.mark.parametrize('typeinfo_rs', (RS_TYPEINFO, RS_TYPEINFO_NO_JSON, RS_TYPEINFO_NO_2))
+    @pytest.mark.parametrize('archives_in_koji', (4, 3, 5))
+    def test_fetch_sources_multiple_remote_sources(self, requests_mock, docker_tasker, koji_session,
+                                                   tmpdir, caplog, typeinfo_rs, archives_in_koji):
+
+        set_multiple_remote_sources_in_koji_build(koji_session, typeinfo=typeinfo_rs)
+        missing_archive = None
+        extra_archive = None
+        all_archives = deepcopy(ALL_ARCHIVE_NAMES)
+        should_fail = True
+        if typeinfo_rs == RS_TYPEINFO and archives_in_koji == 4:
+            should_fail = False
+
+        if archives_in_koji == 3:
+            missing_archive = all_archives.pop()
+        elif archives_in_koji == 5:
+            extra_archive = 'remote-source-extra.tar.gz'
+            all_archives.append(extra_archive)
+
+        list_archives = []
+        for n, archive in enumerate(all_archives):
+            type_name = 'tar'
+            if archive.endswith('json'):
+                type_name = 'json'
+            list_archives.append({'id': n, 'type_name': type_name, 'filename': archive})
+
+        (flexmock(koji_session)
+         .should_receive('listArchives')
+         .with_args(object, type='remote-sources')
+         .and_return(list_archives))
+
+        mock_koji_manifest_download(tmpdir, requests_mock)
+        runner = mock_env(tmpdir, docker_tasker, koji_build_id=1, config_map=BASE_CONFIG_MAP)
+
+        exc_message = ""
+        caplog_message = ""
+        if typeinfo_rs == RS_TYPEINFO_NO_2:
+            exc_message = 'Problems with archives in remote sources: {}'.format(typeinfo_rs)
+            caplog_message = ' does not contain 2 archives, but '
+
+        elif typeinfo_rs == RS_TYPEINFO_NO_JSON:
+            exc_message = 'Problems with archives in remote sources: {}'.format(typeinfo_rs)
+            caplog_message = 'remote source json, for remote source '
+
+        else:
+            if archives_in_koji == 5:
+                exc_message = 'Remote source archives in koji missing from ' \
+                              'metadata: {}'.format([extra_archive])
+
+            elif archives_in_koji == 3:
+                exc_message = 'Remote source files from metadata missing in koji ' \
+                              'archives: {}'.format([missing_archive])
+
+        if should_fail:
+            with pytest.raises(PluginFailedException) as exc:
+                runner.run()
+            msg = "plugin 'fetch_sources' raised an exception:"
+            assert msg in str(exc.value)
+
+            assert exc_message in str(exc.value)
+            if caplog_message:
+                assert caplog_message in caplog.text
+        else:
+            result = runner.run()
+            results = result[constants.PLUGIN_FETCH_SOURCES_KEY]
+            sources_dir = results['image_sources_dir']
+            remote_sources_dir = results['remote_sources_dir']
+            maven_sources_dir = results['maven_sources_dir']
+            orig_build_id = results['sources_for_koji_build_id']
+            orig_build_nvr = results['sources_for_nvr']
+            sources_list = os.listdir(sources_dir)
+            remote_list = set(os.listdir(remote_sources_dir))
+            maven_list = set()
+            for maven_sources_subdir in os.listdir(maven_sources_dir):
+                for source_archive in os.listdir(os.path.join(maven_sources_dir,
+                                                              maven_sources_subdir)):
+                    maven_list.add(source_archive.split('__')[-1])
+            assert orig_build_id == 1
+            assert orig_build_nvr == 'foobar-1-1'
+            assert len(sources_list) == 1
+            assert sources_list[0] == '.'.join([KOJI_BUILD_RS['nvr'], 'src', 'rpm'])
+            expected_remotes = set()
+            for archive in ALL_ARCHIVE_NAMES:
+                if archive.endswith('json'):
+                    continue
+                expected_remotes.add('-'.join([KOJI_BUILD_MRS['nvr'], archive]))
+                expected_remotes.add('-'.join([KOJI_PARENT_BUILD_MRS['nvr'], archive]))
+
+            assert remote_list == expected_remotes
+            maven_source_archives = set()
+            maven_source_archives.add(KOJIFILE_MEAD_SOURCE_FILENAME)
+            maven_source_archives.add(KOJIFILE_PNC_SOURCE_FILENAME)
+            maven_source_archives.add(REMOTE_SOURCE_FILE_FILENAME)
+            assert maven_list == maven_source_archives
+
+            with open(os.path.join(sources_dir, sources_list[0]), 'rb') as f:
+                assert f.read() == b'Source RPM'
+            assert runner.workflow.labels['sources_for_koji_build_id'] == 1
+
     @pytest.mark.parametrize('signing_intent', ('unsigned', 'empty', 'one', 'multiple', 'invalid'))
     def test_koji_signing_intent(self, requests_mock, docker_tasker, koji_session, tmpdir,
                                  signing_intent, caplog):
@@ -456,7 +641,7 @@ class TestFetchSources(object):
         image_signing_intent = 'unsigned'
         extra_image = {'odcs': {'signing_intent': image_signing_intent}}
 
-        koji_build = deepcopy(KOJI_BUILD)
+        koji_build = deepcopy(KOJI_BUILD_RS)
         koji_build['extra'].update({'image': extra_image})
         flexmock(koji_session).should_receive('getBuild').and_return(koji_build)
         (flexmock(koji_session).should_receive('listArchives')
@@ -469,7 +654,7 @@ class TestFetchSources(object):
         sources_dir = result[constants.PLUGIN_FETCH_SOURCES_KEY]['image_sources_dir']
         sources_list = os.listdir(sources_dir)
         assert len(sources_list) == 1
-        assert sources_list[0] == '.'.join([KOJI_BUILD['nvr'], 'src', 'rpm'])
+        assert sources_list[0] == '.'.join([KOJI_BUILD_RS['nvr'], 'src', 'rpm'])
         with open(os.path.join(sources_dir, sources_list[0]), 'rb') as f:
             assert f.read() == b'Source RPM'
         assert get_srpm_url() in caplog.text
@@ -518,7 +703,7 @@ class TestFetchSources(object):
         sources_dir = result[constants.PLUGIN_FETCH_SOURCES_KEY]['image_sources_dir']
         sources_list = os.listdir(sources_dir)
         assert len(sources_list) == 1
-        assert os.path.basename(sources_list[0]) == '.'.join([KOJI_BUILD['nvr'], 'src', 'rpm'])
+        assert os.path.basename(sources_list[0]) == '.'.join([KOJI_BUILD_RS['nvr'], 'src', 'rpm'])
 
     def test_id_and_nvr(self, requests_mock, docker_tasker, koji_session, tmpdir):
         mock_koji_manifest_download(tmpdir, requests_mock)
@@ -527,7 +712,7 @@ class TestFetchSources(object):
         sources_dir = result[constants.PLUGIN_FETCH_SOURCES_KEY]['image_sources_dir']
         sources_list = os.listdir(sources_dir)
         assert len(sources_list) == 1
-        assert os.path.basename(sources_list[0]) == '.'.join([KOJI_BUILD['nvr'], 'src', 'rpm'])
+        assert os.path.basename(sources_list[0]) == '.'.join([KOJI_BUILD_RS['nvr'], 'src', 'rpm'])
 
     def test_id_and_nvr_mismatch(self, requests_mock, docker_tasker, koji_session, tmpdir):
         mock_koji_manifest_download(tmpdir, requests_mock)
@@ -611,6 +796,7 @@ class TestFetchSources(object):
     ])
     def test_rpm_name_different_from_srpm_name(self, requests_mock, docker_tasker, koji_session,
                                                tmpdir, caplog, srpm_filename, signing_key):
+        set_no_remote_source_in_koji_build(koji_session)
         (flexmock(koji_session)
             .should_receive('getRPMHeaders')
             .and_return({'SOURCERPM': srpm_filename}))
@@ -626,11 +812,11 @@ class TestFetchSources(object):
          .should_receive('listArchives')
          .with_args(object, type='remote-source-file')
          .and_return([]))
-        koji_temp_build = deepcopy(KOJI_BUILD)
+        koji_temp_build = deepcopy(KOJI_BUILD_WO_RS)
         del koji_temp_build['extra']['image']['pnc']
         (flexmock(koji_session)
          .should_receive('getBuild')
-         .with_args(KOJI_BUILD['nvr'], strict=True)
+         .with_args(KOJI_BUILD_WO_RS['nvr'], strict=True)
          .and_return(koji_temp_build))
 
         key = None if signing_key is None else signing_key.lower()
@@ -764,6 +950,7 @@ class TestFetchSources(object):
             assert 'Missing SOURCERPM header' in str(exc_info.value)
 
     def test_no_srpms_and_remote_sources(self, docker_tasker, koji_session, tmpdir):
+        set_no_remote_source_in_koji_build(koji_session)
         (flexmock(koji_session)
             .should_receive('listArchives')
             .with_args(object, type='image')
@@ -784,11 +971,11 @@ class TestFetchSources(object):
             .should_receive('listRPMs')
             .with_args(imageID=1)
             .and_return([]))
-        koji_temp_build = deepcopy(KOJI_BUILD)
+        koji_temp_build = deepcopy(KOJI_BUILD_WO_RS)
         del koji_temp_build['extra']['image']['pnc']
         (flexmock(koji_session)
          .should_receive('getBuild')
-         .with_args(KOJI_BUILD['nvr'], strict=True)
+         .with_args(KOJI_BUILD_WO_RS['nvr'], strict=True)
          .and_return(koji_temp_build))
 
         runner = mock_env(tmpdir, docker_tasker, koji_build_nvr='foobar-1-1')
@@ -899,8 +1086,8 @@ class TestFetchSources(object):
     @pytest.mark.parametrize(('source_archives', 'source_json', 'raise_early'), [
         (0, 0, None),
         (1, 1, None),
-        (0, 1, 'Remote sources archive or remote source json missing'),
-        (1, 0, 'Remote sources archive or remote source json missing'),
+        (0, 1, 'remote source archive missing'),
+        (1, 0, 'remote source json missing'),
         (2, 1, 'There can be just one remote sources archive'),
     ])
     def test_exclude_closed_sources(self, requests_mock, docker_tasker, koji_session, tmpdir,
@@ -914,6 +1101,9 @@ class TestFetchSources(object):
         for n in range(source_json):
             list_archives.append({'id': n, 'type_name': 'json',
                                   'filename': REMOTE_SOURCE_JSON_FILENAME})
+
+        if not source_archives and not source_json:
+            set_no_remote_source_in_koji_build(koji_session)
 
         (flexmock(koji_session)
          .should_receive('listArchives')
@@ -993,9 +1183,8 @@ class TestFetchSources(object):
 
             remote_list = set(os.listdir(remote_sources_dir))
             expected_remotes = set()
-            expected_remotes.add('-'.join([KOJI_BUILD['nvr'],
-                                           REMOTE_SOURCE_TARBALL_FILENAME]))
-            expected_remotes.add('-'.join([KOJI_PARENT_BUILD['nvr'],
+            expected_remotes.add('-'.join([KOJI_BUILD_RS['nvr'], REMOTE_SOURCE_TARBALL_FILENAME]))
+            expected_remotes.add('-'.join([KOJI_PARENT_BUILD_RS['nvr'],
                                            REMOTE_SOURCE_TARBALL_FILENAME]))
             assert remote_list == expected_remotes
 

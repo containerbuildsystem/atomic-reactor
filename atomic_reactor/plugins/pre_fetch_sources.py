@@ -13,7 +13,9 @@ import koji
 import tarfile
 import yaml
 
-from atomic_reactor.constants import PLUGIN_FETCH_SOURCES_KEY, PNC_SYSTEM_USER
+from atomic_reactor.constants import (PLUGIN_FETCH_SOURCES_KEY, PNC_SYSTEM_USER,
+                                      REMOTE_SOURCE_JSON_FILENAME, REMOTE_SOURCE_TARBALL_FILENAME,
+                                      KOJI_BTYPE_REMOTE_SOURCES)
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.pre_reactor_config import (
     get_koji,
@@ -28,7 +30,6 @@ from atomic_reactor.util import get_retrying_requests_session
 from atomic_reactor.download import download_url
 from atomic_reactor.metadata import label_map
 from atomic_reactor.utils.pnc import PNCUtil
-from atomic_reactor.constants import REMOTE_SOURCE_JSON_FILENAME
 
 
 @label_map('sources_for_koji_build_id')
@@ -214,6 +215,98 @@ class FetchSourcesPlugin(PreBuildPlugin):
             srpm_path = self.pathinfo.rpm(srpm_info)
         return '/'.join([base_url, srpm_path])
 
+    def _process_remote_source(self, koji_build, archives, remote_sources_path):
+        self.log.debug('remote_source_url defined')
+        remote_sources_urls = []
+        remote_json_map = {}
+        remote_source = {}
+        remote_source['url'] = os.path.join(remote_sources_path, REMOTE_SOURCE_TARBALL_FILENAME)
+        remote_source['dest'] = '-'.join([koji_build['nvr'], REMOTE_SOURCE_TARBALL_FILENAME])
+        remote_sources_urls.append(remote_source)
+        cachito_json_url = os.path.join(remote_sources_path, REMOTE_SOURCE_JSON_FILENAME)
+        remote_json_map[remote_source['dest']] = cachito_json_url
+
+        archive_found = False
+        json_found = False
+        all_archives = []
+
+        for archive in archives:
+            if archive['filename'] == REMOTE_SOURCE_TARBALL_FILENAME:
+                archive_found = True
+            elif archive['filename'] == REMOTE_SOURCE_JSON_FILENAME:
+                json_found = True
+            all_archives.append(archive['filename'])
+
+        if not (archive_found and json_found):
+            message = ', '.join(part for t, part in (
+                (archive_found, "remote source archive missing"),
+                (json_found, "remote source json missing")) if not t)
+            raise RuntimeError(message)
+
+        elif len(archives) > 2:
+            raise RuntimeError('There can be just one remote sources archive and one '
+                               'remote sources json, got: {}'.format(all_archives))
+
+        return remote_sources_urls, remote_json_map
+
+    def _process_multiple_remote_sources(self, koji_build, archives, remote_sources_path):
+        self.log.debug('remote_sources defined')
+        remote_sources_urls = []
+        remote_json_map = {}
+        remote_sources = koji_build['extra']['typeinfo']['remote-sources']
+        wrong_archives = False
+        all_archives = []
+
+        for remote_s in remote_sources:
+            remote_archive = None
+            remote_json = None
+
+            if len(remote_s['archives']) != 2:
+                self.log.error('remote source "%s" does not contain 2 archives, but "%s"',
+                               remote_s['name'], remote_s['archives'])
+                wrong_archives = True
+            else:
+                for archive in remote_s['archives']:
+                    if archive.endswith('.json'):
+                        remote_json = archive
+                    else:
+                        remote_archive = archive
+
+                if not remote_json:
+                    self.log.error('remote source json, for remote source "%s" not found '
+                                   'in archives "%s"', remote_s['name'], remote_s['archives'])
+                    wrong_archives = True
+                else:
+                    remote_source = {}
+                    remote_source['url'] = os.path.join(remote_sources_path, remote_archive)
+                    remote_source['dest'] = '-'.join([koji_build['nvr'], remote_archive])
+                    remote_sources_urls.append(remote_source)
+                    cachito_json_url = os.path.join(remote_sources_path, remote_json)
+                    remote_json_map[remote_source['dest']] = cachito_json_url
+                    all_archives.append(remote_archive)
+                    all_archives.append(remote_json)
+
+        if wrong_archives:
+            raise RuntimeError('Problems with archives in remote sources: {}'.
+                               format(remote_sources))
+
+        extra_archives = []
+        for archive in archives:
+            if archive['filename'] in all_archives:
+                all_archives.remove(archive['filename'])
+            else:
+                extra_archives.append(archive['filename'])
+
+        if all_archives:
+            raise RuntimeError('Remote source files from metadata missing in koji '
+                               'archives: {}'.format(all_archives))
+
+        if extra_archives:
+            raise RuntimeError('Remote source archives in koji missing from '
+                               'metadata: {}'.format(extra_archives))
+
+        return remote_sources_urls, remote_json_map
+
     def _get_remote_urls_helper(self, koji_build):
         """Fetch remote source urls from specific build
 
@@ -221,41 +314,19 @@ class FetchSourcesPlugin(PreBuildPlugin):
         :return: str, URL pointing to remote sources
         """
         self.log.debug('get remote_urls: %s', koji_build['build_id'])
-        archives = self.session.listArchives(koji_build['build_id'], type='remote-sources')
+        archives = self.session.listArchives(koji_build['build_id'], type=KOJI_BTYPE_REMOTE_SOURCES)
         self.log.debug('archives: %s', archives)
-        remote_sources_path = self.pathinfo.typedir(koji_build, btype='remote-sources')
+        remote_sources_path = self.pathinfo.typedir(koji_build, btype=KOJI_BTYPE_REMOTE_SOURCES)
         remote_sources_urls = []
-        dest_name = None
-        cachito_json_url = None
         remote_json_map = {}
 
-        for archive in archives:
-            if archive['type_name'] == 'tar':
-                remote_source = {}
-                remote_source['url'] = os.path.join(remote_sources_path, archive['filename'])
-                remote_source['dest'] = '-'.join([koji_build['nvr'], archive['filename']])
-                dest_name = remote_source['dest']
-                remote_sources_urls.append(remote_source)
+        if 'remote_source_url' in koji_build['extra']['image']:
+            remote_sources_urls, remote_json_map = \
+                self._process_remote_source(koji_build, archives, remote_sources_path)
 
-            elif (archive['type_name'] == 'json'
-                  and archive['filename'] == REMOTE_SOURCE_JSON_FILENAME):
-                cachito_json_url = os.path.join(remote_sources_path, archive['filename'])
-
-        # we will add entry to remote_json_map only when
-        # build has remote sources archive and json
-        # it will be used later to get correspondent remote-source.json for each remote sources
-        # archive from all parents
-        if cachito_json_url and dest_name:
-            remote_json_map = {dest_name: cachito_json_url}
-
-            if len(remote_sources_urls) > 1:
-                raise RuntimeError('There can be just one remote sources archive, got : {}'.
-                                   format(remote_sources_urls))
-
-        elif bool(cachito_json_url) != bool(dest_name):
-            raise RuntimeError('Remote sources archive or remote source json missing, '
-                               'remote source archive: {}, remote source json: {}'.
-                               format(dest_name, cachito_json_url))
+        elif 'remote_sources' in koji_build['extra']['image']:
+            remote_sources_urls, remote_json_map = \
+                self._process_multiple_remote_sources(koji_build, archives, remote_sources_path)
 
         return remote_sources_urls, remote_json_map
 
