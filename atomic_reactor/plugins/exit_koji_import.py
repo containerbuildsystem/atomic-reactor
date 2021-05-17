@@ -14,6 +14,7 @@ import time
 import logging
 from tempfile import NamedTemporaryFile
 
+from atomic_reactor.constants import REPO_CONTAINER_CONFIG
 from atomic_reactor import start_time as atomic_reactor_start_time
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.source import GitSource
@@ -177,6 +178,10 @@ class KojiImportBase(ExitPlugin):
     def set_go_metadata(self, extra):
         go = self.workflow.source.config.go
         if go:
+            self.log.user_warning(
+                f"Using 'go' key in {REPO_CONTAINER_CONFIG} is deprecated in favor of using "
+                f"Cachito integration"
+            )
             self.log.debug("Setting Go metadata: %s", go)
             extra['image']['go'] = go
 
