@@ -40,14 +40,26 @@ KOJI_TASK_OWNER = 'spam'
 
 CACHITO_URL = 'https://cachito.example.com'
 CACHITO_REQUEST_ID = 98765
+SECOND_CACHITO_REQUEST_ID = 98766
 CACHITO_REQUEST_DOWNLOAD_URL = '{}/api/v1/{}/download'.format(CACHITO_URL, CACHITO_REQUEST_ID)
+SECOND_CACHITO_REQUEST_DOWNLOAD_URL = '{}/api/v1/{}/download'.format(CACHITO_URL,
+                                                                     SECOND_CACHITO_REQUEST_ID)
+
 CACHITO_REQUEST_CONFIG_URL = '{}/api/v1/requests/{}/configuration-files'.format(
     CACHITO_URL,
     CACHITO_REQUEST_ID
 )
+SECOND_CACHITO_REQUEST_CONFIG_URL = '{}/api/v1/requests/{}/configuration-files'.format(
+    CACHITO_URL,
+    SECOND_CACHITO_REQUEST_ID
+)
 CACHITO_ICM_URL = '{}/api/v1/content-manifest?requests={}'.format(
     CACHITO_URL,
     CACHITO_REQUEST_ID
+)
+SECOND_CACHITO_ICM_URL = '{}/api/v1/content-manifest?requests={}'.format(
+    CACHITO_URL,
+    SECOND_CACHITO_REQUEST_ID
 )
 
 REMOTE_SOURCE_REPO = 'https://git.example.com/team/repo.git'
@@ -59,6 +71,8 @@ REMOTE_SOURCE_PACKAGES = [
             'version': '0.0.1'
         }
     ]
+SECOND_REMOTE_SOURCE_REPO = 'https://git.example.com/other-team/other-repo.git'
+SECOND_REMOTE_SOURCE_REF = 'd55c00f45ec3dfee0c766cea3d395d6e21cc2e5c'
 
 CACHITO_SOURCE_REQUEST = {
     'id': CACHITO_REQUEST_ID,
@@ -89,6 +103,34 @@ CACHITO_SOURCE_REQUEST = {
     'content_manifest': CACHITO_ICM_URL,
     'extra_cruft': 'ignored',
 }
+SECOND_CACHITO_SOURCE_REQUEST = {
+    'id': SECOND_CACHITO_REQUEST_ID,
+    'repo': SECOND_REMOTE_SOURCE_REPO,
+    'ref': SECOND_REMOTE_SOURCE_REF,
+    'environment_variables': {
+        'PIP_CERT': 'app/package-index-ca.pem',
+        'PIP_INDEX_URL': 'http://example-pip-index.url/stuff'
+    },
+    'flags': [],
+    'pkg_managers': ['pip'],
+    'dependencies': [
+        {
+            'name': 'click',
+            'type': 'pip',
+            'version': '5.0',
+        }
+    ],
+    'packages': [
+        {
+            'name': 'osbs/cachito-pip-with-deps',
+            'type': 'pip',
+            'version': '1.0.0'
+        }
+    ],
+    'configuration_files': SECOND_CACHITO_REQUEST_CONFIG_URL,
+    'content_manifest': SECOND_CACHITO_ICM_URL,
+    'extra_cruft': 'ignored',
+}
 
 REMOTE_SOURCE_JSON = {
     'repo': REMOTE_SOURCE_REPO,
@@ -117,6 +159,32 @@ REMOTE_SOURCE_JSON = {
     'configuration_files': CACHITO_REQUEST_CONFIG_URL,
     'content_manifest': CACHITO_ICM_URL,
 }
+SECOND_REMOTE_SOURCE_JSON = {
+    'repo': SECOND_REMOTE_SOURCE_REPO,
+    'ref': SECOND_REMOTE_SOURCE_REF,
+    'environment_variables': {
+        'PIP_CERT': 'app/package-index-ca.pem',
+        'PIP_INDEX_URL': 'http://example-pip-index.url/stuff'
+    },
+    'flags': [],
+    'pkg_managers': ['pip'],
+    'dependencies': [
+        {
+            'name': 'click',
+            'type': 'pip',
+            'version': '5.0',
+        }
+    ],
+    'packages': [
+        {
+            'name': 'osbs/cachito-pip-with-deps',
+            'type': 'pip',
+            'version': '1.0.0'
+        }
+    ],
+    'configuration_files': SECOND_CACHITO_REQUEST_CONFIG_URL,
+    'content_manifest': SECOND_CACHITO_ICM_URL,
+}
 
 CACHITO_ENV_VARS_JSON = {
     'GO111MODULE': {'kind': 'literal', 'value': 'on'},
@@ -129,6 +197,11 @@ CACHITO_BUILD_ARGS = {
     'GO111MODULE': 'on',
     'GOPATH': '/remote-source/deps/gomod',
     'GOCACHE': '/remote-source/deps/gomod',
+}
+
+SECOND_CACHITO_ENV_VARS_JSON = {
+    'PIP_CERT': {'kind': 'path', 'value': 'app/package-index-ca.pem'},
+    'PIP_INDEX_URL': {'kind': 'literal', 'value': 'http://example-pip-index.url/stuff'},
 }
 
 
@@ -156,7 +229,6 @@ def workflow(tmpdir, user_params):
     mock_repo_config(workflow)
     mock_reactor_config(workflow)
     mock_build_json()
-    mock_cachito_api(workflow)
     mock_koji()
 
     return workflow
@@ -205,6 +277,105 @@ def mock_repo_config(workflow, data=None):
     workflow.source.config = SourceConfig(str(workflow._tmpdir))
 
 
+def mock_cachito_api_multiple_remote_sources(workflow, user=KOJI_TASK_OWNER):
+
+    (
+        flexmock(CachitoAPI)
+        .should_receive("request_sources")
+        .with_args(
+            repo=REMOTE_SOURCE_REPO,
+            ref=REMOTE_SOURCE_REF,
+            user=user,
+            dependency_replacements=None,
+        )
+        .and_return({"id": CACHITO_REQUEST_ID})
+        .ordered()
+    )
+    (
+        flexmock(CachitoAPI)
+        .should_receive("request_sources")
+        .with_args(
+            repo=SECOND_REMOTE_SOURCE_REPO,
+            ref=SECOND_REMOTE_SOURCE_REF,
+            user=user,
+            dependency_replacements=None,
+        )
+        .and_return({"id": SECOND_CACHITO_REQUEST_ID})
+        .ordered()
+    )
+
+    (
+        flexmock(CachitoAPI)
+        .should_receive("wait_for_request")
+        .with_args({"id": CACHITO_REQUEST_ID})
+        .and_return(CACHITO_SOURCE_REQUEST)
+        .ordered()
+    )
+    (
+        flexmock(CachitoAPI)
+        .should_receive("wait_for_request")
+        .with_args({"id": SECOND_CACHITO_REQUEST_ID})
+        .and_return(SECOND_CACHITO_SOURCE_REQUEST)
+        .ordered()
+    )
+
+    (
+        flexmock(CachitoAPI)
+        .should_receive("assemble_download_url")
+        .with_args(CACHITO_SOURCE_REQUEST)
+        .and_return(CACHITO_REQUEST_DOWNLOAD_URL)
+        .ordered()
+    )
+
+    (
+        flexmock(CachitoAPI)
+        .should_receive("download_sources")
+        .with_args(
+            CACHITO_SOURCE_REQUEST,
+            dest_dir=str(workflow._tmpdir),
+            dest_filename="remote-source-gomod.tar.gz",
+        )
+        .and_return(expected_dowload_path(workflow))
+        .ordered()
+    )
+
+    (
+        flexmock(CachitoAPI)
+        .should_receive("assemble_download_url")
+        .with_args(SECOND_CACHITO_SOURCE_REQUEST)
+        .and_return(SECOND_CACHITO_REQUEST_DOWNLOAD_URL)
+        .ordered()
+    )
+
+    (
+        flexmock(CachitoAPI)
+        .should_receive("download_sources")
+        .with_args(
+            SECOND_CACHITO_SOURCE_REQUEST,
+            dest_dir=str(workflow._tmpdir),
+            dest_filename="remote-source-pip.tar.gz",
+        )
+        .and_return(expected_dowload_path(workflow))
+        .ordered()
+    )
+
+    (
+        flexmock(CachitoAPI)
+        .should_receive("get_request_env_vars")
+        .with_args(CACHITO_SOURCE_REQUEST["id"])
+        .and_return(CACHITO_ENV_VARS_JSON)
+        .ordered()
+    )
+
+    (
+        flexmock(CachitoAPI)
+        .should_receive("get_request_env_vars")
+        .with_args(SECOND_CACHITO_SOURCE_REQUEST["id"])
+        .and_return(SECOND_CACHITO_ENV_VARS_JSON)
+        .ordered()
+    )
+
+
 def mock_cachito_api(workflow, user=KOJI_TASK_OWNER, source_request=None,
                      dependency_replacements=None,
                      env_vars_json=None):
@@ -227,7 +398,8 @@ def mock_cachito_api(workflow, user=KOJI_TASK_OWNER, source_request=None,
 
     (flexmock(CachitoAPI)
         .should_receive('download_sources')
-        .with_args(source_request, dest_dir=str(workflow._tmpdir))
+        .with_args(source_request, dest_dir=str(workflow._tmpdir),
+                   dest_filename=REMOTE_SOURCE_TARBALL_FILENAME)
         .and_return(expected_dowload_path(workflow)))
 
     (flexmock(CachitoAPI)
@@ -312,11 +484,34 @@ def test_resolve_remote_source(workflow, scratch, dr_strs, dependency_replacemen
     if dr_strs and any(len(dr.split(':')) < 3 for dr in dr_strs):
         err = 'Cachito dependency replacements must be'
 
+    expected_plugin_results = [
+        {
+            "name": None,
+            "url": CACHITO_REQUEST_DOWNLOAD_URL,
+            "remote_source_json": {
+                "json": REMOTE_SOURCE_JSON,
+                "filename": REMOTE_SOURCE_JSON_FILENAME,
+            },
+            "remote_source_tarball": {
+                "filename": REMOTE_SOURCE_TARBALL_FILENAME,
+                "path": expected_dowload_path(workflow),
+            },
+        },
+    ]
+    expected_worker_params = [{
+        'build_args': expected_build_args,
+        'configs': CACHITO_REQUEST_CONFIG_URL,
+        'request_id': CACHITO_REQUEST_ID,
+        'url': CACHITO_REQUEST_DOWNLOAD_URL,
+        'name': None,
+    }]
+
     run_plugin_with_args(
         workflow,
         dependency_replacements=dr_strs,
         expect_error=err,
-        expected_build_args=expected_build_args,
+        expected_plugin_results=expected_plugin_results,
+        expected_worker_params=expected_worker_params
     )
 
 
@@ -355,7 +550,30 @@ def test_no_koji_user(workflow, build_json, caplog):
     log_msg = 'No build metadata'
     if build_json:
         log_msg = 'Invalid Koji task ID'
-    run_plugin_with_args(workflow)
+
+    expected_plugin_results = [
+        {
+            "name": None,
+            "url": CACHITO_REQUEST_DOWNLOAD_URL,
+            "remote_source_json": {
+                "json": REMOTE_SOURCE_JSON,
+                "filename": REMOTE_SOURCE_JSON_FILENAME,
+            },
+            "remote_source_tarball": {
+                "filename": REMOTE_SOURCE_TARBALL_FILENAME,
+                "path": expected_dowload_path(workflow),
+            },
+        },
+    ]
+    expected_worker_params = [{
+        'build_args': CACHITO_BUILD_ARGS,
+        'configs': CACHITO_REQUEST_CONFIG_URL,
+        'request_id': CACHITO_REQUEST_ID,
+        'url': CACHITO_REQUEST_DOWNLOAD_URL,
+        'name': None,
+    }]
+    run_plugin_with_args(workflow, expected_plugin_results=expected_plugin_results,
+                         expected_worker_params=expected_worker_params)
     assert log_msg in caplog.text
 
 
@@ -420,37 +638,197 @@ def test_ignore_when_missing_remote_source_config(workflow):
 def test_bad_build_metadata(workflow, build_json, log_entry, caplog):
     mock_build_json(build_json=build_json)
     mock_cachito_api(workflow, user='unknown_user')
-    run_plugin_with_args(workflow)
+
+    expected_plugin_results = [
+        {
+            "name": None,
+            "url": CACHITO_REQUEST_DOWNLOAD_URL,
+            "remote_source_json": {
+                "json": REMOTE_SOURCE_JSON,
+                "filename": REMOTE_SOURCE_JSON_FILENAME,
+            },
+            "remote_source_tarball": {
+                "filename": REMOTE_SOURCE_TARBALL_FILENAME,
+                "path": expected_dowload_path(workflow),
+            },
+        },
+    ]
+    expected_worker_params = [{
+        'build_args': CACHITO_BUILD_ARGS,
+        'configs': CACHITO_REQUEST_CONFIG_URL,
+        'request_id': CACHITO_REQUEST_ID,
+        'url': CACHITO_REQUEST_DOWNLOAD_URL,
+        'name': None,
+    }]
+
+    run_plugin_with_args(workflow, expected_plugin_results=expected_plugin_results,
+                         expected_worker_params=expected_worker_params)
     assert log_entry in caplog.text
     assert 'unknown_user' in caplog.text
 
 
-def test_remote_sources_in_config_fail(workflow):
+@pytest.mark.parametrize('allow_multiple_remote_sources', [True, False])
+def test_allow_multiple_remote_sources(workflow, allow_multiple_remote_sources):
+    first_remote_source_name = 'gomod'
+    first_remote_tarball_filename = 'remote-source-gomod.tar.gz'
+    first_remote_json_filename = 'remote-source-gomod.json'
+    second_remote_source_name = 'pip'
+    second_remote_tarball_filename = 'remote-source-pip.tar.gz'
+    second_remote_json_filename = 'remote-source-pip.json'
+
+    container_yaml_config = dedent(
+        """\
+                remote_sources:
+                - name: {}
+                  remote_source:
+                    repo: {}
+                    ref: {}
+                - name: {}
+                  remote_source:
+                    repo: {}
+                    ref: {}
+                """
+    ).format(
+        first_remote_source_name,
+        REMOTE_SOURCE_REPO,
+        REMOTE_SOURCE_REF,
+        second_remote_source_name,
+        SECOND_REMOTE_SOURCE_REPO,
+        SECOND_REMOTE_SOURCE_REF,
+    )
+
+    reactor_config = dedent("""\
+                version: 1
+                cachito:
+                   api_url: {}
+                   auth:
+                       ssl_certs_dir: {}
+                koji:
+                    hub_url: /
+                    root_url: ''
+                    auth: {{}}
+                allow_multiple_remote_sources: {}
+                """.format(CACHITO_URL, workflow._tmpdir, allow_multiple_remote_sources))
+    build_json = {'metadata': {'labels': {'koji-task-id': str(KOJI_TASK_ID)}}}
+    mock_build_json(build_json=build_json)
+    mock_repo_config(workflow, data=container_yaml_config)
+    mock_reactor_config(workflow, reactor_config)
+    mock_cachito_api_multiple_remote_sources(workflow)
+    if not allow_multiple_remote_sources:
+        err_msg = (
+            "Multiple remote sources are not enabled, "
+            "use single remote source in container.yaml"
+        )
+        result = run_plugin_with_args(workflow, expect_result=False, expect_error=err_msg)
+        assert result is None
+    else:
+        cachito_build_args = {
+            'GO111MODULE': 'on',
+            'GOPATH': f'/remote-source/{first_remote_source_name}/deps/gomod',
+            'GOCACHE': f'/remote-source/{first_remote_source_name}/deps/gomod',
+        }
+
+        second_cachito_build_args = {
+            'PIP_CERT': f'/remote-source/{second_remote_source_name}/app/package-index-ca.pem',
+            'PIP_INDEX_URL': 'http://example-pip-index.url/stuff'
+        }
+        expected_plugin_results = [
+            {
+                "name": first_remote_source_name,
+                "url": CACHITO_REQUEST_DOWNLOAD_URL,
+                "remote_source_json": {
+                    "json": REMOTE_SOURCE_JSON,
+                    "filename": first_remote_json_filename,
+                },
+                "remote_source_tarball": {
+                    "filename": first_remote_tarball_filename,
+                    "path": expected_dowload_path(workflow),
+                },
+            },
+            {
+                "name": second_remote_source_name,
+                "url": SECOND_CACHITO_REQUEST_DOWNLOAD_URL,
+                "remote_source_json": {
+                    "json": SECOND_REMOTE_SOURCE_JSON,
+                    "filename": second_remote_json_filename,
+                },
+                "remote_source_tarball": {
+                    "filename": second_remote_tarball_filename,
+                    "path": expected_dowload_path(workflow),
+                },
+            },
+        ]
+        expected_worker_params = [
+            {
+                "build_args": cachito_build_args,
+                "configs": CACHITO_REQUEST_CONFIG_URL,
+                "request_id": CACHITO_REQUEST_ID,
+                "url": CACHITO_REQUEST_DOWNLOAD_URL,
+                "name": first_remote_source_name,
+            },
+            {
+                "build_args": second_cachito_build_args,
+                "configs": SECOND_CACHITO_REQUEST_CONFIG_URL,
+                "request_id": SECOND_CACHITO_REQUEST_ID,
+                "url": SECOND_CACHITO_REQUEST_DOWNLOAD_URL,
+                "name": second_remote_source_name,
+            },
+        ]
+
+        run_plugin_with_args(workflow, expected_plugin_results=expected_plugin_results,
+                             expected_worker_params=expected_worker_params)
+
+
+def test_multiple_remote_sources_non_unique_names(workflow):
     container_yaml_config = dedent("""\
             remote_sources:
-            - name: a-remote-source
-              remote-_source:
-                repo: https://some.repo/here.git
-                ref: e1be527f39ec31323f0454f7d1422c6260b00580
+            - name: same
+              remote_source:
+                repo: https://git.example.com/team/repo.git
+                ref: a55c00f45ec3dfee0c766cea3d395d6e21cc2e5a
+            - name: same
+              remote_source:
+                repo: https://git.example.com/team/repo.git
+                ref: a55c00f45ec3dfee0c766cea3d395d6e21cc2e5a
+            - name: bit-different
+              remote_source:
+                repo: https://git.example.com/team/repo.git
+                ref: a55c00f45ec3dfee0c766cea3d395d6e21cc2e5a
             """)
-    err_msg = (
-        "Multiple remote sources are not supported, "
-        "use single remote source in container.yaml"
-    )
+    reactor_config = dedent("""\
+                version: 1
+                cachito:
+                   api_url: {}
+                   auth:
+                       ssl_certs_dir: {}
+                koji:
+                    hub_url: /
+                    root_url: ''
+                    auth: {{}}
+                allow_multiple_remote_sources: True
+                """.format(CACHITO_URL, workflow._tmpdir))
     mock_repo_config(workflow, data=container_yaml_config)
+    mock_reactor_config(workflow, reactor_config)
+
+    err_msg = (
+        r"Provided remote sources parameters contain non unique names: \['same'\]"
+    )
     result = run_plugin_with_args(workflow, expect_result=False, expect_error=err_msg)
     assert result is None
 
 
 def run_plugin_with_args(workflow, dependency_replacements=None, expect_error=None,
-                         expect_result=True, expected_build_args=None):
+                         expect_result=True, expected_plugin_results=None,
+                         expected_worker_params=None):
     runner = PreBuildPluginsRunner(
         workflow.builder.tasker,
         workflow,
         [
-            {'name': ResolveRemoteSourcePlugin.key,
-             'args': {'dependency_replacements': dependency_replacements}},
-        ]
+            {
+                "name": ResolveRemoteSourcePlugin.key,
+                "args": {"dependency_replacements": dependency_replacements},
+            },
+        ],
     )
 
     if expect_error:
@@ -461,25 +839,14 @@ def run_plugin_with_args(workflow, dependency_replacements=None, expect_error=No
     results = runner.run()[ResolveRemoteSourcePlugin.key]
 
     if expect_result:
-        assert len(results) == 1
-        assert results[0]['url']
-        assert results[0]['remote_source_json']['json'] == REMOTE_SOURCE_JSON
-        assert results[0]['remote_source_json']['filename'] == REMOTE_SOURCE_JSON_FILENAME
-        assert results[0]['remote_source_tarball']['path'] == expected_dowload_path(workflow)
-        assert results[0]['remote_source_tarball']['filename'] == REMOTE_SOURCE_TARBALL_FILENAME
+
+        assert results == expected_plugin_results
 
         # A result means the plugin was enabled and executed successfully.
         # Let's verify the expected side effects.
         orchestrator_build_workspace = workflow.plugin_workspace[OrchestrateBuildPlugin.key]
         worker_params = orchestrator_build_workspace[WORKSPACE_KEY_OVERRIDE_KWARGS][None]
-        expected_build_args = expected_build_args or CACHITO_BUILD_ARGS
-        expected_worker_params = [{
-            'build_args': expected_build_args,
-            'configs': CACHITO_REQUEST_CONFIG_URL,
-            'request_id': CACHITO_REQUEST_ID,
-            'url': CACHITO_REQUEST_DOWNLOAD_URL,
-            'name': None,
-        }]
-        assert worker_params['remote_sources'] == expected_worker_params
+
+        assert worker_params["remote_sources"] == expected_worker_params
 
     return results
