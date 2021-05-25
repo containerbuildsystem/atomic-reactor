@@ -6,6 +6,7 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 import os.path
+from collections import Counter
 
 from atomic_reactor.constants import (
     PLUGIN_RESOLVE_REMOTE_SOURCE,
@@ -43,6 +44,8 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
         self._cachito_session = None
         self._osbs = None
         self._dependency_replacements = self.parse_dependency_replacements(dependency_replacements)
+        self.single_remote_source_params = self.workflow.source.config.remote_source
+        self.multiple_remote_sources_params = self.workflow.source.config.remote_sources
 
     def parse_dependency_replacements(self, replacement_strings):
         """Parse dependency_replacements param and return cachito-reaady dependency replacement dict
@@ -76,84 +79,86 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
             return
 
         if (not get_allow_multiple_remote_sources(self.workflow)
-                and self.workflow.source.config.remote_sources):
-            raise ValueError('Multiple remote sources are not supported, use single '
-                             'remote source in container.yaml')
+                and self.multiple_remote_sources_params):
+            raise ValueError('Multiple remote sources are not enabled, '
+                             'use single remote source in container.yaml')
 
-        remote_source_params = self.workflow.source.config.remote_source
-        if not remote_source_params:
-            self.log.info('Aborting plugin execution: missing remote_source configuration')
+        if not (self.single_remote_source_params or self.multiple_remote_sources_params):
+            self.log.info('Aborting plugin execution: missing remote source configuration')
             return
 
         if self._dependency_replacements and not is_scratch_build(self.workflow):
             raise ValueError('Cachito dependency replacements are only allowed for scratch builds')
+        if self._dependency_replacements and self.multiple_remote_sources_params:
+            raise ValueError('Cachito dependency replacements are not allowed '
+                             'for multiple remote sources')
 
+        remote_sources_workers_params = []
+        remote_sources_output = []
         user = self.get_koji_user()
         self.log.info('Using user "%s" for cachito request', user)
+        if self.multiple_remote_sources_params:
+            self.verify_multiple_remote_sources_names_are_unique()
 
-        source_request = self.cachito_session.request_sources(
-            user=user,
-            dependency_replacements=self._dependency_replacements,
-            **remote_source_params
-        )
-        source_request = self.cachito_session.wait_for_request(source_request)
-
-        remote_source_json = self.source_request_to_json(source_request)
-        remote_sources = [
-            {
-                "build_args": None,
-                "configs": remote_source_json.get('configuration_files'),
-                "request_id": self.cachito_session._get_request_id(source_request),
-                "url": self.cachito_session.assemble_download_url(source_request),
-                "name": None,
+            open_requests = {
+                remote_source["name"]: self.cachito_session.request_sources(
+                    user=user,
+                    dependency_replacements=self._dependency_replacements,
+                    **remote_source["remote_source"]
+                )
+                for remote_source in self.multiple_remote_sources_params
             }
-        ]
-        self.set_worker_params(remote_sources)
 
-        dest_dir = self.workflow.source.workdir
-        dest_path = self.cachito_session.download_sources(source_request, dest_dir=dest_dir)
-
-        return [
-            {
-                "name": remote_sources[0]["name"],
-                "url": remote_sources[0]["url"],
-                "remote_source_json": {
-                    "json": remote_source_json,
-                    "filename": REMOTE_SOURCE_JSON_FILENAME,
-                },
-                "remote_source_tarball": {
-                    "filename": REMOTE_SOURCE_TARBALL_FILENAME,
-                    "path": dest_path,
-                },
+            completed_requests = {
+                name: self.cachito_session.wait_for_request(request)
+                for name, request in open_requests.items()
             }
-        ]
+            for name, request in completed_requests.items():
+                self.process_request(request, name, remote_sources_workers_params,
+                                     remote_sources_output)
+
+        else:
+            open_request = self.cachito_session.request_sources(
+                    user=user,
+                    dependency_replacements=self._dependency_replacements,
+                    **self.single_remote_source_params
+            )
+            completed_request = self.cachito_session.wait_for_request(open_request)
+            self.process_request(completed_request, None, remote_sources_workers_params,
+                                 remote_sources_output)
+
+        self.set_worker_params(remote_sources_workers_params)
+
+        return remote_sources_output
 
     def set_worker_params(self, remote_sources):
-        build_args = {}
-        env_vars = self.cachito_session.get_request_env_vars(remote_sources[0]['request_id'])
+        for remote_source in remote_sources:
+            build_args = {}
+            env_vars = self.cachito_session.get_request_env_vars(remote_source['request_id'])
 
-        for env_var, value_info in env_vars.items():
-            build_arg_value = value_info['value']
-            kind = value_info['kind']
-            if kind == 'path':
-                build_arg_value = os.path.join(REMOTE_SOURCE_DIR, value_info['value'])
-                self.log.debug(
-                    'Setting the Cachito environment variable "%s" to the absolute path "%s"',
-                    env_var,
-                    build_arg_value,
-                )
-                build_args[env_var] = build_arg_value
-            elif kind == 'literal':
-                self.log.debug(
-                    'Setting the Cachito environment variable "%s" to a literal value "%s"',
-                    env_var,
-                    build_arg_value,
-                )
-                build_args[env_var] = build_arg_value
-            else:
-                raise RuntimeError(f'Unknown kind {kind} got from Cachito.')
+            for env_var, value_info in env_vars.items():
+                build_arg_value = value_info['value']
+                kind = value_info['kind']
+                if kind == 'path':
+                    name = remote_source['name'] or ''
+                    build_arg_value = os.path.join(REMOTE_SOURCE_DIR, name, value_info['value'])
+                    self.log.debug(
+                        'Setting the Cachito environment variable "%s" to the absolute path "%s"',
+                        env_var,
+                        build_arg_value,
+                    )
+                    build_args[env_var] = build_arg_value
+                elif kind == 'literal':
+                    self.log.debug(
+                        'Setting the Cachito environment variable "%s" to a literal value "%s"',
+                        env_var,
+                        build_arg_value,
+                    )
+                    build_args[env_var] = build_arg_value
+                else:
+                    raise RuntimeError(f'Unknown kind {kind} got from Cachito.')
 
-        remote_sources[0]['build_args'] = build_args
+            remote_source['build_args'] = build_args
         override_build_kwarg(self.workflow, 'remote_sources', remote_sources)
 
     def source_request_to_json(self, source_request):
@@ -198,3 +203,50 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
         if not self._cachito_session:
             self._cachito_session = get_cachito_session(self.workflow)
         return self._cachito_session
+
+    def verify_multiple_remote_sources_names_are_unique(self):
+        names = [remote_source['name'] for remote_source in self.multiple_remote_sources_params]
+        duplicate_names = [name for name, count in Counter(names).items() if count > 1]
+        if duplicate_names:
+            raise ValueError(f'Provided remote sources parameters contain '
+                             f'non unique names: {duplicate_names}')
+
+    def process_request(self, source_request, name, remote_sources_workers_params,
+                        remote_sources_output):
+
+        remote_source_json = self.source_request_to_json(source_request)
+        remote_source_worker_params = {
+            "build_args": None,
+            "configs": remote_source_json.get('configuration_files'),
+            "request_id": self.cachito_session._get_request_id(source_request),
+            "url": self.cachito_session.assemble_download_url(source_request),
+            "name": name,
+        }
+        remote_sources_workers_params.append(remote_source_worker_params)
+
+        if name:
+            tarball_filename = f"remote-source-{name}.tar.gz"
+            json_filename = f"remote-source-{name}.json"
+        else:
+            tarball_filename = REMOTE_SOURCE_TARBALL_FILENAME
+            json_filename = REMOTE_SOURCE_JSON_FILENAME
+
+        tarball_dest_path = self.cachito_session.download_sources(
+            source_request,
+            dest_dir=self.workflow.source.workdir,
+            dest_filename=tarball_filename,
+        )
+
+        remote_source = {
+            "name": remote_source_worker_params["name"],
+            "url": remote_source_worker_params["url"],
+            "remote_source_json": {
+                "json": remote_source_json,
+                "filename": json_filename,
+            },
+            "remote_source_tarball": {
+                "filename": tarball_filename,
+                "path": tarball_dest_path,
+            },
+        }
+        remote_sources_output.append(remote_source)
