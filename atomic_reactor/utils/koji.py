@@ -388,7 +388,7 @@ def get_remote_sources_json_output(workflow):
         remote_source_json_filename = remote_source_json['filename']
         file_path = os.path.join(tmpdir, remote_source_json_filename)
         with open(file_path, 'w') as f:
-            json.dump(remote_source_json, f, indent=4, sort_keys=True)
+            json.dump(remote_source_json['json'], f, indent=4, sort_keys=True)
         metadata = get_output_metadata(file_path, remote_source_json_filename)
         output = Output(file=open(file_path), metadata=metadata)
         output_json_files.append(output)
