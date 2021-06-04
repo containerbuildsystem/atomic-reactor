@@ -105,7 +105,8 @@ def test_running_build(tmpdir, caplog, user_params,
     if remote_dir_exists:
         os.mkdir(remote_dir_path)
         if not remote_dir_empty:
-            os.mknod(os.path.join(remote_dir_path, 'remote-sources.tar.gz'))
+            os.mknod(os.path.join(remote_dir_path, 'remote-sources-first.tar.gz'))
+            os.mknod(os.path.join(remote_dir_path, 'remote-sources-second.tar.gz'))
 
     maven_dir_path = os.path.join(tmpdir.strpath, maven_dir)
     if maven_dir_exists:
@@ -161,8 +162,9 @@ def test_running_build(tmpdir, caplog, user_params,
                 args_expect.append('-s')
                 args_expect.append(sources_dir_path)
             if remote_dir and remote_dir_exists:
-                args_expect.append('-e')
-                args_expect.append(remote_dir_path)
+                for count in range(len(os.listdir(os.path.join(tmpdir, remote_dir)))):
+                    args_expect.append('-e')
+                    args_expect.append(os.path.join(remote_dir_path, f"remote_source_{count}"))
             if maven_dir and maven_dir_exists:
                 for maven_subdir in os.listdir(os.path.join(tmpdir, maven_dir)):
                     args_expect.append('-e')

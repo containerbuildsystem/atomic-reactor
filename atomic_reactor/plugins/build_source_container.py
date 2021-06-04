@@ -6,6 +6,7 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 import os
+import shutil
 import subprocess
 import tempfile
 
@@ -41,6 +42,21 @@ class SourceContainerPlugin(BuildStepPlugin):
 
         img_metadata = get_exported_image_metadata(output_path, IMAGE_TYPE_DOCKER_ARCHIVE)
         self.workflow.exported_image_sequence.append(img_metadata)
+
+    def split_remote_sources_to_subdirs(self, remote_source_data_dir):
+        """Splits remote source archives to subdirs"""
+        sources_subdirs = []
+        for count, archive in enumerate(os.listdir(remote_source_data_dir)):
+            subdir = os.path.join(remote_source_data_dir, f"remote_source_{count}")
+            if not os.path.exists(subdir):
+                os.makedirs(subdir)
+
+            old_path = os.path.join(remote_source_data_dir, archive)
+            new_path = os.path.join(subdir, archive)
+
+            shutil.move(old_path, new_path)
+            sources_subdirs.append(subdir)
+        return sources_subdirs
 
     def run(self):
         """Build image inside current environment.
@@ -81,9 +97,12 @@ class SourceContainerPlugin(BuildStepPlugin):
             cmd.append('{}'.format(source_data_dir))
 
         if remote_source_exists:
+            sources_subdirs = self.split_remote_sources_to_subdirs(remote_source_data_dir)
             drivers.add('sourcedriver_extra_src_dir')
-            cmd.append('-e')
-            cmd.append('{}'.format(remote_source_data_dir))
+
+            for source_subdir in sources_subdirs:
+                cmd.append('-e')
+                cmd.append(source_subdir)
 
         if maven_source_exists:
             drivers.add('sourcedriver_extra_src_dir')
