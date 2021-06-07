@@ -130,8 +130,10 @@ class ODCSClient(object):
         response = self.session.post('{}/composes/'.format(self.url.rstrip('/')),
                                      json=body)
         response.raise_for_status()
+        odcs_resp = response.json()
+        logger.info("Started compose: %s", odcs_resp['id'])
 
-        return response.json()
+        return odcs_resp
 
     def renew_compose(self, compose_id, sigkeys=None):
         """Renew, or extend, existing compose
