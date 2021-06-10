@@ -390,7 +390,7 @@ CMD blabla"""
 
     if remote_sources:
         assert 'remote_sources' in annotations
-        assert remote_source_output == annotations['remote_sources']
+        assert json.dumps(remote_source_output) == annotations['remote_sources']
     else:
         assert 'remote_sources' not in annotations
 
