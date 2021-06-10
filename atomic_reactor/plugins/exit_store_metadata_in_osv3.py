@@ -202,7 +202,10 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
             ]
         except (TypeError, KeyError):
             return
-        annotations.update(remote_sources_annotations)
+
+        if not remote_sources_annotations:
+            return
+        annotations.update({'remote_sources': remote_sources_annotations})
 
     def run(self):
         metadata = get_build_json().get("metadata", {})
