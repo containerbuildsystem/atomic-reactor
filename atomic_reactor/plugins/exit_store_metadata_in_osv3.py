@@ -205,7 +205,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
 
         if not remote_sources_annotations:
             return
-        annotations.update({'remote_sources': remote_sources_annotations})
+        annotations.update({'remote_sources': json.dumps(remote_sources_annotations)})
 
     def run(self):
         metadata = get_build_json().get("metadata", {})
