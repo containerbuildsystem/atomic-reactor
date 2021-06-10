@@ -18,7 +18,8 @@ import osbs.conf
 from osbs.exceptions import OsbsResponseException
 from atomic_reactor.constants import (PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
                                       PLUGIN_VERIFY_MEDIA_KEY,
-                                      PLUGIN_FETCH_SOURCES_KEY)
+                                      PLUGIN_FETCH_SOURCES_KEY,
+                                      PLUGIN_RESOLVE_REMOTE_SOURCE)
 from atomic_reactor.build import BuildResult
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
@@ -183,10 +184,11 @@ def prepare(docker_registries=None, before_dockerfile=False):
     (["application/vnd.docker.distribution.manifest.v1+json"],
      ["application/vnd.docker.distribution.manifest.v1+json"]),
 ))
+@pytest.mark.parametrize('remote_sources', [True, False])
 def test_metadata_plugin(tmpdir, br_annotations, expected_br_annotations,
                          br_labels, expected_br_labels, koji,
                          help_results, expected_help_results, base_from_scratch,
-                         verify_media_results, expected_media_results):
+                         verify_media_results, expected_media_results, remote_sources):
     initial_timestamp = datetime.now()
     workflow = prepare()
     if base_from_scratch:
@@ -212,6 +214,11 @@ CMD blabla"""
     workflow.prebuild_results = {
         AddHelpPlugin.key: help_results
     }
+    remote_source_output = [{'name': 'first', 'url': 'cachito_url_for_first'},
+                            {'name': 'second', 'url': 'cachito_url_for_second'}]
+    if remote_sources:
+        workflow.prebuild_results[PLUGIN_RESOLVE_REMOTE_SOURCE] = remote_source_output
+
     if help_results is not None:
         workflow.annotations['help_file'] = help_results['help_file']
 
@@ -380,6 +387,12 @@ CMD blabla"""
         assert sorted(json.loads(annotations['media-types'])) == sorted(list(set(media_types)))
     else:
         assert 'media-types' not in annotations
+
+    if remote_sources:
+        assert 'remote_sources' in annotations
+        assert remote_source_output == annotations['remote_sources']
+    else:
+        assert 'remote_sources' not in annotations
 
 
 @pytest.mark.parametrize('image_id', ('c9243f9abf2b', None))
