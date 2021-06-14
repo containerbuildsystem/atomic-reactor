@@ -134,6 +134,10 @@ Data which is placed here includes
   `build.extra.typeinfo.operator-manifests.archive` Should be preferred
 - `build.extra.image.pnc` (map): Information about middleware artifacts fetched
   using fetch-artifacts-pnc
+- `build.extra.image.remote_sources` (map list): Entries with information about
+   remote sources
+- `build.extra.typeinfo.remote-sources` (map list): Entries with information about
+   remote sources
 
 The index map has these entries
 
@@ -159,6 +163,16 @@ entries
   including dependencies
 - `path` (str): Path to directory containing source code (or its parent),
   possibly within archive
+
+The `build.extra.image.remote_sources` and `build.extra.typeinfo.remote-sources`
+entries are maps containing the following keys:
+
+- `name` (str): name of remote source
+- `url` (str): cachito request url
+
+`build.extra.typeinfo.remote-sources` contains additional key:
+
+- `archives` (str list): names of remote-sources archives
 
 For operator builds, the operator manifests metadata is placed in
 `build.extra.typeinfo.operator-manifests`. If this is present, the data in
