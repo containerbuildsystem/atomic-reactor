@@ -518,9 +518,9 @@ class TestReactorConfigPlugin(object):
         with pytest.raises(ValueError):
             plugin.run()
 
-    @pytest.mark.parametrize(('config', 'clusters'), [
+    @pytest.mark.parametrize(('config', 'clusters', 'defined_platforms'), [
         # Empty config
-        ("", []),
+        ("", [], []),
 
         # Default config
         (yaml.safe_dump({
@@ -530,7 +530,7 @@ class TestReactorConfigPlugin(object):
                 'root_url': '',
                 'auth': {}
             }
-         }), []),
+         }), [], []),
 
         # Unknown key
         ("""\
@@ -540,7 +540,7 @@ class TestReactorConfigPlugin(object):
             root_url: ''
             auth: {}
           special: foo
-        """, []),
+        """, [], []),
 
         ("""\
           version: 1
@@ -549,9 +549,10 @@ class TestReactorConfigPlugin(object):
             root_url: ''
             auth: {}
           clusters:
-            ignored:
+            all_disabled:
             - name: foo
               max_concurrent_builds: 2
+              enabled: false
             platform:
             - name: one
               max_concurrent_builds: 4
@@ -564,9 +565,9 @@ class TestReactorConfigPlugin(object):
         """, [
             ('one', 4),
             ('two', 8),
-        ]),
+        ], ['all_disabled', 'platform']),
     ])
-    def test_good_cluster_config(self, tmpdir, config, clusters):
+    def test_good_cluster_config(self, tmpdir, config, clusters, defined_platforms):
         if config:
             os.environ['REACTOR_CONFIG'] = dedent(config)
         else:
@@ -581,6 +582,9 @@ class TestReactorConfigPlugin(object):
         conf = get_config(workflow)
         enabled = conf.get_enabled_clusters_for_platform('platform')
         assert {(x.name, x.max_concurrent_builds) for x in enabled} == set(clusters)
+
+        for platform in defined_platforms:
+            assert conf.cluster_defined_for_platform(platform)
 
     @pytest.mark.parametrize(('extra_config', 'fallback', 'error'), [
         ('clusters_client_config_dir: /the/path', None, None),

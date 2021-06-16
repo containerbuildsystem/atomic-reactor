@@ -509,11 +509,15 @@ class ReactorConfig(object):
                                                 {}).items():
             cluster_configs = [ClusterConfig(priority=priority, **cluster)
                                for priority, cluster in enumerate(clusters)]
-            self.cluster_configs[platform] = [conf for conf in cluster_configs
-                                              if conf.enabled]
+            self.cluster_configs[platform] = cluster_configs
 
     def get_enabled_clusters_for_platform(self, platform):
-        return self.cluster_configs.get(platform, [])
+        if platform not in self.cluster_configs:
+            return []
+        return [conf for conf in self.cluster_configs[platform] if conf.enabled]
+
+    def cluster_defined_for_platform(self, platform):
+        return platform in self.cluster_configs
 
     def get_odcs_config(self):
         """

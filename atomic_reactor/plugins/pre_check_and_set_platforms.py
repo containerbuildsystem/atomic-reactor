@@ -68,19 +68,28 @@ class CheckAndSetPlatformsPlugin(PreBuildPlugin):
                     return set(override_platforms)
         else:
             platforms = get_orchestrator_platforms(self.workflow)
-            self.log.info("No koji platforms. User specified platforms are %s", sorted(platforms))
+            user_platforms = sorted(platforms) if platforms else None
+            self.log.info("No koji platforms. User specified platforms are %s", user_platforms)
 
         if not platforms:
             raise RuntimeError("Cannot determine platforms; no koji target or platform list")
 
         # Filter platforms based on clusters
         enabled_platforms = []
+        defined_but_disabled = []
         for p in platforms:
             if self.reactor_config.get_enabled_clusters_for_platform(p):
                 enabled_platforms.append(p)
+            elif self.reactor_config.cluster_defined_for_platform(p):
+                defined_but_disabled.append(p)
             else:
-                self.log.warning(
-                    "No cluster found for platform '%s' in reactor config map, skipping", p)
+                self.log.warning("No cluster found for platform '%s' in "
+                                 "reactor config map, skipping", p)
+
+        if defined_but_disabled:
+            msg = 'Platforms specified in config map, but have all clusters disabled' \
+                  ' {}'.format(defined_but_disabled)
+            raise RuntimeError(msg)
 
         final_platforms = get_platforms_in_limits(self.workflow, enabled_platforms)
 

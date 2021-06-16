@@ -12,7 +12,8 @@ import yaml
 
 from atomic_reactor.constants import (PLUGIN_CHECK_AND_SET_PLATFORMS_KEY, REPO_CONTAINER_CONFIG,
                                       PLUGIN_BUILD_ORCHESTRATE_KEY)
-import atomic_reactor.plugins.pre_reactor_config as reactor_config
+from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin, WORKSPACE_CONF_KEY,
+                                                       ReactorConfig)
 import atomic_reactor.utils.koji as koji_util
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
@@ -36,6 +37,9 @@ KOJI_TARGET = "target"
 
 # ClientSession is xmlrpc instance, we need to mock it explicitly
 def mock_session(platforms):
+    arches = None
+    if platforms:
+        arches = ' '.join(sorted(platforms.keys()))
     last_event_id = 456
     build_target = {
         'build_tag': 'build-tag',
@@ -53,7 +57,7 @@ def mock_session(platforms):
     (session
         .should_receive('getBuildConfig')
         .with_args('build-tag', event=last_event_id)
-        .and_return({'arches': platforms}))
+        .and_return({'arches': arches}))
 
     return session
 
@@ -73,22 +77,18 @@ class MockSource(object):
         return self._config
 
 
-class MockClusterConfig(object):
-    enabled = True
+def set_reactor_config_map(workflow, platforms):
+    clusters = {}
+    if platforms:
+        for platform, enabled in platforms.items():
+            clusters[platform] = [{'enabled': enabled, 'max_concurrent_builds': 1,
+                                   'name': platform}]
 
-
-class MockConfig(object):
-    def __init__(self, platforms):
-        if platforms:
-            self.platforms = set(platforms.split())
-        else:
-            self.platforms = ['x86_64']
-
-    def get_enabled_clusters_for_platform(self, platform):
-        if platform in self.platforms:
-            return MockClusterConfig
-        else:
-            return []
+    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
+    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
+        ReactorConfig({'version': 1,
+                       'koji': {'auth': {}, 'hub_url': 'test'},
+                       'clusters': clusters})
 
 
 def write_container_yaml(tmpdir, platform_exclude='', platform_only=''):
@@ -137,16 +137,22 @@ def teardown_function(function):
 
 @pytest.mark.parametrize(('platforms', 'platform_exclude', 'platform_only', 'result'), [
     (None, '', 'ppc64le', None),
-    ('x86_64 ppc64le', '', 'ppc64le', ['ppc64le']),
-    ('x86_64 spam bacon toast ppc64le', ['spam', 'bacon', 'eggs', 'toast'], '',
+    ({'x86_64': True, 'ppc64le': True},
+     '', 'ppc64le', ['ppc64le']),
+    ({'x86_64': True, 'spam': True, 'bacon': True, 'toast': True, 'ppc64le': True},
+     ['spam', 'bacon', 'eggs', 'toast'], '',
      ['x86_64', 'ppc64le']),
-    ('ppc64le spam bacon toast', ['spam', 'bacon', 'eggs', 'toast'], 'ppc64le',
+    ({'ppc64le': True, 'spam': True, 'bacon': True, 'toast': True},
+     ['spam', 'bacon', 'eggs', 'toast'], 'ppc64le',
      ['ppc64le']),
-    ('x86_64 bacon toast', 'toast', ['x86_64', 'ppc64le'], ['x86_64']),
-    ('x86_64 toast', 'toast', 'x86_64', ['x86_64']),
-    ('x86_64 spam bacon toast', ['spam', 'bacon', 'eggs', 'toast'], ['x86_64', 'ppc64le'],
-     ['x86_64']),
-    ('x86_64 ppc64le', '', '', ['x86_64', 'ppc64le'])
+    ({'x86_64': True, 'bacon': True, 'toast': True},
+     'toast', ['x86_64', 'ppc64le'], ['x86_64']),
+    ({'x86_64': True, 'toast': True},
+     'toast', 'x86_64', ['x86_64']),
+    ({'x86_64': True, 'spam': True, 'bacon': True, 'toast': True},
+     ['spam', 'bacon', 'eggs', 'toast'], ['x86_64', 'ppc64le'], ['x86_64']),
+    ({'x86_64': True, 'ppc64le': True},
+     '', '', ['x86_64', 'ppc64le'])
 ])
 def test_check_and_set_platforms(tmpdir, caplog, user_params,
                                  platforms, platform_exclude, platform_only, result):
@@ -158,15 +164,8 @@ def test_check_and_set_platforms(tmpdir, caplog, user_params,
     flexmock(util).should_receive('get_build_json').and_return(build_json)
 
     session = mock_session(platforms)
-    mock_koji_config = {
-        'auth': {},
-        'hub_url': 'test',
-    }
-    flexmock(reactor_config).should_receive('get_koji').and_return(mock_koji_config)
     flexmock(koji_util).should_receive('create_koji_session').and_return(session)
-
-    mock_config = MockConfig(platforms)
-    flexmock(reactor_config).should_receive('get_config').and_return(mock_config)
+    set_reactor_config_map(workflow, platforms)
 
     runner = PreBuildPluginsRunner(tasker, workflow, [{
         'name': PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
@@ -175,7 +174,7 @@ def test_check_and_set_platforms(tmpdir, caplog, user_params,
 
     plugin_result = runner.run()
     if platforms:
-        koji_msg = "Koji platforms are {0}".format(sorted(platforms.split()))
+        koji_msg = "Koji platforms are {0}".format(sorted(platforms.keys()))
         assert koji_msg in caplog.text
         assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
         assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] == set(result)
@@ -186,16 +185,26 @@ def test_check_and_set_platforms(tmpdir, caplog, user_params,
 
 @pytest.mark.parametrize(('labels', 'platforms', 'orchestrator_platforms', 'platform_only',
                           'result'), [
-    ({}, None, None, '', None),
-    ({}, 'x86_64 arm64', ['spam', 'bacon'], '', ['arm64', 'x86_64']),
-    ({'isolated': True}, 'spam bacon', ['x86_64', 'arm64'], '', ['arm64', 'x86_64']),
-    ({'isolated': True}, 'x86_64 arm64', None, '', ['arm64', 'x86_64']),
-    ({'isolated': True}, None, ['x86_64', 'arm64'], '', None),
-    ({'scratch': True}, 'spam bacon', ['x86_64', 'arm64'], '', ['arm64', 'x86_64']),
-    ({'scratch': True}, 'x86_64 arm64', None, '', ['arm64', 'x86_64']),
-    ({'scratch': True}, None, ['x86_64', 'arm64'], '', None),
-    ({'scratch': True}, 'x86_64 arm64', ['x86_64', 'arm64'], 'x86_64', ['x86_64']),
-    ({'scratch': True}, 'x86_64 arm64 s390x', ['x86_64', 'arm64'], 'x86_64', ['x86_64', 'arm64']),
+    ({}, None,
+     None, '', None),
+    ({}, {'x86_64': True, 'arm64': True},
+     ['spam', 'bacon'], '', ['arm64', 'x86_64']),
+    ({'isolated': True}, {'spam': True, 'bacon': True},
+     ['x86_64', 'arm64'], '', ['arm64', 'x86_64']),
+    ({'isolated': True}, {'x86_64': True, 'arm64': True},
+     None, '', ['arm64', 'x86_64']),
+    ({'isolated': True}, None,
+     ['x86_64', 'arm64'], '', None),
+    ({'scratch': True}, {'spam': True, 'bacon': True},
+     ['x86_64', 'arm64'], '', ['arm64', 'x86_64']),
+    ({'scratch': True}, {'x86_64': True, 'arm64': True},
+     None, '', ['arm64', 'x86_64']),
+    ({'scratch': True}, None,
+     ['x86_64', 'arm64'], '', None),
+    ({'scratch': True}, {'x86_64': True, 'arm64': True},
+     ['x86_64', 'arm64'], 'x86_64', ['x86_64']),
+    ({'scratch': True}, {'x86_64': True, 'arm64': True, 's390x': True},
+     ['x86_64', 'arm64'], 'x86_64', ['x86_64', 'arm64']),
 ])
 def test_check_isolated_or_scratch(tmpdir, caplog, user_params,
                                    labels, platforms, orchestrator_platforms, platform_only,
@@ -207,15 +216,8 @@ def test_check_isolated_or_scratch(tmpdir, caplog, user_params,
         set_orchestrator_platforms(workflow, orchestrator_platforms)
 
     session = mock_session(platforms)
-    mock_koji_config = {
-        'auth': {},
-        'hub_url': 'test',
-    }
-    flexmock(reactor_config).should_receive('get_koji').and_return(mock_koji_config)
     flexmock(koji_util).should_receive('create_koji_session').and_return(session)
-
-    mock_config = MockConfig(platforms)
-    flexmock(reactor_config).should_receive('get_config').and_return(mock_config)
+    set_reactor_config_map(workflow, platforms)
 
     runner = PreBuildPluginsRunner(tasker, workflow, [{
         'name': PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
@@ -224,9 +226,9 @@ def test_check_isolated_or_scratch(tmpdir, caplog, user_params,
 
     plugin_result = runner.run()
     if platforms:
-        koji_msg = "Koji platforms are {0}".format(sorted(platforms.split()))
+        koji_msg = "Koji platforms are {0}".format(sorted(platforms.keys()))
         assert koji_msg in caplog.text
-        diffplat = orchestrator_platforms and set(platforms.split()) != set(orchestrator_platforms)
+        diffplat = orchestrator_platforms and set(platforms.keys()) != set(orchestrator_platforms)
         if labels and diffplat:
             sort_platforms = sorted(orchestrator_platforms)
             user_msg = "Received user specified platforms {0}".format(sort_platforms)
@@ -243,8 +245,8 @@ def test_check_isolated_or_scratch(tmpdir, caplog, user_params,
 
 @pytest.mark.parametrize(('platforms', 'platform_only', 'result'), [
     (None, 'ppc64le', None),
-    ('x86_64 ppc64le', '', ['x86_64', 'ppc64le']),
-    ('x86_64 ppc64le', 'ppc64le', ['ppc64le']),
+    ({'x86_64': True, 'ppc64le': True}, '', ['x86_64', 'ppc64le']),
+    ({'x86_64': True, 'ppc64le': True}, 'ppc64le', ['ppc64le']),
 ])
 def test_check_and_set_platforms_no_koji(tmpdir, caplog, user_params,
                                          platforms, platform_only, result):
@@ -253,13 +255,11 @@ def test_check_and_set_platforms_no_koji(tmpdir, caplog, user_params,
     tasker, workflow = prepare(tmpdir)
 
     if platforms:
-        set_orchestrator_platforms(workflow, platforms.split())
+        set_orchestrator_platforms(workflow, platforms.keys())
 
     build_json = {'metadata': {'labels': {}}}
     flexmock(util).should_receive('get_build_json').and_return(build_json)
-
-    mock_config = MockConfig(platforms)
-    flexmock(reactor_config).should_receive('get_config').and_return(mock_config)
+    set_reactor_config_map(workflow, platforms)
 
     runner = PreBuildPluginsRunner(tasker, workflow, [{
         'name': PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
@@ -269,7 +269,7 @@ def test_check_and_set_platforms_no_koji(tmpdir, caplog, user_params,
         plugin_result = runner.run()
         # Build up the message to avoid wrapping
         no_koji_msg = "No koji platforms. "
-        platform_msg = "User specified platforms are {0}".format(sorted(platforms.split()))
+        platform_msg = "User specified platforms are {0}".format(sorted(platforms.keys()))
         user_msg = no_koji_msg + platform_msg
         assert user_msg in caplog.text
         assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
@@ -277,13 +277,13 @@ def test_check_and_set_platforms_no_koji(tmpdir, caplog, user_params,
     else:
         with pytest.raises(Exception) as e:
             runner.run()
-            assert "no koji target or platform list" in str(e.value)
+        assert "no koji target or platform list" in str(e.value)
 
 
 @pytest.mark.parametrize(('platforms', 'platform_only'), [
-    ('x86_64', 'ppc64le'),
-    ('x86_64 ppc64le', 's390x'),
-    ('s390x ppc64le', 'x86_64'),
+    ({'x86_64': True}, 'ppc64le'),
+    ({'x86_64': True, 'ppc64le': True}, 's390x'),
+    ({'s390x': True, 'ppc64le': True}, 'x86_64'),
 ])
 def test_check_and_set_platforms_no_platforms_in_limits(tmpdir, caplog, user_params,
                                                         platforms, platform_only):
@@ -292,13 +292,11 @@ def test_check_and_set_platforms_no_platforms_in_limits(tmpdir, caplog, user_par
     tasker, workflow = prepare(tmpdir)
 
     if platforms:
-        set_orchestrator_platforms(workflow, platforms.split())
+        set_orchestrator_platforms(workflow, platforms.keys())
 
     build_json = {'metadata': {'labels': {}}}
     flexmock(util).should_receive('get_build_json').and_return(build_json)
-
-    mock_config = MockConfig(platforms)
-    flexmock(reactor_config).should_receive('get_config').and_return(mock_config)
+    set_reactor_config_map(workflow, platforms)
 
     runner = PreBuildPluginsRunner(tasker, workflow, [{
         'name': PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
@@ -313,8 +311,8 @@ def test_check_and_set_platforms_no_platforms_in_limits(tmpdir, caplog, user_par
 
 
 @pytest.mark.parametrize(('platforms', 'platform_only', 'cluster_platforms', 'result'), [
-    ('x86_64 ppc64le', '', 'x86_64', ['x86_64']),
-    ('x86_64 ppc64le arm64', ['x86_64', 'arm64'], 'x86_64', ['x86_64']),
+    ('x86_64 ppc64le', '', {'x86_64': True}, ['x86_64']),
+    ('x86_64 ppc64le arm64', ['x86_64', 'arm64'], {'x86_64': True}, ['x86_64']),
 ])
 def test_platforms_from_cluster_config(tmpdir, user_params,
                                        platforms, platform_only, cluster_platforms, result):
@@ -328,8 +326,7 @@ def test_platforms_from_cluster_config(tmpdir, user_params,
     build_json = {'metadata': {'labels': {}}}
     flexmock(util).should_receive('get_build_json').and_return(build_json)
 
-    mock_config = MockConfig(cluster_platforms)
-    flexmock(reactor_config).should_receive('get_config').and_return(mock_config)
+    set_reactor_config_map(workflow, cluster_platforms)
 
     runner = PreBuildPluginsRunner(tasker, workflow, [{
         'name': PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
@@ -341,3 +338,63 @@ def test_platforms_from_cluster_config(tmpdir, user_params,
         assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] == set(result)
     else:
         assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] is None
+
+
+@pytest.mark.parametrize(('koji_platforms', 'cluster_platforms', 'result', 'skips', 'fails'), [
+    (None, None, None, None, None),
+    (['x86_64'], None, None, None, 'no_platforms'),
+    (['x86_64'], {'ppc64le': True}, None, None, 'no_platforms'),
+    (['x86_64', 'ppc64le'], {'x86_64': True, 'ppc64le': True}, ['x86_64', 'ppc64le'], None, None),
+    (['x86_64', 'ppc64le'], {'x86_64': False, 'ppc64le': True}, None, None, 'disabled'),
+    (['x86_64', 'ppc64le'], {'x86_64': False, 'ppc64le': False}, None, None, 'disabled'),
+    (['x86_64', 'ppc64le'], {'x86_64': True}, ['x86_64'], ['ppc64le'], None),
+    (['x86_64', 'ppc64le', 's390x'], {'x86_64': True}, ['x86_64'], ['ppc64le', 's390x'], None),
+])
+def test_disabled_clusters(tmpdir, caplog, user_params, koji_platforms,
+                           cluster_platforms, result, skips, fails):
+    write_container_yaml(tmpdir)
+
+    tasker, workflow = prepare(tmpdir)
+
+    build_json = {'metadata': {'labels': {}}}
+    flexmock(util).should_receive('get_build_json').and_return(build_json)
+
+    new_koji_platforms = None
+    if koji_platforms:
+        new_koji_platforms = {k: True for k in koji_platforms}
+    session = mock_session(new_koji_platforms)
+    flexmock(koji_util).should_receive('create_koji_session').and_return(session)
+    set_reactor_config_map(workflow, cluster_platforms)
+
+    runner = PreBuildPluginsRunner(tasker, workflow, [{
+        'name': PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
+        'args': {'koji_target': KOJI_TARGET},
+    }])
+
+    if fails:
+        with pytest.raises(Exception) as e:
+            runner.run()
+
+        if fails == 'no_platforms':
+            msg = 'No platforms to build for'
+        elif fails == 'disabled':
+            msg = 'Platforms specified in config map, but have all clusters disabled'
+        assert msg in str(e.value)
+    else:
+        plugin_result = runner.run()
+
+        if koji_platforms:
+            koji_msg = "Koji platforms are {0}".format(sorted(koji_platforms))
+            assert koji_msg in caplog.text
+            assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
+            assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] == set(result)
+
+            if skips:
+                for skip in skips:
+                    msg = "No cluster found for platform '{}' in reactor config map, " \
+                          "skipping".format(skip)
+                    assert msg in caplog.text
+
+        else:
+            assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] is None
+            assert "No platforms found in koji target" in caplog.text
