@@ -172,14 +172,13 @@ def mock_env(tmpdir, docker_tasker,
 
 
 class TestExportOperatorManifests(object):
-    @pytest.mark.parametrize('scratch', [True, False])
     @pytest.mark.parametrize('has_appregistry_label', [True, False])
     @pytest.mark.parametrize('appregistry_label', [True, False])
     @pytest.mark.parametrize('has_bundle_label', [True, False])
     @pytest.mark.parametrize('bundle_label', [True, False])
     @pytest.mark.parametrize('orchestrator', [True, False])
     @pytest.mark.parametrize('selected_platform', [True, False])
-    def test_skip(self, docker_tasker, tmpdir, caplog, scratch,
+    def test_skip(self, docker_tasker, tmpdir, caplog,
                   has_appregistry_label, appregistry_label,
                   has_bundle_label, bundle_label,
                   orchestrator, selected_platform):
@@ -189,7 +188,6 @@ class TestExportOperatorManifests(object):
             has_appregistry_label=has_appregistry_label,
             has_bundle_label=has_bundle_label, bundle_label=bundle_label,
             appregistry_label=appregistry_label,
-            scratch=scratch,
             orchestrator=orchestrator, selected_platform=selected_platform
         )
         result = runner.run()
@@ -198,7 +196,6 @@ class TestExportOperatorManifests(object):
                 (has_appregistry_label and appregistry_label) or
                 (has_bundle_label and bundle_label)
             ),
-            scratch,
             orchestrator,
             not selected_platform
         ]):
@@ -207,10 +204,12 @@ class TestExportOperatorManifests(object):
         else:
             assert 'Skipping' not in caplog.text
 
-    def test_export_archive(self, docker_tasker, tmpdir):
-        runner = mock_env(tmpdir, docker_tasker)
+    @pytest.mark.parametrize('scratch', [True, False])
+    def test_export_archive(self, docker_tasker, tmpdir, scratch):
+        runner = mock_env(tmpdir, docker_tasker, scratch=scratch)
         result = runner.run()
         archive = result[PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY]
+
         assert archive
         assert archive.split('/')[-1] == 'operator_manifests.zip'
         assert zipfile.is_zipfile(archive)
