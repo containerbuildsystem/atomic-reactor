@@ -15,7 +15,6 @@ from atomic_reactor.constants import (PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY,
                                       OPERATOR_MANIFESTS_ARCHIVE)
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.util import (
-    is_scratch_build,
     has_operator_appregistry_manifest,
     has_operator_bundle_manifest,
 )
@@ -59,9 +58,6 @@ class ExportOperatorManifestsPlugin(PostBuildPlugin):
         if self.operator_manifests_extract_platform != self.platform:
             self.log.info("Only platform [%s] will upload operators metadata. Skipping",
                           self.operator_manifests_extract_platform)
-            return False
-        if is_scratch_build(self.workflow):
-            self.log.info("Scratch build. Skipping")
             return False
         if not (
             has_operator_bundle_manifest(self.workflow) or
