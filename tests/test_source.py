@@ -328,6 +328,42 @@ class TestSourceConfigSchemaValidation(object):
               "enable_repo_replacements": False,
               "enable_registry_replacements": True,
           }}
+        ), (
+          """
+          remote_sources:
+            - name: valid-name
+              remote_source:
+                repo: https://git.example.com/team/repo.git
+                ref: b55c00f45ec3dfee0c766cea3d395d6e21cc2e5a
+            - name: also_valid
+              remote_source:
+                repo: https://git.example.com/team/repo.git
+                ref: b55c00f45ec3dfee0c766cea3d395d6e21cc2e5a
+          """,
+          {
+              'remote_sources': [
+                  {
+                      'name': 'valid-name',
+                      'remote_source': {
+                          'repo': 'https://git.example.com/team/repo.git',
+                          'ref': 'b55c00f45ec3dfee0c766cea3d395d6e21cc2e5a',
+                      },
+                  },
+                  {
+                      'name': 'also_valid',
+                      'remote_source': {
+                          'repo': 'https://git.example.com/team/repo.git',
+                          'ref': 'b55c00f45ec3dfee0c766cea3d395d6e21cc2e5a',
+                      },
+                  },
+              ],
+          },
+        ), (
+          """
+          # odd, but valid
+          remote_sources: []
+          """,
+          {'remote_sources': []}
         ),
     ])
     def test_valid_source_config(self, tmpdir, yml_config, attrs_updated):
@@ -477,6 +513,45 @@ class TestSourceConfigSchemaValidation(object):
         operator_manifests:
           manifests_dir: some/path
           enable_registry_replacements: "true"  # not a boolean
+        """,
+        """
+        remote_sources: "not an array"
+        """,
+        """
+        remote_sources:
+          - "not an object"
+        """,
+        """
+        remote_sources:
+          - name: invalid/name
+            remote_source:
+              repo: https://git.example.com/team/repo.git
+              ref: b55c00f45ec3dfee0c766cea3d395d6e21cc2e5a
+        """,
+        """
+        remote_sources:
+          - name: ""
+            remote_source:
+              repo: https://git.example.com/team/repo.git
+              ref: b55c00f45ec3dfee0c766cea3d395d6e21cc2e5a
+        """,
+        """
+        remote_sources:
+          - name: valid
+            remote_source:
+              repo: https://git.example.com/team/repo.git
+              ref: bad
+        """,
+        """
+        remote_sources:
+          - name: valid
+            remote_source:
+              repo: https://git.example.com/team/repo.git
+              ref: b55c00f45ec3dfee0c766cea3d395d6e21cc2e5a
+          - name: invalid/name
+            remote_source:
+              repo: https://git.example.com/team/repo.git
+              ref: b55c00f45ec3dfee0c766cea3d395d6e21cc2e5a
         """,
     ])
     def test_invalid_source_config_validation_error(self, tmpdir, yml_config):
