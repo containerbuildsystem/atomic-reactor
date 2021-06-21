@@ -10,6 +10,7 @@ from atomic_reactor.constants import (PLUGIN_CHECK_USER_SETTINGS, CONTAINER_DOCK
                                       CONTAINER_IMAGEBUILDER_BUILD_METHOD)
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import (
+    df_parser,
     has_operator_appregistry_manifest,
     has_operator_bundle_manifest,
     is_isolated_build,
@@ -18,6 +19,8 @@ from atomic_reactor.util import (
     read_fetch_artifacts_pnc,
     read_fetch_artifacts_url
 )
+
+from osbs.utils import Labels
 
 
 class CheckUserSettingsPlugin(PreBuildPlugin):
@@ -52,9 +55,25 @@ class CheckUserSettingsPlugin(PreBuildPlugin):
                 "without user Dockerfile")
             return
 
+        self.label_version_check()
         self.appregistry_bundle_label_mutually_exclusive()
         self.operator_bundle_from_scratch()
         self.multistage_docker_api_check()
+
+    def label_version_check(self):
+        """Check that Dockerfile version has correct name."""
+        msg = "Dockerfile version label can't contain '/' character"
+        self.log.debug("Running check: %s", msg)
+
+        parser = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
+        dockerfile_labels = parser.labels
+        labels = Labels(parser.labels)
+
+        component_label = labels.get_name(Labels.LABEL_TYPE_VERSION)
+        label_version = dockerfile_labels[component_label]
+
+        if '/' in label_version:
+            raise ValueError(msg)
 
     def appregistry_bundle_label_mutually_exclusive(self):
         """Labels com.redhat.com.delivery.appregistry and

@@ -73,7 +73,7 @@ class FakeSource(StubSource):
 
 
 def mock_env(dockerfile_path, docker_tasker,
-             labels=(), flatpak=False, dockerfile_f=mock_dockerfile,
+             labels=None, flatpak=False, dockerfile_f=mock_dockerfile,
              isolated=None):
     """Mock test environment
 
@@ -89,6 +89,12 @@ def mock_env(dockerfile_path, docker_tasker,
         specific function for itself.
     :param bool isolated: a flag to indicated if build is isolated
     """
+    # Make sure the version label will be presented in labels
+    if not labels:
+        labels = ['version="1.0"']
+    elif not any([label.startswith('version') for label in labels]):
+        labels.append('version="1.0"')
+
     if not flatpak:
         # flatpak build has no Dockefile
         dockerfile_f(dockerfile_path, labels)
@@ -110,6 +116,21 @@ class TestDockerfileChecks(object):
     """
     Test checks related to Dockerfile
     """
+
+    @pytest.mark.parametrize('labels, expected_fail', (
+        (['version="0.1.test.label.version_with_underscore"'], False),
+        (['version="0.1/.test.label.version|with|error"'], True),
+    ))
+    def test_label_version_check(self, tmpdir, docker_tasker, labels, expected_fail):
+        """Dockerfile label version can't contain '/' character"""
+        runner = mock_env(tmpdir, docker_tasker, labels=labels)
+
+        if expected_fail:
+            with pytest.raises(PluginFailedException) as e:
+                runner.run()
+            assert "Dockerfile version label can't contain '/' character" in str(e.value)
+        else:
+            runner.run()
 
     @pytest.mark.parametrize('labels,expected_fail', (
         (['com.redhat.delivery.appregistry=true',
