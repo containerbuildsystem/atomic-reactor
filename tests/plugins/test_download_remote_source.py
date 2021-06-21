@@ -68,7 +68,7 @@ def mock_repo_config(workflow, tmpdir, multiple_remote_sources=False):
         data = dedent("""\
             remote_sources:
             - name: first
-              remote-source:
+              remote_source:
                 repo: test_repo
                 ref: e1be527f39ec31323f0454f7d1422c6260b00580
             """)
