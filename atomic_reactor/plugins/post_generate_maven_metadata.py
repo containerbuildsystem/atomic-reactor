@@ -100,8 +100,10 @@ class GenerateMavenMetadataPlugin(PostBuildPlugin):
             if 'source-url' not in url_request:
                 self.no_source_artifacts.append(artifact)
                 msg = f"No source-url found for {url_request['url']}.\n"
-                msg += 'fetch-artifacts-url without source-url is deprecated'
                 self.log.warning(msg)
+                msg += 'fetch-artifacts-url without source-url is deprecated\n'
+                msg += 'to fix this please provide the source-url according to ' \
+                       'https://osbs.readthedocs.io/en/latest/users.html#fetch-artifacts-url-yaml'
                 self.log.user_warning(msg)
                 continue
 
