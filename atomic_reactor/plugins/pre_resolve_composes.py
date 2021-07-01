@@ -128,7 +128,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
         """Returns boolean if composes can be inherited"""
         if not self.workflow.source.config.inherit:
             return False
-        self.log.info("Inheritance requested in config file")
+        self.log.info("Inheritance requested in container.yaml file")
 
         if is_scratch_build(self.workflow) or is_isolated_build(self.workflow):
             msg = ("'inherit: true' in the compose section of container.yaml "
