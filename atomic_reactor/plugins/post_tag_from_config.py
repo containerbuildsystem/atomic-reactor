@@ -99,6 +99,11 @@ class TagFromConfigPlugin(PostBuildPlugin):
                            tags_filename)
             return tags
 
+        self.log.user_warning(
+            f"File '{self.TAGS_FILENAME}' is deprecated. "
+            f"Please consider using tags in container.yaml instead"
+        )
+
         with open(tags_filename) as tags_file:
             for tag in tags_file:
                 tag = tag.strip()
