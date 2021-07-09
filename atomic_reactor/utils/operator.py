@@ -401,12 +401,6 @@ class NotOperatorCSV(Exception):
     """
 
 
-class CSVValidationError(Exception):
-    """
-    CSV validation against schema failed
-    """
-
-
 class CSVModifyError(Exception):
     """
     Problem modifying the CSV, i.e. via `modifications_append` or `modifications_update`
@@ -889,5 +883,5 @@ class OperatorManifest(object):
         for f in yaml_files:
             try:
                 yield OperatorCSV.from_file(f, **kwargs)
-            except (NotOperatorCSV, CSVValidationError):
+            except NotOperatorCSV:
                 pass
