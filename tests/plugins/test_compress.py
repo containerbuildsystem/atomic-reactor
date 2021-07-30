@@ -48,7 +48,7 @@ class TestCompress(object):
         exp_img = os.path.join(str(tmpdir), 'img.tar')
 
         if source_build:
-            workflow.build_result = BuildResult(oci_image_path="oci_path")
+            workflow.build_result = BuildResult(source_docker_archive="oci_path")
         else:
             workflow.build_result = BuildResult(image_id="12345")
 

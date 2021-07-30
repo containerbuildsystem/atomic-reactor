@@ -42,6 +42,7 @@ class SourceContainerPlugin(BuildStepPlugin):
 
         img_metadata = get_exported_image_metadata(output_path, IMAGE_TYPE_DOCKER_ARCHIVE)
         self.workflow.exported_image_sequence.append(img_metadata)
+        return output_path
 
     def split_remote_sources_to_subdirs(self, remote_source_data_dir):
         """Splits remote source archives to subdirs"""
@@ -123,10 +124,34 @@ class SourceContainerPlugin(BuildStepPlugin):
 
         self.log.debug("Build log:\n%s\n", output)
 
-        self.export_image(image_output_dir)
+        # clean bsi temp directory
+        bsi_temp_dir = os.path.join(os.getcwd(), 'SrcImg')
+        if os.path.isdir(bsi_temp_dir):
+            self.log.info('Will remove BSI temporary directory: %s', bsi_temp_dir)
+            shutil.rmtree(bsi_temp_dir)
+
+        # clean all downloaded sources
+        if source_exists:
+            self.log.info('Will remove directory with downloaded srpms: %s', source_data_dir)
+            shutil.rmtree(source_data_dir)
+
+        if remote_source_exists:
+            self.log.info('Will remove directory with downloaded remote sources: %s',
+                          remote_source_data_dir)
+            shutil.rmtree(remote_source_data_dir)
+
+        if maven_source_exists:
+            self.log.info('Will remove directory with downloaded maven sources: %s',
+                          maven_source_data_dir)
+            shutil.rmtree(maven_source_data_dir)
+
+        image_tar_path = self.export_image(image_output_dir)
+
+        self.log.info('Will remove unpacked image directory: %s', image_output_dir)
+        shutil.rmtree(image_output_dir)
 
         return BuildResult(
             logs=output,
-            oci_image_path=image_output_dir,
+            source_docker_archive=image_tar_path,
             skip_layer_squash=True
         )

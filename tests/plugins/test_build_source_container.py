@@ -134,6 +134,10 @@ def test_running_build(tmpdir, caplog, user_params,
     tempfile_chain.and_return(temp_image_export_dir)
     os.mkdir(temp_image_export_dir)
     os.makedirs(os.path.join(temp_image_output_dir, 'blobs', 'sha256'))
+    # temp dir created by bsi
+    flexmock(os).should_receive('getcwd').and_return(str(tmpdir))
+    temp_bsi_dir = os.path.join(str(tmpdir), 'SrcImg')
+    os.mkdir(temp_bsi_dir)
 
     def check_check_output(args, **kwargs):
         if args[0] == 'skopeo':
@@ -220,7 +224,7 @@ def test_running_build(tmpdir, caplog, user_params,
     else:
         build_result = runner.run()
         assert not build_result.is_failed()
-        assert build_result.oci_image_path
+        assert build_result.source_docker_archive
         assert 'stub stdout' in caplog.text
         empty_srpm_msg = "SRPMs directory '{}' is empty".format(sources_dir_path)
         empty_remote_msg = "Remote source directory '{}' is empty".format(remote_dir_path)
@@ -237,6 +241,30 @@ def test_running_build(tmpdir, caplog, user_params,
             assert empty_maven_msg in caplog.text
         else:
             assert empty_maven_msg not in caplog.text
+
+        remove_srpm_msg = f"Will remove directory with downloaded srpms: {sources_dir_path}"
+        remove_remote_msg = f"Will remove directory with downloaded remote sources: " \
+                            f"{remote_dir_path}"
+        remove_maven_msg = f"Will remove directory with downloaded maven sources: " \
+                           f"{maven_dir_path}"
+        if sources_dir_exists:
+            assert remove_srpm_msg in caplog.text
+        else:
+            assert remove_srpm_msg not in caplog.text
+        if remote_dir_exists:
+            assert remove_remote_msg in caplog.text
+        else:
+            assert remove_remote_msg not in caplog.text
+        if maven_dir_exists:
+            assert remove_maven_msg in caplog.text
+        else:
+            assert remove_maven_msg not in caplog.text
+
+        remove_unpacked_msg = f"Will remove unpacked image directory: {temp_image_output_dir}"
+        assert remove_unpacked_msg in caplog.text
+
+        remove_tmpbsi_msg = f"Will remove BSI temporary directory: {temp_bsi_dir}"
+        assert remove_tmpbsi_msg in caplog.text
 
 
 def test_failed_build(tmpdir, caplog, user_params):

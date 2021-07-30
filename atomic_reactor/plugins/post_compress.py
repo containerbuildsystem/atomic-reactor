@@ -50,7 +50,7 @@ class CompressPlugin(PostBuildPlugin):
         self.load_exported_image = load_exported_image
         self.method = method
         self.uncompressed_size = 0
-        self.source_build = bool(self.workflow.build_result.oci_image_path)
+        self.source_build = bool(self.workflow.build_result.source_docker_archive)
 
     def _compress_image_stream(self, stream):
         outfile = os.path.join(self.workflow.source.workdir,
