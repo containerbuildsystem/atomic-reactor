@@ -2489,7 +2489,7 @@ class TestKojiImport(object):
                                             has_config=has_config,
                                             source_build=True)
 
-        workflow.build_result = BuildResult(oci_image_path="oci_path")
+        workflow.build_result = BuildResult(source_docker_archive="oci_path")
         workflow.koji_source_nvr = {'name': component, 'version': version, 'release': release}
         workflow.koji_source_source_url = 'git://hostname/path#123456'
 

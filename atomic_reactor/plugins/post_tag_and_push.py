@@ -74,7 +74,7 @@ class TagAndPushPlugin(PostBuildPlugin):
         return False
 
     def push_with_skopeo(self, registry_image, insecure, docker_push_secret,
-                         source_oci_image_path=None):
+                         source_docker_archive=None):
         cmd = ['skopeo', 'copy']
         if docker_push_secret is not None:
             dockercfg = Dockercfg(docker_push_secret)
@@ -83,7 +83,7 @@ class TagAndPushPlugin(PostBuildPlugin):
         if insecure:
             cmd.append('--dest-tls-verify=false')
 
-        if not source_oci_image_path:
+        if not source_docker_archive:
             # If the last image has type OCI_TAR, then hunt back and find the
             # the untarred version, since skopeo only supports OCI's as an
             # untarred directory
@@ -98,7 +98,7 @@ class TagAndPushPlugin(PostBuildPlugin):
                 raise RuntimeError("Attempt to push unsupported image type %s with skopeo" %
                                    image['type'])
         else:
-            source_img = 'oci:{}'.format(source_oci_image_path)
+            source_img = 'docker-archive:{}'.format(source_docker_archive)
 
         dest_img = 'docker://' + registry_image.to_str()
 
@@ -142,12 +142,12 @@ class TagAndPushPlugin(PostBuildPlugin):
     def run(self):
         pushed_images = []
 
-        source_oci_image_path = self.workflow.build_result.oci_image_path
-        if source_oci_image_path:
+        source_docker_archive = self.workflow.build_result.source_docker_archive
+        if source_docker_archive:
             source_unique_image = self.source_get_unique_image()
 
         if not self.workflow.tag_conf.unique_images:
-            if source_oci_image_path:
+            if source_docker_archive:
                 self.workflow.tag_conf.add_unique_image(source_unique_image)
             else:
                 self.workflow.tag_conf.add_unique_image(self.workflow.image)
@@ -169,7 +169,7 @@ class TagAndPushPlugin(PostBuildPlugin):
                 if image.registry:
                     raise RuntimeError("Image name must not contain registry: %r" % image.registry)
 
-                if not source_oci_image_path:
+                if not source_docker_archive:
                     image_size = sum(item['size'] for item in self.workflow.layer_sizes)
                     config_image_size = image_size_limit['binary_image']
                     # Only handle the case when size is set > 0 in config
@@ -185,15 +185,15 @@ class TagAndPushPlugin(PostBuildPlugin):
                 max_retries = DOCKER_PUSH_MAX_RETRIES
 
                 for retry in range(max_retries + 1):
-                    if self.need_skopeo_push() or source_oci_image_path:
+                    if self.need_skopeo_push() or source_docker_archive:
                         self.push_with_skopeo(registry_image, insecure, docker_push_secret,
-                                              source_oci_image_path)
+                                              source_docker_archive)
                     else:
                         self.tasker.tag_and_push_image(self.workflow.builder.image_id,
                                                        registry_image, insecure=insecure,
                                                        force=True, dockercfg=docker_push_secret)
 
-                    if source_oci_image_path:
+                    if source_docker_archive:
                         manifests_dict = get_all_manifests(registry_image, registry, insecure,
                                                            docker_push_secret, versions=('v2',))
                         try:

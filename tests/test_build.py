@@ -320,13 +320,13 @@ def test_build_result():
         BuildResult(fail_reason='', image_id='spam')
 
     with pytest.raises(AssertionError):
-        BuildResult(fail_reason='it happens', oci_image_path='/somewhere')
+        BuildResult(fail_reason='it happens', source_docker_archive='/somewhere')
 
     with pytest.raises(AssertionError):
-        BuildResult(image_id='spam', oci_image_path='/somewhere')
+        BuildResult(image_id='spam', source_docker_archive='/somewhere')
 
     with pytest.raises(AssertionError):
-        BuildResult(image_id='spam', fail_reason='it happens', oci_image_path='/somewhere')
+        BuildResult(image_id='spam', fail_reason='it happens', source_docker_archive='/somewhere')
 
     assert BuildResult(fail_reason='it happens').is_failed()
     assert not BuildResult(image_id='spam').is_failed()
@@ -340,7 +340,7 @@ def test_build_result():
 
     assert BuildResult(image_id='spam', labels={'ham': 'mah'}).labels == {'ham': 'mah'}
 
-    assert BuildResult(oci_image_path='/somewhere').oci_image_path == '/somewhere'
+    assert BuildResult(source_docker_archive='/somewhere').source_docker_archive == '/somewhere'
 
     assert BuildResult(image_id='spam').is_image_available()
     assert not BuildResult(fail_reason='it happens').is_image_available()
