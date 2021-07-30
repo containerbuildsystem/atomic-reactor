@@ -39,7 +39,7 @@ def _get_requirements(path):
 
 setup(
     name='atomic-reactor',
-    version='3.6.2',
+    version='3.7.0',
     description=DESCRIPTION,
     author='Red Hat, Inc.',
     author_email='atomic-devel@projectatomic.io',
