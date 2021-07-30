@@ -336,7 +336,7 @@ def test_tag_and_push_plugin(
                 assert workflow.push_conf.docker_registries[0].config is None
 
 
-@pytest.mark.parametrize(("source_oci_image_path", "v2s2"), [
+@pytest.mark.parametrize(("source_docker_archive", "v2s2"), [
     (True, True),
     (True, False),
     (False, True),
@@ -351,7 +351,7 @@ def test_tag_and_push_plugin(
     True,
 ])
 def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, user_params,
-                                 source_oci_image_path, v2s2, use_secret,
+                                 source_docker_archive, v2s2, use_secret,
                                  fail_push, caplog):
     # For now, we don't want to require having a skopeo and an OCI-supporting
     # registry in the test environment
@@ -377,8 +377,8 @@ def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, user_params,
     workflow.user_params['image_tag'] = TEST_IMAGE
     workflow.builder = StubInsideBuilder()
     workflow.builder.image_id = INPUT_IMAGE
-    if source_oci_image_path:
-        workflow.build_result._oci_image_path = sources_dir_path
+    if source_docker_archive:
+        workflow.build_result._source_docker_archive = sources_dir_path
         workflow.prebuild_results[PLUGIN_FETCH_SOURCES_KEY] =\
             {'sources_for_koji_build_id': sources_koji_id}
 
@@ -387,7 +387,7 @@ def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, user_params,
             pass
 
         def getBuild(self, build_info):
-            if source_oci_image_path:
+            if source_docker_archive:
                 assert build_info == sources_koji_id
                 return {'extra': {'image': {'index': {'pull': [sources_koji_pull_spec]}}}}
 
@@ -414,7 +414,7 @@ def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, user_params,
             secret_path = temp_dir
 
     CONFIG_DIGEST = 'sha256:b79482f7dcab2a326c1e8c7025a4336d900e99f50db8b35a659fda67b5ebb3c2'
-    if source_oci_image_path:
+    if source_docker_archive:
         MEDIA_TYPE = 'application/vnd.docker.distribution.manifest.v2+json'
     else:
         MEDIA_TYPE = 'application/vnd.oci.image.manifest.v1+json'
@@ -503,8 +503,8 @@ def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, user_params,
         if use_secret:
             assert '--authfile=' + os.path.join(secret_path, '.dockercfg') in args
         assert '--dest-tls-verify=false' in args
-        if source_oci_image_path:
-            assert args[-2] == 'oci:' + sources_dir_path
+        if source_docker_archive:
+            assert args[-2] == 'docker-archive:' + sources_dir_path
             output_image = 'docker://{}/{}:{}'.format(LOCALHOST_REGISTRY, sources_koji_repo,
                                                       sources_tagname)
             assert args[-1] == output_image
@@ -554,7 +554,7 @@ def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, user_params,
     def custom_get(method, url, headers, **kwargs):
         if url == manifest_latest_url or url == manifest_source_tag_url:
             if headers['Accept'] == MEDIA_TYPE:
-                if source_oci_image_path and not v2s2:
+                if source_docker_archive and not v2s2:
                     return manifest_unacceptable_response
                 else:
                     return manifest_response
@@ -598,11 +598,11 @@ def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, user_params,
         }]
     )
 
-    if fail_push or (source_oci_image_path and not v2s2):
+    if fail_push or (source_docker_archive and not v2s2):
         with pytest.raises(PluginFailedException):
             runner.run()
 
-        if not fail_push and source_oci_image_path and not v2s2:
+        if not fail_push and source_docker_archive and not v2s2:
             assert "Unable to fetch v2 schema 2 digest for" in caplog.text
     else:
         output = runner.run()
@@ -613,7 +613,7 @@ def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, user_params,
 
         push_conf_digests = workflow.push_conf.docker_registries[0].digests
 
-        if source_oci_image_path:
+        if source_docker_archive:
             source_image_name = '{}:{}'.format(sources_koji_repo, sources_tagname)
             assert push_conf_digests[source_image_name].v1 is None
             assert push_conf_digests[source_image_name].v2 == DIGEST_OCI
