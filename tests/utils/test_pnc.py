@@ -58,6 +58,31 @@ class TestPNCUtil(object):
         assert checksums == {'md5': 'abcd', 'sha1': 'abcd', 'sha256': 'abcd'}
 
     @responses.activate
+    def test_get_artifact_purl_specs(self):
+        artifact_id = '12345'
+        public_url = 'https://code.example.com/artifact.jar'
+        purl_spec = 'pkg:maven/org.example.artifact/artifact-common@0.0.1.redhat-00001?type=jar'
+        artifact_response = {
+            'id': artifact_id,
+            'publicUrl': public_url,
+            'md5': 'abcd',
+            'sha1': 'abcd',
+            'sha256': 'abcd',
+            'purl': purl_spec
+        }
+        pnc_util = PNCUtil(mock_pnc_map())
+
+        # to mock this URL we have to construct it manually first
+        get_artifact_request_url = PNC_BASE_API_URL + '/' + PNC_GET_ARTIFACT_PATH
+
+        responses.add(responses.GET, get_artifact_request_url.format(artifact_id),
+                      body=json.dumps(artifact_response), status=200)
+
+        pnc_artifact_purl_specs = pnc_util.get_artifact_purl_specs([artifact_id])
+
+        assert pnc_artifact_purl_specs == [purl_spec]
+
+    @responses.activate
     def test_get_scm_archive_filename_in_header(self):
         build_id = '1234'
         filename = 'source.tar.gz'

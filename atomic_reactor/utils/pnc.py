@@ -57,6 +57,23 @@ class PNCUtil(object):
 
         return url, checksums
 
+    def get_artifact_purl_specs(self, artifact_ids):
+        """
+        Return a Package URLs for all artifact ids
+        :param artifact_ids: list[str]; PNC artifact ids
+        :return list[str]; Package URLs of the artifacts corresponding to artifact ids
+        :rtype list[str]; Package URLs
+        """
+        purl_specs = []
+        for artifact_id in artifact_ids:
+            response = self.session.get(self.artifact_request_url.format(artifact_id))
+            response.raise_for_status()
+
+            artifact = response.json()
+            purl_specs.append(artifact['purl'])
+
+        return purl_specs
+
     def get_scm_archive_from_build_id(self, build_id: str):
         """
         Return a scm archive URL and filename from PNC REST API.
