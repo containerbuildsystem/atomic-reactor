@@ -473,9 +473,10 @@ def test_fetch_maven_artifacts(tmpdir, docker_tasker, user_params):
 
     plugin_result = results[FetchMavenArtifactsPlugin.key]
 
-    assert len(plugin_result) == (len(DEFAULT_ARCHIVES) + len(DEFAULT_REMOTE_FILES)
-                                  + len(DEFAULT_PNC_ARTIFACTS['builds']))
-    for download in plugin_result:
+    assert len(plugin_result['download_queue']) == (len(DEFAULT_ARCHIVES) + len(
+        DEFAULT_REMOTE_FILES) + len(DEFAULT_PNC_ARTIFACTS['builds']))
+    assert len(plugin_result['pnc_artifact_ids']) == len(DEFAULT_PNC_ARTIFACTS['builds'])
+    for download in plugin_result['download_queue']:
         dest = os.path.join(tmpdir, FetchMavenArtifactsPlugin.DOWNLOAD_DIR, download.dest)
         assert os.path.exists(dest)
 
@@ -519,12 +520,12 @@ def test_fetch_maven_artifacts_nvr_filtering(tmpdir, docker_tasker, user_params,
 
     plugin_result = results[FetchMavenArtifactsPlugin.key]
 
-    assert len(plugin_result) == len(expected)
-    for download in plugin_result:
+    assert len(plugin_result['download_queue']) == len(expected)
+    for download in plugin_result['download_queue']:
         assert len(download.checksums.values()) == 1
-    assert (set(list(download.checksums.values())[0] for download in plugin_result) ==
-            set(expectation['checksum'] for expectation in expected))
-    for download in plugin_result:
+    assert (set(list(download.checksums.values())[0] for download in plugin_result[
+        'download_queue']) == set(expectation['checksum'] for expectation in expected))
+    for download in plugin_result['download_queue']:
         dest = os.path.join(tmpdir, FetchMavenArtifactsPlugin.DOWNLOAD_DIR, download.dest)
         assert os.path.exists(dest)
 
@@ -732,12 +733,12 @@ def test_fetch_maven_artifacts_url_with_target(tmpdir, docker_tasker, user_param
     results = mock_env(tmpdir).create_runner(docker_tasker).run()
     plugin_result = results[FetchMavenArtifactsPlugin.key]
 
-    assert len(plugin_result) == len(expected)
+    assert len(plugin_result['download_queue']) == len(expected)
 
     if not expected:
         return
 
-    download = plugin_result[0]
+    download = plugin_result['download_queue'][0]
     dest = os.path.join(tmpdir, FetchMavenArtifactsPlugin.DOWNLOAD_DIR, download.dest)
     assert os.path.exists(dest)
     assert download.dest == REMOTE_FILE_WITH_TARGET['target']
@@ -852,7 +853,7 @@ def test_fetch_maven_artifacts_url_allowed_domains(tmpdir, docker_tasker, user_p
     else:
         results = runner.run()
         plugin_result = results[FetchMavenArtifactsPlugin.key]
-        for download in plugin_result:
+        for download in plugin_result['download_queue']:
             dest = os.path.join(tmpdir, FetchMavenArtifactsPlugin.DOWNLOAD_DIR, download.dest)
             assert os.path.exists(dest)
 
@@ -875,6 +876,6 @@ def test_fetch_maven_artifacts_commented_out_files(tmpdir, docker_tasker, user_p
     results = mock_env(tmpdir).create_runner(docker_tasker).run()
     plugin_result = results[FetchMavenArtifactsPlugin.key]
 
-    assert len(plugin_result) == 0
+    assert len(plugin_result['download_queue']) == 0
     artifacts_dir = os.path.join(tmpdir, FetchMavenArtifactsPlugin.DOWNLOAD_DIR)
     assert not os.path.exists(artifacts_dir)

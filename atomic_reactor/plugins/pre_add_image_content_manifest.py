@@ -15,12 +15,14 @@ from osbs.utils import Labels
 
 from atomic_reactor.constants import (IMAGE_BUILD_INFO_DIR, INSPECT_ROOTFS,
                                       INSPECT_ROOTFS_LAYERS,
-                                      PLUGIN_ADD_IMAGE_CONTENT_MANIFEST)
+                                      PLUGIN_ADD_IMAGE_CONTENT_MANIFEST,
+                                      PLUGIN_FETCH_MAVEN_KEY)
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.plugins.pre_reactor_config import get_cachito, get_cachito_session
+from atomic_reactor.plugins.pre_reactor_config import get_cachito, get_cachito_session, get_pnc
 from atomic_reactor.util import (base_image_is_scratch, df_parser, read_yaml,
                                  read_content_sets
                                  )
+from atomic_reactor.utils.pnc import PNCUtil
 
 
 class AddImageContentManifestPlugin(PreBuildPlugin):
@@ -107,10 +109,13 @@ class AddImageContentManifestPlugin(PreBuildPlugin):
         _, image_release = labels.get_name_and_value(Labels.LABEL_TYPE_RELEASE)
         self.icm_file_name = '{}-{}-{}.json'.format(image_name, image_version, image_release)
         self.content_sets = []
+        fetch_maven_results = workflow.prebuild_results.get(PLUGIN_FETCH_MAVEN_KEY) or {}
+        self.pnc_artifact_ids = fetch_maven_results.get('pnc_artifact_ids') or []
         self._cachito_verify = None
         self._layer_index = None
         self._icm = None
         self._cachito_session = None
+        self._pnc_util = None
 
     @property
     def layer_index(self):
@@ -130,16 +135,24 @@ class AddImageContentManifestPlugin(PreBuildPlugin):
 
         :return: dict, the ICM as a Python dict
         """
-        if not self.remote_sources and self._icm is None:
-            self._icm = deepcopy(self.minimal_icm)
-        elif self._icm is None:
+        if self._icm:
+            return self._icm
+
+        self._icm = deepcopy(self.minimal_icm)
+        if self.remote_sources:
             request_ids = [remote_source['request_id'] for remote_source in self.remote_sources]
             self._icm = self.cachito_session.get_image_content_manifest(
                 request_ids
             )
-            # Validate; `json.dumps()` converts `icm` to str. Confusingly, `read_yaml`
-            #     *will* validate JSON
-            read_yaml(json.dumps(self._icm), 'schemas/content_manifest.json')
+        if self.pnc_artifact_ids:
+            purl_specs = self.pnc_util.get_artifact_purl_specs(self.pnc_artifact_ids)
+            for purl_spec in purl_specs:
+                self._icm['image_contents'].append({'purl': purl_spec})
+
+        # Validate; `json.dumps()` converts `icm` to str. Confusingly, `read_yaml`
+        #     *will* validate JSON
+        read_yaml(json.dumps(self._icm), 'schemas/content_manifest.json')
+
         return self._icm
 
     def _populate_content_sets(self):
@@ -210,3 +223,13 @@ class AddImageContentManifestPlugin(PreBuildPlugin):
         if not self._cachito_session:
             self._cachito_session = get_cachito_session(self.workflow)
         return self._cachito_session
+
+    @property
+    def pnc_util(self):
+        if not self._pnc_util:
+            try:
+                pnc_map = get_pnc(self.workflow)
+            except KeyError:
+                raise RuntimeError('No PNC configuration found in reactor config map') from KeyError
+            self._pnc_util = PNCUtil(pnc_map)
+        return self._pnc_util

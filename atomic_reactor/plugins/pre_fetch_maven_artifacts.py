@@ -65,6 +65,16 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
             self._pnc_util = PNCUtil(pnc_map)
         return self._pnc_util
 
+    def get_pnc_artifact_ids(self, pnc_requests):
+        artifact_ids = []
+        builds = pnc_requests.get('builds', [])
+
+        for build in builds:
+            for artifact in build['artifacts']:
+                artifact_ids.append(artifact['id'])
+
+        return artifact_ids
+
     def process_by_nvr(self, nvr_requests):
         download_queue = []
         errors = []
@@ -177,4 +187,7 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
 
         self.download_files(download_queue)
 
-        return download_queue
+        pnc_artifact_ids = self.get_pnc_artifact_ids(pnc_requests)
+
+        return {'download_queue': download_queue,
+                'pnc_artifact_ids': pnc_artifact_ids}
