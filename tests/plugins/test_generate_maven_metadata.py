@@ -204,65 +204,65 @@ DEFAULT_REMOTE_FILES = [REMOTE_FILE_SPAM, REMOTE_FILE_BACON, REMOTE_FILE_WITH_TA
                         REMOTE_FILE_SHA1, REMOTE_FILE_SHA256, REMOTE_FILE_MULTI_HASH]
 
 ARTIFACT_MD5 = {
-    'build_id': 12,
+    'build_id': '12',
     'artifacts': [
         {
-            'id': 122,
+            'id': '122',
             'target': 'md5.jar'
         }
     ]
 }
 
 ARTIFACT_SHA1 = {
-    'build_id': 12,
+    'build_id': '12',
     'artifacts': [
         {
-            'id': 123,
+            'id': '123',
             'target': 'sha1.jar'
         }
     ]
 }
 
 ARTIFACT_SHA256 = {
-    'build_id': 12,
+    'build_id': '12',
     'artifacts': [
         {
-            'id': 124,
+            'id': '124',
             'target': 'sha256.jar'
         }
     ]
 }
 
 ARTIFACT_MULTI_HASH = {
-    'build_id': 12,
+    'build_id': '12',
     'artifacts': [
         {
-            'id': 125,
+            'id': '125',
             'target': 'multi-hash.jar'
         }
     ]
 }
 
 RESPONSE_MD5 = {
-    'id': 122,
+    'id': '122',
     'publicUrl': FILER_ROOT + '/md5.jar',
     'md5': '900150983cd24fb0d6963f7d28e17f72'
 }
 
 RESPONSE_SHA1 = {
-    'id': 123,
+    'id': '123',
     'publicUrl': FILER_ROOT + '/sha1.jar',
     'sha1': 'a9993e364706816aba3e25717850c26c9cd0d89d'
 }
 
 RESPONSE_SHA256 = {
-    'id': 124,
+    'id': '124',
     'publicUrl': FILER_ROOT + '/sha256.jar',
     'sha256': 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'
 }
 
 RESPONSE_MULTI_HASH = {
-    'id': 125,
+    'id': '125',
     'publicUrl': FILER_ROOT + '/multi-hash.jar',
     'sha256': 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
     'sha1': 'a9993e364706816aba3e25717850c26c9cd0d89d',
