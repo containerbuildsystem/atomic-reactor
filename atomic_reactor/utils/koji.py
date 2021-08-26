@@ -590,6 +590,8 @@ def get_rpms():
         'SIGMD5',
         'SIGPGP:pgpsig',
         'SIGGPG:pgpsig',
+        'DSAHEADER:pgpsig',
+        'RSAHEADER:pgpsig',
     ]
 
     output = get_rpm_list(tags)

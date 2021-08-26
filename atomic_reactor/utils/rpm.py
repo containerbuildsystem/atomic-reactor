@@ -18,6 +18,8 @@ image_component_rpm_tags = [
     'BUILDTIME',
     'SIGPGP:pgpsig',
     'SIGGPG:pgpsig',
+    'DSAHEADER:pgpsig',
+    'RSAHEADER:pgpsig',
 ]
 
 
@@ -81,7 +83,13 @@ def parse_rpm_output(output, tags=None, separator=';'):
         if len(fields) < len(tags):
             continue
 
-        signature = field('SIGPGP:pgpsig') or field('SIGGPG:pgpsig')
+        # https://rpm-software-management.github.io/rpm/manual/tags.html, "Signatures and digests"
+        signature = (
+            field('SIGPGP:pgpsig')
+            or field('SIGGPG:pgpsig')
+            or field('DSAHEADER:pgpsig')
+            or field('RSAHEADER:pgpsig')
+        )
         if signature:
             parts = signature.split(sigmarker, 1)
             if len(parts) > 1:

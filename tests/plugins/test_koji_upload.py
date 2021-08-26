@@ -169,9 +169,22 @@ class MockedClientSession(object):
 
 
 class MockedRpmHeader(object):
-    def __init__(self, name, version, release, arch=None, epoch=None, md5=None, pgp=None, gpg=None):
+    def __init__(
+        self,
+        name,
+        version,
+        release,
+        arch=None,
+        epoch=None,
+        md5=None,
+        pgp=None,
+        gpg=None,
+        dsa=None,
+        rsa=None,
+    ):
         self.tags = {'NAME': name, 'VERSION': version, 'RELEASE': release, 'ARCH': arch,
-                     'EPOCH': epoch, 'SIGMD5': md5, 'SIGPGP:pgpsig': pgp, 'SIGGPG:pgpsig': gpg}
+                     'EPOCH': epoch, 'SIGMD5': md5, 'SIGPGP:pgpsig': pgp, 'SIGGPG:pgpsig': gpg,
+                     'DSAHEADER:pgpsig': dsa, 'RSAHEADER:pgpsig': rsa}
 
     def sprintf(self, qf):
         for k, v in self.tags.items():
@@ -312,9 +325,9 @@ def mock_environment(tmpdir, session=None, name=None,
 
     workflow.image_components = parse_rpm_output([
         "name1;1.0;1;" + LOCAL_ARCH + ";0;2000;" + FAKE_SIGMD5 + ";23000;"
-        "RSA/SHA256, Tue 30 Aug 2016 00:00:00, Key ID 01234567890abc;(none)",
+        "RSA/SHA256, Tue 30 Aug 2016 00:00:00, Key ID 01234567890abc;(none);(none);(none)",
         "name2;2.0;1;" + LOCAL_ARCH + ";0;3000;" + FAKE_SIGMD5 + ";24000"
-        "RSA/SHA256, Tue 30 Aug 2016 00:00:00, Key ID 01234567890abd;(none)",
+        "RSA/SHA256, Tue 30 Aug 2016 00:00:00, Key ID 01234567890abd;(none);(none);(none)",
     ])
 
     return tasker, workflow
