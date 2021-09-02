@@ -152,6 +152,10 @@ KOJI_RESERVE_RETRY_DELAY = 2
 KOJI_MAX_RETRIES = 120
 KOJI_RETRY_INTERVAL = 60
 KOJI_OFFLINE_RETRY_INTERVAL = 120
+# max retries for subprocesses (see utils.retries.run_cmd())
+SUBPROCESS_MAX_RETRIES = 5
+# the factor for the exponential backoff series - 5, 10, 20, 40, 80 seconds of waiting
+SUBPROCESS_BACKOFF_FACTOR = 5
 
 # Media types
 MEDIA_TYPE_DOCKER_V2_SCHEMA1 = "application/vnd.docker.distribution.manifest.v1+json"
