@@ -1,3 +1,4 @@
+backoff
 docker < 4.3.0
 docker-squash>=1.0.7
 dockerfile-parse>=0.0.13
