@@ -34,6 +34,7 @@ infrastructure.
 Summary:        Python 3 Atomic Reactor library
 Group:          Development/Tools
 License:        BSD
+Requires:       python3-backoff
 Requires:       python3-docker >= 1.3.0, python3-docker < 4.3.0
 Requires:       python3-requests
 Requires:       python3-setuptools
