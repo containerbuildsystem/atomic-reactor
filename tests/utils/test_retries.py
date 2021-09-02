@@ -7,6 +7,9 @@ of the BSD license. See the LICENSE file for details.
 """
 
 import json
+import subprocess
+import time
+
 import requests
 from urllib3 import Retry
 
@@ -15,8 +18,10 @@ import responses
 from flexmock import flexmock
 
 from atomic_reactor.constants import (HTTP_MAX_RETRIES,
-                                      HTTP_REQUEST_TIMEOUT)
-from atomic_reactor.utils.retries import SessionWithTimeout, get_retrying_requests_session
+                                      HTTP_REQUEST_TIMEOUT,
+                                      SUBPROCESS_MAX_RETRIES,
+                                      SUBPROCESS_BACKOFF_FACTOR)
+from atomic_reactor.utils import retries
 
 
 @pytest.mark.parametrize('timeout', [None, 0, 10])
@@ -24,7 +29,7 @@ def test_session_with_timeout(timeout):
     """
     Test that session sets default timeout if not specified
     """
-    session = SessionWithTimeout()
+    session = retries.SessionWithTimeout()
 
     test_url = 'http://test.net'
 
@@ -53,9 +58,9 @@ def test_get_retrying_requests_session(times):
     Most arguments are simply passed to Retry.__init__, test only basic functionality
     """
     if times is not None:
-        session = get_retrying_requests_session(times=times)
+        session = retries.get_retrying_requests_session(times=times)
     else:
-        session = get_retrying_requests_session()
+        session = retries.get_retrying_requests_session()
 
     http = session.adapters['http://']
     https = session.adapters['https://']
@@ -75,7 +80,7 @@ def test_log_error_response(http_code, caplog):
     json_data = {'message': 'value error'}
     responses.add(responses.GET, api_url, json=json_data, status=http_code)
 
-    session = get_retrying_requests_session()
+    session = retries.get_retrying_requests_session()
     session.get(api_url)
 
     content = json.dumps(json_data).encode()
@@ -84,3 +89,59 @@ def test_log_error_response(http_code, caplog):
         assert expected in caplog.text
     else:
         assert expected not in caplog.text
+
+
+@pytest.mark.parametrize('retries_needed', [0, 1, SUBPROCESS_MAX_RETRIES])
+def test_run_cmd_success(retries_needed, caplog):
+    cmd = ["skopeo", "copy", "docker://a", "docker://b"]
+    n_tries = 0
+
+    def mock_check_output(*args, **kwargs):
+        nonlocal n_tries
+        n_tries += 1
+        if n_tries > retries_needed:
+            return b'some output'
+        raise subprocess.CalledProcessError(1, cmd, output=b'something went wrong')
+
+    (
+        flexmock(subprocess)
+        .should_receive('check_output')
+        .with_args(cmd, stderr=subprocess.STDOUT)
+        .times(retries_needed + 1)
+        .replace_with(mock_check_output)
+    )
+    flexmock(time).should_receive('sleep').times(retries_needed)
+
+    assert retries.run_cmd(cmd) == b'some output'
+
+    assert caplog.text.count('Running skopeo copy docker://a docker://b') == retries_needed + 1
+    assert caplog.text.count('skopeo failed with:\nsomething went wrong') == retries_needed
+
+    for n in range(retries_needed):
+        wait = SUBPROCESS_BACKOFF_FACTOR * 2 ** n
+        assert f'Backing off run_cmd(...) for {wait:.1f}s' in caplog.text
+
+
+def test_run_cmd_failure(caplog):
+    cmd = ["skopeo", "copy", "docker://a", "docker://b"]
+    total_tries = SUBPROCESS_MAX_RETRIES + 1
+
+    (
+        flexmock(subprocess)
+        .should_receive('check_output')
+        .with_args(cmd, stderr=subprocess.STDOUT)
+        .times(total_tries)
+        .and_raise(subprocess.CalledProcessError(1, cmd, output=b'something went wrong'))
+    )
+    flexmock(time).should_receive('sleep').times(SUBPROCESS_MAX_RETRIES)
+
+    with pytest.raises(subprocess.CalledProcessError):
+        retries.run_cmd(cmd)
+
+    assert caplog.text.count('Running skopeo copy docker://a docker://b') == total_tries
+    assert caplog.text.count('skopeo failed with:\nsomething went wrong') == total_tries
+
+    for n in range(SUBPROCESS_MAX_RETRIES):
+        wait = SUBPROCESS_BACKOFF_FACTOR * 2 ** n
+        assert f'Backing off run_cmd(...) for {wait:.1f}s' in caplog.text
+    assert f'Giving up run_cmd(...) after {total_tries} tries' in caplog.text
