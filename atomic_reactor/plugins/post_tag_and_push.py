@@ -23,6 +23,7 @@ from atomic_reactor.plugins.pre_reactor_config import (get_registries, get_group
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.util import (get_manifest_digests, get_config_from_registry, Dockercfg,
                                  get_all_manifests)
+from atomic_reactor.utils import retries
 from osbs.utils import ImageName
 import osbs.utils
 from osbs.constants import RAND_DIGITS
@@ -104,9 +105,8 @@ class TagAndPushPlugin(PostBuildPlugin):
 
         cmd += [source_img, dest_img]
 
-        self.log.info("Calling: %s", ' '.join(cmd))
         try:
-            subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+            retries.run_cmd(cmd)
         except subprocess.CalledProcessError as e:
             self.log.error("push failed with output:\n%s", e.output)
             raise

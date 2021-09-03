@@ -24,6 +24,7 @@ from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
                                                        WORKSPACE_CONF_KEY,
                                                        ReactorConfig)
 from atomic_reactor.util import ManifestDigest, get_exported_image_metadata
+from atomic_reactor.utils import retries
 from tests.constants import (LOCALHOST_REGISTRY, TEST_IMAGE, TEST_IMAGE_NAME, INPUT_IMAGE, MOCK,
                              DOCKER0_REGISTRY, MOCK_SOURCE)
 from tests.stubs import StubInsideBuilder
@@ -494,9 +495,9 @@ def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, user_params,
     metadata['ref_name'] = REF_NAME
     workflow.exported_image_sequence.append(metadata)
 
-    # Mock the subprocess call to skopeo
+    # Mock the call to skopeo
 
-    def check_check_output(args, **kwargs):
+    def check_run_skopeo(args):
         if fail_push:
             raise subprocess.CalledProcessError(returncode=1, cmd=args, output="Failed")
         assert args[0] == 'skopeo'
@@ -513,10 +514,10 @@ def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, user_params,
             assert args[-1] == 'docker://' + LOCALHOST_REGISTRY + '/' + TEST_IMAGE_NAME
         return ''
 
-    (flexmock(subprocess)
-     .should_receive("check_output")
+    (flexmock(retries)
+     .should_receive("run_cmd")
      .once()
-     .replace_with(check_check_output))
+     .replace_with(check_run_skopeo))
 
     # Mock out the response from the registry once the OCI image is uploaded
 
