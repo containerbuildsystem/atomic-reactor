@@ -15,9 +15,10 @@ import pytest
 import re
 import subprocess
 import tarfile
+import time
 from textwrap import dedent
 
-from atomic_reactor.constants import IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR
+from atomic_reactor.constants import IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR, SUBPROCESS_MAX_RETRIES
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PrePublishPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
@@ -554,6 +555,8 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, user_params,
     elif breakage == 'copy_error':
         workflow.storage_transport = 'idontexist'
         expected_exception = 'CalledProcessError'
+        # mock the time.sleep() call between skopeo retries, otherwise test would take too long
+        flexmock(time).should_receive('sleep').times(SUBPROCESS_MAX_RETRIES)
     else:
         assert breakage is None
         expected_exception = None

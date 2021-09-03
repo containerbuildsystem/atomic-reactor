@@ -24,6 +24,7 @@ from atomic_reactor.plugins.build_source_container import SourceContainerPlugin
 from atomic_reactor.plugins.pre_reactor_config import (
     ReactorConfigPlugin,
 )
+from atomic_reactor.utils import retries
 from tests.docker_mock import mock_docker
 from tests.constants import MOCK_SOURCE
 
@@ -139,52 +140,58 @@ def test_running_build(tmpdir, caplog, user_params,
     temp_bsi_dir = os.path.join(str(tmpdir), 'SrcImg')
     os.mkdir(temp_bsi_dir)
 
+    def check_run_skopeo(args):
+        """Mocked call to skopeo"""
+        assert args[0] == 'skopeo'
+        assert args[1] == 'copy'
+        assert args[2] == 'oci:%s' % temp_image_output_dir
+        assert args[3] == 'docker-archive:%s' % os.path.join(temp_image_export_dir,
+                                                             EXPORTED_SQUASHED_IMAGE_NAME)
+
+        if export_failed:
+            raise subprocess.CalledProcessError(returncode=1, cmd=args, output="Failed")
+
+        return ''
+
     def check_check_output(args, **kwargs):
-        if args[0] == 'skopeo':
-            assert args[0] == 'skopeo'
-            assert args[1] == 'copy'
-            assert args[2] == 'oci:%s' % temp_image_output_dir
-            assert args[3] == 'docker-archive:%s' % os.path.join(temp_image_export_dir,
-                                                                 EXPORTED_SQUASHED_IMAGE_NAME)
+        """Mocked check_output call for bsi"""
+        args_expect = ['bsi', '-d']
+        drivers = set()
+        if sources_dir and sources_dir_exists:
+            drivers.add('sourcedriver_rpm_dir')
+        if remote_dir and remote_dir_exists:
+            drivers.add('sourcedriver_extra_src_dir')
+        if maven_dir and maven_dir_exists:
+            drivers.add('sourcedriver_extra_src_dir')
+        args_expect.append(','.join(drivers))
 
-            if export_failed:
-                raise subprocess.CalledProcessError(returncode=1, cmd=args, output="Failed")
+        if sources_dir and sources_dir_exists:
+            args_expect.append('-s')
+            args_expect.append(sources_dir_path)
+        if remote_dir and remote_dir_exists:
+            for count in range(len(os.listdir(os.path.join(tmpdir, remote_dir)))):
+                args_expect.append('-e')
+                args_expect.append(os.path.join(remote_dir_path, f"remote_source_{count}"))
+        if maven_dir and maven_dir_exists:
+            for maven_subdir in os.listdir(os.path.join(tmpdir, maven_dir)):
+                args_expect.append('-e')
+                args_expect.append(os.path.join(tmpdir, maven_dir, maven_subdir))
+        args_expect.append('-o')
+        args_expect.append(temp_image_output_dir)
 
-            return ''
-        else:
-            args_expect = ['bsi', '-d']
-            drivers = set()
-            if sources_dir and sources_dir_exists:
-                drivers.add('sourcedriver_rpm_dir')
-            if remote_dir and remote_dir_exists:
-                drivers.add('sourcedriver_extra_src_dir')
-            if maven_dir and maven_dir_exists:
-                drivers.add('sourcedriver_extra_src_dir')
-            args_expect.append(','.join(drivers))
+        assert args == args_expect
+        return 'stub stdout'
 
-            if sources_dir and sources_dir_exists:
-                args_expect.append('-s')
-                args_expect.append(sources_dir_path)
-            if remote_dir and remote_dir_exists:
-                for count in range(len(os.listdir(os.path.join(tmpdir, remote_dir)))):
-                    args_expect.append('-e')
-                    args_expect.append(os.path.join(remote_dir_path, f"remote_source_{count}"))
-            if maven_dir and maven_dir_exists:
-                for maven_subdir in os.listdir(os.path.join(tmpdir, maven_dir)):
-                    args_expect.append('-e')
-                    args_expect.append(os.path.join(tmpdir, maven_dir, maven_subdir))
-            args_expect.append('-o')
-            args_expect.append(temp_image_output_dir)
+    any_sources = any([sources_dir_exists, remote_dir_exists, maven_dir_exists])
 
-            assert args == args_expect
-            return 'stub stdout'
+    (flexmock(retries)
+     .should_receive("run_cmd")
+     .times(1 if any_sources else 0)
+     .replace_with(check_run_skopeo))
 
-    check_output_times = 2
-    if not any([sources_dir_exists, remote_dir_exists, maven_dir_exists]):
-        check_output_times = 0
     (flexmock(subprocess)
      .should_receive("check_output")
-     .times(check_output_times)
+     .times(1 if any_sources else 0)
      .replace_with(check_check_output))
 
     blob_sha = "f568c411849e21aa3917973f1c5b120f6b52fe69b1944dfb977bc11bed6fbb6d"
