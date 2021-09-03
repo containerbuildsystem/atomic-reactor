@@ -23,13 +23,10 @@ from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.util import get_checksums, DockerfileImages
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.plugins.pre_pull_base_image import PullBaseImagePlugin
-from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY,
-                                                       ReactorConfig)
 from osbs.utils import ImageName
 from io import BytesIO
 from requests.exceptions import HTTPError, RetryError, Timeout
-from tests.constants import (MOCK, MOCK_SOURCE, LOCALHOST_REGISTRY,
+from tests.constants import (MOCK, LOCALHOST_REGISTRY,
                              IMAGE_RAISE_RETRYGENERATOREXCEPTION)
 
 
@@ -65,7 +62,6 @@ class MockBuilder(object):
 
     def __init__(self):
         self.parent_images_digests = {}
-        self.dockerfile_images = DockerfileImages([])
 
 
 @pytest.fixture(autouse=True)
@@ -104,14 +100,14 @@ def test_pull_base_image_special(add_another_parent, special_image, change_base,
         'args': {'platforms': ['x86_64']},
     }]
     workflow = DockerBuildWorkflow(
-        source=MOCK_SOURCE,
+        source=None,
         buildstep_plugins=buildstep_plugin,
     )
-    builder = workflow.builder = MockBuilder()
+    workflow.builder = MockBuilder()
     dockerfile_images = [special_image]
     if add_another_parent:
         dockerfile_images.insert(0, BASE_IMAGE_W_REGISTRY_SHA)
-    builder.dockerfile_images = DockerfileImages(dockerfile_images)
+    workflow.dockerfile_images = DockerfileImages(dockerfile_images)
 
     expected = []
     if special_image == SCRATCH_FROM:
@@ -128,12 +124,9 @@ def test_pull_base_image_special(add_another_parent, special_image, change_base,
     for image in expected:
         assert not tasker.image_exists(image)
 
-    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-        ReactorConfig({'version': 1,
-                       'source_registry': {'url': LOCALHOST_REGISTRY,
-                                           'insecure': True},
-                       'registries_organization': None})
+    rcm = {'version': 1, 'source_registry': {'url': LOCALHOST_REGISTRY, 'insecure': True},
+           'registries_organization': None}
+    workflow.conf.conf = rcm
 
     runner = PreBuildPluginsRunner(
         tasker,
@@ -145,7 +138,7 @@ def test_pull_base_image_special(add_another_parent, special_image, change_base,
     )
 
     runner.run()
-    dockerfile_images = workflow.builder.dockerfile_images
+    dockerfile_images = workflow.dockerfile_images
     if change_base:
         assert dockerfile_images.base_image.to_str().startswith(UNIQUE_ID)
     else:
@@ -224,10 +217,10 @@ def test_pull_base_image_plugin(user_params, parent_registry, df_base, expected,
         'args': {'platforms': ['x86_64']},
     }]
     workflow = DockerBuildWorkflow(
-        source=MOCK_SOURCE,
+        source=None,
         buildstep_plugins=buildstep_plugin,
     )
-    builder = workflow.builder = MockBuilder()
+    workflow.builder = MockBuilder()
 
     if parent_images:
         dockerfile_images = parent_images
@@ -236,7 +229,7 @@ def test_pull_base_image_plugin(user_params, parent_registry, df_base, expected,
         if add_base.registry is None:
             add_base.registry = parent_registry
         dockerfile_images = [add_base.to_str()]
-    builder.dockerfile_images = DockerfileImages(dockerfile_images)
+    workflow.dockerfile_images = DockerfileImages(dockerfile_images)
 
     expected = set(expected)
     if parent_images:
@@ -249,15 +242,14 @@ def test_pull_base_image_plugin(user_params, parent_registry, df_base, expected,
     for image in all_images:
         assert not tasker.image_exists(image)
 
-    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
     reactor_config = {'version': 1,
                       'source_registry': {'url': parent_registry,
                                           'insecure': True},
                       'registries_organization': organization}
     if pull_registries:
         reactor_config['pull_registries'] = pull_registries
-    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-        ReactorConfig(reactor_config)
+
+    workflow.conf.conf = reactor_config
 
     if workflow_callback:
         workflow = workflow_callback(workflow)
@@ -280,8 +272,8 @@ def test_pull_base_image_plugin(user_params, parent_registry, df_base, expected,
         return
 
     runner.run()
-    if not inspect_only and not workflow.builder.dockerfile_images.base_from_scratch:
-        assert workflow.builder.dockerfile_images.base_image.to_str().startswith(UNIQUE_ID + ":")
+    if not inspect_only and not workflow.dockerfile_images.base_from_scratch:
+        assert workflow.dockerfile_images.base_image.to_str().startswith(UNIQUE_ID + ":")
 
     for image in expected:
         if inspect_only:
@@ -297,7 +289,7 @@ def test_pull_base_image_plugin(user_params, parent_registry, df_base, expected,
     for image in workflow.pulled_base_images:
         assert tasker.image_exists(image)
 
-    dockerfile_images = workflow.builder.dockerfile_images
+    dockerfile_images = workflow.dockerfile_images
     for df, tagged in dockerfile_images.items():
         assert tagged is not None, "Did not tag parent image " + str(df)
     # tags should all be unique
@@ -499,7 +491,7 @@ def test_retry_pull_base_image(workflow, exc, failures, should_succeed):
     workflow.builder = MockBuilder()
     source_registry = 'registry.example.com'
     base_image = '/'.join([source_registry, 'parent-image'])
-    workflow.builder.dockerfile_images = DockerfileImages([base_image])
+    workflow.dockerfile_images = DockerfileImages([base_image])
 
     class MockResponse(object):
         content = ''
@@ -510,11 +502,8 @@ def test_retry_pull_base_image(workflow, exc, failures, should_succeed):
 
     expectation.and_return('foo')
 
-    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-        ReactorConfig({'version': 1,
-                       'source_registry': {'url': source_registry,
-                                           'insecure': True}})
+    workflow.conf.conf = {'version': 1, 'source_registry': {'url': source_registry,
+                                                            'insecure': True}}
 
     runner = PreBuildPluginsRunner(
         tasker,
@@ -541,12 +530,9 @@ def test_pull_raises_retry_error(workflow, caplog):
     image_name = ImageName.parse(IMAGE_RAISE_RETRYGENERATOREXCEPTION)
     base_image_str = "{}/{}:{}".format(SOURCE_REGISTRY, image_name.repo, 'some')
     source_registry = image_name.registry
-    workflow.builder.dockerfile_images = DockerfileImages([base_image_str])
-    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-        ReactorConfig({'version': 1,
-                       'source_registry': {'url': source_registry,
-                                           'insecure': True}})
+    workflow.dockerfile_images = DockerfileImages([base_image_str])
+    workflow.conf.conf = {'version': 1, 'source_registry': {'url': source_registry,
+                                                            'insecure': True}}
 
     runner = PreBuildPluginsRunner(
         tasker,
@@ -644,20 +630,6 @@ class TestValidateBaseImage(object):
                                             workflow_callback=workflow_callback,
                                             check_platforms=True)
             assert no_manifest_msg in str(exc.value)
-
-    def test_platform_descriptors_undefined(self, caplog, user_params):
-        def workflow_callback(workflow):
-            workflow = self.prepare(workflow, mock_get_manifest_list=True)
-            reactor_config = workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY]
-            del reactor_config.conf['platform_descriptors']
-            return workflow
-
-        log_message = 'platform descriptors are not defined'
-        test_pull_base_image_plugin(user_params, SOURCE_REGISTRY, BASE_IMAGE,
-                                    [], [], inspect_only=False,
-                                    workflow_callback=workflow_callback,
-                                    check_platforms=True)
-        assert log_message in caplog.text
 
     def test_manifest_list_with_no_response(self, user_params):
         def workflow_callback(workflow):
@@ -959,12 +931,10 @@ class TestValidateBaseImage(object):
         workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = {'x86_64', 'ppc64le'}
 
         # Setup platform descriptors
-        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            ReactorConfig({
-                'version': 1,
-                'source_registry': {'url': SOURCE_REGISTRY, 'insecure': True},
-                'platform_descriptors': [{'platform': 'x86_64', 'architecture': 'amd64'}],
-            })
+        workflow.conf.conf = {'version': 1,
+                              'source_registry': {'url': SOURCE_REGISTRY, 'insecure': True},
+                              'platform_descriptors': [{'platform': 'x86_64',
+                                                        'architecture': 'amd64'}]}
 
         if mock_get_manifest_list:
             # Setup multi-arch manifest list

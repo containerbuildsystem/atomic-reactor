@@ -17,8 +17,8 @@ from atomic_reactor.constants import (IMAGE_BUILD_INFO_DIR, INSPECT_ROOTFS,
                                       INSPECT_ROOTFS_LAYERS,
                                       PLUGIN_ADD_IMAGE_CONTENT_MANIFEST,
                                       PLUGIN_FETCH_MAVEN_KEY)
+from atomic_reactor.config import get_cachito_session
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.plugins.pre_reactor_config import get_cachito, get_cachito_session, get_pnc
 from atomic_reactor.util import (base_image_is_scratch, df_parser, read_yaml,
                                  read_content_sets
                                  )
@@ -102,7 +102,7 @@ class AddImageContentManifestPlugin(PreBuildPlugin):
         super(AddImageContentManifestPlugin, self).__init__(tasker, workflow)
         self.content_manifests_dir = os.path.join(destdir, 'content_manifests')
         self.remote_sources = remote_sources
-        self.dfp = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
+        self.dfp = df_parser(self.workflow.df_path, workflow=self.workflow)
         labels = Labels(self.dfp.labels)
         _, image_name = labels.get_name_and_value(Labels.LABEL_TYPE_COMPONENT)
         _, image_version = labels.get_name_and_value(Labels.LABEL_TYPE_VERSION)
@@ -182,8 +182,7 @@ class AddImageContentManifestPlugin(PreBuildPlugin):
         self.log.debug('Output ICM metadata: %s', self.icm['metadata'])
 
     def _write_json_file(self):
-        out_file_path = os.path.join(self.workflow.builder.df_dir,
-                                     self.icm_file_name)
+        out_file_path = os.path.join(self.workflow.df_dir, self.icm_file_name)
         if os.path.exists(out_file_path):
             raise RuntimeError('File {} already exists in repo'.format(out_file_path))
         with open(out_file_path, 'w') as outfile:
@@ -207,11 +206,6 @@ class AddImageContentManifestPlugin(PreBuildPlugin):
         """
         run the plugin
         """
-        try:
-            get_cachito(self.workflow)
-        except KeyError:
-            self.log.info('Aborting plugin execution: missing Cachito configuration')
-            return
         self._populate_content_sets()
         self._update_icm_data()
         self._write_json_file()
@@ -220,16 +214,17 @@ class AddImageContentManifestPlugin(PreBuildPlugin):
 
     @property
     def cachito_session(self):
+        if not self.workflow.conf.cachito:
+            raise RuntimeError('No Cachito configuration defined')
         if not self._cachito_session:
-            self._cachito_session = get_cachito_session(self.workflow)
+            self._cachito_session = get_cachito_session(self.workflow.conf)
         return self._cachito_session
 
     @property
     def pnc_util(self):
         if not self._pnc_util:
-            try:
-                pnc_map = get_pnc(self.workflow)
-            except KeyError:
-                raise RuntimeError('No PNC configuration found in reactor config map') from KeyError
+            pnc_map = self.workflow.conf.pnc
+            if not pnc_map:
+                raise RuntimeError('No PNC configuration found in reactor config map')
             self._pnc_util = PNCUtil(pnc_map)
         return self._pnc_util

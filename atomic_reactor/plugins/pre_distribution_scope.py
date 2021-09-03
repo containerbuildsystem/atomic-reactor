@@ -84,13 +84,13 @@ class DistributionScopePlugin(PreBuildPlugin):
     def run(self):
         try:
             # Find out the intended scope for this image
-            labels = df_parser(self.workflow.builder.df_path, workflow=self.workflow).labels
+            labels = df_parser(self.workflow.df_path, workflow=self.workflow).labels
             scope = self.get_scope('current', labels)
 
             # Find out the parent's intended scope
             inspect = self.workflow.builder.base_image_inspect
             parent_labels = {}
-            if not self.workflow.builder.dockerfile_images.base_from_scratch:
+            if not self.workflow.dockerfile_images.base_from_scratch:
                 parent_labels = inspect[INSPECT_CONFIG]['Labels']
             parent_scope = self.get_scope('parent', parent_labels)
         except NothingToCheck:

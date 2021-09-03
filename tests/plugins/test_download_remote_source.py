@@ -14,15 +14,13 @@ import json
 import os
 import responses
 import tarfile
+import yaml
+from flexmock import flexmock
 
-from atomic_reactor import util
 from atomic_reactor.constants import REMOTE_SOURCE_DIR, CACHITO_ENV_FILENAME, CACHITO_ENV_ARG_ALIAS
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.source import SourceConfig
-from atomic_reactor.plugins.pre_reactor_config import (
-    ReactorConfigPlugin, WORKSPACE_CONF_KEY, ReactorConfig)
 from atomic_reactor.utils.cachito import CFG_TYPE_B64
-from tests.stubs import StubInsideBuilder
 from atomic_reactor.plugins.pre_download_remote_source import (
     DownloadRemoteSourcePlugin,
 )
@@ -56,9 +54,8 @@ def mock_reactor_config(workflow, insecure=False):
                ssl_certs_dir: /some/dir
         """.format(insecure))
 
-    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-    config = util.read_yaml(data, 'schemas/config.json')
-    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] = ReactorConfig(config)
+    config = yaml.safe_load(data)
+    workflow.conf.conf = config
 
 
 def mock_repo_config(workflow, tmpdir, multiple_remote_sources=False):
@@ -127,12 +124,11 @@ class TestDownloadRemoteSource(object):
         env_variables, multiple_remote_sources
     ):
         remote_sources_copy = deepcopy(remote_sources)
-        workflow = DockerBuildWorkflow(
-            source={"provider": "git", "uri": "asd"},
-        )
+        workflow = DockerBuildWorkflow(source=None)
         df_path = os.path.join(str(tmpdir), 'stub_df_path')
         mock_repo_config(workflow, df_path, multiple_remote_sources=multiple_remote_sources)
-        workflow.builder = StubInsideBuilder().for_workflow(workflow).set_df_path(df_path)
+        workflow.df_dir = str(tmpdir)
+        flexmock(workflow, df_path=df_path)
         mock_reactor_config(workflow, insecure=insecure)
         config_url = 'https://example.com/dir/configurations'
         config_data = []
@@ -181,10 +177,10 @@ class TestDownloadRemoteSource(object):
         if archive_dir_exists:
             for remote in remote_sources_copy:
                 if multiple_remote_sources:
-                    dest_dir = os.path.join(workflow.builder.df_dir, plugin.REMOTE_SOURCE,
+                    dest_dir = os.path.join(workflow.df_dir, plugin.REMOTE_SOURCE,
                                             remote['name'])
                 else:
-                    dest_dir = os.path.join(workflow.builder.df_dir, plugin.REMOTE_SOURCE)
+                    dest_dir = os.path.join(workflow.df_dir, plugin.REMOTE_SOURCE)
                 os.makedirs(dest_dir)
 
             with pytest.raises(RuntimeError):
@@ -204,11 +200,11 @@ class TestDownloadRemoteSource(object):
 
             # Test content of cachito.env file
             if multiple_remote_sources:
-                cachito_env_path = os.path.join(plugin.workflow.builder.df_dir,
+                cachito_env_path = os.path.join(plugin.workflow.df_dir,
                                                 plugin.REMOTE_SOURCE, remote['name'],
                                                 CACHITO_ENV_FILENAME)
             else:
-                cachito_env_path = os.path.join(plugin.workflow.builder.df_dir,
+                cachito_env_path = os.path.join(plugin.workflow.df_dir,
                                                 plugin.REMOTE_SOURCE,
                                                 CACHITO_ENV_FILENAME)
 
@@ -225,10 +221,10 @@ class TestDownloadRemoteSource(object):
             assert filecontent == contents[index].getvalue()
 
             if multiple_remote_sources:
-                remote_file_path = os.path.join(workflow.builder.df_dir,
+                remote_file_path = os.path.join(workflow.df_dir,
                                                 plugin.REMOTE_SOURCE, remote['name'], member)
             else:
-                remote_file_path = os.path.join(workflow.builder.df_dir,
+                remote_file_path = os.path.join(workflow.df_dir,
                                                 plugin.REMOTE_SOURCE, member)
 
             # Expect a file 'abc#N' in the workdir
@@ -238,10 +234,10 @@ class TestDownloadRemoteSource(object):
 
             if has_configuration:
                 if multiple_remote_sources:
-                    injected_cfg = os.path.join(workflow.builder.df_dir, plugin.REMOTE_SOURCE,
+                    injected_cfg = os.path.join(workflow.df_dir, plugin.REMOTE_SOURCE,
                                                 remote['name'], config_path)
                 else:
-                    injected_cfg = os.path.join(workflow.builder.df_dir, plugin.REMOTE_SOURCE,
+                    injected_cfg = os.path.join(workflow.df_dir, plugin.REMOTE_SOURCE,
                                                 config_path)
 
                 with open(injected_cfg, 'rb') as f:
@@ -250,17 +246,16 @@ class TestDownloadRemoteSource(object):
 
         # Expect buildargs to have been set
         if multiple_remote_sources:
-            assert set(workflow.builder.buildargs.keys()) == {'REMOTE_SOURCES',
-                                                              'REMOTE_SOURCES_DIR'}
-            assert workflow.builder.buildargs['REMOTE_SOURCES'] == plugin.REMOTE_SOURCE
-            assert workflow.builder.buildargs['REMOTE_SOURCES_DIR'] == REMOTE_SOURCE_DIR
+            assert set(workflow.buildargs.keys()) == {'REMOTE_SOURCES', 'REMOTE_SOURCES_DIR'}
+            assert workflow.buildargs['REMOTE_SOURCES'] == plugin.REMOTE_SOURCE
+            assert workflow.buildargs['REMOTE_SOURCES_DIR'] == REMOTE_SOURCE_DIR
         else:
             for arg, value in remote_sources_copy[0]['build_args'].items():
-                assert workflow.builder.buildargs[arg] == value
+                assert workflow.buildargs[arg] == value
             # along with the args needed to add the sources in the Dockerfile
-            assert workflow.builder.buildargs['REMOTE_SOURCE'] == plugin.REMOTE_SOURCE
-            assert workflow.builder.buildargs['REMOTE_SOURCE_DIR'] == REMOTE_SOURCE_DIR
+            assert workflow.buildargs['REMOTE_SOURCE'] == plugin.REMOTE_SOURCE
+            assert workflow.buildargs['REMOTE_SOURCE_DIR'] == REMOTE_SOURCE_DIR
             env_file_path = os.path.join(REMOTE_SOURCE_DIR, CACHITO_ENV_FILENAME)
-            assert workflow.builder.buildargs[CACHITO_ENV_ARG_ALIAS] == env_file_path
+            assert workflow.buildargs[CACHITO_ENV_ARG_ALIAS] == env_file_path
             # https://github.com/openshift/imagebuilder/issues/139
-            assert not workflow.builder.buildargs['REMOTE_SOURCE'].startswith('/')
+            assert not workflow.buildargs['REMOTE_SOURCE'].startswith('/')

@@ -8,6 +8,7 @@ of the BSD license. See the LICENSE file for details.
 """
 import os
 from textwrap import dedent
+from flexmock import flexmock
 
 import pytest
 
@@ -15,12 +16,10 @@ from atomic_reactor.constants import INSPECT_CONFIG
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
-from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin, ReactorConfig,
-                                                       WORKSPACE_CONF_KEY)
 from atomic_reactor.plugins.pre_hide_files import HideFilesPlugin
 from atomic_reactor.util import df_parser
 
-from tests.constants import SOURCE, MOCK
+from tests.constants import MOCK
 from tests.stubs import StubInsideBuilder
 
 
@@ -251,11 +250,12 @@ class TestHideFilesPlugin(object):
         if MOCK:
             mock_docker()
         tasker = DockerTasker()
-        workflow = DockerBuildWorkflow(source=SOURCE)
+        workflow = DockerBuildWorkflow(source=None)
         workflow.source = MockSource(df_path)
         workflow.builder = (StubInsideBuilder()
                             .for_workflow(workflow)
                             .set_df_path(df_path))
+        flexmock(workflow, df_path=df_path)
 
         for parent in parent_images or []:
             workflow.builder.set_parent_inspection_data(parent, {
@@ -265,13 +265,8 @@ class TestHideFilesPlugin(object):
             })
 
         if hide_files is not None:
-            reactor_config = ReactorConfig({
-                'version': 1,
-                'hide_files': hide_files
-            })
-            workflow.plugin_workspace[ReactorConfigPlugin.key] = {
-                WORKSPACE_CONF_KEY: reactor_config
-            }
+            reactor_config = {'version': 1, 'hide_files': hide_files}
+            workflow.conf.conf = reactor_config
 
         return tasker, workflow
 

@@ -25,7 +25,6 @@ from osbs.utils.yaml import (
     load_schema,
     validate_with_schema,
 )
-from atomic_reactor.plugins.pre_reactor_config import get_operator_manifests
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
 from atomic_reactor.utils.operator import OperatorManifest
 from atomic_reactor.utils.retries import get_retrying_requests_session
@@ -73,7 +72,7 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
         self.replacement_pullspecs = replacement_pullspecs or {}
         self.operator_csv_modifications_url = operator_csv_modifications_url
 
-        site_config = get_operator_manifests(self.workflow, fallback={})
+        site_config = self.workflow.conf.operator_manifests
         self.operator_csv_modification_allowed_attributes = set(
             tuple(key_path)
             for key_path in (
@@ -205,7 +204,7 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
         if not has_operator_bundle_manifest(self.workflow):
             self.log.info("Not an operator manifest bundle build, skipping plugin")
             return False
-        if get_operator_manifests(self.workflow, fallback=None) is None:
+        if not self.workflow.conf.operator_manifests:
             msg = "operator_manifests configuration missing in reactor config map, aborting"
             self.log.warning(msg)
             return False
@@ -320,10 +319,10 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
         if not skip_all:
             return False
 
-        site_config = get_operator_manifests(self.workflow)
+        site_config = self.workflow.conf.operator_manifests
         allowed_packages = site_config.get("skip_all_allow_list", [])
 
-        parser = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
+        parser = df_parser(self.workflow.df_path, workflow=self.workflow)
         dockerfile_labels = parser.labels
         labels = Labels(dockerfile_labels)
 
@@ -582,7 +581,7 @@ class PullspecReplacer(object):
         self.log = logging.getLogger(log_name)
 
         self.workflow = workflow
-        site_config = get_operator_manifests(workflow)
+        site_config = self.workflow.conf.operator_manifests
 
         self.allowed_registries = site_config["allowed_registries"]
         if self.allowed_registries is not None:

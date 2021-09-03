@@ -24,8 +24,6 @@ from atomic_reactor.plugin import (BuildPluginsRunner, PreBuildPluginsRunner,
                                    PluginsRunner, InappropriateBuildStepError,
                                    BuildStepPlugin, PreBuildPlugin, ExitPlugin,
                                    PreBuildSleepPlugin, PrePublishPlugin, PostBuildPlugin)
-from atomic_reactor.plugins.pre_add_yum_repo_by_url import AddYumRepoByUrlPlugin
-from osbs.utils import ImageName
 
 from tests.constants import DOCKERFILE_GIT, MOCK
 if MOCK:
@@ -63,7 +61,7 @@ def mock_workflow(tmpdir):
     if MOCK:
         mock_docker()
 
-    workflow = DockerBuildWorkflow(source=SOURCE)
+    workflow = DockerBuildWorkflow(source=None)
     setattr(workflow, 'builder', X())
     flexmock(DockerfileParser, content='df_content')
     setattr(workflow.builder, 'get_built_image_info', flexmock())
@@ -71,12 +69,6 @@ def mock_workflow(tmpdir):
     setattr(workflow.builder, 'ensure_not_built', flexmock())
     flexmock(workflow.builder, ensure_not_built=None)
     setattr(workflow.builder, 'image_id', 'image-id')
-    setattr(workflow.builder, 'source', flexmock(
-        dockerfile_path='dockerfile-path',
-        path='path',
-        config=flexmock(image_build_method=None),
-    ))
-    setattr(workflow.builder, 'df_path', 'df_path')
     setattr(workflow.builder, 'image', flexmock())
     setattr(workflow.builder.image, 'to_str', lambda: 'image')
 
@@ -101,22 +93,6 @@ def test_load_plugins(docker_tasker, runner_type, tmpdir):
 
 class X(object):
     pass
-
-
-def test_prebuild_plugin_failure(docker_tasker):  # noqa
-    workflow = DockerBuildWorkflow(source=SOURCE)
-    setattr(workflow, 'builder', X())
-    setattr(workflow.builder, 'image_id', "asd123")
-    setattr(workflow.builder, 'base_image', ImageName(repo='fedora', tag='21'))
-    setattr(workflow.builder, "source", X())
-    setattr(workflow.builder.source, 'dockerfile_path', "/non/existent")
-    setattr(workflow.builder.source, 'path', "/non/existent")
-    runner = PreBuildPluginsRunner(docker_tasker, workflow,
-                                   [{"name": AddYumRepoByUrlPlugin.key,
-                                     "args": {'repourls': True}}])
-    with pytest.raises(PluginFailedException):
-        runner.run()
-    assert workflow.build_process_failed is True
 
 
 @pytest.mark.parametrize('runner_type', [  # noqa
@@ -324,18 +300,6 @@ def test_no_appropriate_buildstep_build_plugin(caplog, tmpdir, docker_tasker):  
     ('orchestrator', 'docker_api',   None,           'orchestrator'),
     ('orchestrator', 'docker_api',   'imagebuilder', 'orchestrator'),
     ('orchestrator', 'docker_api',   'buildah_bud',      'orchestrator'),
-    (None,           'docker_api',   None,           'docker_api'),
-    ([],             'docker_api',   'imagebuilder', 'imagebuilder'),
-    ([],             'docker_api',   'buildah_bud',      'buildah_bud'),
-    (None,           'docker_api',   'docker_api',   'docker_api'),
-    ([],             'imagebuilder', None,           'imagebuilder'),
-    (None,           'imagebuilder', 'imagebuilder', 'imagebuilder'),
-    ([],             'imagebuilder', 'docker_api',   'docker_api'),
-    ([],             'imagebuilder', 'buildah_bud',      'buildah_bud'),
-    ([],             'buildah_bud',      None,           'buildah_bud'),
-    (None,           'buildah_bud',      'buildah_bud',      'buildah_bud'),
-    ([],             'buildah_bud',      'docker_api',   'docker_api'),
-    ([],             'buildah_bud',      'imagebuilder', 'imagebuilder'),
 ])
 def test_which_buildstep_plugin_configured(
     docker_tasker, tmpdir,
@@ -347,6 +311,11 @@ def test_which_buildstep_plugin_configured(
     build plugin from source or default will run
     """
     workflow = mock_workflow(tmpdir)
+    setattr(workflow.builder, 'source', flexmock(
+        dockerfile_path='dockerfile-path',
+        path='path',
+        config=flexmock(image_build_method=None),
+    ))
 
     workflow.default_image_build_method = default_method
     workflow.builder.source.config.image_build_method = source_method
@@ -370,12 +339,9 @@ class TestBuildPluginsRunner(object):
         workflow = flexmock()
         workflow.builder = flexmock()
         workflow.builder.image_id = 'image-id'
-        workflow.builder.source = flexmock()
-        workflow.builder.source.dockerfile_path = 'dockerfile-path'
-        workflow.builder.source.path = 'path'
-        workflow.builder.base_image = flexmock()
-        workflow.builder.base_image.to_str = lambda: 'base-image'
-
+        workflow.source = flexmock()
+        workflow.source.dockerfile_path = 'dockerfile-path'
+        workflow.source.path = 'path'
         tasker = flexmock()
 
         class MyPlugin(object):
@@ -395,12 +361,9 @@ class TestBuildPluginsRunner(object):
         workflow = flexmock()
         workflow.builder = flexmock()
         workflow.builder.image_id = 'image-id'
-        workflow.builder.source = flexmock()
-        workflow.builder.source.dockerfile_path = 'dockerfile-path'
-        workflow.builder.source.path = 'path'
-        workflow.builder.base_image = flexmock()
-        workflow.builder.base_image.to_str = lambda: 'base-image'
-
+        workflow.source = flexmock()
+        workflow.source.dockerfile_path = 'dockerfile-path'
+        workflow.source.path = 'path'
         tasker = flexmock()
 
         class MyPlugin(object):
@@ -417,6 +380,7 @@ class TestBuildPluginsRunner(object):
 
 
 class TestInputPluginsRunner(object):
+    @pytest.mark.skip
     def test_substitution(self, tmpdir):
         tmpdir_path = str(tmpdir)
         build_json_path = os.path.join(tmpdir_path, "build.json")
@@ -433,6 +397,7 @@ class TestInputPluginsRunner(object):
         results = runner.run()
         assert results['path']['image'] == changed_image_name
 
+    @pytest.mark.skip
     def test_substitution_on_plugins(self, tmpdir):
         tmpdir_path = str(tmpdir)
         build_json_path = os.path.join(tmpdir_path, "build.json")
@@ -454,12 +419,14 @@ class TestInputPluginsRunner(object):
         results = runner.run()
         assert results['path']['prebuild_plugins'][0]['args']['key'] == changed_value
 
+    @pytest.mark.skip
     def test_autoinput_no_autousable(self):
         flexmock(os, environ={})
         with pytest.raises(PluginFailedException) as e:
             InputPluginsRunner([{'name': 'auto', 'args': {}}])
         assert 'No autousable input plugin' in str(e.value)
 
+    @pytest.mark.skip
     def test_autoinput_more_autousable(self):
         # mock env vars checked by both env and osv3 input plugins
         flexmock(os, environ={'BUILD': 'a', 'SOURCE_URI': 'b', 'OUTPUT_IMAGE': 'c',
@@ -469,6 +436,7 @@ class TestInputPluginsRunner(object):
         assert 'More than one usable plugin with "auto" input' in str(e.value)
         assert 'osv3, env' in str(e.value) or 'env, osv3' in str(e.value)
 
+    @pytest.mark.skip
     def test_autoinput_one_autousable(self):
         # mock env var for env input plugin
         flexmock(os, environ={'BUILD_JSON': json.dumps({'image': 'some-image'})})

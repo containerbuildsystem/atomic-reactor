@@ -17,8 +17,8 @@ when koji build tags change.
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import (get_platforms_in_limits, is_scratch_build, is_isolated_build,
                                  get_orchestrator_platforms)
-from atomic_reactor.plugins.pre_reactor_config import get_config, get_koji_session
 from atomic_reactor.constants import PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
+from atomic_reactor.config import get_koji_session
 
 
 class CheckAndSetPlatformsPlugin(PreBuildPlugin):
@@ -37,14 +37,13 @@ class CheckAndSetPlatformsPlugin(PreBuildPlugin):
         # call parent constructor
         super(CheckAndSetPlatformsPlugin, self).__init__(tasker, workflow)
         self.koji_target = koji_target
-        self.reactor_config = get_config(self.workflow)
 
     def run(self):
         """
         run the plugin
         """
         if self.koji_target:
-            koji_session = get_koji_session(self.workflow)
+            koji_session = get_koji_session(self.workflow.conf)
             self.log.info("Checking koji target for platforms")
             event_id = koji_session.getLastEvent()['id']
             target_info = koji_session.getBuildTarget(self.koji_target, event=event_id)
@@ -78,9 +77,9 @@ class CheckAndSetPlatformsPlugin(PreBuildPlugin):
         enabled_platforms = []
         defined_but_disabled = []
         for p in platforms:
-            if self.reactor_config.get_enabled_clusters_for_platform(p):
+            if self.workflow.conf.get_enabled_clusters_for_platform(p):
                 enabled_platforms.append(p)
-            elif self.reactor_config.cluster_defined_for_platform(p):
+            elif self.workflow.conf.cluster_defined_for_platform(p):
                 defined_but_disabled.append(p)
             else:
                 self.log.warning("No cluster found for platform '%s' in "

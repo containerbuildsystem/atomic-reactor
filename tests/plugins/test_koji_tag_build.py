@@ -11,14 +11,11 @@ import koji
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.plugins.exit_koji_tag_build import KojiTagBuildPlugin
 from atomic_reactor.plugins.exit_koji_import import KojiImportPlugin
-from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY,
-                                                       ReactorConfig)
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
 from atomic_reactor.inner import DockerBuildWorkflow
 from osbs.utils import ImageName
 from atomic_reactor.build import BuildResult
-from tests.constants import SOURCE, MOCK
+from tests.constants import MOCK
 from tests.util import add_koji_map_in_workflow
 
 from flexmock import flexmock
@@ -84,7 +81,7 @@ def mock_environment(tmpdir, session=None, build_process_failed=False,
     if MOCK:
         mock_docker()
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow(source=SOURCE)
+    workflow = DockerBuildWorkflow(source=None)
     setattr(workflow, 'builder', X())
     setattr(workflow.builder, 'image_id', '123456imageid')
     setattr(workflow.builder, 'base_image', ImageName(repo='Fedora', tag='22'))
@@ -120,9 +117,6 @@ def create_runner(tasker, workflow, ssl_certs=False, principal=None,
     if poll_interval is not None:
         args['poll_interval'] = poll_interval
 
-    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-        ReactorConfig({'version': 1})
     add_koji_map_in_workflow(workflow, hub_url='',
                              ssl_certs_dir='/' if ssl_certs else None,
                              krb_keytab=keytab,

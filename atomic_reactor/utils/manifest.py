@@ -8,10 +8,8 @@ of the BSD license. See the LICENSE file for details.
 
 import json
 import requests
-from copy import deepcopy
 
 from atomic_reactor.plugin import PluginFailedException
-from atomic_reactor.plugins.pre_reactor_config import get_registries
 from atomic_reactor.util import (registry_hostname, RegistrySession, ManifestDigest,
                                  get_manifest_media_type)
 from atomic_reactor.constants import (MEDIA_TYPE_DOCKER_V2_SCHEMA2,
@@ -29,7 +27,7 @@ class ManifestUtil(object):
 
     def __init__(self, workflow, registries, log):
         self.push_conf = workflow.push_conf
-        self.registries = get_registries(workflow, deepcopy(registries or {}))
+        self.registries = workflow.conf.registries
         self.worker_registries = {}
         self.log = log
 

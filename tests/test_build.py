@@ -11,18 +11,16 @@ import atomic_reactor.util
 import docker.errors
 from atomic_reactor.build import InsideBuilder, BuildResult
 from atomic_reactor.source import get_source_instance_for
-from atomic_reactor.util import df_parser, DockerfileImages
+from atomic_reactor.util import DockerfileImages, df_parser
 from tests.constants import (
     LOCALHOST_REGISTRY, MOCK, SOURCE,
     DOCKERFILE_OK_PATH, DOCKERFILE_MULTISTAGE_PATH,
     DOCKERFILE_MULTISTAGE_SCRATCH_PATH, DOCKERFILE_MULTISTAGE_CUSTOM_PATH,
-    DOCKERFILE_MULTISTAGE_CUSTOM_BAD_PATH
 )
 from atomic_reactor.constants import CONTAINER_DOCKERPY_BUILD_METHOD
 from osbs.utils import ImageName
 from tests.util import requires_internet
 from flexmock import flexmock
-from textwrap import dedent
 
 if MOCK:
     from tests.docker_mock import mock_docker
@@ -43,19 +41,6 @@ with_all_sources = pytest.mark.parametrize('source_params', [
 ])
 
 default_build_method = CONTAINER_DOCKERPY_BUILD_METHOD
-
-
-@requires_internet
-def test_different_custom_base_images(tmpdir):
-    if MOCK:
-        mock_docker()
-    source_params = {'provider': 'path', 'uri': 'file://' + DOCKERFILE_MULTISTAGE_CUSTOM_BAD_PATH,
-                     'tmpdir': str(tmpdir)}
-    s = get_source_instance_for(source_params)
-    with pytest.raises(NotImplementedError) as exc:
-        InsideBuilder(s, '')
-    message = "multiple different custom base images aren't allowed in Dockerfile"
-    assert message in str(exc.value)
 
 
 @requires_internet
@@ -119,7 +104,11 @@ def test_base_image_inspect(tmpdir, source_params, parents_pulled, insecure, bas
 
     source_params.update({'tmpdir': str(tmpdir)})
     s = get_source_instance_for(source_params)
+    df_path, _ = s.get_build_file_path()
+    dfp = df_parser(df_path)
+
     b = InsideBuilder(s, '')
+    b.dockerfile_images = DockerfileImages(dfp.parent_images)
     b.tasker.build_method = default_build_method
     b.parents_pulled = parents_pulled
     if b.dockerfile_images.base_from_scratch:
@@ -173,94 +162,6 @@ def test_base_image_inspect(tmpdir, source_params, parents_pulled, insecure, bas
 
 @requires_internet
 @with_all_sources
-@pytest.mark.parametrize(('image', 'will_raise'), [
-    (
-        "buildroot-fedora:latest",
-        False,
-    ),
-    (
-        "non-existing",
-        True,
-    ),
-])
-def test_get_base_image_info(tmpdir, source_params, image, will_raise):
-    if DOCKERFILE_MULTISTAGE_CUSTOM_PATH in source_params['uri']:
-        return
-    if MOCK:
-        mock_docker(provided_image_repotags=image)
-
-    source_params.update({'tmpdir': str(tmpdir)})
-    s = get_source_instance_for(source_params)
-    b = InsideBuilder(s, image)
-    b.tasker.build_method = default_build_method
-    if b.dockerfile_images.base_from_scratch:
-        will_raise = False
-
-    if will_raise:
-        with pytest.raises(Exception):
-            b.get_base_image_info()
-    else:
-        built_inspect = b.get_base_image_info()
-        if b.dockerfile_images.base_from_scratch:
-            assert built_inspect is None
-        else:
-            assert built_inspect is not None
-            assert built_inspect["Id"] is not None
-            assert built_inspect["RepoTags"] is not None
-
-
-def test_no_base_image(tmpdir):
-    if MOCK:
-        mock_docker()
-
-    source = {'provider': 'path', 'uri': 'file://' + DOCKERFILE_OK_PATH, 'tmpdir': str(tmpdir)}
-    b = InsideBuilder(get_source_instance_for(source), 'built-img')
-    dfp = df_parser(str(tmpdir))
-    dfp.content = "# no FROM\nADD spam /eggs"
-    with pytest.raises(RuntimeError) as exc:
-        b.set_df_path(str(tmpdir))
-    assert "no base image specified" in str(exc.value)
-
-
-def test_copy_from_is_blocked(tmpdir):
-    """test when user has specified COPY --from=image (instead of builder)"""
-    dfp = df_parser(str(tmpdir))
-    if MOCK:
-        mock_docker()
-    source = {'provider': 'path', 'uri': 'file://' + str(tmpdir), 'tmpdir': str(tmpdir)}
-
-    dfp.content = dedent("""\
-        FROM monty AS vikings
-        FROM python
-        COPY --from=vikings /spam/eggs /bin/eggs
-        COPY --from=0 /spam/eggs /bin/eggs
-        COPY src dest
-    """)
-    # init calls set_df_path, which should not raise an error:
-    InsideBuilder(get_source_instance_for(source), 'built-img')
-
-    dfp.content = dedent("""\
-        FROM monty as vikings
-        FROM python
-        # using a stage name we haven't seen should break:
-        COPY --from=notvikings /spam/eggs /bin/eggs
-    """)
-    with pytest.raises(RuntimeError) as exc_info:
-        InsideBuilder(get_source_instance_for(source), 'built-img')  # calls set_df_path at init
-    assert "FROM notvikings AS source" in str(exc_info.value)
-
-    dfp.content = dedent("""\
-        FROM monty as vikings
-        # using an index we haven't seen should break:
-        COPY --from=5 /spam/eggs /bin/eggs
-    """)
-    with pytest.raises(RuntimeError) as exc_info:
-        InsideBuilder(get_source_instance_for(source), 'built-img')  # calls set_df_path at init
-    assert "COPY --from=5" in str(exc_info.value)
-
-
-@requires_internet
-@with_all_sources
 @pytest.mark.parametrize('is_built', [
     True,
     False,
@@ -282,34 +183,6 @@ def test_ensure_built(tmpdir, source_params, is_built):
         assert b.ensure_not_built() is None
         with pytest.raises(Exception):
             b.ensure_is_built()
-
-
-@requires_internet
-@with_all_sources
-@pytest.mark.parametrize(('image', 'will_raise'), [
-    (
-        "buildroot-fedora:latest",
-        False,
-    ),
-    (
-        "non-existing",
-        True,
-    ),
-])
-def test_get_image_built_info(tmpdir, source_params, image, will_raise):
-    if MOCK:
-        mock_docker(provided_image_repotags=image)
-
-    source_params.update({'tmpdir': str(tmpdir)})
-    s = get_source_instance_for(source_params)
-    b = InsideBuilder(s, image)
-    b.tasker.build_method = default_build_method
-
-    if will_raise:
-        with pytest.raises(Exception):
-            b.get_built_image_info()
-    else:
-        b.get_built_image_info()
 
 
 def test_build_result():
@@ -347,18 +220,3 @@ def test_build_result():
     assert not BuildResult.make_remote_image_result().is_image_available()
 
     assert not BuildResult.make_remote_image_result().is_failed()
-
-
-def test_parent_images_to_str(tmpdir, caplog):
-    if MOCK:
-        mock_docker()
-
-    source = {'provider': 'path', 'uri': 'file://' + DOCKERFILE_OK_PATH, 'tmpdir': str(tmpdir)}
-    b = InsideBuilder(get_source_instance_for(source), 'built-img')
-    b.dockerfile_images = DockerfileImages(['fedora:latest', 'bacon'])
-    b.dockerfile_images['fedora:latest'] = "spam"
-    expected_results = {
-        "fedora:latest": "spam:latest"
-    }
-    assert b.parent_images_to_str() == expected_results
-    assert "None in: base bacon:latest has parent None" in caplog.text

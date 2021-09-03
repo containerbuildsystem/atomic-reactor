@@ -21,14 +21,11 @@ except ImportError:
     pass
 
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
-from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY,
-                                                       ReactorConfig)
 from atomic_reactor.source import VcsInfo, SourceConfig
 from atomic_reactor.util import DockerfileImages
 from osbs.utils import ImageName
 
-from tests.constants import (MOCK_SOURCE, FLATPAK_GIT, FLATPAK_SHA1)
+from tests.constants import FLATPAK_GIT, FLATPAK_SHA1
 from tests.flatpak import MODULEMD_AVAILABLE, build_flatpak_test_configs
 
 
@@ -69,18 +66,16 @@ class MockBuilder(object):
 def mock_workflow(tmpdir, container_yaml, user_params=None):
     if user_params is None:
         user_params = USER_PARAMS
-    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
+    workflow = DockerBuildWorkflow(source=None)
     mock_source = MockSource(tmpdir)
     setattr(workflow, 'builder', MockBuilder())
-    workflow.builder.source = mock_source
     flexmock(workflow, source=mock_source)
     workflow.user_params = user_params
 
     with open(mock_source.container_yaml_path, "w") as f:
         f.write(container_yaml)
-    workflow.builder.source.config = SourceConfig(str(tmpdir))
-
-    setattr(workflow.builder, 'df_dir', str(tmpdir))
+    workflow.source.config = SourceConfig(str(tmpdir))
+    workflow.df_dir = str(tmpdir)
 
     return workflow
 
@@ -127,22 +122,15 @@ def test_flatpak_create_dockerfile(tmpdir, docker_tasker, user_params,
 
     base_image = "registry.fedoraproject.org/fedora:latest"
 
-    args = {
-        'base_image': base_image,
-    }
-
-    workflow.plugin_workspace[ReactorConfigPlugin.key] = {
-        WORKSPACE_CONF_KEY: ReactorConfig({'version': 1,
-                                           'flatpak': {'base_image': base_image},
-                                           'source_registry': {'url': 'source_registry'}})
-    }
+    workflow.conf.conf = {'version': 1, 'flatpak': {'base_image': base_image},
+                          'source_registry': {'url': 'source_registry'}}
 
     runner = PreBuildPluginsRunner(
         docker_tasker,
         workflow,
         [{
             'name': FlatpakCreateDockerfilePlugin.key,
-            'args': args
+            'args': {}
         }]
     )
 
@@ -153,8 +141,8 @@ def test_flatpak_create_dockerfile(tmpdir, docker_tasker, user_params,
     else:
         runner.run()
 
-        assert os.path.exists(workflow.builder.df_path)
-        with open(workflow.builder.df_path) as f:
+        assert os.path.exists(workflow.df_path)
+        with open(workflow.df_path) as f:
             df = f.read()
 
         expect_base_image = override_base_image if override_base_image else base_image
@@ -168,7 +156,7 @@ def test_flatpak_create_dockerfile(tmpdir, docker_tasker, user_params,
         assert source_spec == config['source_spec']
 
 
-def test_skip_plugin(tmpdir, caplog, docker_tasker, reactor_config_map, user_params):
+def test_skip_plugin(tmpdir, caplog, docker_tasker, user_params):
     workflow = mock_workflow(tmpdir, "", user_params={})
 
     base_image = "registry.fedoraproject.org/fedora:latest"
@@ -177,11 +165,7 @@ def test_skip_plugin(tmpdir, caplog, docker_tasker, reactor_config_map, user_par
         'base_image': base_image,
     }
 
-    if reactor_config_map:
-        workflow.plugin_workspace[ReactorConfigPlugin.key] = {
-            WORKSPACE_CONF_KEY: ReactorConfig({'version': 1,
-                                               'flatpak': {'base_image': base_image}})
-        }
+    workflow.conf.conf = {'version': 1, 'flatpak': {'base_image': base_image}}
 
     runner = PreBuildPluginsRunner(
         docker_tasker,

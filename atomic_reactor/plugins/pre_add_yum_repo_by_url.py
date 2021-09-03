@@ -26,7 +26,6 @@ Example configuration to add content of repo file at URL:
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import is_scratch_build
 from atomic_reactor.utils.yum import YumRepo
-from atomic_reactor.plugins.pre_reactor_config import get_yum_repo_allowed_domains
 from urllib.parse import urlparse
 
 
@@ -47,7 +46,7 @@ class AddYumRepoByUrlPlugin(PreBuildPlugin):
         super(AddYumRepoByUrlPlugin, self).__init__(tasker, workflow)
         self.repourls = repourls or []
         self.inject_proxy = inject_proxy
-        self.allowed_domains = get_yum_repo_allowed_domains(self.workflow, [])
+        self.allowed_domains = self.workflow.conf.yum_repo_allowed_domains
 
     def validate_yum_repo_files_url(self):
         if not self.allowed_domains:
@@ -68,8 +67,8 @@ class AddYumRepoByUrlPlugin(PreBuildPlugin):
         """
         run the plugin
         """
-        if (self.workflow.builder.dockerfile_images.base_from_scratch and
-                not self.workflow.builder.dockerfile_images):
+        if (self.workflow.dockerfile_images.base_from_scratch and
+                not self.workflow.dockerfile_images):
             self.log.info("Skipping add yum repo by url: unsupported for FROM-scratch images")
             return
 

@@ -14,7 +14,6 @@ import os
 import subprocess
 
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.plugins.pre_reactor_config import get_sources_command
 from atomic_reactor.constants import PLUGIN_DISTGIT_FETCH_KEY
 
 
@@ -22,7 +21,7 @@ class DistgitFetchArtefactsPlugin(PreBuildPlugin):
     key = PLUGIN_DISTGIT_FETCH_KEY
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, command=None):
+    def __init__(self, tasker, workflow):
         """
         constructor
 
@@ -33,12 +32,16 @@ class DistgitFetchArtefactsPlugin(PreBuildPlugin):
         """
         # call parent constructor
         super(DistgitFetchArtefactsPlugin, self).__init__(tasker, workflow)
-        self.command = get_sources_command(workflow, command)
+        self.command = self.workflow.conf.sources_command
 
     def run(self):
         """
         fetch artefacts
         """
+        if not self.command:
+            self.log.info('no sources command configuration, skipping plugin')
+            return
+
         source_path = self.workflow.source.path
         cur_dir = os.getcwd()
         os.chdir(source_path)

@@ -21,24 +21,19 @@ from atomic_reactor.constants import (
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.plugins.post_koji_upload import (KojiUploadLogger,
                                                      KojiUploadPlugin)
-from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY,
-                                                       ReactorConfig)
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 
 from atomic_reactor.inner import DockerBuildWorkflow, TagConf, PushConf
-from atomic_reactor.util import ManifestDigest
+from atomic_reactor.util import ManifestDigest, DockerfileImages
 from atomic_reactor.utils.rpm import parse_rpm_output
-from atomic_reactor.source import GitSource
 from atomic_reactor.build import BuildResult
-from tests.constants import SOURCE, MOCK
+from tests.constants import MOCK
 from tests.stubs import StubInsideBuilder, StubSource
 from tests.util import add_koji_map_in_workflow
 
 from flexmock import flexmock
 import pytest
 from tests.docker_mock import mock_docker
-import subprocess
 from osbs.api import OSBS
 from osbs.exceptions import OsbsException
 from osbs.utils import ImageName
@@ -55,10 +50,6 @@ def noop(*args, **kwargs): return None
 # temp workaround until this API is added to osbs-client
 OSBS.create_config_map = noop
 OSBS.get_config_map = noop
-
-
-class X(object):
-    pass
 
 
 class MockedOSBS(OSBS):
@@ -211,30 +202,6 @@ class MockedTS(object):
 
 FAKE_SIGMD5 = '0' * 32
 
-FAKE_OS_OUTPUT = 'fedora-22'
-
-
-def fake_subprocess_output(cmd):
-    if 'os-release' in cmd:
-        return FAKE_OS_OUTPUT
-    else:
-        raise RuntimeError
-
-
-class MockedPopen(object):
-    def __init__(self, cmd, *args, **kwargs):
-        self.cmd = cmd
-
-    def wait(self):
-        return 0
-
-    def communicate(self):
-        return (fake_subprocess_output(self.cmd), '')
-
-
-def fake_Popen(cmd, *args, **kwargs):
-    return MockedPopen(cmd, *args, **kwargs)
-
 
 def fake_digest(image):
     tag = image.to_str(registry=False)
@@ -245,24 +212,20 @@ def is_string_type(obj):
     return isinstance(obj, str)
 
 
-def mock_environment(tmpdir, session=None, name=None,
-                     component=None, version=None, release=None,
-                     source=None, build_process_failed=False,
-                     blocksize=None, task_states=None,
-                     additional_tags=None, has_config=None, scratch=False):
+def mock_environment(tmpdir, session=None, name=None, component=None, version=None,
+                     release=None, build_process_failed=False, additional_tags=None,
+                     has_config=None, scratch=False):
     if session is None:
         session = MockedClientSession('', task_states=None)
-    if source is None:
-        source = GitSource('git', 'git://hostname/path')
 
     if MOCK:
         mock_docker()
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow(source=SOURCE)
+    workflow = DockerBuildWorkflow(source=None)
     base_image_id = '123456parent-id'
     workflow.source = StubSource()
     workflow.builder = StubInsideBuilder().for_workflow(workflow)
-    workflow.builder.set_dockerfile_images(['Fedora:22'])
+    workflow.dockerfile_images = DockerfileImages(['Fedora:22'])
     workflow.builder.image_id = '123456imageid'
     workflow.builder.set_inspection_data({'Id': base_image_id})
     workflow.user_params['scratch'] = scratch
@@ -273,7 +236,8 @@ def mock_environment(tmpdir, session=None, name=None,
                  'LABEL Version={version} version={version}\n'
                  'LABEL Release={release} release={release}\n'
                  .format(component=component, version=version, release=release))
-        workflow.builder.set_df_path(df.name)
+        flexmock(workflow, df_path=df.name)
+        workflow.df_dir = str(tmpdir)
     if name and version:
         workflow.tag_conf.add_unique_image('user/test-image:{v}-timestamp'
                                            .format(v=version))
@@ -288,13 +252,8 @@ def mock_environment(tmpdir, session=None, name=None,
         workflow.tag_conf.add_primary_images(["{0}:{1}".format(name, tag)
                                               for tag in additional_tags])
 
-    flexmock(subprocess, Popen=fake_Popen)
     flexmock(rpm, TransactionSet=MockedTS)
     flexmock(koji, ClientSession=lambda hub, opts: session)
-    flexmock(GitSource)
-    setattr(workflow, 'source', source)
-    setattr(workflow.source, 'lg', X())
-    setattr(workflow.source.lg, 'commit_id', '123456')
     setattr(workflow, 'push_conf', PushConf())
     docker_reg = workflow.push_conf.add_docker_registry('docker.example.com')
 
@@ -370,9 +329,7 @@ def create_runner(tasker, workflow, ssl_certs=False, principal=None,
     if multiple is not None:
         args['report_multiple_digests'] = multiple
 
-    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-        ReactorConfig(full_conf)
+    workflow.conf.conf = full_conf
     add_koji_map_in_workflow(workflow, hub_url='', root_url='/',
                              ssl_certs_dir='/' if ssl_certs else None,
                              krb_keytab=keytab,
@@ -403,13 +360,6 @@ def get_metadata(workflow, osbs):
     cm_data = osbs.get_config_map(cm_key)
 
     return cm_data[cm_frag_key]
-
-
-class MockedReactorConfig(object):
-    conf = {}
-
-    def __getitem__(self, *args):
-        return self
 
 
 class TestKojiUploadLogger(object):
@@ -906,11 +856,10 @@ class TestKojiUpload(object):
                                             component=component,
                                             version=version,
                                             release=release,
-                                            blocksize=blocksize,
                                             has_config=has_config,
                                             )
         if base_from_scratch:
-            workflow.builder.set_dockerfile_images(['scratch'])
+            workflow.dockerfile_images = DockerfileImages(['scratch'])
         target = 'images-docker-candidate'
         runner = create_runner(tasker, workflow, blocksize=blocksize, target=target,
                                platform=LOCAL_ARCH)

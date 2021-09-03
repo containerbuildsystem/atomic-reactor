@@ -8,7 +8,6 @@ of the BSD license. See the LICENSE file for details.
 import os
 
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.plugins.pre_reactor_config import get_hide_files
 from atomic_reactor.util import df_parser
 from atomic_reactor.constants import INSPECT_CONFIG, SCRATCH_FROM
 
@@ -33,16 +32,15 @@ class HideFilesPlugin(PreBuildPlugin):
         """
         run the plugin
         """
-        try:
-            hide_files = get_hide_files(self.workflow)
-        except KeyError:
+        hide_files = self.workflow.conf.hide_files
+        if not hide_files:
             self.log.info("Skipping hide files: no files to hide")
             return
 
         self._populate_start_file_lines(hide_files)
         self._populate_end_file_lines(hide_files)
 
-        self.dfp = df_parser(self.workflow.builder.df_path)
+        self.dfp = df_parser(self.workflow.df_path)
         stages = self._find_stages()
 
         # For each stage, wrap it with the extra lines we want.

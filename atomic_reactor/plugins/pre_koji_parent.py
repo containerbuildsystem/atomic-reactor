@@ -10,11 +10,7 @@ from atomic_reactor.constants import (
     INSPECT_CONFIG, PLUGIN_KOJI_PARENT_KEY, BASE_IMAGE_KOJI_BUILD, PARENT_IMAGES_KOJI_BUILDS,
     KOJI_BTYPE_IMAGE
 )
-from atomic_reactor.plugins.pre_reactor_config import (
-    get_deep_manifest_list_inspection, get_koji_session,
-    get_skip_koji_check_for_base_image, get_fail_on_digest_mismatch,
-    get_platform_to_goarch_mapping
-)
+from atomic_reactor.config import get_koji_session
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.util import (
     base_image_is_custom, get_manifest_media_type, is_scratch_build,
@@ -65,7 +61,7 @@ class KojiParentPlugin(PreBuildPlugin):
         """
         super(KojiParentPlugin, self).__init__(tasker, workflow)
 
-        self.koji_session = get_koji_session(self.workflow)
+        self.koji_session = get_koji_session(self.workflow.conf)
 
         self.poll_interval = poll_interval
         self.poll_timeout = poll_timeout
@@ -77,8 +73,7 @@ class KojiParentPlugin(PreBuildPlugin):
         self.platforms = get_platforms(self.workflow)
         # RegistryClient instances cached by registry name
         self.registry_clients = {}
-        self._deep_manifest_list_inspection = get_deep_manifest_list_inspection(self.workflow,
-                                                                                fallback=True)
+        self._deep_manifest_list_inspection = self.workflow.conf.deep_manifest_list_inspection
 
     def ignore_isolated_autorebuilds(self):
         if not self.workflow.source.config.autorebuild.get('ignore_isolated_builds', False):
@@ -98,17 +93,17 @@ class KojiParentPlugin(PreBuildPlugin):
             self.log.info('scratch build, skipping plugin')
             return
 
-        if not (self.workflow.builder.dockerfile_images.base_from_scratch or
-                self.workflow.builder.dockerfile_images.custom_base_image):
+        if not (self.workflow.dockerfile_images.base_from_scratch or
+                self.workflow.dockerfile_images.custom_base_image):
             self._base_image_nvr = self.detect_parent_image_nvr(
-                self.workflow.builder.dockerfile_images.base_image,
+                self.workflow.dockerfile_images.base_image,
                 inspect_data=self.workflow.builder.base_image_inspect,
             )
             if is_rebuild(self.workflow):
                 self.ignore_isolated_autorebuilds()
 
         manifest_mismatches = []
-        for img, local_tag in self.workflow.builder.dockerfile_images.items():
+        for img, local_tag in self.workflow.dockerfile_images.items():
             if base_image_is_custom(img.to_str()):
                 continue
 
@@ -128,7 +123,7 @@ class KojiParentPlugin(PreBuildPlugin):
             else:
                 err_msg = ('Could not get koji build info for parent image {}. '
                            'Was this image built in OSBS?'.format(img.to_str()))
-                if get_skip_koji_check_for_base_image(self.workflow, fallback=False):
+                if self.workflow.conf.skip_koji_check_for_base_image:
                     self.log.warning(err_msg)
                 else:
                     self.log.error(err_msg)
@@ -137,7 +132,7 @@ class KojiParentPlugin(PreBuildPlugin):
         if manifest_mismatches:
             mismatch_msg = ('Error while comparing parent images manifest digests in koji with '
                             'related values from registries: %s')
-            if get_fail_on_digest_mismatch(self.workflow, fallback=True):
+            if self.workflow.conf.fail_on_digest_mismatch:
                 self.log.error(mismatch_msg, manifest_mismatches)
                 raise RuntimeError(mismatch_msg % manifest_mismatches)
 
@@ -237,7 +232,8 @@ class KojiParentPlugin(PreBuildPlugin):
             v2_digest = archive['extra']['docker']['digests'][v2_type]
             koji_archives_data[arch] = v2_digest
 
-        platform_to_arch_dict = get_platform_to_goarch_mapping(self.workflow)
+        platform_to_arch_dict = self.workflow.conf.platform_to_goarch_mapping
+
         architectures = [platform_to_arch_dict[platform] for platform in self.platforms]
 
         missing_arches = [a for a in architectures if a not in koji_archives_data]

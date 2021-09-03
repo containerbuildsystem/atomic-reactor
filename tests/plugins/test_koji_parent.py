@@ -18,14 +18,11 @@ from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_koji_parent import KojiParentPlugin
 from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildPlugin
-from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY,
-                                                       ReactorConfig)
-from atomic_reactor.util import get_manifest_media_type
+from atomic_reactor.util import get_manifest_media_type, DockerfileImages
 from atomic_reactor.constants import SCRATCH_FROM
 from osbs.utils import ImageName
 from flexmock import flexmock
-from tests.constants import MOCK, MOCK_SOURCE
+from tests.constants import MOCK
 from tests.stubs import StubInsideBuilder
 from tests.util import add_koji_map_in_workflow
 from copy import deepcopy
@@ -87,11 +84,11 @@ class MockSource(object):
 def workflow(tmpdir, user_params):
     if MOCK:
         mock_docker()
-    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
+    workflow = DockerBuildWorkflow(source=None)
     workflow.source = MockSource(tmpdir)
     workflow.builder = StubInsideBuilder().for_workflow(workflow)
-    workflow.builder.set_dockerfile_images(['base:latest'])
-    workflow.builder.dockerfile_images['base:latest'] = ImageName.parse('base:stubDigest')
+    workflow.dockerfile_images = DockerfileImages(['base:latest'])
+    workflow.dockerfile_images['base:latest'] = ImageName.parse('base:stubDigest')
     workflow.builder.set_image('image')
     base_inspect = {INSPECT_CONFIG: {'Labels': BASE_IMAGE_LABELS.copy()}}
     workflow.builder.set_inspection_data(base_inspect)
@@ -292,9 +289,9 @@ class TestKojiParent(object):
             workflow.builder.set_image(ImageName.parse('basetag'))
             workflow.builder.set_inspection_data(image_inspects['base'])
 
-        workflow.builder.set_dockerfile_images(dockerfile_images)
+        workflow.dockerfile_images = DockerfileImages(dockerfile_images)
         for parent, local in parent_images.items():
-            workflow.builder.dockerfile_images[parent] = local
+            workflow.dockerfile_images[parent] = local
 
         expected = {
             BASE_IMAGE_KOJI_BUILD: koji_builds['base'],
@@ -404,9 +401,9 @@ class TestKojiParent(object):
                                ImageName.parse(image_str): KOJI_BUILD}}
 
         workflow.builder.parent_images_digests = {image_str+':latest': {V2_LIST: parent_tag}}
-        workflow.builder.set_dockerfile_images([image_str])
-        workflow.builder.dockerfile_images[image_str] = ImageName.parse('{}:{}'.format(image_str,
-                                                                                       parent_tag))
+        workflow.dockerfile_images = DockerfileImages([image_str])
+        workflow.dockerfile_images[image_str] = ImageName.parse('{}:{}'.format(image_str,
+                                                                               parent_tag))
 
         rebuild_str = 'This parent image MUST be rebuilt'
         manifest_list_check_passed = ('Deeper manifest list check verified v2 manifest '
@@ -503,8 +500,6 @@ class TestKojiParent(object):
         plugin_args.setdefault('poll_timeout', 1)
         workflow.user_params = user_params
 
-        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-
         config_dict = {'version': 1,
                        'deep_manifest_list_inspection': deep_inspection,
                        'fail_on_digest_mismatch': mismatch_failure,
@@ -516,8 +511,7 @@ class TestKojiParent(object):
         if source_registry:
             config_dict['source_registry'] = source_registry
 
-        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            ReactorConfig(config_dict)
+        workflow.conf.conf = config_dict
         add_koji_map_in_workflow(workflow, hub_url=KOJI_HUB, root_url='',
                                  ssl_certs_dir=plugin_args.get('koji_ssl_certs_dir'))
 
@@ -641,10 +635,10 @@ class TestKojiParent(object):
                                ImageName.parse(image_str): KOJI_BUILD}}
 
         workflow.builder.parent_images_digests = {image_str: {V2_LIST: parent_tag}}
-        workflow.builder.set_dockerfile_images([image_str])
+        workflow.dockerfile_images = DockerfileImages([image_str])
         image_for_key = ImageName.parse(image_str)
         image_for_key.tag = parent_tag
-        workflow.builder.dockerfile_images[image_str] = image_for_key.to_str()
+        workflow.dockerfile_images[image_str] = image_for_key.to_str()
         self.run_plugin_with_args(workflow, expect_result=expected_result, deep_inspection=True,
                                   pull_registries=[{'url': registry}])
 

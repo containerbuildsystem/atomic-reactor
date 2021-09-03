@@ -371,8 +371,8 @@ class BuildPluginsRunner(PluginsRunner):
         """
         translation_dict = {
             'BUILT_IMAGE_ID': self.workflow.builder.image_id,
-            'BUILD_DOCKERFILE_PATH': self.workflow.builder.source.dockerfile_path,
-            'BUILD_SOURCE_PATH': self.workflow.builder.source.path,
+            'BUILD_DOCKERFILE_PATH': self.workflow.source.dockerfile_path,
+            'BUILD_SOURCE_PATH': self.workflow.source.path,
         }
 
         if isinstance(obj_to_translate, dict):
@@ -445,12 +445,6 @@ class BuildStepPluginsRunner(BuildPluginsRunner):
             for plugin in plugin_conf:
                 plugin['required'] = False
                 plugin['is_allowed_to_fail'] = False
-        else:
-            # if no buildstep_plugins configured, which is typical for worker builds,
-            # use what the source says or the system default.
-            source_method = workflow.builder.source.config.image_build_method
-            system_method = workflow.default_image_build_method
-            plugin_conf = [{'name': source_method or system_method, 'is_allowed_to_fail': False}]
 
         super(BuildStepPluginsRunner, self).__init__(
             dt, workflow, 'BuildStepPlugin', plugin_conf, *args, **kwargs)
@@ -461,9 +455,9 @@ class BuildStepPluginsRunner(BuildPluginsRunner):
         logger.info('building image %r inside current environment',
                     builder.image)
         builder.ensure_not_built()
-        if builder.df_path:
+        if self.workflow.df_path:
             logger.debug('using dockerfile:\n%s',
-                         DockerfileParser(builder.df_path).content)
+                         DockerfileParser(self.workflow.df_path).content)
         else:
             logger.debug("No Dockerfile path has been specified")
 

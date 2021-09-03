@@ -7,8 +7,8 @@ of the BSD license. See the LICENSE file for details.
 """
 
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.plugins.pre_reactor_config import get_openshift_session
 from atomic_reactor.util import get_build_json, is_scratch_build, is_isolated_build
+from atomic_reactor.config import get_openshift_session
 
 
 def is_rebuild(workflow):
@@ -45,8 +45,7 @@ class CheckAndSetRebuildPlugin(PreBuildPlugin):
     key = "check_and_set_rebuild"
     is_allowed_to_fail = False  # We really want to stop the process
 
-    def __init__(self, tasker, workflow, label_key, label_value,
-                 url=None, verify_ssl=True, use_auth=True):
+    def __init__(self, tasker, workflow, label_key, label_value):
         """
         constructor
 
@@ -54,20 +53,11 @@ class CheckAndSetRebuildPlugin(PreBuildPlugin):
         :param workflow: DockerBuildWorkflow instance
         :param label_key: str, key of label used to indicate first build
         :param label_value: str, value of label used to indicate first build
-        :param url: str, URL to OSv3 instance
-        :param verify_ssl: bool, verify SSL certificate?
-        :param use_auth: bool, initiate authentication with OSv3?
         """
         # call parent constructor
         super(CheckAndSetRebuildPlugin, self).__init__(tasker, workflow)
         self.label_key = label_key
         self.label_value = label_value
-        self.openshift_fallback = {
-            'url': url,
-            'insecure': not verify_ssl,
-            'auth': {'enable': use_auth}
-        }
-
         self.build_labels = None
 
     def run(self):
@@ -81,10 +71,10 @@ class CheckAndSetRebuildPlugin(PreBuildPlugin):
             self.log.info('isolated build, skipping plugin')
             return False
 
-        if self.workflow.builder.dockerfile_images.base_from_scratch:
+        if self.workflow.dockerfile_images.base_from_scratch:
             self.log.info("Skipping check and set rebuild: unsupported for FROM-scratch images")
             return False
-        if self.workflow.builder.dockerfile_images.custom_base_image:
+        if self.workflow.dockerfile_images.custom_base_image:
             self.log.info("Skipping check and set rebuild: unsupported for custom base images")
             return False
 
@@ -98,7 +88,8 @@ class CheckAndSetRebuildPlugin(PreBuildPlugin):
             # Update the BuildConfig metadata so the next Build
             # instantiated from it is detected as being an automated
             # rebuild
-            osbs = get_openshift_session(self.workflow, self.openshift_fallback)
+            osbs = get_openshift_session(self.workflow.conf,
+                                         self.workflow.user_params.get('namespace'))
             new_labels = {self.label_key: self.label_value}
             osbs.update_labels_on_build_config(buildconfig, new_labels)
         else:

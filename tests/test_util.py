@@ -64,17 +64,11 @@ from atomic_reactor.util import (wait_for_command,
                                  has_operator_bundle_manifest, DockerfileImages,
                                  terminal_key_paths,
                                  )
-from tests.constants import (DOCKERFILE_GIT,
-                             INPUT_IMAGE, MOCK, MOCK_SOURCE,
-                             REACTOR_CONFIG_MAP)
+from tests.constants import (DOCKERFILE_GIT, INPUT_IMAGE, MOCK, REACTOR_CONFIG_MAP)
 import atomic_reactor.util
 from atomic_reactor.constants import INSPECT_CONFIG, PLUGIN_BUILD_ORCHESTRATE_KEY
 from atomic_reactor.source import SourceConfig
 from osbs.utils import ImageName
-from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       ReactorConfig,
-                                                       WORKSPACE_CONF_KEY)
-
 from tests.util import requires_internet
 from tests.stubs import StubInsideBuilder, StubSource
 
@@ -502,10 +496,7 @@ def test_registry_session(tmpdir, registry, insecure, method, responses_method, 
 ])
 @pytest.mark.parametrize('access', [None, ('pull', 'push')])
 def test_registry_create_from_config(workflow, registry, reactor_config, matched_registry, access):
-    reactor_config['version'] = 1   # required key
-    workflow.plugin_workspace[ReactorConfigPlugin.key] = {
-        WORKSPACE_CONF_KEY: ReactorConfig(reactor_config)
-    }
+    workflow.conf.conf = reactor_config
 
     (flexmock(RegistrySession)
      .should_receive('__init__')
@@ -550,10 +541,7 @@ def test_registry_create_from_config(workflow, registry, reactor_config, matched
      'some_registry.io: No match in pull_registries or source_registry'),
 ])
 def test_registry_create_from_config_errors(workflow, registry, reactor_config, error):
-    reactor_config['version'] = 1  # required key
-    workflow.plugin_workspace[ReactorConfigPlugin.key] = {
-        WORKSPACE_CONF_KEY: ReactorConfig(reactor_config)
-    }
+    workflow.conf.conf = reactor_config
 
     with pytest.raises(RuntimeError) as exc_info:
         RegistrySession.create_from_config(workflow, registry)
@@ -970,8 +958,7 @@ def test_get_build_json(environ, expected):
     ({'scratch': False}, False),
     ({}, False),
 ])
-def test_is_scratch_build(extra_user_params, scratch, user_params):
-    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
+def test_is_scratch_build(workflow, extra_user_params, scratch, user_params):
     workflow.user_params.update(extra_user_params)
     assert is_scratch_build(workflow) == scratch
 
@@ -993,8 +980,7 @@ def test_is_custom_base_build(base_image, is_custom):
     ({'isolated': False}, False),
     ({}, False),
 ])
-def test_is_isolated_build(extra_user_params, isolated, user_params):
-    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
+def test_is_isolated_build(workflow, extra_user_params, isolated, user_params):
     workflow.user_params.update(extra_user_params)
     assert is_isolated_build(workflow) == isolated
 
@@ -1004,8 +990,7 @@ def test_is_isolated_build(extra_user_params, isolated, user_params):
     ({'flatpak': False}, False),
     ({}, False),
 ])
-def test_is_flatpak_build(extra_user_params, flatpak, user_params):
-    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
+def test_is_flatpak_build(workflow, extra_user_params, flatpak, user_params):
     workflow.user_params.update(extra_user_params)
     assert is_flatpak_build(workflow) == flatpak
 
@@ -1019,7 +1004,7 @@ def test_is_flatpak_build(extra_user_params, flatpak, user_params):
      ['arm64', 'ppce64le'])
 ])
 def test_get_orchestrator_platforms(inputs, results, user_params):
-    workflow = DockerBuildWorkflow(source=MOCK_SOURCE,
+    workflow = DockerBuildWorkflow(source=None,
                                    buildstep_plugins=inputs)
     if results:
         assert sorted(get_orchestrator_platforms(workflow)) == sorted(results)
@@ -1189,6 +1174,12 @@ def test_get_primary_and_floating_images(workflow, tag_conf, expected_primary,
         hub_url: /
         root_url: ''
         auth: {}
+      openshift:
+        url: openshift_url
+      registries:
+        - url: registry
+      source_registry:
+        url: source_registry
       clusters:
         ignored:
         - name: foo
@@ -1752,7 +1743,7 @@ def test_has_operator_manifest(tmpdir, workflow, labels, f_true, f_false):
     cont_path = os.path.join(str(tmpdir), 'Dockerfile')
     with open(cont_path, 'w') as f:
         f.write(df_content)
-    workflow.builder.df_path = cont_path
+    workflow._df_path = cont_path
 
     for func in f_true:
         assert func(workflow), 'Label not properly detected'

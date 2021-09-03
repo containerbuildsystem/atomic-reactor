@@ -20,13 +20,10 @@ from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.post_tag_and_push import ExceedsImageSizeError, TagAndPushPlugin
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
-from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY,
-                                                       ReactorConfig)
 from atomic_reactor.util import ManifestDigest, get_exported_image_metadata
 from atomic_reactor.utils import retries
 from tests.constants import (LOCALHOST_REGISTRY, TEST_IMAGE, TEST_IMAGE_NAME, INPUT_IMAGE, MOCK,
-                             DOCKER0_REGISTRY, MOCK_SOURCE)
+                             DOCKER0_REGISTRY)
 from tests.stubs import StubInsideBuilder
 from tests.util import add_koji_map_in_workflow
 
@@ -129,7 +126,7 @@ def test_tag_and_push_plugin(
                  login=lambda username, registry, dockercfg_path: {'Status': 'Login Succeeded'})
 
     tasker = DockerTasker(retry_times=0)
-    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
+    workflow = DockerBuildWorkflow(source=None)
     workflow.user_params['image_tag'] = TEST_IMAGE
     workflow.tag_conf.add_primary_image(image_name)
     workflow.builder = StubInsideBuilder()
@@ -281,13 +278,11 @@ def test_tag_and_push_plugin(
         .should_receive('sleep')
         .and_return(None))
 
-    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-        ReactorConfig({'version': 1, 'registries': [{
-            'url': LOCALHOST_REGISTRY,
-            'insecure': True,
-            'auth': {'cfg_path': secret_path}}],
-                        'group_manifests': missing_v2})
+    rcm = {'version': 1,
+           'registries': [{'url': LOCALHOST_REGISTRY,
+                           'insecure': True,
+                           'auth': {'cfg_path': secret_path}}], 'group_manifests': missing_v2}
+    workflow.conf.conf = rcm
     add_koji_map_in_workflow(workflow, hub_url='', root_url='')
 
     runner = PostBuildPluginsRunner(
@@ -374,7 +369,7 @@ def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, user_params,
                                            current_platform)
 
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
+    workflow = DockerBuildWorkflow(source=None)
     workflow.user_params['image_tag'] = TEST_IMAGE
     workflow.builder = StubInsideBuilder()
     workflow.builder.image_id = INPUT_IMAGE
@@ -574,12 +569,11 @@ def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, user_params,
         .should_receive('request')
         .replace_with(custom_get))
 
-    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-        ReactorConfig({'version': 1,
-                       'registries': [{'url': LOCALHOST_REGISTRY,
-                                       'insecure': True,
-                                       'auth': {'cfg_path': secret_path}}]})
+    rcm = {'version': 1,
+           'registries': [{'url': LOCALHOST_REGISTRY,
+                           'insecure': True,
+                           'auth': {'cfg_path': secret_path}}]}
+    workflow.conf.conf = rcm
     add_koji_map_in_workflow(workflow, hub_url='', root_url='')
 
     runner = PostBuildPluginsRunner(
@@ -642,10 +636,7 @@ def test_exceed_binary_image_size(image_size_limit, workflow):
     if image_size_limit is not None:
         config['image_size_limit'] = image_size_limit
 
-    # workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
-    workflow.plugin_workspace[ReactorConfigPlugin.key] = {
-        WORKSPACE_CONF_KEY: ReactorConfig(config)
-    }
+    workflow.conf.conf = config
     workflow.builder = StubInsideBuilder()
     workflow.builder.image_id = INPUT_IMAGE
     # fake layer sizes of the test image

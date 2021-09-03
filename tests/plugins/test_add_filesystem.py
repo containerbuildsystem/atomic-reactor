@@ -19,9 +19,6 @@ from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import (
     PreBuildPluginsRunner, PluginFailedException, BuildCanceledException)
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
-from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY,
-                                                       ReactorConfig)
 from atomic_reactor.util import df_parser, DockerfileImages
 from atomic_reactor.source import VcsInfo
 from atomic_reactor.constants import (PLUGIN_ADD_FILESYSTEM_KEY,
@@ -29,8 +26,7 @@ from atomic_reactor.constants import (PLUGIN_ADD_FILESYSTEM_KEY,
                                       PLUGIN_BUILD_ORCHESTRATE_KEY,
                                       PLUGIN_RESOLVE_COMPOSES_KEY)
 import atomic_reactor.utils.koji as koji_util
-from tests.constants import (MOCK_SOURCE, DOCKERFILE_GIT, DOCKERFILE_SHA1,
-                             MOCK, IMPORTED_IMAGE_ID)
+from tests.constants import (DOCKERFILE_GIT, DOCKERFILE_SHA1, MOCK, IMPORTED_IMAGE_ID)
 if MOCK:
     from tests.docker_mock import mock_docker
     from tests.retry_mock import mock_get_retry_session
@@ -177,14 +173,16 @@ def mock_image_build_file(tmpdir, contents=None):
 
 def mock_workflow(tmpdir, dockerfile=DEFAULT_DOCKERFILE,
                   scratch=False, for_orchestrator=False):
-    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
+    workflow = DockerBuildWorkflow(source=None)
     workflow.user_params['scratch'] = scratch
     mock_source = MockSource(tmpdir)
     df = df_parser(str(tmpdir))
     df.content = dockerfile
     setattr(workflow, 'builder', X(df.parent_images))
+    workflow.dockerfile_images = DockerfileImages(df.parent_images)
     workflow.builder.source = mock_source
-    flexmock(workflow, source=mock_source)
+    workflow.source = mock_source
+    flexmock(workflow, df_path=df.dockerfile_path)
 
     setattr(workflow.builder, 'df_path', df.dockerfile_path)
     mock_get_retry_session()
@@ -213,8 +211,6 @@ def create_plugin_instance(tmpdir, kwargs=None, scratch=False,  # noqa
 
 
 def make_and_store_reactor_config_map(workflow, additional_koji=None):
-    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-
     reactor_map = {
         'version': 1,
         'koji': {'hub_url': KOJI_HUB}
@@ -222,9 +218,7 @@ def make_and_store_reactor_config_map(workflow, additional_koji=None):
     if additional_koji:
         reactor_map['koji'].update(additional_koji)
 
-    workflow.plugin_workspace[ReactorConfigPlugin.key] = {
-        WORKSPACE_CONF_KEY: ReactorConfig(reactor_map)
-    }
+    workflow.conf.conf = reactor_map
 
 
 @pytest.mark.parametrize('scratch', [True, False])
@@ -697,7 +691,7 @@ def test_image_download(tmpdir, docker_tasker, parents, skip_plugin, architectur
         mock_docker()
 
     workflow = mock_workflow(tmpdir, for_orchestrator=architectures is not None)
-    workflow.builder.dockerfile_images = DockerfileImages(parents)
+    workflow.dockerfile_images = DockerfileImages(parents)
     if not skip_plugin:
         mock_koji_session(download_filesystem=download_filesystem)
     mock_image_build_file(str(tmpdir))

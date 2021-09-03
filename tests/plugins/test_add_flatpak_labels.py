@@ -20,8 +20,6 @@ from atomic_reactor.source import SourceConfig
 from atomic_reactor.util import df_parser
 from osbs.utils import ImageName
 
-from tests.constants import MOCK_SOURCE
-
 
 DF_CONTENT = """FROM fedora:latest
 CMD sleep 1000
@@ -47,7 +45,7 @@ class MockBuilder(object):
 
 
 def mock_workflow(tmpdir, container_yaml, user_params=None):
-    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
+    workflow = DockerBuildWorkflow(source=None)
     if user_params is None:
         user_params = USER_PARAMS
 
@@ -64,8 +62,8 @@ def mock_workflow(tmpdir, container_yaml, user_params=None):
     df = df_parser(str(tmpdir))
     df.content = DF_CONTENT
 
-    setattr(workflow.builder, 'df_dir', str(tmpdir))
-    setattr(workflow.builder, 'df_path', df.dockerfile_path)
+    workflow.df_dir = str(tmpdir)
+    flexmock(workflow, df_path=df.dockerfile_path)
 
     return workflow
 
@@ -98,8 +96,8 @@ def test_add_flatpak_labels(tmpdir, docker_tasker, user_params,
 
     runner.run()
 
-    assert os.path.exists(workflow.builder.df_path)
-    with open(workflow.builder.df_path) as f:
+    assert os.path.exists(workflow.df_path)
+    with open(workflow.df_path) as f:
         df = f.read()
 
     last_line = df.strip().split('\n')[-1]

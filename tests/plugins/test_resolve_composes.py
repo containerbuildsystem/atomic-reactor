@@ -27,17 +27,14 @@ from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins import pre_check_and_set_rebuild
 from atomic_reactor.plugins.build_orchestrate_build import (WORKSPACE_KEY_OVERRIDE_KWARGS,
                                                             OrchestrateBuildPlugin)
-from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY,
-                                                       ReactorConfig)
 from atomic_reactor.plugins.pre_resolve_composes import (ResolveComposesPlugin,
                                                          ODCS_DATETIME_FORMAT, UNPUBLISHED_REPOS)
 
 import yaml
-from atomic_reactor.util import read_yaml, DockerfileImages
+from atomic_reactor.util import DockerfileImages
 from datetime import datetime, timedelta
 from flexmock import flexmock
-from tests.constants import MOCK, MOCK_SOURCE
+from tests.constants import MOCK
 from tests.util import add_koji_map_in_workflow
 from textwrap import dedent
 
@@ -110,10 +107,11 @@ def workflow(tmpdir, user_params):
         },
     }]
     workflow = DockerBuildWorkflow(
-        source=MOCK_SOURCE,
+        source=None,
         buildstep_plugins=buildstep_plugin,
     )
     workflow.builder = MockInsideBuilder(tmpdir)
+    workflow.dockerfile_images = DockerfileImages(['Fedora:22'])
     workflow.source = workflow.builder.source
     workflow._tmpdir = tmpdir
     workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(
@@ -163,14 +161,9 @@ def mock_reactor_config(workflow, tmpdir, data=None, default_si=DEFAULT_SIGNING_
                 auth: {{}}
             """.format(default_si, ODCS_URL, tmpdir))
 
-    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-
-    config = {}
-    if data:
-        tmpdir.join('cert').write('')
-        config = read_yaml(data, 'schemas/config.json')
-
-    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] = ReactorConfig(config)
+    tmpdir.join('cert').write('')
+    config = yaml.safe_load(data)
+    workflow.conf.conf = config
 
 
 def mock_repo_config(tmpdir, data=None, signing_intent=None):
@@ -446,6 +439,8 @@ class TestResolveComposes(object):
         if compose_defined or ids or (parent_compose and allow_inherit):
             assert set(archspecific_repuruls) == set(expected_yum_repourls)
         else:
+            print(f"nonearch :         {nonearch_repourls}")
+            print(f"expected :         {expected_yum_repourls}")
             assert set(nonearch_repourls) == set(expected_yum_repourls)
 
         if allow_inherit and parent_compose:
@@ -682,12 +677,7 @@ class TestResolveComposes(object):
         else:
             del workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
 
-        reactor_conf =\
-            deepcopy(workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY].conf)
-        reactor_conf['koji'] = {'hub_url': KOJI_HUB, 'root_url': '', 'auth': {}}
-
-        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            ReactorConfig(reactor_conf)
+        workflow.conf.conf['koji'] = {'hub_url': KOJI_HUB, 'root_url': '', 'auth': {}}
 
         # just confirm that render_requests is returning valid data, without the overhead of
         # mocking the compose results
@@ -908,14 +898,13 @@ class TestResolveComposes(object):
             plug_args['odcs_ssl_secret_path'] = str(workflow._tmpdir)
             exp_kwargs['cert'] = str(workflow._tmpdir.join('cert'))
 
-        reac_conf = workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY].conf
-
         exp_kwargs['insecure'] = False
         if 'token' in exp_kwargs:
-            reac_conf['odcs']['auth'].pop('ssl_certs_dir')
-            reac_conf['odcs']['auth']['openidc_dir'] = str(workflow._tmpdir)
+            workflow.conf.conf['odcs']['auth'].pop('ssl_certs_dir')
+            workflow.conf.conf['odcs']['auth']['openidc_dir'] = str(workflow._tmpdir)
         else:
-            exp_kwargs['cert'] = os.path.join(reac_conf['odcs']['auth']['ssl_certs_dir'], 'cert')
+            exp_kwargs['cert'] = os.path.join(workflow.conf.conf['odcs']['auth']['ssl_certs_dir'],
+                                              'cert')
 
         mock_odcs_client_start_compose()
         mock_odcs_client_wait_for_compose()
@@ -955,11 +944,6 @@ class TestResolveComposes(object):
         mock_odcs_client_wait_for_compose()
 
         self.run_plugin_with_args(workflow, plugin_args)
-
-    def test_koji_hub_requirement(self, workflow):
-        plugin_args = {'koji_target': 'test-target', 'koji_hub': None}
-        self.run_plugin_with_args(workflow, plugin_args,
-                                  expect_error='koji_hub is required when koji_target is used')
 
     @pytest.mark.parametrize(('default_si', 'config_si', 'arg_si', 'parent_si', 'expected_si',
                               'overridden'), (
@@ -1314,7 +1298,7 @@ class TestResolveComposes(object):
 
     def test_abort_when_odcs_config_missing(self, tmpdir, caplog, workflow):
         # Clear out default reactor config
-        mock_reactor_config(workflow, tmpdir, data='')
+        mock_reactor_config(workflow, tmpdir, data='version: 1')
         with caplog.at_level(logging.INFO):
             self.run_plugin_with_args(workflow)
 
@@ -1365,10 +1349,6 @@ class TestResolveComposes(object):
             plugin_args.setdefault('koji_target', KOJI_TARGET_NAME)
         plugin_args.setdefault('koji_hub', KOJI_HUB)
 
-        reactor_conf =\
-            deepcopy(workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY].conf)
-        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            ReactorConfig(reactor_conf)
         add_koji_map_in_workflow(workflow, root_url='',
                                  hub_url=plugin_args.get('koji_hub'),
                                  ssl_certs_dir=plugin_args.get('koji_ssl_certs_dir'))
@@ -1537,7 +1517,7 @@ class TestResolveComposes(object):
     def test_skip_adjust_composes_for_inheritance_if_image_is_based_on_scratch(
             self, workflow, caplog):
         plugin = ResolveComposesPlugin(workflow.builder.tasker, workflow)
-        workflow.builder.dockerfile_images = DockerfileImages(['scratch'])
+        workflow.dockerfile_images = DockerfileImages(['scratch'])
         plugin.adjust_for_inherit()
         assert ('This is a base image based on scratch. '
                 'Skipping adjusting composes for inheritance.' in caplog.text)
@@ -1545,7 +1525,7 @@ class TestResolveComposes(object):
     def test_skip_adjust_signing_intent_from_parent_if_image_is_based_on_scratch(
             self, workflow, caplog):
         plugin = ResolveComposesPlugin(workflow.builder.tasker, workflow)
-        workflow.builder.dockerfile_images = DockerfileImages(['scratch'])
+        workflow.dockerfile_images = DockerfileImages(['scratch'])
         plugin.adjust_signing_intent_from_parent()
         assert ('This is a base image based on scratch. '
                 'Signing intent will not be adjusted for it.' in caplog.text)

@@ -10,22 +10,17 @@ import copy
 import os
 import json
 
-from flexmock import flexmock
-
 from atomic_reactor.constants import (PLUGIN_FETCH_WORKER_METADATA_KEY,
                                       PLUGIN_COMPARE_COMPONENTS_KEY)
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
-from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY,
-                                                       ReactorConfig)
 from atomic_reactor.plugins.post_compare_components import (
     filter_components_by_name
 )
 from atomic_reactor.util import DockerfileImages
 
-from tests.constants import MOCK_SOURCE, INPUT_IMAGE, FILES
+from tests.constants import INPUT_IMAGE, FILES
 from tests.docker_mock import mock_docker
 
 import pytest
@@ -47,32 +42,16 @@ class MockInsideBuilder(object):
     def __init__(self):
         mock_docker()
         self.tasker = DockerTasker()
-        self.dockerfile_images = DockerfileImages(['fedora:25'])
         self.image_id = 'image_id'
         self.image = INPUT_IMAGE
-        self.df_path = 'df_path'
-        self.df_dir = 'df_dir'
-
-        def simplegen(x, y):
-            yield "some\u2018".encode('utf-8')
-        flexmock(self.tasker, build_image_from_path=simplegen)
-
-    def get_built_image_info(self):
-        return {'Id': 'some'}
-
-    def inspect_built_image(self):
-        return None
-
-    def ensure_not_built(self):
-        pass
 
 
 def mock_workflow(tmpdir):
-    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
+    workflow = DockerBuildWorkflow(source=None)
     setattr(workflow, 'builder', MockInsideBuilder())
     setattr(workflow, 'source', MockSource(tmpdir))
-    setattr(workflow.builder, 'source', MockSource(tmpdir))
     setattr(workflow, 'postbuild_result', {})
+    workflow.dockerfile_images = DockerfileImages(['fedora:25'])
     return workflow
 
 
@@ -131,15 +110,11 @@ def test_compare_components_plugin(tmpdir, caplog, user_params,
     if mismatch:
         component['version'] = 'bacon'
     if exception:
-        workflow.plugin_workspace[ReactorConfigPlugin.key] = {
-            WORKSPACE_CONF_KEY: ReactorConfig(
-                {'version': 1, 'package_comparison_exceptions': [component['name']]}
-            )
-        }
+        workflow.conf.conf = {'version': 1, 'package_comparison_exceptions': [component['name']]}
 
     workflow.postbuild_results[PLUGIN_FETCH_WORKER_METADATA_KEY] = worker_metadatas
     if base_from_scratch:
-        workflow.builder.dockerfile_images = DockerfileImages(['scratch'])
+        workflow.dockerfile_images = DockerfileImages(['scratch'])
 
     runner = PostBuildPluginsRunner(
         None,

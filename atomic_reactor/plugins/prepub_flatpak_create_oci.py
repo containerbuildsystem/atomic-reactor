@@ -19,7 +19,6 @@ from atomic_reactor.constants import IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR
 from atomic_reactor.plugin import PrePublishPlugin
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.plugins.pre_flatpak_update_dockerfile import get_flatpak_source_info
-from atomic_reactor.plugins.pre_reactor_config import get_flatpak_metadata
 from atomic_reactor.utils import retries
 from atomic_reactor.utils.rpm import parse_rpm_output
 from atomic_reactor.util import df_parser, get_exported_image_metadata, is_flatpak_build
@@ -72,7 +71,11 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
         """
         super(FlatpakCreateOciPlugin, self).__init__(tasker, workflow)
         self.builder = None
-        self.flatpak_metadata = get_flatpak_metadata(workflow, FLATPAK_METADATA_ANNOTATIONS)
+
+        try:
+            self.flatpak_metadata = self.workflow.conf.flatpak_metadata
+        except KeyError:
+            self.flatpak_metadata = FLATPAK_METADATA_ANNOTATIONS
 
     def _export_container(self, container_id):
         export_generator = self.tasker.export_container(container_id)
@@ -136,7 +139,7 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
                                       parse_manifest=parse_rpm_output,
                                       flatpak_metadata=self.flatpak_metadata)
 
-        df_labels = df_parser(self.workflow.builder.df_path, workflow=self.workflow).labels
+        df_labels = df_parser(self.workflow.df_path, workflow=self.workflow).labels
         self.builder.add_labels(df_labels)
 
         tarred_filesystem, manifest = self._export_filesystem()

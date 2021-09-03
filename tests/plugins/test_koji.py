@@ -9,16 +9,14 @@ import koji
 import os
 
 from atomic_reactor.plugins.pre_koji import KojiPlugin
-from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY,
-                                                       ReactorConfig)
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
+from atomic_reactor.util import DockerfileImages
 from flexmock import flexmock
 from fnmatch import fnmatch
 import pytest
-from tests.constants import SOURCE, MOCK
+from tests.constants import MOCK
 from tests.stubs import StubInsideBuilder, StubSource
 from tests.util import add_koji_map_in_workflow
 if MOCK:
@@ -92,7 +90,7 @@ def prepare():
     if MOCK:
         mock_docker()
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow(source=SOURCE)
+    workflow = DockerBuildWorkflow(source=None)
     workflow.source = StubSource()
     workflow.builder = StubInsideBuilder().for_workflow(workflow)
 
@@ -132,12 +130,6 @@ class TestKoji(object):
          None,
          'http://proxy.example.com'),
 
-        # https with koji_ssl_certs
-        # ('https://example.com',
-        #  True,
-        #  'sslcacert=',
-        #  '/etc/yum.repos.d/example.com.cert'),
-
         # https with no cert available
         ('https://nosuchwebsiteforsure.com',
          False,
@@ -151,12 +143,6 @@ class TestKoji(object):
          'sslverify=0',
          None,
          'http://proxy.example.com'),
-
-        # https with cert available
-        # ('https://example.com',
-        #  False,
-        #  'sslcacert=/etc/yum.repos.d/example.com.cert',
-        #  '/etc/yum.repos.d/example.com.cert'),
 
         # https with a cert for authentication
         ('https://nosuchwebsiteforsure.com',
@@ -176,7 +162,7 @@ class TestKoji(object):
             dockerfile_images.append('parent_image:latest')
         if base_from_scratch:
             dockerfile_images.append('scratch')
-        workflow.builder.set_dockerfile_images(dockerfile_images)
+        workflow.dockerfile_images = DockerfileImages(dockerfile_images)
 
         args = {'target': target}
 
@@ -184,9 +170,7 @@ class TestKoji(object):
             tmpdir.join('cert').write('cert')
             tmpdir.join('serverca').write('serverca')
 
-        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            ReactorConfig({'version': 1, 'yum_proxy': proxy})
+        workflow.conf.conf = {'version': 1, 'yum_proxy': proxy}
         add_koji_map_in_workflow(workflow, hub_url='', root_url=root,
                                  ssl_certs_dir=str(tmpdir) if koji_ssl_certs else None)
 
@@ -242,9 +226,6 @@ class TestKoji(object):
         tasker, workflow = prepare()
         args = {'target': target}
 
-        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            ReactorConfig({'version': 1})
         add_koji_map_in_workflow(workflow, hub_url='', root_url='http://example.com')
 
         workflow.user_params['include_koji_repo'] = include_repo

@@ -15,10 +15,9 @@ import koji
 from atomic_reactor import util
 from atomic_reactor.constants import (KOJI_BTYPE_REMOTE_SOURCE_FILE,
                                       PLUGIN_GENERATE_MAVEN_METADATA_KEY)
+from atomic_reactor.config import get_koji_session
 from atomic_reactor.download import download_url
 from atomic_reactor.plugin import PostBuildPlugin
-from atomic_reactor.plugins.pre_reactor_config import get_koji
-from atomic_reactor.plugins.pre_reactor_config import get_koji_session
 from atomic_reactor.utils.koji import NvrRequest
 
 DownloadRequest = namedtuple('DownloadRequest', 'url dest checksums')
@@ -132,7 +131,7 @@ class GenerateMavenMetadataPlugin(PostBuildPlugin):
 
         self.log.debug('%d files to download', len(download_queue))
 
-        koji_config = get_koji(self.workflow)
+        koji_config = self.workflow.conf.koji
         insecure = koji_config.get('insecure_download', False)
 
         for index, download in enumerate(download_queue):
@@ -180,7 +179,7 @@ class GenerateMavenMetadataPlugin(PostBuildPlugin):
         Run the plugin.
         """
 
-        self.session = get_koji_session(self.workflow)
+        self.session = get_koji_session(self.workflow.conf)
 
         nvr_requests = [
             NvrRequest(**nvr_request) for nvr_request in

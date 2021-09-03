@@ -8,7 +8,6 @@ of the BSD license. See the LICENSE file for details.
 import logging
 
 from atomic_reactor.plugin import PostBuildPlugin
-from atomic_reactor.plugins.pre_reactor_config import get_package_comparison_exceptions
 from atomic_reactor.util import is_scratch_build
 from atomic_reactor.constants import (PLUGIN_COMPARE_COMPONENTS_KEY,
                                       PLUGIN_FETCH_WORKER_METADATA_KEY)
@@ -95,7 +94,7 @@ class CompareComponentsPlugin(PostBuildPlugin):
             self.log.info('scratch build, skipping plugin')
             return
 
-        if self.workflow.builder.dockerfile_images.base_from_scratch:
+        if self.workflow.dockerfile_images.base_from_scratch:
             self.log.info("Skipping comparing components: unsupported for FROM-scratch images")
             return
 
@@ -105,7 +104,7 @@ class CompareComponentsPlugin(PostBuildPlugin):
         if not comp_list:
             raise ValueError("No components to compare")
 
-        package_comparison_exceptions = get_package_comparison_exceptions(self.workflow)
+        package_comparison_exceptions = self.workflow.conf.package_comparison_exceptions
 
         # master compare list
         master_comp = {}

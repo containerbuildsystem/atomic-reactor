@@ -16,9 +16,9 @@ import os
 
 from atomic_reactor.constants import (DEFAULT_DOWNLOAD_BLOCK_SIZE, PLUGIN_ADD_FILESYSTEM_KEY,
                                       PLUGIN_RESOLVE_COMPOSES_KEY)
+from atomic_reactor.config import get_koji_session
 from atomic_reactor.plugin import PreBuildPlugin, BuildCanceledException
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
-from atomic_reactor.plugins.pre_reactor_config import get_koji_session
 from atomic_reactor.utils.koji import TaskWatcher, stream_task_output
 from atomic_reactor.utils.yum import YumRepo
 from atomic_reactor.util import get_platforms, df_parser, base_image_is_custom
@@ -75,8 +75,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
     def __init__(self, tasker, workflow,
                  from_task_id=None, poll_interval=5,
                  blocksize=DEFAULT_DOWNLOAD_BLOCK_SIZE,
-                 repos=None, architectures=None,
-                 architecture=None, koji_target=None):
+                 repos=None, architecture=None, koji_target=None):
         """
         :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
@@ -88,7 +87,6 @@ class AddFilesystemPlugin(PreBuildPlugin):
                       base filesystem creation. First value will also
                       be used as install_tree. Only baseurl value is used
                       from each repo file.
-        :param architectures: list<str>, list of arches to build on (orchestrator) - UNUSED
         :param architecture: str, arch to build on (worker)
         :param koji_target: str, koji target name
         """
@@ -163,7 +161,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
 
         :param config: ConfigParser object
         """
-        labels = Labels(df_parser(self.workflow.builder.df_path).labels)
+        labels = Labels(df_parser(self.workflow.df_path).labels)
         for config_key, label in (
             ('name', Labels.LABEL_TYPE_COMPONENT),
             ('version', Labels.LABEL_TYPE_VERSION),
@@ -336,9 +334,9 @@ class AddFilesystemPlugin(PreBuildPlugin):
         new_parent_image = self.import_base_image(filesystem)
         new_imagename = ImageName.parse(new_parent_image)
 
-        for parent in self.workflow.builder.dockerfile_images:
+        for parent in self.workflow.dockerfile_images:
             if base_image_is_custom(parent.to_str()):
-                self.workflow.builder.dockerfile_images[parent] = new_imagename
+                self.workflow.dockerfile_images[parent] = new_imagename
                 break
 
         defer_removal(self.workflow, new_parent_image)
@@ -348,7 +346,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
     def get_image_build_conf(self):
         image_build_conf = None
 
-        for parent in self.workflow.builder.dockerfile_images:
+        for parent in self.workflow.dockerfile_images:
             if base_image_is_custom(parent.to_str()):
                 image_build_conf = parent.tag
                 break
@@ -367,7 +365,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
             self.repos.append(compose_info['result_repofile'])
 
     def run(self):
-        if not self.workflow.builder.dockerfile_images.custom_parent_image:
+        if not self.workflow.dockerfile_images.custom_parent_image:
             self.log.info('Nothing to do for non-custom base images')
             return
 
@@ -375,7 +373,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
 
         image_build_conf = self.get_image_build_conf()
 
-        self.session = get_koji_session(self.workflow)
+        self.session = get_koji_session(self.workflow.conf)
 
         task_id, filesystem_regex = self.run_image_task(image_build_conf)
 

@@ -11,9 +11,8 @@ import os
 from tempfile import NamedTemporaryFile
 
 from atomic_reactor.plugin import PostBuildPlugin
-from atomic_reactor.plugins.pre_reactor_config import (get_openshift_session,
-                                                       get_koji_session)
 from atomic_reactor.constants import PLUGIN_KOJI_UPLOAD_PLUGIN_KEY
+from atomic_reactor.config import get_koji_session, get_openshift_session
 from atomic_reactor.util import (get_build_json, is_scratch_build)
 from atomic_reactor.utils.koji import get_buildroot, get_output, get_output_metadata
 from osbs.exceptions import OsbsException
@@ -69,20 +68,14 @@ class KojiUploadPlugin(PostBuildPlugin):
     key = PLUGIN_KOJI_UPLOAD_PLUGIN_KEY
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, koji_upload_dir, url=None,
-                 build_json_dir=None, verify_ssl=True, use_auth=True,
-                 blocksize=None,
+    def __init__(self, tasker, workflow, koji_upload_dir, blocksize=None,
                  platform='x86_64', report_multiple_digests=False):
         """
         constructor
 
         :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param url: string, URL for OSv3 instance
-        :param build_json_dir: str, path to directory with input json
         :param koji_upload_dir: str, path to use when uploading to hub
-        :param verify_ssl: bool, verify OSv3 SSL certificate?
-        :param use_auth: bool, initiate authentication with OSv3?
         :param blocksize: int, blocksize to use for uploading files
         :param platform: str, platform name for this build
         :param report_multiple_digests: bool, whether to report both schema 1
@@ -90,18 +83,12 @@ class KojiUploadPlugin(PostBuildPlugin):
         """
         super(KojiUploadPlugin, self).__init__(tasker, workflow)
 
-        self.openshift_fallback = {
-            'url': url,
-            'insecure': not verify_ssl,
-            'auth': {'enable': use_auth},
-            'build_json_dir': build_json_dir
-        }
-
         self.blocksize = blocksize
         self.koji_upload_dir = koji_upload_dir
         self.report_multiple_digests = report_multiple_digests
 
-        self.osbs = get_openshift_session(self.workflow, self.openshift_fallback)
+        self.osbs = get_openshift_session(self.workflow.conf,
+                                          self.workflow.user_params.get('namespace'))
         self.build_id = None
         self.pullspec_image = None
         self.platform = platform
@@ -220,7 +207,7 @@ class KojiUploadPlugin(PostBuildPlugin):
 
         if not is_scratch_build(self.workflow):
             try:
-                session = get_koji_session(self.workflow)
+                session = get_koji_session(self.workflow.conf)
                 for output in output_files:
                     if output.file:
                         self.upload_file(session, output, self.koji_upload_dir)

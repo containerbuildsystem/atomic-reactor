@@ -22,8 +22,6 @@ from atomic_reactor.plugin import ExitPluginsRunner
 from atomic_reactor.util import registry_hostname, ManifestDigest, sha256sum
 from osbs.utils import ImageName
 from atomic_reactor.plugins.exit_push_floating_tags import PushFloatingTagsPlugin
-from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin, WORKSPACE_CONF_KEY,
-                                                       ReactorConfig)
 from atomic_reactor.constants import PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_BUILD_ORCHESTRATE_KEY
 
 
@@ -489,11 +487,9 @@ def test_floating_tags_push(tmpdir, workflow, test_name, registries, manifest_re
         }
         platform_descriptors_list.append(new_plat)
 
-    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-        ReactorConfig({'version': 1,
-                       'registries': registries_list,
-                       'platform_descriptors': platform_descriptors_list})
+    rcm = {'version': 1, 'registries': registries_list,
+           'platform_descriptors': platform_descriptors_list}
+    workflow.conf.conf = rcm
 
     runner = ExitPluginsRunner(tasker, workflow, plugins_conf)
     results = runner.run()

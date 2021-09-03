@@ -638,12 +638,11 @@ class RegistrySession(object):
 
         :return: RegistrySession for the specified registry
         """
-        # Has to be imported here (cyclic import)
-        from atomic_reactor.plugins.pre_reactor_config import (get_source_registry,
-                                                               get_pull_registries)
-
-        source_registry = get_source_registry(workflow, None)
-        pull_registries = get_pull_registries(workflow, [])
+        try:
+            source_registry = workflow.conf.source_registry
+        except KeyError:
+            source_registry = None
+        pull_registries = workflow.conf.pull_registries
 
         if source_registry:
             pull_registries.append(source_registry)
@@ -1396,10 +1395,10 @@ def get_parent_image_koji_data(workflow):
     image_metadata[PARENT_IMAGE_BUILDS_KEY] = parents
 
     # ordered list of parent images
-    image_metadata[PARENT_IMAGES_KEY] = workflow.builder.dockerfile_images.original_parents
+    image_metadata[PARENT_IMAGES_KEY] = workflow.dockerfile_images.original_parents
 
     # don't add parent image id key for scratch
-    if workflow.builder.dockerfile_images.base_from_scratch:
+    if workflow.dockerfile_images.base_from_scratch:
         return image_metadata
 
     base_info = koji_parent.get(BASE_IMAGE_KOJI_BUILD) or {}
@@ -1528,7 +1527,7 @@ def exception_message(exc):
 
 
 def _has_label_flag(workflow, label):
-    dockerfile = df_parser(workflow.builder.df_path, workflow=workflow)
+    dockerfile = df_parser(workflow.df_path, workflow=workflow)
     labels = Labels(dockerfile.labels)
     try:
         _, value = labels.get_name_and_value(label)

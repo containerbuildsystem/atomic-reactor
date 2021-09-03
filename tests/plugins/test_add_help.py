@@ -54,10 +54,12 @@ def test_add_help_plugin(tmpdir, docker_tasker, workflow, filename):
     df.content = df_content
 
     workflow.builder = StubInsideBuilder().set_df_path(df.dockerfile_path)
+    flexmock(workflow, df_path=df.dockerfile_path)
+    workflow.df_dir = str(tmpdir)
 
-    help_markdown_path = os.path.join(workflow.builder.df_dir, filename)
+    help_markdown_path = os.path.join(workflow.df_dir, filename)
     generate_a_file(help_markdown_path, "foo")
-    help_man_path = os.path.join(workflow.builder.df_dir, AddHelpPlugin.man_filename)
+    help_man_path = os.path.join(workflow.df_dir, AddHelpPlugin.man_filename)
     generate_a_file(help_man_path, "bar")
 
     cmd = ['go-md2man', '-in={}'.format(help_markdown_path), '-out={}'.format(help_man_path)]
@@ -97,6 +99,8 @@ def test_add_help_no_help_file(workflow, tmpdir, docker_tasker, filename):
     df.content = df_content
 
     workflow.builder = StubInsideBuilder().set_df_path(df.dockerfile_path)
+    flexmock(workflow, df_path=df.dockerfile_path)
+    workflow.df_dir = str(tmpdir)
 
     runner = PreBuildPluginsRunner(
         docker_tasker,
@@ -125,11 +129,13 @@ def test_add_help_md2man_error(workflow, tmpdir, docker_tasker, filename,
     df.content = df_content
 
     workflow.builder = StubInsideBuilder().set_df_path(df.dockerfile_path)
+    flexmock(workflow, df_path=df.dockerfile_path)
+    workflow.df_dir = str(tmpdir)
 
-    help_markdown_path = os.path.join(workflow.builder.df_dir, filename)
+    help_markdown_path = os.path.join(workflow.df_dir, filename)
     if go_md2man_result != 'input_missing':
         generate_a_file(help_markdown_path, "foo")
-    help_man_path = os.path.join(workflow.builder.df_dir, AddHelpPlugin.man_filename)
+    help_man_path = os.path.join(workflow.df_dir, AddHelpPlugin.man_filename)
     if go_md2man_result != 'result_missing':
         generate_a_file(help_man_path, "bar")
 
@@ -236,10 +242,12 @@ def test_add_help_generate_metadata(tmpdir, docker_tasker, workflow, filename):
     df.content = df_content
 
     workflow.builder = StubInsideBuilder().set_df_path(df.dockerfile_path)
+    flexmock(workflow, df_path=df.dockerfile_path)
+    workflow.df_dir = str(tmpdir)
 
-    help_markdown_path = os.path.join(workflow.builder.df_dir, filename)
+    help_markdown_path = os.path.join(workflow.df_dir, filename)
     generate_a_file(help_markdown_path, "foo")
-    help_man_path = os.path.join(workflow.builder.df_dir, AddHelpPlugin.man_filename)
+    help_man_path = os.path.join(workflow.df_dir, AddHelpPlugin.man_filename)
     generate_a_file(help_man_path, "bar")
 
     cmd = ['go-md2man', '-in={}'.format(help_markdown_path), '-out={}'.format(help_man_path)]

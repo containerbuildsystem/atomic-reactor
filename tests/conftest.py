@@ -17,7 +17,6 @@ from osbs.utils import ImageName
 from atomic_reactor.core import ContainerTasker
 from atomic_reactor.constants import CONTAINER_DOCKERPY_BUILD_METHOD
 from atomic_reactor.inner import DockerBuildWorkflow
-from tests.constants import MOCK_SOURCE
 
 if MOCK:
     from tests.docker_mock import mock_docker
@@ -78,7 +77,7 @@ def user_params(monkeypatch):
 
 @pytest.fixture
 def workflow(user_params):
-    return DockerBuildWorkflow(source=MOCK_SOURCE)
+    return DockerBuildWorkflow(source=None)
 
 
 @pytest.mark.optionalhook

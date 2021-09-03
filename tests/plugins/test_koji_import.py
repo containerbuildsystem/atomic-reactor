@@ -10,6 +10,7 @@ from collections import namedtuple
 import json
 import koji
 import os
+import yaml
 from textwrap import dedent
 
 from osbs.build.build_response import BuildResponse
@@ -26,7 +27,7 @@ from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
 from atomic_reactor.inner import DockerBuildWorkflow, TagConf, PushConf
-from atomic_reactor.util import (ManifestDigest, read_yaml,
+from atomic_reactor.util import (ManifestDigest, DockerfileImages,
                                  get_manifest_media_version, get_manifest_media_type)
 from atomic_reactor.source import GitSource, PathSource
 from atomic_reactor.build import BuildResult
@@ -50,9 +51,7 @@ from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI_
                                       KOJI_SUBTYPE_OP_APPREGISTRY,
                                       KOJI_SUBTYPE_OP_BUNDLE,
                                       KOJI_SOURCE_ENGINE)
-from atomic_reactor.plugins.pre_reactor_config import (
-    ReactorConfigPlugin, WORKSPACE_CONF_KEY, ReactorConfig)
-from tests.constants import SOURCE, MOCK
+from tests.constants import MOCK
 from tests.flatpak import (MODULEMD_AVAILABLE,
                            setup_flatpak_composes,
                            setup_flatpak_source_info)
@@ -241,11 +240,12 @@ def mock_reactor_config(workflow, allow_multiple_remote_sources=False):
             root_url: ''
             auth: {{}}
         allow_multiple_remote_sources: {}
+        openshift:
+            url: openshift_url
         """.format(allow_multiple_remote_sources))
 
-    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-    config = read_yaml(data, 'schemas/config.json')
-    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] = ReactorConfig(config)
+    config = yaml.safe_load(data)
+    workflow.conf.conf = config
 
 
 def mock_environment(tmpdir, session=None, name=None,
@@ -269,7 +269,8 @@ def mock_environment(tmpdir, session=None, name=None,
     tasker = ContainerTasker()
     tasker._tasker = DockerTasker()
     tasker.build_method = build_method
-    workflow = DockerBuildWorkflow(source=SOURCE)
+    workflow = DockerBuildWorkflow(source=None)
+    mock_reactor_config(workflow)
     workflow.user_params['scratch'] = scratch
     base_image_id = '123456parent-id'
 
@@ -278,7 +279,8 @@ def mock_environment(tmpdir, session=None, name=None,
         workflow.all_yum_repourls = yum_repourls
     workflow.builder = StubInsideBuilder().for_workflow(workflow)
     workflow.builder.image_id = '123456imageid'
-    workflow.builder.set_dockerfile_images(['Fedora:22'])
+    workflow.dockerfile_images = DockerfileImages(['Fedora:22'])
+
     workflow.builder.set_inspection_data({'ParentId': base_image_id})
     workflow.builder.tasker = tasker
     setattr(workflow, 'tag_conf', TagConf())
@@ -294,7 +296,7 @@ def mock_environment(tmpdir, session=None, name=None,
             df.write('LABEL com.redhat.delivery.appregistry=true\n')
         if has_op_bundle_manifests:
             df.write('LABEL com.redhat.delivery.operator.bundle=true\n')
-        setattr(workflow.builder, 'df_path', df.name)
+        flexmock(workflow, df_path=df.name)
     if container_first:
         with open(os.path.join(str(tmpdir), 'container.yaml'), 'wt') as container_conf:
             container_conf.write('go:\n'
@@ -631,9 +633,7 @@ def os_env(monkeypatch):
 def create_runner(tasker, workflow, ssl_certs=False, principal=None,
                   keytab=None, target=None, blocksize=None, reserve_build=False,
                   upload_plugin_name=KojiImportPlugin.key):
-    args = {
-        'url': '/',
-    }
+    args = {}
 
     if target:
         args['target'] = target
@@ -711,7 +711,7 @@ class TestKojiImport(object):
 
         add_koji_map_in_workflow(workflow, hub_url='')
 
-        plugin = KojiImportPlugin(tasker, workflow, url='/')
+        plugin = KojiImportPlugin(tasker, workflow)
 
         assert plugin.get_buildroot(metadatas) == results
 
@@ -770,13 +770,13 @@ class TestKojiImport(object):
             runner.run()
 
     def test_koji_import_wrong_source_type(self, tmpdir, os_env):  # noqa
-        source = PathSource('path', 'file:///dev/null')
+        source = PathSource('path', f'file://{tmpdir}')
         tasker, workflow = mock_environment(tmpdir,
                                             name='ns/name',
                                             version='1.0',
-                                            release='1',
-                                            source=source)
+                                            release='1')
         runner = create_runner(tasker, workflow)
+        setattr(workflow, 'source', source)
         with pytest.raises(PluginFailedException) as exc:
             runner.run()
         assert "plugin 'koji_import' raised an exception: RuntimeError" in str(exc.value)
@@ -1238,7 +1238,7 @@ class TestKojiImport(object):
         dockerfile_images = ['base:latest', 'scratch', 'some:1.0']
         if base_from_scratch:
             dockerfile_images.append('scratch')
-        workflow.builder.set_dockerfile_images(dockerfile_images)
+        workflow.dockerfile_images = DockerfileImages(dockerfile_images)
 
         runner = create_runner(tasker, workflow)
         runner.run()

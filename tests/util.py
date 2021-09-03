@@ -11,24 +11,16 @@ import pytest
 import requests
 import uuid
 
-from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY,
-                                                       ReactorConfig)
-
 
 def add_koji_map_in_workflow(workflow, hub_url, root_url=None, reserve_build=None,
                              delegate_task=None, delegated_priority=None,
                              proxyuser=None, ssl_certs_dir=None,
                              krb_principal=None, krb_keytab=None):
-    config_key = workflow.plugin_workspace.get(ReactorConfigPlugin.key)
-    if not config_key:
-        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-
-    reactor_config = workflow.plugin_workspace[ReactorConfigPlugin.key].get(WORKSPACE_CONF_KEY)
+    reactor_config = workflow.conf.conf
     if not reactor_config:
-        reactor_config = ReactorConfig({})
+        reactor_config = {}
 
-    koji_map = reactor_config.conf['koji'] = {
+    koji_map = reactor_config['koji'] = {
         'hub_url': hub_url,
         'auth': {},
     }
@@ -56,8 +48,6 @@ def add_koji_map_in_workflow(workflow, hub_url, root_url=None, reserve_build=Non
 
     if krb_keytab:
         koji_map['auth']['krb_keytab_path'] = str(krb_keytab)
-
-    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] = reactor_config
 
 
 def uuid_value():

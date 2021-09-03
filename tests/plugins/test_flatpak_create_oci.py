@@ -21,12 +21,8 @@ from textwrap import dedent
 from atomic_reactor.constants import IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR, SUBPROCESS_MAX_RETRIES
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PrePublishPluginsRunner, PluginFailedException
-from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY,
-                                                       ReactorConfig)
 from osbs.utils import ImageName
 
-from tests.constants import MOCK_SOURCE
 from tests.flatpak import (MODULEMD_AVAILABLE,
                            setup_flatpak_source_info, build_flatpak_test_configs)
 
@@ -433,16 +429,12 @@ class DefaultInspector(object):
 
 
 def make_and_store_reactor_config_map(workflow, flatpak_metadata):
-    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-
     reactor_map = {
         'version': 1,
         'flatpak': {'metadata': flatpak_metadata},
     }
 
-    workflow.plugin_workspace[ReactorConfigPlugin.key] = {
-        WORKSPACE_CONF_KEY: ReactorConfig(reactor_map)
-    }
+    workflow.conf.conf = reactor_map
 
 
 def write_docker_file(config, tmpdir):
@@ -501,10 +493,11 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, user_params,
 
     config = CONFIGS[config_name]
 
-    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
+    workflow = DockerBuildWorkflow(source=None)
     workflow.user_params.update(USER_PARAMS)
     setattr(workflow, 'builder', MockBuilder())
-    workflow.builder.df_path = write_docker_file(config, str(tmpdir))
+    df_path = write_docker_file(config, str(tmpdir))
+    flexmock(workflow, df_path=df_path)
     setattr(workflow.builder, 'tasker', docker_tasker)
 
     #  Make a local copy instead of pushing oci to docker storage
@@ -703,7 +696,7 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, user_params,
 @pytest.mark.skipif(not MODULEMD_AVAILABLE,  # noqa - docker_tasker fixture
                     reason="libmodulemd not available")
 def test_skip_plugin(caplog, docker_tasker, user_params):
-    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
+    workflow = DockerBuildWorkflow(source=None)
     workflow.user_params = {}
     setattr(workflow, 'builder', MockBuilder())
 

@@ -16,12 +16,10 @@ from atomic_reactor.build import BuildResult
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.post_tag_from_config import TagFromConfigPlugin
-from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin, ReactorConfig,
-                                                       WORKSPACE_CONF_KEY)
 from atomic_reactor.util import df_parser
 from osbs.utils import ImageName
 from atomic_reactor.constants import INSPECT_CONFIG
-from tests.constants import (MOCK_SOURCE, MOCK, IMPORTED_IMAGE_ID)
+from tests.constants import MOCK, IMPORTED_IMAGE_ID
 if MOCK:
     from tests.docker_mock import mock_docker
 
@@ -65,14 +63,14 @@ def mock_workflow(tmpdir):
     if MOCK:
         mock_docker()
 
-    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
+    workflow = DockerBuildWorkflow(source=None)
     mock_source = MockSource(tmpdir)
     setattr(workflow, 'builder', X)
-    workflow.builder.source = mock_source
     flexmock(workflow, source=mock_source)
 
     df = df_parser(str(tmpdir))
-    setattr(workflow.builder, 'df_path', df.dockerfile_path)
+    flexmock(workflow, df_path=df.dockerfile_path)
+    workflow.df_dir = str(tmpdir)
 
     return workflow
 
@@ -231,11 +229,11 @@ def test_tags_enclosed(tmpdir, docker_tasker, name, organization, expected):
     workflow.build_result = BuildResult.make_remote_image_result()
 
     if organization:
-        reactor_config = ReactorConfig({
+        reactor_config = {
             'version': 1,
             'registries_organization': organization
-        })
-        workflow.plugin_workspace[ReactorConfigPlugin.key] = {WORKSPACE_CONF_KEY: reactor_config}
+        }
+        workflow.conf.conf = reactor_config
 
     input_tags = {
         'unique': ['foo', 'bar'],

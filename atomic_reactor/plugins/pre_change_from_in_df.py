@@ -43,29 +43,29 @@ class ChangeFromPlugin(PreBuildPlugin):
         # call parent constructor
         super(ChangeFromPlugin, self).__init__(tasker, workflow)
 
-    def _sanity_check(self, df_base, builder_base, builder):
-        if builder_base != builder.dockerfile_images[df_base]:
+    def _sanity_check(self, df_base, builder_base):
+        if builder_base != self.workflow.dockerfile_images[df_base]:
             # something updated parent_images entry for base without updating
             # the build's base_image; treat it as an error
             raise BaseImageMismatch(
                 "Parent image '{}' for df_base {} does not match base_image '{}'"
-                .format(builder.dockerfile_images[df_base], df_base, builder_base)
+                .format(self.workflow.dockerfile_images[df_base], df_base, builder_base)
             )
 
     def run(self):
         builder = self.workflow.builder
-        dfp = df_parser(builder.df_path)
-        builder.original_df = dfp.content
+        dfp = df_parser(self.workflow.df_path)
+        self.workflow.original_df = dfp.content
 
         df_base = dfp.baseimage
-        build_base = builder.dockerfile_images.base_image
+        build_base = self.workflow.dockerfile_images.base_image
 
-        if not self.workflow.builder.dockerfile_images.base_from_scratch:
+        if not self.workflow.dockerfile_images.base_from_scratch:
             # do some sanity checks to defend against bugs and rogue plugins
-            self._sanity_check(dfp.baseimage, build_base, builder)
+            self._sanity_check(dfp.baseimage, build_base)
 
-        self.log.info("parent_images '%s'", builder.dockerfile_images.keys())
-        unresolved = [key for key, val in builder.dockerfile_images.items() if not val]
+        self.log.info("parent_images '%s'", self.workflow.dockerfile_images.keys())
+        unresolved = [key for key, val in self.workflow.dockerfile_images.items() if not val]
         if unresolved:
             # this would generally mean pull_base_image didn't run and/or
             # custom plugins modified parent_images; treat it as an error.
@@ -77,7 +77,7 @@ class ChangeFromPlugin(PreBuildPlugin):
             if base_image_is_scratch(df_img):
                 continue
             try:
-                builder.dockerfile_images[df_img]
+                self.workflow.dockerfile_images[df_img]
             except KeyError:
                 missing_set.add(df_img)
         if missing_set:
@@ -93,7 +93,7 @@ class ChangeFromPlugin(PreBuildPlugin):
             if base_image_is_scratch(df_img):
                 new_parents.append(df_img)
                 continue
-            local_image = builder.dockerfile_images[df_img]
+            local_image = self.workflow.dockerfile_images[df_img]
             inspection = builder.parent_image_inspect(local_image)
 
             try:
@@ -109,12 +109,12 @@ class ChangeFromPlugin(PreBuildPlugin):
         for df_img in dfp.parent_images:
             if base_image_is_scratch(df_img):
                 continue
-            builder.dockerfile_images[df_img] = parent_image_ids[df_img]
+            self.workflow.dockerfile_images[df_img] = parent_image_ids[df_img]
 
         # update parent_images in Dockerfile
         dfp.parent_images = new_parents
 
-        if builder.dockerfile_images.base_from_scratch:
+        if self.workflow.dockerfile_images.base_from_scratch:
             return
 
         self.log.debug(

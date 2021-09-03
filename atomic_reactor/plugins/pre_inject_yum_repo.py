@@ -14,7 +14,6 @@ from io import StringIO
 
 from atomic_reactor.constants import YUM_REPOS_DIR, RELATIVE_REPOS_PATH, INSPECT_CONFIG
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.plugins.pre_reactor_config import get_builder_ca_bundle
 from atomic_reactor.util import df_parser
 from atomic_reactor.utils.yum import YumRepo
 
@@ -29,7 +28,7 @@ class InjectYumRepoPlugin(PreBuildPlugin):
             return user
 
         builder = self.workflow.builder
-        if not builder.dockerfile_images.base_from_scratch:
+        if not self.workflow.dockerfile_images.base_from_scratch:
             inspect = builder.base_image_inspect
             user = inspect.get(INSPECT_CONFIG).get('User')
             if user:
@@ -69,7 +68,7 @@ class InjectYumRepoPlugin(PreBuildPlugin):
 
     def _inject_into_repo_files(self):
         """Inject repo files into a relative directory inside the build context"""
-        host_repos_path = os.path.join(self.workflow.builder.df_dir, RELATIVE_REPOS_PATH)
+        host_repos_path = os.path.join(self.workflow.df_dir, RELATIVE_REPOS_PATH)
         self.log.info("creating directory for yum repos: %s", host_repos_path)
         os.mkdir(host_repos_path)
 
@@ -98,14 +97,14 @@ class InjectYumRepoPlugin(PreBuildPlugin):
         if self._builder_ca_bundle:
             shutil.copyfile(
                 self._builder_ca_bundle,
-                os.path.join(self.workflow.builder.df_dir, self._ca_bundle_pem)
+                os.path.join(self.workflow.df_dir, self._ca_bundle_pem)
             )
             self._dockerfile.add_lines(
                 f'ADD {self._ca_bundle_pem} /tmp/{self._ca_bundle_pem}',
                 all_stages=True, at_start=True, skip_scratch=True
             )
 
-        if not self.workflow.builder.dockerfile_images.base_from_scratch:
+        if not self.workflow.dockerfile_images.base_from_scratch:
             self._dockerfile.add_lines(*self._cleanup_lines())
 
     def run(self):
@@ -116,11 +115,11 @@ class InjectYumRepoPlugin(PreBuildPlugin):
         if not yum_repos:
             return
 
-        self._dockerfile = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
+        self._dockerfile = df_parser(self.workflow.df_path, workflow=self.workflow)
         if self._dockerfile.baseimage is None:
             raise RuntimeError("No FROM line in Dockerfile")
 
-        self._builder_ca_bundle = get_builder_ca_bundle(self.workflow, None)
+        self._builder_ca_bundle = self.workflow.conf.builder_ca_bundle
         if self._builder_ca_bundle:
             self._ca_bundle_pem = os.path.basename(self._builder_ca_bundle)
 

@@ -6,6 +6,7 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
+from flexmock import flexmock
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.plugins.pre_add_dockerfile import AddDockerfilePlugin
 from atomic_reactor.plugins.pre_add_labels_in_df import AddLabelsPlugin
@@ -20,7 +21,8 @@ if MOCK:
 def prepare(workflow, df_path):
     workflow.source = StubSource()
     workflow.builder = StubInsideBuilder().for_workflow(workflow)
-    workflow.builder.set_df_path(df_path)
+    flexmock(workflow, df_path=df_path)
+
 
 
 def test_adddockerfile_plugin(tmpdir, docker_tasker, workflow):  # noqa
