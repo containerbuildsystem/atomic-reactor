@@ -14,11 +14,9 @@ import json
 import koji as koji
 
 from atomic_reactor.plugin import BuildCanceledException
+from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugins.pre_koji_delegate import KojiDelegatePlugin
 from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildPlugin
-from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY,
-                                                       ReactorConfig)
 from tests.util import add_koji_map_in_workflow
 from osbs.api import OSBS
 
@@ -39,20 +37,12 @@ class TestKojiDelegate(object):
                 delegate_task=False,
                 delegated_priority=None):
 
-        workflow = flexmock()
-        setattr(workflow, 'builder', flexmock())
-        setattr(workflow, 'plugin_workspace', {})
-        setattr(workflow, 'reserved_build_id', None)
-        setattr(workflow, 'reserved_token ', None)
-        setattr(workflow, 'cancel_isolated_autorebuild', None)
-        setattr(workflow, 'triggered_after_koji_task', None)
-        setattr(workflow, 'source', MockSource(tmpdir))
-        setattr(workflow, 'prebuild_results', {CheckAndSetRebuildPlugin.key: is_auto})
-        setattr(workflow, 'user_params', {})
+        workflow = DockerBuildWorkflow(source=None)
+        workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = is_auto
 
         df = tmpdir.join('Dockerfile')
         df.write('FROM base\n')
-        setattr(workflow.builder, 'df_path', str(df))
+        flexmock(workflow, df_path=str(df))
 
         kwargs = {
             'tasker': None,
@@ -67,9 +57,7 @@ class TestKojiDelegate(object):
             'auth': {'enable': True}
         }
 
-        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            ReactorConfig({'version': 1, 'openshift': openshift_map})
+        workflow.conf.conf = {'version': 1, 'openshift': openshift_map}
         add_koji_map_in_workflow(workflow, hub_url='', root_url='',
                                  reserve_build=False,
                                  delegate_task=delegate_task,
@@ -101,7 +89,7 @@ class TestKojiDelegate(object):
         (True, True, 12345, True, True, True),
     ])
     def test_skip_delegate_build(self, tmpdir, caplog, delegate_task, is_auto, triggered_task,
-                                 task_open, koji_task_id, task_exists):
+                                 task_open, koji_task_id, task_exists, user_params):
         class MockedClientSession(object):
             def __init__(self, hub, opts=None):
                 pass
@@ -158,7 +146,7 @@ class TestKojiDelegate(object):
             assert "koji-task-id label on build, doesn't exist in koji" in caplog.text
 
     @pytest.mark.parametrize('cancel_isolated_autorebuild', [True, False])
-    @pytest.mark.parametrize('user_params', [
+    @pytest.mark.parametrize('u_params', [
         {'git_ref': 'test_ref',
          'git_uri': 'test_uri',
          'git_branch': 'test_branch'},
@@ -183,8 +171,8 @@ class TestKojiDelegate(object):
         (None, False, 60),
     ])
     def test_delegate_build(self, tmpdir, caplog, cancel_isolated_autorebuild,
-                            user_params, koji_task_id, original_koji_task_id,
-                            triggered_task, task_open, task_priority):
+                            u_params, koji_task_id, original_koji_task_id,
+                            triggered_task, task_open, task_priority, user_params):
         class MockedClientSession(object):
             def __init__(self, hub, opts=None):
                 pass
@@ -202,23 +190,23 @@ class TestKojiDelegate(object):
                     return {'state': koji.TASK_STATES['CLOSED']}
 
             def buildContainer(self, source, container_target,  task_opts, priority=None):
-                expect_source = "%s#%s" % (user_params.get('git_uri'), user_params.get('git_ref'))
+                expect_source = "%s#%s" % (u_params.get('git_uri'), u_params.get('git_ref'))
                 assert source == expect_source
-                assert container_target == user_params.get('koji_target')
+                assert container_target == u_params.get('koji_target')
                 assert priority == task_priority
 
                 expect_opts = {
-                    'git_branch': user_params.get('git_branch'),
+                    'git_branch': u_params.get('git_branch'),
                     'triggered_after_koji_task': original_koji_task_id,
                 }
-                if user_params.get('yum_repourls'):
-                    expect_opts['yum_repourls'] = user_params.get('yum_repourls')
-                if user_params.get('signing_intent'):
-                    expect_opts['signing_intent'] = user_params.get('signing_intent')
-                if user_params.get('compose_ids'):
-                    expect_opts['compose_ids'] = user_params.get('compose_ids')
-                if user_params.get('flatpak'):
-                    expect_opts['flatpak'] = user_params.get('flatpak')
+                if u_params.get('yum_repourls'):
+                    expect_opts['yum_repourls'] = u_params.get('yum_repourls')
+                if u_params.get('signing_intent'):
+                    expect_opts['signing_intent'] = u_params.get('signing_intent')
+                if u_params.get('compose_ids'):
+                    expect_opts['compose_ids'] = u_params.get('compose_ids')
+                if u_params.get('flatpak'):
+                    expect_opts['flatpak'] = u_params.get('flatpak')
                 if not expect_opts['triggered_after_koji_task']:
                     expect_opts['triggered_after_koji_task'] = koji_task_id or 0
 
@@ -249,7 +237,7 @@ class TestKojiDelegate(object):
                               triggered_after_koji_task=triggered_task)
 
         plugin.workflow.cancel_isolated_autorebuild = cancel_isolated_autorebuild
-        plugin.workflow.user_params = user_params
+        plugin.workflow.user_params = u_params
 
         with pytest.raises(BuildCanceledException):
             plugin.run()

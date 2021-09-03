@@ -14,9 +14,7 @@ from textwrap import dedent
 from atomic_reactor.plugins.pre_bump_release import BumpReleasePlugin
 from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildPlugin
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
-from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY,
-                                                       ReactorConfig)
+from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.util import df_parser
 from atomic_reactor.constants import PROG
 from tests.util import add_koji_map_in_workflow
@@ -54,7 +52,6 @@ class TestBumpRelease(object):
     def prepare(self,
                 tmpdir,
                 labels=None,
-                include_target=True,
                 certs=False,
                 append=False,
                 reserve_build=False,
@@ -65,14 +62,10 @@ class TestBumpRelease(object):
         if labels is None:
             labels = {}
 
-        workflow = flexmock()
+        workflow = DockerBuildWorkflow(source=None)
         setattr(workflow, 'builder', flexmock())
-        setattr(workflow, 'plugin_workspace', {})
-        setattr(workflow, 'reserved_build_id', None)
-        setattr(workflow, 'reserved_token ', None)
-        setattr(workflow, 'source', MockSource(tmpdir, add_timestamp))
-        setattr(workflow, 'prebuild_results', {CheckAndSetRebuildPlugin.key: is_auto})
-        setattr(workflow, 'user_params', {})
+        workflow.source = MockSource(tmpdir, add_timestamp)
+        workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = is_auto
         if scratch is not None:
             workflow.user_params['scratch'] = scratch
         if fetch_source:
@@ -84,24 +77,19 @@ class TestBumpRelease(object):
         df.write('FROM base\n')
         for key, value in labels.items():
             df.write('LABEL {key}={value}\n'.format(key=key, value=value), mode='a')
-        setattr(workflow.builder, 'df_path', str(df))
+        flexmock(workflow, df_path=str(df))
 
         kwargs = {
             'tasker': None,
             'workflow': workflow,
         }
 
-        if include_target:
-            kwargs['target'] = 'foo'
         if append:
             kwargs['append'] = True
         if certs:
             tmpdir.join('cert').write('cert')
             tmpdir.join('serverca').write('serverca')
 
-        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            ReactorConfig({'version': 1})
         add_koji_map_in_workflow(workflow, hub_url='', root_url='',
                                  reserve_build=reserve_build,
                                  ssl_certs_dir=str(tmpdir) if certs else None)
@@ -109,7 +97,7 @@ class TestBumpRelease(object):
         plugin = BumpReleasePlugin(**kwargs)
         return plugin
 
-    def test_component_missing(self, tmpdir):
+    def test_component_missing(self, tmpdir, user_params):
         session = MockedClientSessionGeneral('')
         flexmock(koji, ClientSession=session)
         plugin = self.prepare(tmpdir)
@@ -138,7 +126,8 @@ class TestBumpRelease(object):
     @pytest.mark.parametrize('user_provided_relese', [True, False])
     def test_release_label_already_set(self, tmpdir, caplog, reserve_build, koji_build_status,
                                        init_fails, add_timestamp, is_auto, scratch,
-                                       build_exists, release_label, user_provided_relese):
+                                       build_exists, release_label, user_provided_relese,
+                                       user_params):
         class MockedClientSession(object):
             def __init__(self, hub, opts=None):
                 pass
@@ -223,7 +212,7 @@ class TestBumpRelease(object):
         ({'com.redhat.component': 'component', 'version': 'version', 'release': '$UNDEFINED'},
          {'release': 'empty'}),
     ])
-    def test_missing_labels(self, tmpdir, caplog, labels, all_wrong_labels):
+    def test_missing_labels(self, tmpdir, caplog, labels, all_wrong_labels, user_params):
         session = MockedClientSessionGeneral('')
         flexmock(koji, ClientSession=session)
         plugin = self.prepare(tmpdir, labels=labels)
@@ -357,7 +346,7 @@ class TestBumpRelease(object):
          None, True),
     ])
     def test_increment_and_append(self, tmpdir, component, version, next_release, base_release,
-                                  append, reserve_build, init_fails, koji_build_state):
+                                  append, reserve_build, init_fails, koji_build_state, user_params):
         build_id = '123456'
         token = 'token_123456'
 
@@ -447,7 +436,7 @@ class TestBumpRelease(object):
             with open(file_path, 'r') as fd:
                 assert fd.read() == expected
 
-        parser = df_parser(plugin.workflow.builder.df_path, workflow=plugin.workflow)
+        parser = df_parser(plugin.workflow.df_path, workflow=plugin.workflow)
         if reserve_build and koji_build_state != 'COMPLETE':
             assert parser.labels['release'] == next_release['expected_refund']
         else:
@@ -468,7 +457,7 @@ class TestBumpRelease(object):
 
         {'builds': ['1', '2'], 'expected': '3', 'search': []},
     ])
-    def test_get_next_release(self, tmpdir, next_release):
+    def test_get_next_release(self, tmpdir, next_release, user_params):
         build_id = '123456'
         token = 'token_123456'
         component = {'com.redhat.component': 'component1'}
@@ -546,7 +535,7 @@ class TestBumpRelease(object):
             with open(file_path, 'r') as fd:
                 assert fd.read() == expected
 
-        parser = df_parser(plugin.workflow.builder.df_path, workflow=plugin.workflow)
+        parser = df_parser(plugin.workflow.df_path, workflow=plugin.workflow)
         assert parser.labels['release'] == next_release['expected']
 
     @pytest.mark.parametrize('reserve_build, init_fails', [
@@ -561,7 +550,8 @@ class TestBumpRelease(object):
         {'builds': [], 'scratch': True, 'expected': '1.scratch'},
         {'builds': ['1.1', '1.2'], 'scratch': True, 'expected': '1.scratch'},
     ])
-    def test_source_build_release(self, tmpdir, next_release, reserve_build, init_fails):
+    def test_source_build_release(self, tmpdir, next_release, reserve_build, init_fails,
+                                  user_params):
         build_id = '123456'
         token = 'token_123456'
         koji_name = 'component'

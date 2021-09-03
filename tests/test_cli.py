@@ -179,7 +179,7 @@ class TestCLISuite(object):
             mock_docker()
 
         (flexmock(InputPluginsRunner)
-            .should_receive('run')
+            .should_receive('__init__')
             .and_raise(RuntimeError))
 
         monkeypatch.setenv('LC_ALL', 'en_US.UTF-8')

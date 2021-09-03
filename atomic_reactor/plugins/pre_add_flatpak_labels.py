@@ -43,7 +43,7 @@ class AddFlatpakLabelsPlugin(PreBuildPlugin):
         if not labels:
             return
 
-        dockerfile = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
+        dockerfile = df_parser(self.workflow.df_path, workflow=self.workflow)
         lines = dockerfile.lines
 
         # Sort to get repeatable results with Python2

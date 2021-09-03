@@ -18,8 +18,6 @@ from osbs.repo_utils import ModuleSpec
 
 from atomic_reactor.constants import DOCKERFILE_FILENAME, RELATIVE_REPOS_PATH, YUM_REPOS_DIR
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.plugins.pre_reactor_config import (get_flatpak_base_image, get_source_registry,
-                                                       get_registries_organization)
 from atomic_reactor.utils.rpm import rpm_qf_args
 from atomic_reactor.util import is_flatpak_build
 
@@ -88,19 +86,17 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
     key = "flatpak_create_dockerfile"
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow,
-                 base_image=None):
+    def __init__(self, tasker, workflow):
         """
         constructor
 
         :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param base_image: host image used to install packages when creating the Flatpak
         """
         # call parent constructor
         super(FlatpakCreateDockerfilePlugin, self).__init__(tasker, workflow)
 
-        self.default_base_image = get_flatpak_base_image(workflow, base_image)
+        self.default_base_image = self.workflow.conf.flatpak_base_image
 
     def _load_source_spec(self):
         # Find out the name:stream of the module we're building from (the version is
@@ -140,7 +136,7 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
 
         # Create the dockerfile
 
-        df_path = os.path.join(self.workflow.builder.df_dir, DOCKERFILE_FILENAME)
+        df_path = os.path.join(self.workflow.df_dir, DOCKERFILE_FILENAME)
         with open(df_path, 'w') as fp:
             fp.write(DOCKERFILE_TEMPLATE.format(name=name,
                                                 component=component,
@@ -152,10 +148,10 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
                                                 rpm_qf_args=rpm_qf_args(),
                                                 yum_repos_dir=YUM_REPOS_DIR))
 
-        self.workflow.builder.set_df_path(df_path)
+        self.workflow.set_df_path(df_path)
 
         # set source registry and organization
-        source_registry_docker_uri = get_source_registry(self.workflow)['uri'].docker_uri
-        organization = get_registries_organization(self.workflow)
-        self.workflow.builder.dockerfile_images.set_source_registry(source_registry_docker_uri,
-                                                                    organization)
+        source_registry_docker_uri = self.workflow.conf.source_registry['uri'].docker_uri
+        organization = self.workflow.conf.registries_organization
+        self.workflow.dockerfile_images.set_source_registry(source_registry_docker_uri,
+                                                            organization)

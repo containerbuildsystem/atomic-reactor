@@ -21,7 +21,7 @@ from osbs.utils import ImageName
 from atomic_reactor.plugins.build_orchestrate_build import (WorkerBuildInfo, ClusterInfo,
                                                             OrchestrateBuildPlugin)
 
-from tests.constants import MOCK_SOURCE, INPUT_IMAGE
+from tests.constants import INPUT_IMAGE
 from tests.docker_mock import mock_docker
 import pytest
 
@@ -79,7 +79,7 @@ class MockInsideBuilder(object):
 
 
 def mock_workflow(tmpdir):
-    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
+    workflow = DockerBuildWorkflow(source=None)
     setattr(workflow, 'builder', MockInsideBuilder())
     setattr(workflow, 'source', MockSource(tmpdir))
     setattr(workflow.builder, 'source', MockSource(tmpdir))

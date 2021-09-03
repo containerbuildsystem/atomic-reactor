@@ -19,8 +19,7 @@ from osbs.utils import ImageName
 from tests.constants import (LOCALHOST_REGISTRY,
                              TEST_IMAGE,
                              IMPORTED_IMAGE_ID,
-                             INPUT_IMAGE,
-                             MOCK, MOCK_SOURCE)
+                             INPUT_IMAGE, MOCK)
 
 if MOCK:
     from tests.docker_mock import mock_docker
@@ -35,7 +34,7 @@ def mock_environment(base_image=None):
         mock_docker()
 
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
+    workflow = DockerBuildWorkflow(source=None)
     workflow.postbuild_results[TagAndPushPlugin.key] = True
     workflow.tag_conf.add_primary_image(TEST_IMAGE)
     workflow.push_conf.add_docker_registry(LOCALHOST_REGISTRY, insecure=True)

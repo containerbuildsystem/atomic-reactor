@@ -13,15 +13,14 @@ from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.constants import YUM_REPOS_DIR
 from atomic_reactor.utils.yum import YumRepo
 from atomic_reactor.util import render_yum_repo
-from atomic_reactor.plugins.pre_reactor_config import (get_koji_session, get_yum_proxy,
-                                                       get_koji_path_info)
+from atomic_reactor.config import get_koji_session
 
 
 class KojiPlugin(PreBuildPlugin):
     key = "koji"
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, target=None, proxy=None):
+    def __init__(self, tasker, workflow, target=None):
         """
         constructor
 
@@ -33,9 +32,9 @@ class KojiPlugin(PreBuildPlugin):
         super(KojiPlugin, self).__init__(tasker, workflow)
         self.target = target
 
-        self.xmlrpc = get_koji_session(self.workflow)
-        self.pathinfo = get_koji_path_info(self.workflow)
-        self.proxy = get_yum_proxy(self.workflow, proxy)
+        self.xmlrpc = get_koji_session(self.workflow.conf)
+        self.pathinfo = self.workflow.conf.koji_path_info
+        self.proxy = self.workflow.conf.yum_proxy
 
     def run(self):
         """
@@ -50,8 +49,8 @@ class KojiPlugin(PreBuildPlugin):
             self.log.info('no target provided, skipping plugin')
             return
 
-        if (self.workflow.builder.dockerfile_images.base_from_scratch and
-                not self.workflow.builder.dockerfile_images):
+        if (self.workflow.dockerfile_images.base_from_scratch and
+                not self.workflow.dockerfile_images):
             self.log.info("from scratch single stage can't add repos from koji target")
             return
 

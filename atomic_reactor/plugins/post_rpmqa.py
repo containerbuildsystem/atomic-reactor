@@ -46,7 +46,7 @@ class PostBuildRPMqaPlugin(PostBuildPlugin):
 
         plugin_output = self.gather_output()
 
-        if self.workflow.builder.dockerfile_images.base_from_scratch:
+        if self.workflow.dockerfile_images.base_from_scratch:
             if not plugin_output:
                 self.tasker.cleanup_containers(*self._container_ids)
                 return None
@@ -72,7 +72,7 @@ class PostBuildRPMqaPlugin(PostBuildPlugin):
             bits, _ = self.tasker.get_archive(container_id, RPMDB_PATH)
         except APIError as ex:
             self.log.info('Could not extract rpmdb in %s : %s', RPMDB_PATH, ex)
-            if self.workflow.builder.dockerfile_images.base_from_scratch:
+            if self.workflow.dockerfile_images.base_from_scratch:
                 return None
             raise RuntimeError(ex) from ex
 
@@ -93,7 +93,7 @@ class PostBuildRPMqaPlugin(PostBuildPlugin):
 
             if not os.listdir(rpmdb_path):
                 self.log.info('rpmdb directory %s is empty', RPMDB_PATH)
-                if self.workflow.builder.dockerfile_images.base_from_scratch:
+                if self.workflow.dockerfile_images.base_from_scratch:
                     return None
                 raise RuntimeError(f'rpmdb directory {RPMDB_PATH} is empty')
 

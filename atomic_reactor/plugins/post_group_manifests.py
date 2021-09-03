@@ -12,7 +12,6 @@ tags.
 
 
 from atomic_reactor.plugin import PostBuildPlugin
-from atomic_reactor.plugins.pre_reactor_config import get_platform_descriptors, get_group_manifests
 from atomic_reactor.util import (ManifestDigest, get_manifest_media_type,
                                  get_primary_images, get_unique_images)
 from atomic_reactor.utils.manifest import ManifestUtil
@@ -30,7 +29,7 @@ class GroupManifestsPlugin(PostBuildPlugin):
     is_allowed_to_fail = False
     key = PLUGIN_GROUP_MANIFESTS_KEY
 
-    def __init__(self, tasker, workflow, registries=None, group=True, goarch=None):
+    def __init__(self, tasker, workflow, registries=None):
         """
         constructor
 
@@ -41,26 +40,12 @@ class GroupManifestsPlugin(PostBuildPlugin):
                            Params:
                             * "secret" optional string - path to the secret, which stores
                               login and password for remote registry
-        :param group: bool, if true, create a manifest list; otherwise only add tags to
-                      amd64 image manifest
-        :param goarch: dict, keys are platform, values are go language platform names
         """
         # call parent constructor
         super(GroupManifestsPlugin, self).__init__(tasker, workflow)
 
-        self.group = get_group_manifests(self.workflow, group)
-
-        plat_des_fallback = []
-        for platform, architecture in (goarch or {}).items():
-            plat_dic = {'platform': platform,
-                        'architecture': architecture}
-            plat_des_fallback.append(plat_dic)
-
-        platform_descriptors = get_platform_descriptors(self.workflow, plat_des_fallback)
-        goarch_from_pd = {}
-        for platform in platform_descriptors:
-            goarch_from_pd[platform['platform']] = platform['architecture']
-        self.goarch = goarch_from_pd
+        self.group = self.workflow.conf.group_manifests
+        self.goarch = self.workflow.conf.platform_to_goarch_mapping
 
         self.manifest_util = ManifestUtil(self.workflow, registries, self.log)
         self.non_floating_images = None

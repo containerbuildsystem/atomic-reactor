@@ -16,7 +16,7 @@ import os
 import requests
 from collections import OrderedDict
 
-from tests.constants import SOURCE, MOCK, DOCKER0_REGISTRY
+from tests.constants import MOCK, DOCKER0_REGISTRY
 from tests.stubs import StubInsideBuilder
 
 from atomic_reactor.core import DockerTasker
@@ -26,9 +26,6 @@ from atomic_reactor.inner import DockerBuildWorkflow, TagConf
 from atomic_reactor.util import (registry_hostname, ManifestDigest, get_floating_images,
                                  get_primary_images, sha256sum)
 from atomic_reactor.plugins.post_group_manifests import GroupManifestsPlugin
-from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY,
-                                                       ReactorConfig)
 from osbs.utils import ImageName
 
 if MOCK:
@@ -306,7 +303,7 @@ def mock_environment(tmpdir, primary_images=None,
     if MOCK:
         mock_docker()
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow(source=SOURCE)
+    workflow = DockerBuildWorkflow(source=None)
     base_image_id = '123456parent-id'
     setattr(workflow, '_base_image_inspect', {'Id': base_image_id})
     setattr(workflow, 'builder', StubInsideBuilder())
@@ -430,7 +427,7 @@ OTHER_V2 = 'registry.example.com:5001'
 ])
 @responses.activate  # noqa
 def test_group_manifests(tmpdir, schema_version, test_name, group, foreign_layers,
-                         registries, workers, expected_exception, reactor_config_map, user_params):
+                         registries, workers, expected_exception, user_params):
     if MOCK:
         mock_docker()
 
@@ -477,37 +474,34 @@ def test_group_manifests(tmpdir, schema_version, test_name, group, foreign_layer
     tasker, workflow = mock_environment(tmpdir, primary_images=test_images,
                                         annotations=annotations)
 
-    if reactor_config_map:
-        registries_list = []
+    registries_list = []
 
-        for docker_uri in registry_conf:
-            reg_ver = registry_conf[docker_uri]['version']
-            reg_secret = None
-            if 'secret' in registry_conf[docker_uri]:
-                reg_secret = registry_conf[docker_uri]['secret']
+    for docker_uri in registry_conf:
+        reg_ver = registry_conf[docker_uri]['version']
+        reg_secret = None
+        if 'secret' in registry_conf[docker_uri]:
+            reg_secret = registry_conf[docker_uri]['secret']
 
-            new_reg = {}
-            if reg_secret:
-                new_reg['auth'] = {'cfg_path': reg_secret}
-            else:
-                new_reg['auth'] = {'cfg_path': str(temp_dir)}
-            new_reg['url'] = 'https://' + docker_uri + '/' + reg_ver
+        new_reg = {}
+        if reg_secret:
+            new_reg['auth'] = {'cfg_path': reg_secret}
+        else:
+            new_reg['auth'] = {'cfg_path': str(temp_dir)}
+        new_reg['url'] = 'https://' + docker_uri + '/' + reg_ver
 
-            registries_list.append(new_reg)
+        registries_list.append(new_reg)
 
-        platform_descriptors_list = []
-        for platform in goarch:
-            new_plat = {
-                'platform': platform,
-                'architecture': goarch[platform],
-            }
-            platform_descriptors_list.append(new_plat)
+    platform_descriptors_list = []
+    for platform in goarch:
+        new_plat = {
+            'platform': platform,
+            'architecture': goarch[platform],
+        }
+        platform_descriptors_list.append(new_plat)
 
-        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            ReactorConfig({'version': 1, 'group_manifests': group,
-                           'registries': registries_list,
-                           'platform_descriptors': platform_descriptors_list})
+        workflow.conf.conf = {'version': 1, 'group_manifests': group,
+                              'registries': registries_list,
+                              'platform_descriptors': platform_descriptors_list}
 
     runner = PostBuildPluginsRunner(tasker, workflow, plugins_conf)
     if expected_exception is None:

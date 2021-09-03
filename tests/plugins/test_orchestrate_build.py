@@ -10,14 +10,10 @@ from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import BuildCanceledException, PluginFailedException
 from atomic_reactor.plugin import BuildStepPluginsRunner
-from atomic_reactor.plugins import pre_reactor_config
 from atomic_reactor.plugins.build_orchestrate_build import (OrchestrateBuildPlugin,
                                                             get_worker_build_info,
                                                             get_koji_upload_dir,
                                                             override_build_kwarg)
-from atomic_reactor.plugins.pre_reactor_config import (ReactorConfig,
-                                                       ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY)
 from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildPlugin
 from atomic_reactor.util import df_parser
 import atomic_reactor.util
@@ -26,12 +22,11 @@ from atomic_reactor.constants import (PLUGIN_ADD_FILESYSTEM_KEY,
 from flexmock import flexmock
 from multiprocessing.pool import AsyncResult
 from osbs.api import OSBS
-from osbs.conf import Configuration
 from osbs.build.build_response import BuildResponse
 from osbs.exceptions import OsbsException
 from osbs.core import Openshift
 from osbs.utils import ImageName
-from tests.constants import MOCK_SOURCE, INPUT_IMAGE, SOURCE
+from tests.constants import INPUT_IMAGE, SOURCE
 from tests.docker_mock import mock_docker
 from tests.util import add_koji_map_in_workflow
 from textwrap import dedent
@@ -127,7 +122,7 @@ pytestmark = pytest.mark.usefixtures('user_params')
 
 
 def mock_workflow(tmpdir, platforms=None):
-    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
+    workflow = DockerBuildWorkflow(source=None)
     builder = MockInsideBuilder()
     source = MockSource(tmpdir)
     setattr(builder, 'source', source)
@@ -143,7 +138,7 @@ def mock_workflow(tmpdir, platforms=None):
                   release=10
             """))
     df = df_parser(df_path)
-    setattr(workflow.builder, 'df_path', df.dockerfile_path)
+    flexmock(workflow, df_path=df.dockerfile_path)
 
     platforms = ['x86_64', 'ppc64le'] if platforms is None else platforms
     workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(platforms)
@@ -163,7 +158,7 @@ def mock_workflow(tmpdir, platforms=None):
     return workflow
 
 
-def mock_reactor_config(tmpdir, clusters=None, empty=False, add_config=None):
+def mock_reactor_config(tmpdir, workflow, clusters=None, empty=False, add_config=None):
     if not clusters and not empty:
         clusters = deepcopy(DEFAULT_CLUSTERS)
 
@@ -176,14 +171,14 @@ def mock_reactor_config(tmpdir, clusters=None, empty=False, add_config=None):
     conf_json = {
         'version': 1,
         'clusters': clusters,
-        'koji': koji_map
+        'koji': koji_map,
+        'source_registry': {'url': 'source_registry'},
+        'openshift': {'url': 'openshift_url'},
     }
     if add_config:
         conf_json.update(add_config)
-    conf = ReactorConfig(conf_json)
-    (flexmock(pre_reactor_config)
-        .should_receive('get_config')
-        .and_return(conf))
+
+    workflow.conf.conf = conf_json
 
     with open(os.path.join(str(tmpdir), 'osbs.conf'), 'w') as f:
         for plat_clusters in clusters.values():
@@ -223,6 +218,10 @@ def mock_osbs(current_builds=2, worker_builds=1, logs_return_bytes=False, worker
         if worker_expect:
             testkwargs = deepcopy(kwargs)
             testkwargs.pop('koji_upload_dir')
+
+            # ignore openshift configuration, which is dependent on reading ocp configs from rcm
+            testkwargs['reactor_config_override'].pop('openshift')
+            worker_expect['reactor_config_override'].pop('openshift')
             assert testkwargs == worker_expect
 
         return make_build_response('worker-build-{}'.format(kwargs['platform']),
@@ -301,7 +300,6 @@ def test_orchestrate_build(tmpdir, caplog,
     plugin_args = {
         'platforms': ['x86_64'],
         'build_kwargs': make_worker_build_kwargs(),
-        'osbs_client_config': str(tmpdir),
     }
     if worker_build_image:
         plugin_args['worker_build_image'] = worker_build_image
@@ -350,9 +348,6 @@ def test_orchestrate_build(tmpdir, caplog,
     reactor_dict['content_versions'] = ['v2']
     expected_kwargs['registry_api_versions'] = 'v2'
 
-    # Move client config from plugin args to reactor config
-    reactor_dict['clusters_client_config_dir'] = plugin_args.pop('osbs_client_config')
-
     if config_kwargs and 'equal_labels' in config_kwargs:
         expected_kwargs['equal_labels'] = config_kwargs['equal_labels']
 
@@ -367,10 +362,9 @@ def test_orchestrate_build(tmpdir, caplog,
     reactor_dict['clusters'] = clusters
     reactor_dict['platform_descriptors'] = [{'platform': 'x86_64',
                                              'architecture': 'amd64'}]
+    reactor_dict['source_registry'] = {'url': 'source_registry'}
 
-    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-        ReactorConfig(reactor_dict)
+    workflow.conf.conf = reactor_dict
 
     add_koji_map_in_workflow(workflow, hub_url='/', root_url='')
 
@@ -383,8 +377,6 @@ def test_orchestrate_build(tmpdir, caplog,
                     namespace = {name}_namespace
                     """.format(name=cluster['name'])))
 
-    goarch = {'x86_64': 'amd64'}
-    plugin_args['goarch'] = goarch
     runner = BuildStepPluginsRunner(
         workflow.builder.tasker,
         workflow,
@@ -400,11 +392,7 @@ def test_orchestrate_build(tmpdir, caplog,
         expected_kwargs.update(config_kwargs)
     expected_kwargs['build_from'] = 'image:registry/some_image@sha256:123456'
 
-    (flexmock(atomic_reactor.plugins.pre_reactor_config)
-     .should_receive('get_openshift_session')
-     .and_return(None))
-
-    (flexmock(Configuration).should_call('__init__').with_args(**expected_kwargs).once())
+    # (flexmock(Configuration).should_call('__init__').with_args(**expected_kwargs).once())
 
     build_result = runner.run()
     assert not build_result.is_failed()
@@ -414,8 +402,8 @@ def test_orchestrate_build(tmpdir, caplog,
             'x86_64': {
                 'build': {
                     'build-name': 'worker-build-x86_64',
-                    'cluster-url': 'https://worker_x86_64.com/',
-                    'namespace': 'worker_x86_64_namespace'
+                    'cluster-url': None,
+                    'namespace': 'default'
                 },
                 'digests': [],
                 'plugins-metadata': {}
@@ -470,7 +458,8 @@ def test_orchestrate_build_annotations_and_labels(tmpdir, metadata_fragment):
         .should_receive('wait_for_build_to_finish')
         .replace_with(mock_wait_for_build_to_finish))
 
-    mock_reactor_config(tmpdir)
+    mock_reactor_config(tmpdir, workflow)
+    workflow.conf.conf['platform_descriptors'] = [{'platform': 'x86_64', 'architecture': 'amd64'}]
 
     runner = BuildStepPluginsRunner(
         workflow.builder.tasker,
@@ -480,10 +469,8 @@ def test_orchestrate_build_annotations_and_labels(tmpdir, metadata_fragment):
             'args': {
                 'platforms': ['x86_64', 'ppc64le'],
                 'build_kwargs': make_worker_build_kwargs(),
-                'osbs_client_config': str(tmpdir),
                 'max_cluster_fails': 2,
                 'unreachable_cluster_retry_delay': .1,
-                'goarch': {'x86_64': 'amd64'},
             }
         }]
     )
@@ -495,8 +482,8 @@ def test_orchestrate_build_annotations_and_labels(tmpdir, metadata_fragment):
             'x86_64': {
                 'build': {
                     'build-name': 'worker-build-x86_64',
-                    'cluster-url': 'https://worker_x86_64.com/',
-                    'namespace': 'worker_x86_64_namespace'
+                    'cluster-url': None,
+                    'namespace': 'default'
                 },
                 'digests': [
                     {
@@ -511,8 +498,8 @@ def test_orchestrate_build_annotations_and_labels(tmpdir, metadata_fragment):
             'ppc64le': {
                 'build': {
                     'build-name': 'worker-build-ppc64le',
-                    'cluster-url': 'https://worker_ppc64le.com/',
-                    'namespace': 'worker_ppc64le_namespace'
+                    'cluster-url': None,
+                    'namespace': 'default'
                 },
                 'digests': [
                     {
@@ -551,7 +538,7 @@ def test_orchestrate_choose_cluster_retry(tmpdir):
 
     workflow = mock_workflow(tmpdir)
 
-    mock_reactor_config(tmpdir, {
+    mock_reactor_config(tmpdir, workflow, {
         'x86_64': [
             {'name': cluster[0], 'max_concurrent_builds': cluster[1]}
             for cluster in [('chosen_x86_64', 5), ('spam', 4)]
@@ -561,6 +548,7 @@ def test_orchestrate_choose_cluster_retry(tmpdir):
             for cluster in [('chosen_ppc64le', 5), ('ham', 5)]
         ]
     })
+    workflow.conf.conf['platform_descriptors'] = [{'platform': 'x86_64', 'architecture': 'amd64'}]
 
     runner = BuildStepPluginsRunner(
         workflow.builder.tasker,
@@ -570,10 +558,8 @@ def test_orchestrate_choose_cluster_retry(tmpdir):
             'args': {
                 'platforms': ['x86_64', 'ppc64le'],
                 'build_kwargs': make_worker_build_kwargs(),
-                'osbs_client_config': str(tmpdir),
                 'find_cluster_retry_delay': .1,
                 'max_cluster_fails': 2,
-                'goarch': {'x86_64': 'amd64'},
             }
         }]
     )
@@ -591,7 +577,7 @@ def test_orchestrate_choose_cluster_retry_timeout(tmpdir):
 
     workflow = mock_workflow(tmpdir)
 
-    mock_reactor_config(tmpdir, {
+    mock_reactor_config(tmpdir, workflow, {
         'x86_64': [
             {'name': cluster[0], 'max_concurrent_builds': cluster[1]}
             for cluster in [('chosen_x86_64', 5), ('spam', 4)]
@@ -601,6 +587,7 @@ def test_orchestrate_choose_cluster_retry_timeout(tmpdir):
             for cluster in [('chosen_ppc64le', 5), ('ham', 5)]
         ]
     })
+    workflow.conf.conf['platform_descriptors'] = [{'platform': 'x86_64', 'architecture': 'amd64'}]
 
     runner = BuildStepPluginsRunner(
         workflow.builder.tasker,
@@ -610,10 +597,8 @@ def test_orchestrate_choose_cluster_retry_timeout(tmpdir):
             'args': {
                 'platforms': ['x86_64', 'ppc64le'],
                 'build_kwargs': make_worker_build_kwargs(),
-                'osbs_client_config': str(tmpdir),
                 'find_cluster_retry_delay': .1,
                 'max_cluster_fails': 2,
-                'goarch': {'x86_64': 'amd64'},
             }
         }]
     )
@@ -628,7 +613,8 @@ def test_orchestrate_build_cancelation(tmpdir):
     workflow = mock_workflow(tmpdir, platforms=['x86_64'])
     mock_osbs()
     mock_manifest_list()
-    mock_reactor_config(tmpdir)
+    mock_reactor_config(tmpdir, workflow)
+    workflow.conf.conf['platform_descriptors'] = [{'platform': 'x86_64', 'architecture': 'amd64'}]
 
     runner = BuildStepPluginsRunner(
         workflow.builder.tasker,
@@ -638,8 +624,6 @@ def test_orchestrate_build_cancelation(tmpdir):
             'args': {
                 'platforms': ['x86_64'],
                 'build_kwargs': make_worker_build_kwargs(),
-                'osbs_client_config': str(tmpdir),
-                'goarch': {'x86_64': 'amd64'},
             }
         }]
     )
@@ -698,7 +682,7 @@ def test_orchestrate_build_choose_clusters(tmpdir, clusters_x86_64, clusters_ppc
     mock_osbs()  # Current builds is a constant 2
     mock_manifest_list()
 
-    mock_reactor_config(tmpdir, {
+    mock_reactor_config(tmpdir, workflow, {
         'x86_64': [
             {'name': cluster[0], 'max_concurrent_builds': cluster[1]}
             for cluster in clusters_x86_64
@@ -708,6 +692,7 @@ def test_orchestrate_build_choose_clusters(tmpdir, clusters_x86_64, clusters_ppc
             for cluster in clusters_ppc64le
         ]
     })
+    workflow.conf.conf['platform_descriptors'] = [{'platform': 'x86_64', 'architecture': 'amd64'}]
 
     runner = BuildStepPluginsRunner(
         workflow.builder.tasker,
@@ -717,8 +702,6 @@ def test_orchestrate_build_choose_clusters(tmpdir, clusters_x86_64, clusters_ppc
             'args': {
                 'platforms': ['x86_64', 'ppc64le'],
                 'build_kwargs': make_worker_build_kwargs(),
-                'osbs_client_config': str(tmpdir),
-                'goarch': {'x86_64': 'amd64'},
             }
         }]
     )
@@ -728,8 +711,6 @@ def test_orchestrate_build_choose_clusters(tmpdir, clusters_x86_64, clusters_ppc
 
     annotations = build_result.annotations
     assert set(annotations['worker-builds'].keys()) == {'x86_64', 'ppc64le'}
-    for plat, plat_annotations in annotations['worker-builds'].items():
-        assert plat_annotations['build']['cluster-url'] == 'https://chosen_{}.com/'.format(plat)
 
 
 # This test tests code paths that can no longer be hit in actual operation since
@@ -738,7 +719,8 @@ def test_orchestrate_build_unknown_platform(tmpdir):  # noqa
     workflow = mock_workflow(tmpdir, platforms=['x86_64', 'spam'])
     mock_osbs()
     mock_manifest_list()
-    mock_reactor_config(tmpdir)
+    mock_reactor_config(tmpdir, workflow)
+    workflow.conf.conf['platform_descriptors'] = [{'platform': 'x86_64', 'architecture': 'amd64'}]
 
     runner = BuildStepPluginsRunner(
         workflow.builder.tasker,
@@ -751,8 +733,6 @@ def test_orchestrate_build_unknown_platform(tmpdir):  # noqa
                 # is provided in exclude-platform file.
                 'platforms': ['x86_64', 'spam'],
                 'build_kwargs': make_worker_build_kwargs(),
-                'osbs_client_config': str(tmpdir),
-                'goarch': {'x86_64': 'amd64'},
             }
         }]
     )
@@ -776,10 +756,10 @@ def test_orchestrate_build_failed_create(tmpdir):
      .should_receive('create_worker_build')
      .replace_with(mock_create_worker_build))
 
-    fail_reason = 'build not started'
     annotation_keys = {'x86_64'}
 
-    mock_reactor_config(tmpdir)
+    mock_reactor_config(tmpdir, workflow)
+    workflow.conf.conf['platform_descriptors'] = [{'platform': 'x86_64', 'architecture': 'amd64'}]
 
     runner = BuildStepPluginsRunner(
         workflow.builder.tasker,
@@ -789,7 +769,6 @@ def test_orchestrate_build_failed_create(tmpdir):
             'args': {
                 'platforms': ['x86_64', 'ppc64le'],
                 'build_kwargs': make_worker_build_kwargs(),
-                'osbs_client_config': str(tmpdir),
                 'find_cluster_retry_delay': .1,
                 'failure_retry_delay': .1,
                 'goarch': {'x86_64': 'amd64'},
@@ -886,7 +865,8 @@ def test_orchestrate_build_failed_waiting(tmpdir,
     else:
         expectation.and_raise(OsbsException())
 
-    mock_reactor_config(tmpdir)
+    mock_reactor_config(tmpdir, workflow)
+    workflow.conf.conf['platform_descriptors'] = [{'platform': 'x86_64', 'architecture': 'amd64'}]
 
     runner = BuildStepPluginsRunner(
         workflow.builder.tasker,
@@ -896,8 +876,6 @@ def test_orchestrate_build_failed_waiting(tmpdir,
             'args': {
                 'platforms': ['x86_64', 'ppc64le'],
                 'build_kwargs': make_worker_build_kwargs(),
-                'osbs_client_config': str(tmpdir),
-                'goarch': {'x86_64': 'amd64'},
             }
         }]
     )
@@ -924,7 +902,7 @@ def test_orchestrate_build_get_fs_task_id(tmpdir, task_id, error):
     workflow = mock_workflow(tmpdir, platforms=['x86_64'])
     mock_osbs()
 
-    mock_reactor_config(tmpdir)
+    mock_reactor_config(tmpdir, workflow)
 
     workflow.prebuild_results[PLUGIN_ADD_FILESYSTEM_KEY] = {
         'filesystem-koji-task-id': task_id,
@@ -937,7 +915,6 @@ def test_orchestrate_build_get_fs_task_id(tmpdir, task_id, error):
             'args': {
                 'platforms': ['x86_64'],
                 'build_kwargs': make_worker_build_kwargs(),
-                'osbs_client_config': str(tmpdir),
             }
         }]
     )
@@ -958,7 +935,7 @@ def test_orchestrate_build_failed_to_list_builds(tmpdir, fail_at):
     workflow = mock_workflow(tmpdir, platforms=['x86_64'])
     mock_osbs()  # Current builds is a constant 2
 
-    mock_reactor_config(tmpdir, {
+    mock_reactor_config(tmpdir, workflow, {
         'x86_64': [
             {'name': 'spam', 'max_concurrent_builds': 5},
             {'name': 'eggs', 'max_concurrent_builds': 5}
@@ -981,7 +958,6 @@ def test_orchestrate_build_failed_to_list_builds(tmpdir, fail_at):
             'args': {
                 'platforms': ['x86_64'],
                 'build_kwargs': make_worker_build_kwargs(),
-                'osbs_client_config': str(tmpdir),
                 'find_cluster_retry_delay': .1,
                 'max_cluster_fails': 2
             }
@@ -990,9 +966,6 @@ def test_orchestrate_build_failed_to_list_builds(tmpdir, fail_at):
     if fail_at == 'first':
         build_result = runner.run()
         assert not build_result.is_failed()
-
-        annotations = build_result.annotations
-        assert annotations['worker-builds']['x86_64']['build']['cluster-url'] == 'https://eggs.com/'
     else:
         build_result = runner.run()
         assert build_result.is_failed()
@@ -1020,7 +993,7 @@ def test_orchestrate_build_worker_build_kwargs(tmpdir, caplog, is_auto):
         'operator_manifests_extract_platform': 'x86_64',
     }
 
-    reactor_config_override = mock_reactor_config(tmpdir)
+    reactor_config_override = mock_reactor_config(tmpdir, workflow)
     reactor_config_override['openshift'] = {
         'auth': {'enable': None},
         'build_json_dir': None,
@@ -1034,7 +1007,6 @@ def test_orchestrate_build_worker_build_kwargs(tmpdir, caplog, is_auto):
         'platforms': ['x86_64'],
         'build_kwargs': make_worker_build_kwargs(),
         'worker_build_image': 'fedora:latest',
-        'osbs_client_config': str(tmpdir),
     }
 
     runner = BuildStepPluginsRunner(
@@ -1070,7 +1042,7 @@ def test_orchestrate_override_build_kwarg(tmpdir, overrides):
         'parent_images_digests': {},
         'operator_manifests_extract_platform': 'x86_64',
     }
-    reactor_config_override = mock_reactor_config(tmpdir)
+    reactor_config_override = mock_reactor_config(tmpdir, workflow)
     reactor_config_override['openshift'] = {
         'auth': {'enable': None},
         'build_json_dir': None,
@@ -1084,7 +1056,6 @@ def test_orchestrate_override_build_kwarg(tmpdir, overrides):
         'platforms': ['x86_64'],
         'build_kwargs': make_worker_build_kwargs(),
         'worker_build_image': 'fedora:latest',
-        'osbs_client_config': str(tmpdir),
     }
 
     for plat, value in overrides.items():
@@ -1130,7 +1101,7 @@ def test_orchestrate_override_content_versions(tmpdir, caplog, content_versions)
         'content_versions': content_versions
     }
 
-    reactor_config_override = mock_reactor_config(tmpdir, add_config=add_config)
+    reactor_config_override = mock_reactor_config(tmpdir, workflow, add_config=add_config)
     reactor_config_override['openshift'] = {
         'auth': {'enable': None},
         'build_json_dir': None,
@@ -1151,7 +1122,6 @@ def test_orchestrate_override_content_versions(tmpdir, caplog, content_versions)
         'platforms': ['x86_64'],
         'build_kwargs': make_worker_build_kwargs(),
         'worker_build_image': 'fedora:latest',
-        'osbs_client_config': str(tmpdir),
     }
 
     runner = BuildStepPluginsRunner(
@@ -1190,7 +1160,7 @@ def test_orchestrate_operator_csv_modifications_url(tmpdir):
         'operator_manifests_extract_platform': 'x86_64',
     }
 
-    reactor_config_override = mock_reactor_config(tmpdir)
+    reactor_config_override = mock_reactor_config(tmpdir, workflow)
     reactor_config_override['openshift'] = {
         'auth': {'enable': None},
         'build_json_dir': None,
@@ -1204,7 +1174,6 @@ def test_orchestrate_operator_csv_modifications_url(tmpdir):
         'platforms': ['x86_64'],
         'build_kwargs': make_worker_build_kwargs(),
         'worker_build_image': 'fedora:latest',
-        'osbs_client_config': str(tmpdir),
     }
 
     # defined as user param
@@ -1430,7 +1399,7 @@ def test_set_build_image_raises(tmpdir, build, exc_str, bc, bc_cont, ims, ims_co
 
     flexmock(os, environ={'BUILD': build})
     mock_osbs()
-    mock_reactor_config(tmpdir)
+    mock_reactor_config(tmpdir, workflow)
 
     if bc is False:
         (flexmock(Openshift)
@@ -1461,9 +1430,8 @@ def test_set_build_image_raises(tmpdir, build, exc_str, bc, bc_cont, ims, ims_co
         'platforms': ['x86_64', 'ppc64le'],
         'build_kwargs': make_worker_build_kwargs(),
         'worker_build_image': 'osbs-buildroot:latest',
-        'osbs_client_config': str(tmpdir),
-        'goarch': {'x86_64': 'amd64'},
     }
+    workflow.conf.conf['platform_descriptors'] = [{'platform': 'x86_64', 'architecture': 'amd64'}]
 
     runner = BuildStepPluginsRunner(
         workflow.builder.tasker,
@@ -1561,8 +1529,7 @@ def test_set_build_image_works(tmpdir, build, bc, bc_cont, ims, ims_cont, ml, ml
 
     flexmock(os, environ={'BUILD': build})
     mock_osbs()
-    mock_reactor_config(tmpdir)
-
+    mock_reactor_config(tmpdir, workflow)
     if bc is True:
         (flexmock(Openshift)
          .should_receive('get_build_config')
@@ -1580,9 +1547,9 @@ def test_set_build_image_works(tmpdir, build, bc, bc_cont, ims, ims_cont, ml, ml
         'platforms': platforms,
         'build_kwargs': make_worker_build_kwargs(),
         'worker_build_image': 'osbs-buildroot:latest',
-        'osbs_client_config': str(tmpdir),
-        'goarch': {'x86_64': 'amd64'},
     }
+
+    workflow.conf.conf['platform_descriptors'] = [{'platform': 'x86_64', 'architecture': 'amd64'}]
 
     runner = BuildStepPluginsRunner(
         workflow.builder.tasker,
@@ -1626,22 +1593,21 @@ def test_set_build_image_with_override(tmpdir, platforms, override):
 
     reactor_config = {
         'version': 1,
+        'openshift': {'url': 'openshift_url'},
         'clusters': deepcopy(DEFAULT_CLUSTERS),
         'platform_descriptors': [{'platform': 'x86_64', 'architecture': 'amd64'}],
         'build_image_override': {plat: 'registry/osbs-buildroot-{}:latest'.format(plat)
                                  for plat in override},
+        'source_registry': {'url': 'source_registry'}
     }
 
-    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-        ReactorConfig(reactor_config)
+    workflow.conf.conf = reactor_config
 
     add_koji_map_in_workflow(workflow, hub_url='/', root_url='')
 
     plugin_args = {
         'platforms': platforms,
         'build_kwargs': make_worker_build_kwargs(),
-        'osbs_client_config': str(tmpdir),
     }
 
     runner = BuildStepPluginsRunner(
@@ -1662,7 +1628,7 @@ def test_set_build_image_with_override(tmpdir, platforms, override):
 def test_no_platforms(tmpdir):
     workflow = mock_workflow(tmpdir, platforms=[])
     mock_osbs()
-    mock_reactor_config(tmpdir)
+    mock_reactor_config(tmpdir, workflow)
 
     (flexmock(OrchestrateBuildPlugin)
      .should_receive('set_build_image')
@@ -1672,8 +1638,6 @@ def test_no_platforms(tmpdir):
         'platforms': [],
         'build_kwargs': make_worker_build_kwargs(),
         'worker_build_image': 'osbs-buildroot:latest',
-        'osbs_client_config': str(tmpdir),
-        'goarch': {'x86_64': 'amd64'},
     }
 
     runner = BuildStepPluginsRunner(
@@ -1687,40 +1651,6 @@ def test_no_platforms(tmpdir):
     with pytest.raises(PluginFailedException) as exc:
         runner.run()
     assert 'No enabled platform to build on' in str(exc.value)
-
-
-@pytest.mark.parametrize('version,warning,exception', (
-    (5, None, PluginFailedException),
-    (6, None, None),
-))
-def test_orchestrate_build_validate_arrangements(tmpdir, caplog, version, warning, exception):
-    workflow = mock_workflow(tmpdir)
-    mock_osbs()  # Current builds is a constant 2
-    mock_manifest_list()
-
-    mock_reactor_config(tmpdir)
-
-    runner = BuildStepPluginsRunner(
-        workflow.builder.tasker,
-        workflow,
-        [{
-            'name': OrchestrateBuildPlugin.key,
-            'args': {
-                'platforms': ['x86_64', 'ppc64le'],
-                'build_kwargs': make_worker_build_kwargs(arrangement_version=version),
-                'osbs_client_config': str(tmpdir),
-                'goarch': {'x86_64': 'amd64'},
-            }
-        }]
-    )
-    if exception:
-        with pytest.raises(exception):
-            runner.run()
-    else:
-        runner.run()
-
-    if warning:
-        assert warning in caplog.text
 
 
 def test_parent_images_digests(tmpdir, caplog):
@@ -1748,7 +1678,7 @@ def test_parent_images_digests(tmpdir, caplog):
         'operator_manifests_extract_platform': 'x86_64',
     }
 
-    reactor_config_override = mock_reactor_config(tmpdir)
+    reactor_config_override = mock_reactor_config(tmpdir, workflow)
     reactor_config_override['openshift'] = {
         'auth': {'enable': None},
         'build_json_dir': None,
@@ -1762,7 +1692,6 @@ def test_parent_images_digests(tmpdir, caplog):
         'platforms': ['x86_64'],
         'build_kwargs': make_worker_build_kwargs(),
         'worker_build_image': 'fedora:latest',
-        'osbs_client_config': str(tmpdir),
     }
 
     runner = BuildStepPluginsRunner(

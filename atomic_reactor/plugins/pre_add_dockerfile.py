@@ -68,7 +68,7 @@ class AddDockerfilePlugin(PreBuildPlugin):
         self.use_final_dockerfile = use_final_dockerfile
 
         if nvr is None:
-            labels = Labels(df_parser(self.workflow.builder.df_path).labels)
+            labels = Labels(df_parser(self.workflow.df_path).labels)
             try:
                 _, name = labels.get_name_and_value(Labels.LABEL_TYPE_NAME)
                 _, version = labels.get_name_and_value(Labels.LABEL_TYPE_VERSION)
@@ -85,14 +85,14 @@ class AddDockerfilePlugin(PreBuildPlugin):
 
         # we are not using final dockerfile, so let's copy current snapshot
         if not self.use_final_dockerfile:
-            local_df_path = os.path.join(self.workflow.builder.df_dir, self.df_name)
-            shutil.copy2(self.workflow.builder.df_path, local_df_path)
+            local_df_path = os.path.join(self.workflow.df_dir, self.df_name)
+            shutil.copy2(self.workflow.df_path, local_df_path)
 
     def run(self):
         """
         run the plugin
         """
-        dockerfile = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
+        dockerfile = df_parser(self.workflow.df_path, workflow=self.workflow)
         lines = dockerfile.lines
 
         # when using final dockerfile, we should use DOCKERFILE_FILENAME

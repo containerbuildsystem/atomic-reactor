@@ -9,10 +9,9 @@ of the BSD license. See the LICENSE file for details.
 import koji
 
 from atomic_reactor.plugin import PreBuildPlugin, BuildCanceledException
-from atomic_reactor.plugins.pre_reactor_config import (get_koji_session, get_koji, NO_FALLBACK,
-                                                       get_openshift_session)
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.constants import PLUGIN_KOJI_DELEGATE_KEY
+from atomic_reactor.config import get_koji_session, get_openshift_session
 from atomic_reactor.util import get_build_json
 
 
@@ -41,12 +40,12 @@ class KojiDelegatePlugin(PreBuildPlugin):
         # call parent constructor
         super(KojiDelegatePlugin, self).__init__(tasker, workflow)
 
-        koji_setting = get_koji(self.workflow)
+        koji_setting = self.workflow.conf.koji
         self.delegate_enabled = koji_setting.get('delegate_task', True)
         self.task_priority = koji_setting.get('delegated_task_priority', None)
         self.triggered_after_koji_task = triggered_after_koji_task
         self.metadata = get_build_json().get("metadata", {})
-        self.kojisession = get_koji_session(self.workflow)
+        self.kojisession = get_koji_session(self.workflow.conf)
         self.osbs = None
 
     def cancel_build(self):
@@ -117,7 +116,8 @@ class KojiDelegatePlugin(PreBuildPlugin):
             self.log.info("koji task already delegated, skipping plugin")
             return
 
-        self.osbs = get_openshift_session(self.workflow, NO_FALLBACK)
+        self.osbs = get_openshift_session(self.workflow.conf,
+                                          self.workflow.user_params.get('namespace'))
 
         # Do not run exit plugins. Especially sendmail
         self.workflow.exit_plugins_conf = []

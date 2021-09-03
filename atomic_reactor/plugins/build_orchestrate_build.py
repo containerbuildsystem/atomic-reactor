@@ -20,27 +20,17 @@ import platform
 
 from atomic_reactor.build import BuildResult
 from atomic_reactor.plugin import BuildStepPlugin
-from atomic_reactor.plugins.pre_reactor_config import (get_config,
-                                                       get_arrangement_version, get_koji,
-                                                       get_odcs,
-                                                       get_prefer_schema1_digest, get_smtp,
-                                                       get_source_registry, get_sources_command,
-                                                       get_artifacts_allowed_domains,
-                                                       get_yum_proxy, get_image_equal_labels,
-                                                       get_content_versions, get_openshift_session,
-                                                       get_platform_descriptors,
-                                                       get_clusters_client_config_path,
-                                                       get_build_image_override,
-                                                       get_goarch_to_platform_mapping)
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
-from atomic_reactor.util import (df_parser, get_build_json, get_manifest_list, get_platforms)
+from atomic_reactor.util import (df_parser, get_build_json, get_manifest_list,
+                                 get_platforms)
 from atomic_reactor.utils.koji import generate_koji_upload_dir
 from atomic_reactor.constants import (PLUGIN_ADD_FILESYSTEM_KEY, PLUGIN_BUILD_ORCHESTRATE_KEY)
+from atomic_reactor.config import get_openshift_session
 from osbs.api import OSBS
 from osbs.exceptions import OsbsException
 from osbs.conf import Configuration
 from osbs.constants import BUILD_FINISHED_STATES
-from osbs.utils import Labels, RegistryURI, ImageName
+from osbs.utils import Labels, ImageName
 
 
 ClusterInfo = namedtuple('ClusterInfo', ('cluster', 'platform', 'osbs', 'load'))
@@ -251,13 +241,10 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
     key = PLUGIN_BUILD_ORCHESTRATE_KEY
 
     def __init__(self, tasker, workflow, build_kwargs, platforms=None,
-                 osbs_client_config=None, worker_build_image=None,
-                 config_kwargs=None,
+                 worker_build_image=None, config_kwargs=None,
                  find_cluster_retry_delay=FIND_CLUSTER_RETRY_DELAY,
                  failure_retry_delay=FAILURE_RETRY_DELAY,
-                 max_cluster_fails=MAX_CLUSTER_FAILS,
-                 url=None, verify_ssl=True, use_auth=True,
-                 goarch=None):
+                 max_cluster_fails=MAX_CLUSTER_FAILS):
         """
         constructor
 
@@ -266,7 +253,6 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         :param build_kwargs: dict, keyword arguments for starting worker builds
         :param platforms: list<str>, platforms to build
                           (used via utils.get_orchestrator_platforms())
-        :param osbs_client_config: str, path to directory containing osbs.conf
         :param worker_build_image: str, the builder image to use for worker builds
                                   (not used, image is inherited from the orchestrator)
         :param config_kwargs: dict, keyword arguments to override worker configuration
@@ -274,19 +260,16 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         :param failure_retry_delay: the delay in seconds to try again starting a build
         :param max_cluster_fails: the maximum number of times a cluster can fail before being
                                   ignored
-        :param goarch: dict, keys are platform, values are go language platform names
         """
         super(OrchestrateBuildPlugin, self).__init__(tasker, workflow)
         self.platforms = get_platforms(self.workflow)
 
         self.build_kwargs = build_kwargs
-        self.osbs_client_config_fallback = osbs_client_config
         self.config_kwargs = config_kwargs or {}
 
         self.adjust_build_kwargs()
-        self.validate_arrangement_version()
         self.adjust_config_kwargs()
-        self.reactor_config = get_config(self.workflow)
+        self.reactor_config = self.workflow.conf
 
         self.find_cluster_retry_delay = find_cluster_retry_delay
         self.failure_retry_delay = failure_retry_delay
@@ -295,18 +278,6 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         self.fs_task_id = self.get_fs_task_id()
         self.release = self.get_release()
 
-        self.plat_des_fallback = []
-        for plat, architecture in (goarch or {}).items():
-            plat_dic = {'platform': plat,
-                        'architecture': architecture}
-            self.plat_des_fallback.append(plat_dic)
-
-        self.openshift_fallback = {
-            'url': url,
-            'insecure': not verify_ssl,
-            'auth': {'enable': use_auth}
-        }
-
         if worker_build_image:
             self.log.warning('worker_build_image is deprecated')
 
@@ -314,62 +285,34 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         self.namespace = get_build_json().get('metadata', {}).get('namespace', None)
         self.build_image_digests = {}  # by platform
         self._openshift_session = None
-        self.build_image_override = get_build_image_override(workflow, {})
-        self.platform_descriptors = get_platform_descriptors(self.workflow, self.plat_des_fallback)
+        self.build_image_override = workflow.conf.build_image_override
 
     def adjust_config_kwargs(self):
-        koji_map = get_koji(self.workflow)
+        koji_map = self.workflow.conf.koji
         self.config_kwargs['koji_hub'] = koji_map['hub_url']
         self.config_kwargs['koji_root'] = koji_map['root_url']
 
-        odcs_map = get_odcs(self.workflow, {})
+        odcs_map = self.workflow.conf.odcs
         self.config_kwargs['odcs_url'] = odcs_map.get('api_url')
         self.config_kwargs['odcs_insecure'] = odcs_map.get('insecure', False)
 
-        smtp_fallback = {
-            'host': self.config_kwargs.get('smtp_host'),
-            'from_address': self.config_kwargs.get('smtp_from'),
-            'domain': self.config_kwargs.get('smtp_email_domain'),
-            'send_to_submitter': self.config_kwargs.get('smtp_to_submitter'),
-            'send_to_pkg_owner': self.config_kwargs.get('smtp_to_pkgowner')
-        }
-        additional_addresses = self.config_kwargs.get('smtp_error_addresses')
-        error_addresses = self.config_kwargs.get('smtp_additional_addresses')
-
-        smtp_fallback['additional_addresses'] =\
-            additional_addresses.split(',') if additional_addresses else ()
-        smtp_fallback['error_addresses'] = error_addresses.split(',') if error_addresses else ()
-
-        smtp_map = get_smtp(self.workflow, smtp_fallback)
+        smtp_map = self.workflow.conf.smtp
         self.config_kwargs['smtp_additional_addresses'] =\
             ','.join(smtp_map.get('additional_addresses', ()))
         self.config_kwargs['smtp_email_domain'] = smtp_map.get('domain')
         self.config_kwargs['smtp_error_addresses'] = ','.join(smtp_map.get('error_addresses', ()))
-        self.config_kwargs['smtp_from'] = smtp_map['from_address']
-        self.config_kwargs['smtp_host'] = smtp_map['host']
+        self.config_kwargs['smtp_from'] = smtp_map.get('from_address')
+        self.config_kwargs['smtp_host'] = smtp_map.get('host')
         self.config_kwargs['smtp_to_pkgowner'] = smtp_map.get('send_to_pkg_owner', False)
         self.config_kwargs['smtp_to_submitter'] = smtp_map.get('send_to_submitter', False)
 
-        source_reg = self.config_kwargs.get('source_registry_uri')
-        souce_registry = get_source_registry(self.workflow, {
-            'uri': RegistryURI(source_reg) if source_reg else None})['uri']
-        self.config_kwargs['source_registry_uri'] = souce_registry.uri if souce_registry else None
+        source_registry = self.workflow.conf.source_registry['uri']
+        self.config_kwargs['source_registry_uri'] = source_registry.uri if source_registry else None
 
-        artifacts = self.config_kwargs.get('artifacts_allowed_domains')
         self.config_kwargs['artifacts_allowed_domains'] =\
-            ','.join(get_artifacts_allowed_domains(
-                self.workflow, artifacts.split(',') if artifacts else ()))
+            ','.join(self.workflow.conf.artifacts_allowed_domains)
 
-        equal_labels_fallback = []
-        equal_labels_str = self.config_kwargs.get('equal_labels')
-
-        if equal_labels_str:
-            label_groups = [x.strip() for x in equal_labels_str.split(',')]
-
-            for label_group in label_groups:
-                equal_labels_fallback.append([label.strip() for label in label_group.split(':')])
-
-        equal_labels = get_image_equal_labels(self.workflow, equal_labels_fallback)
+        equal_labels = self.workflow.conf.image_equal_labels
         if equal_labels:
             equal_labels_sets = []
             for equal_set in equal_labels:
@@ -377,24 +320,15 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
             equal_labels_string = ','.join(equal_labels_sets)
             self.config_kwargs['equal_labels'] = equal_labels_string
 
-        self.config_kwargs['prefer_schema1_digest'] =\
-            get_prefer_schema1_digest(self.workflow,
-                                      self.config_kwargs.get('prefer_schema1_digest'))
+        self.config_kwargs['prefer_schema1_digest'] = self.workflow.conf.prefer_schema1_digest
 
-        registry_api_ver = self.config_kwargs.get('registry_api_versions')
-        self.config_kwargs['registry_api_versions'] =\
-            ','.join(get_content_versions(self.workflow,
-                                          registry_api_ver.split(',') if registry_api_ver else ()))
+        self.config_kwargs['registry_api_versions'] = ','.join(self.workflow.conf.content_versions)
 
-        self.config_kwargs['yum_proxy'] =\
-            get_yum_proxy(self.workflow, self.config_kwargs.get('yum_proxy'))
+        self.config_kwargs['yum_proxy'] = self.workflow.conf.yum_proxy
 
-        self.config_kwargs['sources_command'] =\
-            get_sources_command(self.workflow, self.config_kwargs.get('sources_command'))
+        self.config_kwargs['sources_command'] = self.workflow.conf.sources_command
 
     def adjust_build_kwargs(self):
-        self.build_kwargs['arrangement_version'] =\
-            get_arrangement_version(self.workflow, self.build_kwargs['arrangement_version'])
         self.build_kwargs['parent_images_digests'] = self.workflow.builder.parent_images_digests
         # All platforms should generate the same operator manifests. We can use any of them
         if self.platforms:
@@ -403,25 +337,6 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         op_csv_mods_url = self.workflow.user_params.get('operator_csv_modifications_url')
         if op_csv_mods_url:
             self.build_kwargs['operator_csv_modifications_url'] = op_csv_mods_url
-
-    def validate_arrangement_version(self):
-        """Validate if the arrangement_version is supported
-
-        This is for autorebuilds to fail early otherwise they may failed
-        on workers because of osbs-client validation checks.
-
-        Method should be called after self.adjust_build_kwargs
-
-        Shows a warning when version is deprecated
-
-        :raises ValueError: when version is not supported
-        """
-        arrangement_version = self.build_kwargs['arrangement_version']
-        if arrangement_version is None:
-            return
-
-        if arrangement_version <= 5:
-            raise ValueError('arrangement_version <= 5 is no longer supported')
 
     def get_current_builds(self, osbs):
         field_selector = ','.join(['status!={status}'.format(status=status.capitalize())
@@ -435,9 +350,29 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
 
     def get_cluster_info(self, cluster, platform):
         kwargs = deepcopy(self.config_kwargs)
-        kwargs['conf_section'] = cluster.name
-        kwargs['conf_file'] = get_clusters_client_config_path(self.workflow,
-                                                              self.osbs_client_config_fallback)
+        # config sections in osbs will be based on tasks, orchestrator/worker/source
+        # kwargs['conf_section'] = cluster.name
+        # we won't use anymore client-config as we will get all cluster information
+        # from reactor-config-map
+        # kwargs['conf_file'] = get_clusters_client_config_path(self.workflow)
+
+        # we will pass to osbs.Configuration config based on rcm
+        # kwargs = {
+        # # we don't even want any default config
+        # 'conf_file': None,
+        # # use from rcm: openshift->build_json_dir
+        # 'build_json_dir':  '/usr/share/osbs',
+        # # use from rcm: worker_pipeline_clusters->aarch64[0]->namespace
+        # 'namespace': 'worker',
+        # # use from rcm: worker_pipeline_clusters->aarch64[0]->openshift_url
+        # 'openshift_url': 'https://osbs.psi.redhat.com',
+        # # use from rcm: worker_pipeline_clusters->aarch64[0]->token_file
+        # 'token_file': '/workspace/ws-worker-tokens-secrets/x86-64-upshift-orchestrator'
+        # # use from rcm: worker_pipeline_clusters->aarch64[0]->use_auth
+        # 'use_auth': True,
+        # # use from rcm: worker_pipeline_clusters->aarch64[0]->verify_ssl
+        # 'verify_ssl': True,
+        # }
 
         if platform in self.build_image_digests:
             kwargs['build_from'] = 'image:' + self.build_image_digests[platform]
@@ -479,7 +414,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         return ret
 
     def get_release(self):
-        labels = Labels(df_parser(self.workflow.builder.df_path, workflow=self.workflow).labels)
+        labels = Labels(df_parser(self.workflow.df_path, workflow=self.workflow).labels)
         _, release = labels.get_name_and_value(Labels.LABEL_TYPE_RELEASE)
         return release
 
@@ -642,7 +577,9 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
     @property
     def openshift_session(self):
         if not self._openshift_session:
-            self._openshift_session = get_openshift_session(self.workflow, self.openshift_fallback)
+            self._openshift_session = \
+                get_openshift_session(self.workflow.conf,
+                                      self.workflow.user_params.get('namespace'))
 
         return self._openshift_session
 
@@ -694,7 +631,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
             arch = manifest['platform']['architecture']
             arch_digests[arch] = image_name + '@' + manifest['digest']
 
-        arch_to_platform = get_goarch_to_platform_mapping(self.workflow, self.plat_des_fallback)
+        arch_to_platform = self.workflow.conf.goarch_to_platform_mapping
         for arch in arch_digests:
             self.build_image_digests[arch_to_platform[arch]] = arch_digests[arch]
 

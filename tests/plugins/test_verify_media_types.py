@@ -16,10 +16,7 @@ from atomic_reactor.constants import (PLUGIN_GROUP_MANIFESTS_KEY,
 from atomic_reactor.plugins.exit_verify_media_types import VerifyMediaTypesPlugin
 from atomic_reactor.inner import TagConf, PushConf
 from atomic_reactor.auth import HTTPRegistryAuth
-from atomic_reactor.plugins.pre_reactor_config import (ReactorConfig,
-                                                       ReactorConfigPlugin,
-                                                       ReactorConfigKeys,
-                                                       WORKSPACE_CONF_KEY)
+from atomic_reactor.config import Configuration
 from osbs.utils import RegistryURI
 
 from flexmock import flexmock
@@ -167,7 +164,7 @@ class TestVerifyImageTypes(object):
                 'expected_media_types': registry_types
             }]
         conf = {
-            ReactorConfigKeys.VERSION_KEY: 1,
+            'version': 1,
             'registries': registries,
         }
 
@@ -178,12 +175,6 @@ class TestVerifyImageTypes(object):
 
         if platform_descriptors:
             conf['platform_descriptors'] = platform_descriptors
-
-        plugin_workspace = {
-            ReactorConfigPlugin.key: {
-                WORKSPACE_CONF_KEY: ReactorConfig(conf)
-            }
-        }
 
         flexmock(HTTPRegistryAuth).should_receive('__new__').and_return(None)
         mock_auth = None
@@ -286,8 +277,8 @@ class TestVerifyImageTypes(object):
         return flexmock(tag_conf=tag_conf,
                         push_conf=push_conf,
                         builder=builder,
+                        conf=Configuration(raw_config=conf),
                         build_process_failed=build_process_failed,
-                        plugin_workspace=plugin_workspace,
                         prebuild_results=prebuild_results,
                         postbuild_results=postbuild_results)
 

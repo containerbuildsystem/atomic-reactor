@@ -15,11 +15,7 @@ from atomic_reactor.plugin import (PreBuildPluginsRunner,
                                    PrePublishPluginsRunner,
                                    ExitPluginsRunner)
 from atomic_reactor.inner import DockerBuildWorkflow
-from atomic_reactor.plugins.pre_reactor_config import (ReactorConfig,
-                                                       ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY)
-
-from tests.constants import MOCK_SOURCE
+from atomic_reactor.config import Configuration
 from tests.stubs import StubSource, StubInsideBuilder
 
 
@@ -60,13 +56,14 @@ class MockEnv(object):
     _plugins_for_phase = {phase: phase + '_plugins_conf' for phase in _plugin_phases}
 
     def __init__(self):
-        self.workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
+        self.workflow = DockerBuildWorkflow(source=None)
         self.workflow.source = StubSource()
         self.workflow.builder = StubInsideBuilder().for_workflow(self.workflow)
         self.workflow.builder.tasker = flexmock()
 
         self._phase = None
         self._plugin_key = None
+        self._reactor_config_map = None
 
     def create_runner(self, docker_tasker):
         """
@@ -167,14 +164,14 @@ class MockEnv(object):
 
     def set_reactor_config(self, config):
         """
-        Set reactor config map (in the ReactorConfigPlugin's workspace).
+        Set reactor config map in the workflow
 
-        :param config: dict or ReactorConfig, if dict, will be converted to ReactorConfig
+        :param config: dict or Configuration, if dict, will be converted to Configuration
         """
-        if not isinstance(config, ReactorConfig):
-            config = ReactorConfig(config)
-        workspace = self._get_reactor_config_workspace()
-        workspace[WORKSPACE_CONF_KEY] = config
+        if not isinstance(config, Configuration):
+            config = Configuration(raw_config=config)
+        self._reactor_config_map = config
+        self.workflow.conf = config
         return self
 
     @property
@@ -188,8 +185,12 @@ class MockEnv(object):
 
         :return: ReactorConfig instance
         """
-        workspace = self._get_reactor_config_workspace()
-        return workspace.setdefault(WORKSPACE_CONF_KEY, ReactorConfig())
+        if not self._reactor_config_map:
+            config = Configuration(raw_config={'version': 1})
+            self._reactor_config_map = config
+            self.workflow.conf = config
+
+        return self._reactor_config_map
 
     def _validate_phase(self, phase):
         if phase not in self._plugin_phases:
@@ -209,6 +210,3 @@ class MockEnv(object):
             if plugin['name'] == plugin_key:
                 return plugin
         raise ValueError('No such plugin: {} (for {} phase)'.format(plugin_key, phase))
-
-    def _get_reactor_config_workspace(self):
-        return self.workflow.plugin_workspace.setdefault(ReactorConfigPlugin.key, {})

@@ -26,7 +26,7 @@ class TestDistributionScope(object):
             if current_scope:
                 df.write('LABEL distribution-scope={}\n'.format(current_scope))
 
-        setattr(workflow.builder, 'df_path', filename)
+        setattr(workflow, 'df_path', filename)
 
         setattr(workflow.builder, 'base_image_inspect', {})
         if not base_from_scratch:
@@ -39,7 +39,7 @@ class TestDistributionScope(object):
         dockerfile_images = DockerfileImages([])
         if base_from_scratch:
             dockerfile_images = DockerfileImages(['scratch'])
-        setattr(workflow.builder, 'dockerfile_images', dockerfile_images)
+        setattr(workflow, 'dockerfile_images', dockerfile_images)
 
         plugin = DistributionScopePlugin(None, workflow)
         plugin.log = logging.getLogger('plugin')

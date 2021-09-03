@@ -251,7 +251,8 @@ def test_add_image_content_manifest(requests_mock, tmpdir, docker_tasker, caplog
     if manifest_file_exists:
         tmpdir.join(manifest_file).write("")
     runner = mock_env(tmpdir, docker_tasker, platform, base_layers)
-    runner.workflow.builder.set_df_path(dfp.dockerfile_path)
+    runner.workflow.set_df_path(dfp.dockerfile_path)
+    runner.workflow.df_dir = str(tmpdir)
     if manifest_file_exists:
         with pytest.raises(PluginFailedException):
             runner.run()
@@ -292,7 +293,7 @@ def test_fetch_maven_artifacts_no_pnc_config(requests_mock, tmpdir, docker_taske
 
     with pytest.raises(PluginFailedException):
         runner = mock_env(tmpdir, docker_tasker, r_c_m_override=r_c_m)
-        runner.workflow.builder.set_df_path(dfp.dockerfile_path)
+        runner.workflow.set_df_path(dfp.dockerfile_path)
         runner.run()
 
     msg = 'No PNC configuration found in reactor config map'
@@ -321,7 +322,8 @@ def test_none_remote_source_icm_url(requests_mock, tmpdir, docker_tasker, caplog
     dfp = util.df_parser(str(tmpdir))
     dfp.content = df_content
     runner = mock_env(tmpdir, docker_tasker, platform, base_layers, remote_sources=None)
-    runner.workflow.builder.set_df_path(dfp.dockerfile_path)
+    runner.workflow.set_df_path(dfp.dockerfile_path)
+    runner.workflow.df_dir = str(tmpdir)
     expected_output = deepcopy(ICM_MINIMAL_DICT)
     expected_output['image_contents'].append({'purl': PNC_ARTIFACT['purl']})
     if content_sets:
@@ -355,7 +357,8 @@ def test_no_pnc_artifacts(requests_mock, tmpdir, docker_tasker, caplog, content_
     dfp = util.df_parser(str(tmpdir))
     dfp.content = df_content
     runner = mock_env(tmpdir, docker_tasker, platform, base_layers, pnc_artifacts=False)
-    runner.workflow.builder.set_df_path(dfp.dockerfile_path)
+    runner.workflow.set_df_path(dfp.dockerfile_path)
+    runner.workflow.df_dir = str(tmpdir)
     expected_output = deepcopy(ICM_DICT)
     expected_output['image_contents'] = expected_output['image_contents'][:-1]
     if content_sets:

@@ -18,6 +18,7 @@ from flexmock import flexmock
 from functools import partial
 from platform import machine
 from tests.mock_env import MockEnv
+from tests.stubs import StubSource
 from requests import Response
 from tests.util import mock_manifests_dir, FAKE_CSV
 
@@ -119,14 +120,14 @@ def mock_env(tmpdir, docker_tasker,
     if orchestrator:
         env.make_orchestrator()
 
-    class MockSource(object):
+    class MockSource(StubSource):
         @property
         def manifests_dir(self):
             return manifests_dir
 
     # Set a new source object, only the manifests_dir property is required for tests.
     setattr(env.workflow, 'source', MockSource())
-    env.workflow.builder.set_df_path(str(repo_dir))
+    env.workflow._df_path = str(repo_dir)
 
     mock_stream = generate_archive(tmpdir, empty_archive, change_csv_content, multiple_csv)
     if selected_platform:

@@ -134,7 +134,7 @@ def mock_env(docker_tasker, repo_dir, orchestrator,
     env.workflow.source = PathSource('path', str(repo_dir))
 
     # NOTE: is this path correct?
-    env.workflow.builder.set_df_path(str(repo_dir))
+    env.workflow._df_path = str(repo_dir)
 
     return env.create_runner(docker_tasker)
 

@@ -12,7 +12,7 @@ import pytest
 
 from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.pre_check_user_settings import CheckUserSettingsPlugin
-from atomic_reactor.util import df_parser
+from atomic_reactor.util import df_parser, DockerfileImages
 from atomic_reactor.constants import (CONTAINER_IMAGEBUILDER_BUILD_METHOD,
                                       CONTAINER_DOCKERPY_BUILD_METHOD, REPO_CONTENT_SETS_CONFIG,
                                       REPO_FETCH_ARTIFACTS_URL, REPO_FETCH_ARTIFACTS_KOJI)
@@ -106,8 +106,8 @@ def mock_env(dockerfile_path, docker_tasker,
         env.set_isolated(isolated)
 
     dfp = df_parser(str(dockerfile_path))
-    env.workflow.builder.set_df_path(str(dockerfile_path))
-    env.workflow.builder.set_dockerfile_images([] if flatpak else dfp.parent_images)
+    env.workflow._df_path = str(dockerfile_path)
+    env.workflow.dockerfile_images = DockerfileImages([] if flatpak else dfp.parent_images)
 
     return env.create_runner(docker_tasker)
 

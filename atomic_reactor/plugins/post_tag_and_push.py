@@ -6,7 +6,6 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
-from copy import deepcopy
 import subprocess
 import time
 import platform
@@ -14,12 +13,9 @@ import random
 
 from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR,
                                       DOCKER_PUSH_MAX_RETRIES, DOCKER_PUSH_BACKOFF_FACTOR)
+from atomic_reactor.config import get_koji_session
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
-from atomic_reactor.plugins.pre_reactor_config import (get_registries, get_group_manifests,
-                                                       get_koji_session,
-                                                       get_registries_organization,
-                                                       get_image_size_limit)
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.util import (get_manifest_digests, get_config_from_registry, Dockercfg,
                                  get_all_manifests)
@@ -44,26 +40,19 @@ class TagAndPushPlugin(PostBuildPlugin):
     key = "tag_and_push"
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, registries=None, koji_target=None):
+    def __init__(self, tasker, workflow, koji_target=None):
         """
         constructor
 
         :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param registries: dict, keys are docker registries, values are dicts containing
-                           per-registry parameters.
-                           Params:
-                            * "insecure" optional boolean - controls whether pushes are allowed over
-                              plain HTTP.
-                            * "secret" optional string - path to the secret, which stores
-                              email, login and password for remote registry
         :param koji_target: str, used only for sourcecontainers
         """
         # call parent constructor
         super(TagAndPushPlugin, self).__init__(tasker, workflow)
 
-        self.registries = get_registries(self.workflow, deepcopy(registries or {}))
-        self.group = get_group_manifests(self.workflow, False)
+        self.registries = self.workflow.conf.registries
+        self.group = self.workflow.conf.group_manifests
         self.koji_target = koji_target
 
     def need_skopeo_push(self):
@@ -114,7 +103,7 @@ class TagAndPushPlugin(PostBuildPlugin):
     def source_get_unique_image(self):
         source_result = self.workflow.prebuild_results[PLUGIN_FETCH_SOURCES_KEY]
         koji_build_id = source_result['sources_for_koji_build_id']
-        kojisession = get_koji_session(self.workflow)
+        kojisession = get_koji_session(self.workflow.conf)
 
         timestamp = osbs.utils.utcnow().strftime('%Y%m%d%H%M%S')
         random.seed()
@@ -133,7 +122,7 @@ class TagAndPushPlugin(PostBuildPlugin):
         pull_specs = get_build_meta['extra']['image']['index']['pull']
         source_image_spec = ImageName.parse(pull_specs[0])
         source_image_spec.tag = tag
-        organization = get_registries_organization(self.workflow)
+        organization = self.workflow.conf.registries_organization
         if organization:
             source_image_spec.enclose(organization)
         source_image_spec.registry = None
@@ -155,7 +144,7 @@ class TagAndPushPlugin(PostBuildPlugin):
         config_manifest_digest = None
         config_manifest_type = None
         config_registry_image = None
-        image_size_limit = get_image_size_limit(self.workflow)
+        image_size_limit = self.workflow.conf.image_size_limit
 
         for registry, registry_conf in self.registries.items():
             insecure = registry_conf.get('insecure', False)

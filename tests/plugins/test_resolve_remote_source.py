@@ -11,6 +11,8 @@ import sys
 
 from flexmock import flexmock
 import pytest
+import koji
+import yaml
 
 import atomic_reactor.utils.koji as koji_util
 from atomic_reactor import util
@@ -22,15 +24,11 @@ from atomic_reactor.constants import (
 )
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
-from atomic_reactor.plugins import pre_reactor_config
 from atomic_reactor.plugins.build_orchestrate_build import (
     WORKSPACE_KEY_OVERRIDE_KWARGS, OrchestrateBuildPlugin)
-from atomic_reactor.plugins.pre_reactor_config import (
-    ReactorConfigPlugin, WORKSPACE_CONF_KEY, ReactorConfig)
 from atomic_reactor.plugins.pre_resolve_remote_source import ResolveRemoteSourcePlugin
 from atomic_reactor.source import SourceConfig
 
-from tests.constants import MOCK_SOURCE
 from tests.stubs import StubInsideBuilder, StubSource
 
 
@@ -207,7 +205,7 @@ SECOND_CACHITO_ENV_VARS_JSON = {
 
 @pytest.fixture
 def workflow(tmpdir, user_params):
-    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
+    workflow = DockerBuildWorkflow(source=None)
 
     # Stash the tmpdir in workflow so it can be used later
     workflow._tmpdir = tmpdir
@@ -248,12 +246,9 @@ def mock_reactor_config(workflow, data=None):
                 auth: {{}}
             """.format(CACHITO_URL, workflow._tmpdir))
 
-    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-
     workflow._tmpdir.join('cert').write('')
-    config = util.read_yaml(data, 'schemas/config.json')
-
-    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] = ReactorConfig(config)
+    config = yaml.safe_load(data)
+    workflow.conf.conf = config
 
 
 def mock_build_json(build_json=None):
@@ -414,8 +409,8 @@ def mock_cachito_api(workflow, user=KOJI_TASK_OWNER, source_request=None,
 
 
 def mock_koji(user=KOJI_TASK_OWNER):
-    koji_session = flexmock()
-    flexmock(pre_reactor_config).should_receive('get_koji_session').and_return(koji_session)
+    koji_session = flexmock(krb_login=lambda: 'some')
+    flexmock(koji, ClientSession=lambda hub, opts: koji_session)
     flexmock(koji_util).should_receive('get_koji_task_owner').and_return({'name': user})
 
 
@@ -590,7 +585,7 @@ def test_invalid_remote_source_structure(workflow, pop_key):
     run_plugin_with_args(workflow, expect_error='Received invalid source request')
 
 
-def test_ignore_when_missing_cachito_config(workflow):
+def test_fail_when_missing_cachito_config(workflow):
     reactor_config = dedent("""\
         version: 1
         koji:
@@ -599,8 +594,10 @@ def test_ignore_when_missing_cachito_config(workflow):
             auth: {}
         """)
     mock_reactor_config(workflow, reactor_config)
-    result = run_plugin_with_args(workflow, expect_result=False)
-    assert result is None
+
+    with pytest.raises(PluginFailedException) as exc:
+        run_plugin_with_args(workflow, expect_result=False)
+    assert 'No Cachito configuration defined' in str(exc.value)
 
 
 def test_invalid_cert_reference(workflow):

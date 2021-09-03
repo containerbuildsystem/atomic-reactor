@@ -12,21 +12,18 @@ import json
 import os
 import time
 import docker
-from textwrap import dedent
 from dockerfile_parse import DockerfileParser
+from textwrap import dedent
 
 from atomic_reactor.build import InsideBuilder, BuildResult
 from atomic_reactor.plugin import (PreBuildPlugin, PrePublishPlugin, PostBuildPlugin, ExitPlugin,
                                    AutoRebuildCanceledException, PluginFailedException,
                                    BuildStepPlugin, InappropriateBuildStepError)
-import atomic_reactor.plugin
-from atomic_reactor.plugins.build_docker_api import DockerApiPlugin
-import atomic_reactor.inner
 from flexmock import flexmock
 import pytest
-from tests.constants import MOCK_SOURCE, SOURCE
 from tests.docker_mock import mock_docker
 from tests.util import requires_internet, is_string_type
+from tests.constants import DOCKERFILE_MULTISTAGE_CUSTOM_BAD_PATH
 import inspect
 import signal
 
@@ -36,6 +33,7 @@ from atomic_reactor.inner import (BuildResults, BuildResultsEncoder,
 from atomic_reactor.constants import (INSPECT_ROOTFS,
                                       INSPECT_ROOTFS_LAYERS,
                                       PLUGIN_BUILD_ORCHESTRATE_KEY)
+from atomic_reactor.util import DockerfileImages, df_parser
 
 
 BUILD_RESULTS_ATTRS = ['build_logs',
@@ -303,64 +301,6 @@ class WatcherWithSignal(Watcher):
             os.kill(os.getpid(), self.signal)
 
 
-def test_workflow(caplog):
-    """
-    Test normal workflow.
-    """
-
-    flexmock(DockerfileParser, content='df_content')
-    this_file = inspect.getfile(PreWatched)
-    mock_docker()
-    fake_builder = MockInsideBuilder()
-    flexmock(InsideBuilder).new_instances(fake_builder)
-    watch_pre = Watcher()
-    watch_prepub = Watcher()
-    watch_buildstep = Watcher()
-    watch_post = Watcher()
-    watch_exit = Watcher()
-
-    build_json = {'source': MOCK_SOURCE,
-                  'image': 'test-image',
-                  'prebuild_plugins': [{'name': 'pre_watched',
-                                        'args': {
-                                            'watcher': watch_pre
-                                        }}],
-                  'buildstep_plugins': [{'name': 'buildstep_watched',
-                                         'args': {
-                                             'watcher': watch_buildstep
-                                         }}],
-
-                  'prepublish_plugins': [{'name': 'prepub_watched',
-                                          'args': {
-                                              'watcher': watch_prepub,
-                                          }}],
-                  'postbuild_plugins': [{'name': 'post_watched',
-                                         'args': {
-                                             'watcher': watch_post
-                                         }}],
-                  'exit_plugins': [{'name': 'exit_watched',
-                                    'args': {
-                                        'watcher': watch_exit
-                                    }}],
-                  'plugin_files': [this_file]}
-    input_plugins_result = {'osv3': build_json}
-
-    (flexmock(atomic_reactor.plugin.InputPluginsRunner)
-        .should_receive('run')
-        .and_return(input_plugins_result))
-
-    atomic_reactor.inner.build_inside('osv3')
-
-    assert watch_pre.was_called()
-    assert watch_prepub.was_called()
-    assert watch_buildstep.was_called()
-    assert watch_post.was_called()
-    assert watch_exit.was_called()
-    dockerfile_used_entry = 'Dockerfile used for build:\n{}'.format(DUMMY_ORIGINAL_DF)
-    assert dockerfile_used_entry in caplog.messages
-    assert 'build has finished successfully' in caplog.text
-
-
 def test_workflow_base_images():
     """
     Test workflow for base images
@@ -376,7 +316,7 @@ def test_workflow_base_images():
     watch_buildstep = Watcher()
     watch_post = Watcher()
     watch_exit = Watcher()
-    workflow = DockerBuildWorkflow(source=MOCK_SOURCE,
+    workflow = DockerBuildWorkflow(source=None,
                                    prebuild_plugins=[{'name': 'pre_watched',
                                                       'args': {
                                                           'watcher': watch_pre
@@ -425,7 +365,7 @@ def test_workflow_compat(caplog):
 
     caplog.clear()
 
-    workflow = DockerBuildWorkflow(source=MOCK_SOURCE,
+    workflow = DockerBuildWorkflow(source=None,
                                    postbuild_plugins=[{'name': 'store_logs_to_file',
                                                        'args': {
                                                            'watcher': watch_exit
@@ -441,6 +381,16 @@ def test_workflow_compat(caplog):
     assert watch_exit.was_called()
     for record in caplog.records:
         assert record.levelno != logging.ERROR
+
+
+def test_set_user_params():
+    user_params = {'git_uri': 'test_uri', 'git_ref': 'test_ref', 'git_breanch': 'test_branch'}
+    os.environ['USER_PARAMS'] = json.dumps(user_params)
+
+    workflow = DockerBuildWorkflow(source=None)
+
+    for k, v in user_params.items():
+        assert workflow.user_params[k] == v
 
 
 class Pre(PreBuildPlugin):
@@ -493,7 +443,11 @@ class Exit(ExitPlugin):
                             'args': {
                                 'watcher': Watcher(),
                             }
-                            }]},
+                            }],
+      'buildstep_plugins': [{'name': 'buildstep_watched',
+                             'args': {
+                                 'watcher': Watcher(),
+                             }}]},
      False,  # not fatal
      False,  # no error logged
      ),
@@ -515,7 +469,11 @@ class Exit(ExitPlugin):
                              'args': {
                                  'watcher': Watcher(),
                              }
-                             }]},
+                             }],
+      'buildstep_plugins': [{'name': 'buildstep_watched',
+                             'args': {
+                                 'watcher': Watcher(),
+                             }}]},
      False,  # not fatal,
      False,  # no error logged
      ),
@@ -526,7 +484,11 @@ class Exit(ExitPlugin):
                               'args': {
                                   'watcher': Watcher(),
                               }
-                              }]},
+                              }],
+      'buildstep_plugins': [{'name': 'buildstep_watched',
+                             'args': {
+                                 'watcher': Watcher(),
+                             }}]},
      False,  # not fatal,
      False,  # no error logged
      ),
@@ -537,7 +499,11 @@ class Exit(ExitPlugin):
                         'args': {
                             'watcher': Watcher(),
                         }
-                        }]},
+                        }],
+      'buildstep_plugins': [{'name': 'buildstep_watched',
+                             'args': {
+                                 'watcher': Watcher(),
+                             }}]},
      False,  # not fatal
      False,  # no error logged
      ),
@@ -560,8 +526,7 @@ class Exit(ExitPlugin):
                             {'name': 'buildstep_watched',
                              'args': {
                                  'watcher': Watcher(),
-                             }
-                             }]},
+                             }}]},
      False,  # is fatal
      False,  # logs error
      ),
@@ -610,7 +575,11 @@ class Exit(ExitPlugin):
                             'args': {
                                 'watcher': Watcher(),
                             }
-                            }]},
+                            }],
+      'buildstep_plugins': [{'name': 'buildstep_watched',
+                             'args': {
+                                 'watcher': Watcher(),
+                             }}]},
      False,  # not fatal
      False,  # does not log error
      ),
@@ -622,8 +591,7 @@ class Exit(ExitPlugin):
                             {'name': 'buildstep_watched',
                              'args': {
                                  'watcher': Watcher(),
-                             }
-                             }]},
+                             }}]},
      False,  # not fatal
      False,  # does not log error
      ),
@@ -636,7 +604,11 @@ class Exit(ExitPlugin):
                              'args': {
                                  'watcher': Watcher(),
                              }
-                             }]},
+                             }],
+      'buildstep_plugins': [{'name': 'buildstep_watched',
+                             'args': {
+                                 'watcher': Watcher(),
+                             }}]},
      False,  # not fatal
      False,  # does not log error
      ),
@@ -649,7 +621,11 @@ class Exit(ExitPlugin):
                               'args': {
                                   'watcher': Watcher(),
                               }
-                              }]},
+                              }],
+      'buildstep_plugins': [{'name': 'buildstep_watched',
+                             'args': {
+                                 'watcher': Watcher(),
+                             }}]},
      False,  # not fatal
      False,  # does not log error
      ),
@@ -662,7 +638,11 @@ class Exit(ExitPlugin):
                         'args': {
                             'watcher': Watcher(),
                         }
-                        }]},
+                        }],
+      'buildstep_plugins': [{'name': 'buildstep_watched',
+                             'args': {
+                                 'watcher': Watcher(),
+                             }}]},
      False,  # not fatal
      False,  # does not log error
      ),
@@ -672,17 +652,20 @@ def test_plugin_errors(plugins, should_fail, should_log, caplog):
     Try bad plugin configuration.
     """
     flexmock(DockerfileParser, content='df_content')
-    flexmock(DockerApiPlugin).should_receive('run').and_return(DUMMY_BUILD_RESULT)
     this_file = inspect.getfile(PreRaises)
     mock_docker()
     fake_builder = MockInsideBuilder()
     flexmock(InsideBuilder).new_instances(fake_builder)
 
     caplog.clear()
-    workflow = DockerBuildWorkflow(source=MOCK_SOURCE,
+    workflow = DockerBuildWorkflow(source=None,
                                    plugin_files=[this_file],
                                    **plugins)
 
+    print('===============================================')
+    print(plugins)
+    print(should_fail)
+    print('===============================================')
     # Find the 'watcher' parameter
     watchers = [conf.get('args', {}).get('watcher')
                 for plugin in plugins.values()
@@ -728,7 +711,7 @@ def test_autorebuild_stop_prevents_build():
     watch_prepub = Watcher()
     watch_post = Watcher()
     watch_exit = Watcher()
-    workflow = DockerBuildWorkflow(source=MOCK_SOURCE,
+    workflow = DockerBuildWorkflow(source=None,
                                    prebuild_plugins=[{'name': 'stopstopstop',
                                                       'args': {
                                                       }}],
@@ -816,7 +799,7 @@ def test_workflow_plugin_error(fail_at):
         # Typo in the parameter list?
         assert False
 
-    workflow = DockerBuildWorkflow(source=MOCK_SOURCE,
+    workflow = DockerBuildWorkflow(source=None,
                                    prebuild_plugins=prebuild_plugins,
                                    buildstep_plugins=buildstep_plugins,
                                    prepublish_plugins=prepublish_plugins,
@@ -877,7 +860,7 @@ def test_workflow_docker_build_error():
     watch_post = Watcher()
     watch_exit = Watcher()
 
-    workflow = DockerBuildWorkflow(source=MOCK_SOURCE,
+    workflow = DockerBuildWorkflow(source=None,
                                    prebuild_plugins=[{'name': 'pre_watched',
                                                       'args': {
                                                           'watcher': watch_pre
@@ -953,7 +936,7 @@ def test_workflow_docker_build_error_reports(steps_to_fail, step_reported):
     watch_post = construct_watcher('post')
     watch_exit = construct_watcher('exit')
 
-    workflow = DockerBuildWorkflow(source=MOCK_SOURCE,
+    workflow = DockerBuildWorkflow(source=None,
                                    prebuild_plugins=[{'name': 'pre_watched',
                                                       'is_allowed_to_fail': False,
                                                       'args': {
@@ -1003,7 +986,7 @@ def test_source_not_removed_for_exit_plugins():
     flexmock(InsideBuilder).new_instances(fake_builder)
     watch_exit = Watcher()
     watch_buildstep = Watcher()
-    workflow = DockerBuildWorkflow(source=SOURCE,
+    workflow = DockerBuildWorkflow(source=None,
                                    exit_plugins=[{'name': 'uses_source',
                                                   'args': {
                                                       'watcher': watch_exit,
@@ -1146,7 +1129,7 @@ def test_workflow_plugin_results(buildstep_plugin, buildstep_raises):
     prepublish_plugins = [{'name': 'pre_publish_value'}]
     exit_plugins = [{'name': 'exit_value'}]
 
-    workflow = DockerBuildWorkflow(source=MOCK_SOURCE,
+    workflow = DockerBuildWorkflow(source=None,
                                    prebuild_plugins=prebuild_plugins,
                                    buildstep_plugins=buildstep_plugins,
                                    prepublish_plugins=prepublish_plugins,
@@ -1194,7 +1177,7 @@ def test_cancel_build(fail_at, caplog):
 
     caplog.clear()
 
-    workflow = DockerBuildWorkflow(source=MOCK_SOURCE,
+    workflow = DockerBuildWorkflow(source=None,
                                    prebuild_plugins=[{'name': 'pre_watched',
                                                       'args': {
                                                           'watcher': watch_pre
@@ -1253,54 +1236,6 @@ def test_cancel_build(fail_at, caplog):
         assert watch_post.was_called()
 
 
-@pytest.mark.parametrize(['buildstep_alias', 'buildstep_plugin'], [
-    [True, 'imagebuilder'],
-    [False, 'docker_api'],
-])
-def test_buildstep_alias(buildstep_alias, buildstep_plugin):
-    """
-    Verifies that buildstep plugin is changed when buildstep_alias is defined
-    """
-    flexmock(DockerfileParser, content='df_content')
-    this_file = inspect.getfile(PreRaises)
-    mock_docker()
-    fake_builder = MockInsideBuilder()
-    flexmock(InsideBuilder).new_instances(fake_builder)
-
-    prebuild_plugins = [{'name': 'reactor_config'}]
-    buildstep_plugins = []
-    postbuild_plugins = []
-    prepublish_plugins = []
-    exit_plugins = []
-
-    os.environ['REACTOR_CONFIG'] = dedent("""\
-        version: 1
-        koji:
-          hub_url: /
-          root_url: ''
-          auth: {}
-        """)
-    if buildstep_alias:
-        os.environ['REACTOR_CONFIG'] += dedent("""\
-        buildstep_alias:
-          docker_api: imagebuilder
-        """)
-
-    workflow = DockerBuildWorkflow(source=MOCK_SOURCE,
-                                   prebuild_plugins=prebuild_plugins,
-                                   buildstep_plugins=buildstep_plugins,
-                                   prepublish_plugins=prepublish_plugins,
-                                   postbuild_plugins=postbuild_plugins,
-                                   exit_plugins=exit_plugins,
-                                   plugin_files=[this_file])
-
-    workflow.build_docker_image()
-    os.environ.pop('REACTOR_CONFIG', None)
-
-    assert buildstep_plugin in workflow.buildstep_result
-    assert isinstance(workflow.buildstep_result[buildstep_plugin], BuildResult)
-
-
 @pytest.mark.parametrize('has_version', [True, False])
 def test_show_version(has_version, caplog):
     """
@@ -1331,7 +1266,7 @@ def test_show_version(has_version, caplog):
     if has_version:
         params['client_version'] = VERSION
 
-    workflow = DockerBuildWorkflow(source=MOCK_SOURCE, **params)
+    workflow = DockerBuildWorkflow(source=None, **params)
     workflow.build_docker_image()
     expected_log_message = "build json was built by osbs-client {}".format(VERSION)
     assert any(
@@ -1349,7 +1284,7 @@ def test_layer_sizes():
     flexmock(InsideBuilder).new_instances(fake_builder)
     watch_exit = Watcher()
     watch_buildstep = Watcher()
-    workflow = DockerBuildWorkflow(source=SOURCE,
+    workflow = DockerBuildWorkflow(source=None,
                                    exit_plugins=[{'name': 'uses_source',
                                                   'args': {
                                                       'watcher': watch_exit,
@@ -1382,9 +1317,66 @@ def test_layer_sizes():
       {'name': PLUGIN_BUILD_ORCHESTRATE_KEY}], True)
 ])
 def test_workflow_is_orchestrator_build(buildstep_plugins, is_orchestrator):
-    workflow = DockerBuildWorkflow(source=MOCK_SOURCE,
+    workflow = DockerBuildWorkflow(source=None,
                                    buildstep_plugins=buildstep_plugins)
     assert workflow.is_orchestrator_build() == is_orchestrator
+
+
+def test_parent_images_to_str(caplog):
+    workflow = DockerBuildWorkflow(source=None)
+    workflow.dockerfile_images = DockerfileImages(['fedora:latest', 'bacon'])
+    workflow.dockerfile_images['fedora:latest'] = "spam"
+    expected_results = {
+        "fedora:latest": "spam:latest"
+    }
+    assert workflow.parent_images_to_str() == expected_results
+    assert "None in: base bacon:latest has parent None" in caplog.text
+
+
+def test_no_base_image(tmpdir):
+    workflow = DockerBuildWorkflow(source=None)
+
+    dfp = df_parser(str(tmpdir))
+    dfp.content = "# no FROM\nADD spam /eggs"
+
+    workflow._df_path = dfp.dockerfile_path
+    with pytest.raises(RuntimeError) as exc:
+        workflow.set_df_path(str(tmpdir))
+    assert "no base image specified" in str(exc.value)
+
+
+def test_different_custom_base_images(tmpdir):
+    source = {'provider': 'path', 'uri': 'file://' + DOCKERFILE_MULTISTAGE_CUSTOM_BAD_PATH,
+              'tmpdir': str(tmpdir)}
+    with pytest.raises(NotImplementedError) as exc:
+        DockerBuildWorkflow(source=source)
+    message = "multiple different custom base images aren't allowed in Dockerfile"
+    assert message in str(exc.value)
+
+
+def test_copy_from_is_blocked(tmpdir):
+    """test when user has specified COPY --from=image (instead of builder)"""
+    source = {'provider': 'path', 'uri': 'file://' + str(tmpdir), 'tmpdir': str(tmpdir)}
+
+    dfp = df_parser(str(tmpdir))
+    dfp.content = dedent("""\
+        FROM monty as vikings
+        FROM python
+        # using a stage name we haven't seen should break:
+        COPY --from=notvikings /spam/eggs /bin/eggs
+    """)
+    with pytest.raises(RuntimeError) as exc_info:
+        DockerBuildWorkflow(source=source)
+    assert "FROM notvikings AS source" in str(exc_info.value)
+
+    dfp.content = dedent("""\
+        FROM monty as vikings
+        # using an index we haven't seen should break:
+        COPY --from=5 /spam/eggs /bin/eggs
+    """)
+    with pytest.raises(RuntimeError) as exc_info:
+        DockerBuildWorkflow(source=source)
+    assert "COPY --from=5" in str(exc_info.value)
 
 
 def test_fs_watcher_update(monkeypatch):

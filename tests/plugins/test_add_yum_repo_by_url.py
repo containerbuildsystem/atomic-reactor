@@ -12,16 +12,14 @@ from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_add_yum_repo_by_url import AddYumRepoByUrlPlugin
-from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY,
-                                                       ReactorConfig)
 from atomic_reactor.utils.yum import YumRepo
+from atomic_reactor.util import DockerfileImages
 import requests
 import pytest
 from flexmock import flexmock
 from fnmatch import fnmatch
 import os.path
-from tests.constants import DOCKERFILE_GIT, MOCK
+from tests.constants import MOCK
 from tests.stubs import StubInsideBuilder, StubSource
 if MOCK:
     from tests.retry_mock import mock_get_retry_session
@@ -36,10 +34,11 @@ def prepare(scratch=False):
     if MOCK:
         mock_docker()
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow(source={"provider": "git", "uri": DOCKERFILE_GIT})
+    workflow = DockerBuildWorkflow(source=None)
     workflow.source = StubSource()
     workflow.builder = StubInsideBuilder().for_workflow(workflow)
     workflow.builder.set_dockerfile_images([])
+    workflow.dockerfile_images = DockerfileImages([])
     workflow.user_params['scratch'] = scratch
     (flexmock(requests.Response, content=repocontent)
         .should_receive('raise_for_status')
@@ -98,7 +97,7 @@ def test_multiple_repourls(caplog,
         dockerfile_images.append('parent_image:latest')
     if base_from_scratch:
         dockerfile_images.append('scratch')
-    workflow.builder.set_dockerfile_images(dockerfile_images)
+    workflow.dockerfile_images = DockerfileImages(dockerfile_images)
     runner = PreBuildPluginsRunner(tasker, workflow, [{
         'name': AddYumRepoByUrlPlugin.key,
         'args': {'repourls': repos, 'inject_proxy': inject_proxy}}])
@@ -223,9 +222,7 @@ def test_allowed_domains(allowed_domains, repo_urls, will_raise, scratch):
     if allowed_domains is not None:
         reactor_map['yum_repo_allowed_domains'] = allowed_domains
 
-    workflow.plugin_workspace[ReactorConfigPlugin.key] = {
-        WORKSPACE_CONF_KEY: ReactorConfig(reactor_map)
-    }
+    workflow.conf.conf = reactor_map
 
     runner = PreBuildPluginsRunner(tasker, workflow, [{
         'name': AddYumRepoByUrlPlugin.key,

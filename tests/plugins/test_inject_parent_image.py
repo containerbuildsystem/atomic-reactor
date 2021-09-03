@@ -8,17 +8,14 @@ of the BSD license. See the LICENSE file for details.
 
 import koji
 
-from atomic_reactor.core import DockerTasker
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_inject_parent_image import InjectParentImage
 from atomic_reactor.plugins.exit_remove_built_image import GarbageCollectionPlugin
-from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY,
-                                                       ReactorConfig)
 from atomic_reactor.util import DockerfileImages
 from flexmock import flexmock
 from tests.constants import MOCK
 from tests.util import add_koji_map_in_workflow
+from tests.stubs import StubInsideBuilder, StubSource
 from osbs.utils import graceful_chain_del
 
 import copy
@@ -54,29 +51,13 @@ USE_DEFAULT_ARCHIVES = object()
 USE_DEFAULT_KOJI_BUILD_INFO = object()
 
 
-class MockInsideBuilder(object):
-    def __init__(self):
-        self.tasker = DockerTasker()
-        self.dockerfile_images = DockerfileImages(['source_registry.com/fedora:26'])
-        self.image_id = 'image_id'
-        self.image = 'image'
-        self.df_path = 'df_path'
-        self.df_dir = 'df_dir'
-
-    @property
-    def source(self):
-        result = flexmock()
-        setattr(result, 'dockerfile_path', '/')
-        setattr(result, 'path', '/tmp')
-        return result
-
-
 @pytest.fixture()
 def workflow(workflow):
     if MOCK:
         mock_docker()
-    workflow.builder = MockInsideBuilder()
-    setattr(workflow.builder, 'base_image_inspect', {})
+    workflow.dockerfile_images = DockerfileImages(['source_registry.com/fedora:26'])
+    workflow.source = StubSource()
+    workflow.builder = StubInsideBuilder().for_workflow(workflow)
 
     return workflow
 
@@ -110,26 +91,26 @@ class TestKojiParent(object):
         koji_session()
 
         if base_from_scratch:
-            workflow.builder.dockerfile_images = DockerfileImages(['scratch'])
+            workflow.dockerfile_images = DockerfileImages(['scratch'])
         elif custom_base_image:
-            workflow.builder.dockerfile_images = DockerfileImages(['koji/image-build'])
+            workflow.dockerfile_images = DockerfileImages(['koji/image-build'])
 
-        previous_parent_image = workflow.builder.dockerfile_images.base_image
+        previous_parent_image = workflow.dockerfile_images.base_image
 
         self.run_plugin_with_args(workflow, base_from_scratch=base_from_scratch,
                                   custom_base_image=custom_base_image)
         if base_from_scratch:
-            assert str(previous_parent_image) == str(workflow.builder.dockerfile_images.base_image)
+            assert str(previous_parent_image) == str(workflow.dockerfile_images.base_image)
 
             log_msg = "from scratch can't inject parent image"
             assert log_msg in caplog.text
         elif custom_base_image:
-            assert str(previous_parent_image) == str(workflow.builder.dockerfile_images.base_image)
+            assert str(previous_parent_image) == str(workflow.dockerfile_images.base_image)
 
             log_msg = "custom base image builds can't inject parent image"
             assert log_msg in caplog.text
         else:
-            assert str(previous_parent_image) != str(workflow.builder.dockerfile_images.base_image)
+            assert str(previous_parent_image) != str(workflow.dockerfile_images.base_image)
 
     @pytest.mark.parametrize('koji_build', (KOJI_BUILD_ID, KOJI_BUILD_NVR, str(KOJI_BUILD_ID)))
     def test_koji_build_identifier(self, workflow, koji_build):
@@ -165,9 +146,9 @@ class TestKojiParent(object):
 
         repo_template = 'source_registry.com/fedora{}'
         koji_session(archives=archives, koji_build_info=koji_build_info)
-        workflow.builder.dockerfile_images = DockerfileImages(['spam.com/fedora:some_tag'])
+        workflow.dockerfile_images = DockerfileImages(['spam.com/fedora:some_tag'])
         self.run_plugin_with_args(workflow)
-        assert str(workflow.builder.dockerfile_images.base_image) == repo_template.format(selected)
+        assert str(workflow.dockerfile_images.base_image) == repo_template.format(selected)
 
     @pytest.mark.parametrize('organization', [None, 'my_organization'])  # noqa
     @pytest.mark.parametrize('archive_registry', ['spam.com', 'old_registry.com'])
@@ -187,14 +168,14 @@ class TestKojiParent(object):
         repo_template = 'source_registry.com/fedora{}'
 
         koji_session(archives=archives)
-        workflow.builder.dockerfile_images = DockerfileImages(['spam.com/fedora:some_tag'])
+        workflow.dockerfile_images = DockerfileImages(['spam.com/fedora:some_tag'])
         self.run_plugin_with_args(workflow, organization=organization)
         if organization:
             selected_repo = enclosed_repo_template.format(organization, selected)
         else:
             selected_repo = repo_template.format(selected)
 
-        assert str(workflow.builder.dockerfile_images.base_image) == selected_repo
+        assert str(workflow.dockerfile_images.base_image) == selected_repo
 
     def test_koji_ssl_certs_used(self, tmpdir, workflow):  # noqa
         session = koji_session()
@@ -243,11 +224,9 @@ class TestKojiParent(object):
         plugin_args = plugin_args or {}
         plugin_args.setdefault('koji_parent_build', koji_parent_build)
 
-        workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            ReactorConfig({'version': 1, 'registries_organization': organization,
-                           'source_registry': {'url': 'source_registry.com'}})
-
+        rcm = {'version': 1, 'registries_organization': organization,
+               'source_registry': {'url': 'source_registry.com'}}
+        workflow.conf.conf = rcm
         add_koji_map_in_workflow(workflow,
                                  hub_url=KOJI_HUB,
                                  root_url='',
@@ -270,6 +249,6 @@ class TestKojiParent(object):
             self.assert_images_to_remove(workflow)
 
     def assert_images_to_remove(self, workflow):
-        expected = {str(workflow.builder.dockerfile_images.base_image)}
+        expected = {str(workflow.dockerfile_images.base_image)}
         actual = workflow.plugin_workspace[GarbageCollectionPlugin.key]['images_to_remove']
         assert actual == expected

@@ -16,6 +16,8 @@ import signal
 import threading
 import os
 import time
+import re
+from textwrap import dedent
 
 from atomic_reactor.build import InsideBuilder
 from atomic_reactor.plugin import (
@@ -35,10 +37,15 @@ from atomic_reactor.constants import (
     DOCKER_STORAGE_TRANSPORT_NAME,
     INSPECT_ROOTFS,
     INSPECT_ROOTFS_LAYERS,
-    PLUGIN_BUILD_ORCHESTRATE_KEY
+    PLUGIN_BUILD_ORCHESTRATE_KEY,
+    WORKSPACE_BASE_PATH,
+    REACTOR_CONFIG_WORKSPACE,
+    DOCKERFILE_FILENAME,
 )
-from atomic_reactor.util import exception_message
+from atomic_reactor.util import (exception_message, DockerfileImages, df_parser,
+                                 base_image_is_custom)
 from atomic_reactor.build import BuildResult
+from atomic_reactor.config import Configuration
 from atomic_reactor import get_logging_encoding
 from osbs.utils import ImageName
 
@@ -434,6 +441,92 @@ class DockerBuildWorkflow(object):
         if kwargs:
             logger.warning("unprocessed keyword arguments: %s", kwargs)
 
+        # get info about base image from dockerfile
+        build_file_path, build_file_dir = self.source.get_build_file_path()
+
+        self.df_dir = build_file_dir
+        self._df_path = None
+        self.original_df = None
+        self.buildargs = {}  # --buildargs for container build
+        self.dockerfile_images = DockerfileImages([])
+
+        # If the Dockerfile will be entirely generated from the container.yaml
+        # (in the Flatpak case, say), then a plugin needs to create the Dockerfile
+        # and set the base image
+        if build_file_path.endswith(DOCKERFILE_FILENAME):
+            self.set_df_path(build_file_path)
+
+        reactor_config_path = os.path.join(WORKSPACE_BASE_PATH, REACTOR_CONFIG_WORKSPACE)
+        # openshift in configuration needs namespace, it was reading it from get_builds_json()
+        # we should have it in user_params['namespace']
+        self.conf = Configuration(config_path=reactor_config_path)
+        self.conf.set_workflow_based_on_config(self)
+
+    @property
+    def df_path(self):
+        if self._df_path is None:
+            raise AttributeError("Dockerfile has not yet been generated")
+
+        return self._df_path
+
+    def set_df_path(self, path):
+        self._df_path = path
+        dfp = df_parser(path)
+        if dfp.baseimage is None:
+            raise RuntimeError("no base image specified in Dockerfile")
+
+        self.dockerfile_images = DockerfileImages(dfp.parent_images)
+        logger.debug("base image specified in dockerfile = '%s'", dfp.baseimage)
+        logger.debug("parent images specified in dockerfile = '%s'", dfp.parent_images)
+
+        custom_base_images = set()
+        for image in dfp.parent_images:
+            image_name = ImageName.parse(image)
+            image_str = image_name.to_str()
+            if base_image_is_custom(image_str):
+                custom_base_images.add(image_str)
+
+        if len(custom_base_images) > 1:
+            raise NotImplementedError("multiple different custom base images"
+                                      " aren't allowed in Dockerfile")
+
+        # validate user has not specified COPY --from=image
+        builders = []
+        for stmt in dfp.structure:
+            if stmt['instruction'] == 'FROM':
+                # extract "bar" from "foo as bar" and record as build stage
+                match = re.search(r'\S+ \s+  as  \s+ (\S+)', stmt['value'], re.I | re.X)
+                builders.append(match.group(1) if match else None)
+            elif stmt['instruction'] == 'COPY':
+                match = re.search(r'--from=(\S+)', stmt['value'], re.I)
+                if not match:
+                    continue
+                stage = match.group(1)
+                # error unless the --from is the index or name of a stage we've seen
+                if any(stage in [str(idx), builder] for idx, builder in enumerate(builders)):
+                    continue
+                raise RuntimeError(dedent("""\
+                    OSBS does not support COPY --from unless it matches a build stage.
+                    Dockerfile instruction was:
+                      {}
+                    To use an image with COPY --from, specify it in a stage with FROM, e.g.
+                      FROM {} AS source
+                      FROM ...
+                      COPY --from=source <src> <dest>
+                    """).format(stmt['content'], stage))
+
+    def parent_images_to_str(self):
+        results = {}
+        for base_image_name, parent_image_name in self.dockerfile_images.items():
+            base_str = str(base_image_name)
+            parent_str = str(parent_image_name)
+            if base_image_name and parent_image_name:
+                results[base_str] = parent_str
+            else:
+                logger.debug("None in: base %s has parent %s", base_str, parent_str)
+
+        return results
+
     def get_orchestrate_build_plugin(self):
         """
         Get the orchestrate_build plugin configuration for this workflow
@@ -627,11 +720,11 @@ def build_inside(input_method, input_args=None, substitutions=None):
         build_result = dbw.build_docker_image()
     except Exception as e:
         if dbw.builder:
-            logger.info("Dockerfile used for build:\n%s", dbw.builder.original_df)
+            logger.info("Dockerfile used for build:\n%s", dbw.original_df)
         logger.error('image build failed: %s', e)
         raise
     else:
-        logger.info("Dockerfile used for build:\n%s", dbw.builder.original_df)
+        logger.info("Dockerfile used for build:\n%s", dbw.original_df)
         if not build_result or build_result.is_failed():
             raise RuntimeError("no image built")
         else:

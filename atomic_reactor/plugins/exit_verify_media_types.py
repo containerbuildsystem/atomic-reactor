@@ -19,10 +19,6 @@ from atomic_reactor.constants import (PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_VERIFY_
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.util import (get_manifest_digests, get_platforms,
                                  is_manifest_list, ManifestDigest)
-from atomic_reactor.plugins.pre_reactor_config import (get_registries,
-                                                       get_platform_to_goarch_mapping,
-                                                       get_source_container)
-from copy import deepcopy
 
 
 class VerifyMediaTypesPlugin(ExitPlugin):
@@ -40,7 +36,7 @@ class VerifyMediaTypesPlugin(ExitPlugin):
             raise ValueError("no unique image set, impossible to verify media types")
         image = self.workflow.tag_conf.unique_images[0]
 
-        registries = deepcopy(get_registries(self.workflow, {}))
+        registries = self.workflow.conf.registries
         media_in_registry = {}
         expect_list_only = self.get_manifest_list_only_expectation()
 
@@ -65,7 +61,7 @@ class VerifyMediaTypesPlugin(ExitPlugin):
                 # This can help to avoid issues with tooling that is
                 # unable to deal with the number of layers in these
                 # images.
-                src_config = get_source_container(self.workflow, fallback={})
+                src_config = self.workflow.conf.source_container
                 limit_media_types = src_config.get('limit_media_types')
                 if limit_media_types is not None:
                     short_name = {v: k for k, v in ManifestDigest.content_type.items()}
@@ -128,12 +124,7 @@ class VerifyMediaTypesPlugin(ExitPlugin):
                            'because we have no platforms list')
             return False
 
-        try:
-            platform_to_goarch = get_platform_to_goarch_mapping(self.workflow)
-        except KeyError:
-            self.log.debug('Cannot check if only manifest list digest should be returned '
-                           'because there are no platform descriptors')
-            return False
+        platform_to_goarch = self.workflow.conf.platform_to_goarch_mapping
 
         for plat in platforms:
             if platform_to_goarch[plat] == 'amd64':

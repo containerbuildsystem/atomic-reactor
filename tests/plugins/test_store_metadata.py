@@ -26,13 +26,10 @@ from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.exit_store_metadata_in_osv3 import StoreMetadataInOSv3Plugin
-from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY,
-                                                       ReactorConfig)
 from atomic_reactor.util import LazyGit, ManifestDigest, df_parser, DockerfileImages
 import pytest
 from tests.constants import (LOCALHOST_REGISTRY, DOCKER0_REGISTRY, TEST_IMAGE, TEST_IMAGE_NAME,
-                             INPUT_IMAGE, MOCK_SOURCE)
+                             INPUT_IMAGE)
 from tests.util import add_koji_map_in_workflow, is_string_type
 
 DIGEST1 = "sha256:1da9b9e1c6bf6ab40f1627d76e2ad58e9b2be14351ef4ff1ed3eb4a156138189"
@@ -42,46 +39,11 @@ DIGEST_NOT_USED = "not-used"
 pytestmark = pytest.mark.usefixtures('user_params')
 
 
-class Y(object):
-    pass
-
-
 class X(object):
     image_id = INPUT_IMAGE
-    source = Y()
-    source.dockerfile_path = None
-    source.path = None
-    dockerfile_images = DockerfileImages(['qwe:asd'])
-    dockerfile_images['qwe:asd'] = "sha256:spamneggs"
-
-    def parent_images_to_str(self):
-        result = {}
-        for key, val in self.dockerfile_images.items():
-            if val:
-                result[key.to_str()] = val.to_str()
-            else:
-                result[key.to_str()] = 'sha256:bacon'
-        return result
 
 
-class XBeforeDockerfile(object):
-    def __init__(self):
-        self.image_id = INPUT_IMAGE
-        self.source = Y()
-        self.source.dockerfile_path = None
-        self.source.path = None
-        self.dockerfile_images = DockerfileImages([])
-        self.df_dir = None
-
-    def parent_images_to_str(self):
-        return {}
-
-    @property
-    def df_path(self):
-        raise AttributeError("Dockerfile has not yet been generated")
-
-
-def prepare(docker_registries=None, before_dockerfile=False):
+def prepare(docker_registries=None):
     if docker_registries is None:
         docker_registries = (LOCALHOST_REGISTRY, DOCKER0_REGISTRY,)
 
@@ -116,16 +78,16 @@ def prepare(docker_registries=None, before_dockerfile=False):
     flexmock(os)
     os.should_receive("environ").and_return(new_environ)  # pylint: disable=no-member
 
-    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
+    workflow = DockerBuildWorkflow(source=None)
+    workflow.user_params['namespace'] = 'namespace'
 
     openshift_map = {
         'url': 'http://example.com/',
         'insecure': False,
         'auth': {'enable': True},
     }
-    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-        ReactorConfig({'version': 1, 'openshift': openshift_map})
+    rcm = {'version': 1, 'openshift': openshift_map}
+    workflow.conf.conf = rcm
     add_koji_map_in_workflow(workflow, hub_url='/', root_url='')
 
     workflow.tag_conf.add_floating_image(TEST_IMAGE)
@@ -139,15 +101,11 @@ def prepare(docker_registries=None, before_dockerfile=False):
         r.digests["namespace/image:asd123"] = ManifestDigest(v1=DIGEST_NOT_USED,
                                                              v2=DIGEST2)
 
-    if before_dockerfile:
-        setattr(workflow, 'builder', XBeforeDockerfile())
-        setattr(workflow.builder, 'base_image_inspect', {})
-    else:
-        setattr(workflow, 'builder', X())
-        setattr(workflow.builder, 'base_image_inspect', {'Id': '01234567'})
-        workflow.build_logs = [
-            "a", "b",
-        ]
+    setattr(workflow, 'builder', X())
+    setattr(workflow.builder, 'base_image_inspect', {'Id': '01234567'})
+    workflow.build_logs = [
+        "a", "b",
+    ]
     workflow.source.lg = LazyGit(None, commit="commit")
     flexmock(workflow.source.lg)
     # pylint: disable=no-member
@@ -198,7 +156,6 @@ RUN yum install -y python-django
 CMD blabla
 FROM scratch
 RUN yum install -y python"""
-        workflow.builder.base_from_scratch = base_from_scratch
     else:
         df_content = """
 FROM fedora
@@ -207,9 +164,12 @@ CMD blabla"""
 
     df = df_parser(str(tmpdir))
     df.content = df_content
-    workflow.builder.dockerfile_images = DockerfileImages(df.parent_images)
-    workflow.builder.df_path = df.dockerfile_path
-    workflow.builder.df_dir = str(tmpdir)
+    workflow.dockerfile_images = DockerfileImages(df.parent_images)
+    for parent in df.parent_images:
+        if parent != 'scratch':
+            workflow.dockerfile_images[parent] = "sha256:spamneggs"
+    flexmock(workflow, df_path=df.dockerfile_path)
+    workflow.df_dir = str(tmpdir)
 
     workflow.prebuild_results = {
         AddHelpPlugin.key: help_results
@@ -286,9 +246,10 @@ CMD blabla"""
         assert '"scratch": "scratch"' in annotations['parent_images']
     else:
         assert annotations["base-image-name"] ==\
-               workflow.builder.dockerfile_images.original_base_image
+               workflow.dockerfile_images.original_base_image
         assert annotations["base-image-id"] != ""
-        assert (workflow.builder.dockerfile_images.base_image.to_str() in
+
+        assert (workflow.dockerfile_images.base_image.to_str() in
                 annotations['parent_images'])
     assert "image-id" in annotations
     assert is_string_type(annotations['image-id'])
@@ -597,8 +558,8 @@ RUN yum install -y python-django
 CMD blabla"""
     df = df_parser(str(tmpdir))
     df.content = df_content
-    workflow.builder.df_path = df.dockerfile_path
-    workflow.builder.df_dir = str(tmpdir)
+    flexmock(workflow, df_path=df.dockerfile_path)
+    workflow.df_dir = str(tmpdir)
 
     workflow.prebuild_results = {}
     workflow.postbuild_results = {
@@ -651,9 +612,10 @@ CMD blabla"""
 
 
 def test_exit_before_dockerfile_created(tmpdir):  # noqa
-    workflow = prepare(before_dockerfile=True)
+    workflow = prepare()
     workflow.exit_results = {}
-    workflow.builder.df_dir = str(tmpdir)
+    workflow.df_dir = str(tmpdir)
+    workflow._df_path = None
 
     runner = ExitPluginsRunner(
         None,
@@ -682,8 +644,8 @@ RUN yum install -y python-django
 CMD blabla"""
     df = df_parser(str(tmpdir))
     df.content = df_content
-    workflow.builder.df_path = df.dockerfile_path
-    workflow.builder.df_dir = str(tmpdir)
+    flexmock(workflow, df_path=df.dockerfile_path)
+    workflow.df_dir = str(tmpdir)
 
     runner = ExitPluginsRunner(
         None,
@@ -756,8 +718,8 @@ RUN yum install -y python-django
 CMD blabla"""
     df = df_parser(str(tmpdir))
     df.content = df_content
-    workflow.builder.df_path = df.dockerfile_path
-    workflow.builder.df_dir = str(tmpdir)
+    flexmock(workflow, df_path=df.dockerfile_path)
+    workflow.df_dir = str(tmpdir)
 
     runner = ExitPluginsRunner(
         None,
@@ -800,10 +762,8 @@ CMD blabla"""
     ))
 def test_set_koji_annotations_whitelist(tmpdir, koji_conf):
     workflow = prepare()
-    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
     if koji_conf is not None:
-        workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-            ReactorConfig({'version': 1, 'koji': koji_conf})
+        workflow.conf.conf['koji'] = koji_conf
 
     df_content = dedent('''\
         FROM nowhere
@@ -812,8 +772,8 @@ def test_set_koji_annotations_whitelist(tmpdir, koji_conf):
         ''')
     df = df_parser(str(tmpdir))
     df.content = df_content
-    workflow.builder.df_path = df.dockerfile_path
-    workflow.builder.df_dir = str(tmpdir)
+    flexmock(workflow, df_path=df.dockerfile_path)
+    workflow.df_dir = str(tmpdir)
     runner = ExitPluginsRunner(
         None,
         workflow,

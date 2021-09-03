@@ -21,7 +21,7 @@ from atomic_reactor.plugins.prepub_squash import PrePublishSquashPlugin
 from atomic_reactor.util import DockerfileImages
 from atomic_reactor.build import BuildResult
 from docker_squash.squash import Squash
-from tests.constants import MOCK, MOCK_SOURCE
+from tests.constants import MOCK
 
 
 if MOCK:
@@ -61,24 +61,19 @@ class MockInsideBuilder(object):
 
 
 def mock_workflow():
-    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
+    workflow = DockerBuildWorkflow(source=None)
     workflow.builder = MockInsideBuilder()
+    workflow.dockerfile_images = DockerfileImages(['Fedora:22'])
     return workflow
 
 
 @pytest.mark.usefixtures('user_params')
 class TestSquashPlugin(object):
-    # workflow = None
-    # tasker = None
     output_path = None
 
     def setup_method(self, method):
         if MOCK:
             mock_docker()
-        # self.workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
-        # self.workflow.builder = MockInsideBuilder()
-        # self.tasker = self.workflow.builder.tasker
-
         # Expected path for exported squashed image.
         self.output_path = None
 
@@ -93,7 +88,7 @@ class TestSquashPlugin(object):
         workflow = mock_workflow()
         self.should_squash_with_kwargs(workflow, base_from_scratch=base_from_scratch)
         if base_from_scratch:
-            workflow.builder.dockerfile_images = DockerfileImages(['scratch'])
+            workflow.dockerfile_images = DockerfileImages(['scratch'])
         self.run_plugin_with_args(workflow, {})
 
     @pytest.mark.parametrize(('plugin_tag', 'squash_tag'), (

@@ -10,7 +10,6 @@ import os
 import re
 
 from atomic_reactor.plugin import PostBuildPlugin
-from atomic_reactor.plugins.pre_reactor_config import get_registries_organization
 from atomic_reactor.constants import INSPECT_CONFIG, TAG_NAME_REGEX
 from atomic_reactor.util import df_parser, LabelFormatter
 from osbs.utils import Labels, ImageName
@@ -134,7 +133,7 @@ class TagFromConfigPlugin(PostBuildPlugin):
             self.log.error('Unable to determine component from "Labels"')
             raise
 
-        organization = get_registries_organization(self.workflow)
+        organization = self.workflow.conf.registries_organization
         if organization:
             image = ImageName.parse(name)
             image.enclose(organization)
@@ -163,5 +162,5 @@ class TagFromConfigPlugin(PostBuildPlugin):
                 self.log.error('Unable to determine "Labels" from built image')
                 raise
         else:
-            self.labels = df_parser(self.workflow.builder.df_path, workflow=self.workflow,
+            self.labels = df_parser(self.workflow.df_path, workflow=self.workflow,
                                     env_replace=True).labels

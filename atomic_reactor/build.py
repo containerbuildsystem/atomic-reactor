@@ -9,16 +9,11 @@ of the BSD license. See the LICENSE file for details.
 Classes which implement tasks which builder has to be capable of doing.
 Logic above these classes has to set the workflow itself.
 """
-import re
-from textwrap import dedent
-
 import logging
 import docker.errors
 import atomic_reactor.util
 from atomic_reactor.core import ContainerTasker, LastLogger
-from atomic_reactor.util import (print_version_of_tools, df_parser,
-                                 base_image_is_custom, DockerfileImages)
-from atomic_reactor.constants import DOCKERFILE_FILENAME
+from atomic_reactor.util import (print_version_of_tools, DockerfileImages)
 from osbs.utils import ImageName
 
 logger = logging.getLogger(__name__)
@@ -156,6 +151,8 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         # configuration of source_registy and pull_registries with insecure and
         # dockercfg_path, by registry key
         self.pull_registries = {}
+        # moved already to workflow, keeping it here now only because methods in
+        # this class are using it, insidebuilder will be removed all together anyway
         self.dockerfile_images = DockerfileImages([])
         self._base_image_inspect = None
         self.parents_pulled = False
@@ -164,73 +161,6 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         self.image_id = None
         self.built_image_info = None
         self.image = ImageName.parse(image)
-
-        # get info about base image from dockerfile
-        build_file_path, build_file_dir = self.source.get_build_file_path()
-
-        self.df_dir = build_file_dir
-        self._df_path = None
-        self.original_df = None
-        self.buildargs = {}  # --buildargs for container build
-
-        # If the Dockerfile will be entirely generated from the container.yaml
-        # (in the Flatpak case, say), then a plugin needs to create the Dockerfile
-        # and set the base image
-        if build_file_path.endswith(DOCKERFILE_FILENAME):
-            self.set_df_path(build_file_path)
-
-    @property
-    def df_path(self):
-        if self._df_path is None:
-            raise AttributeError("Dockerfile has not yet been generated")
-
-        return self._df_path
-
-    def set_df_path(self, path):
-        self._df_path = path
-        dfp = df_parser(path)
-        if dfp.baseimage is None:
-            raise RuntimeError("no base image specified in Dockerfile")
-
-        self.dockerfile_images = DockerfileImages(dfp.parent_images)
-        logger.debug("base image specified in dockerfile = '%s'", dfp.baseimage)
-        logger.debug("parent images specified in dockerfile = '%s'", dfp.parent_images)
-
-        custom_base_images = set()
-        for image in dfp.parent_images:
-            image_name = ImageName.parse(image)
-            image_str = image_name.to_str()
-            if base_image_is_custom(image_str):
-                custom_base_images.add(image_str)
-
-        if len(custom_base_images) > 1:
-            raise NotImplementedError("multiple different custom base images"
-                                      " aren't allowed in Dockerfile")
-
-        # validate user has not specified COPY --from=image
-        builders = []
-        for stmt in dfp.structure:
-            if stmt['instruction'] == 'FROM':
-                # extract "bar" from "foo as bar" and record as build stage
-                match = re.search(r'\S+ \s+  as  \s+ (\S+)', stmt['value'], re.I | re.X)
-                builders.append(match.group(1) if match else None)
-            elif stmt['instruction'] == 'COPY':
-                match = re.search(r'--from=(\S+)', stmt['value'], re.I)
-                if not match:
-                    continue
-                stage = match.group(1)
-                # error unless the --from is the index or name of a stage we've seen
-                if any(stage in [str(idx), builder] for idx, builder in enumerate(builders)):
-                    continue
-                raise RuntimeError(dedent("""\
-                    OSBS does not support COPY --from unless it matches a build stage.
-                    Dockerfile instruction was:
-                      {}
-                    To use an image with COPY --from, specify it in a stage with FROM, e.g.
-                      FROM {} AS source
-                      FROM ...
-                      COPY --from=source <src> <dest>
-                    """).format(stmt['content'], stage))
 
     # inspect base image lazily just before it's needed - pre plugins may change the base image
     @property
@@ -299,56 +229,3 @@ class InsideBuilder(LastLogger, BuilderStateMachine):
         # dict with lots of data, see man docker-inspect
         inspect_data = self.tasker.inspect_image(self.image_id)
         return inspect_data
-
-    def get_base_image_info(self):
-        """
-        query docker about base image
-
-        :return dict
-        """
-        if self.dockerfile_images.base_from_scratch:
-            return
-        base_image = self.dockerfile_images.base_image
-        logger.info("getting information about base image '%s'", base_image)
-        image_info = self.tasker.get_image_info_by_image_name(base_image)
-        items_count = len(image_info)
-        if items_count == 1:
-            return image_info[0]
-        elif items_count <= 0:
-            logger.error("image '%s' not found", base_image)
-            raise RuntimeError("image '%s' not found" % base_image)
-        else:
-            logger.error("multiple (%d) images found for image '%s'", items_count, base_image)
-            raise RuntimeError("multiple (%d) images found for image '%s'" % (items_count,
-                                                                              base_image))
-
-    def get_built_image_info(self):
-        """
-        query docker about built image
-
-        :return dict
-        """
-        logger.info("getting information about built image '%s'", self.image)
-        image_info = self.tasker.get_image_info_by_image_name(self.image)
-        items_count = len(image_info)
-        if items_count == 1:
-            return image_info[0]
-        elif items_count <= 0:
-            logger.error("image '%s' not found", self.image)
-            raise RuntimeError("image '%s' not found" % self.image)
-        else:
-            logger.error("multiple (%d) images found for image '%s'", items_count, self.image)
-            raise RuntimeError("multiple (%d) images found for image '%s'" % (items_count,
-                                                                              self.image))
-
-    def parent_images_to_str(self):
-        results = {}
-        for base_image_name, parent_image_name in self.dockerfile_images.items():
-            base_str = str(base_image_name)
-            parent_str = str(parent_image_name)
-            if base_image_name and parent_image_name:
-                results[base_str] = parent_str
-            else:
-                logger.debug("None in: base %s has parent %s", base_str, parent_str)
-
-        return results

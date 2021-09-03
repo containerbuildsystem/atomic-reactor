@@ -10,11 +10,11 @@ import time
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import df_parser
 from osbs.utils import Labels, utcnow
-from atomic_reactor.plugins.pre_reactor_config import get_koji_session, get_koji
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.constants import (PLUGIN_BUMP_RELEASE_KEY, PROG, KOJI_RESERVE_MAX_RETRIES,
                                       KOJI_RESERVE_RETRY_DELAY)
+from atomic_reactor.config import get_koji_session
 from atomic_reactor.util import get_build_json, is_scratch_build
 from koji import GenericError
 import koji
@@ -32,13 +32,12 @@ class BumpReleasePlugin(PreBuildPlugin):
     # The target parameter is no longer used by this plugin. It's
     # left as an optional parameter to allow a graceful transition
     # in osbs-client.
-    def __init__(self, tasker, workflow, target=None, append=False):
+    def __init__(self, tasker, workflow, append=False):
         """
         constructor
 
         :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param target: unused - backwards compatibility
         :param append: if True, the release will be obtained by appending a
             '.' and a unique integer to the release label in the dockerfile.
         """
@@ -46,8 +45,8 @@ class BumpReleasePlugin(PreBuildPlugin):
         super(BumpReleasePlugin, self).__init__(tasker, workflow)
 
         self.append = append
-        self.xmlrpc = get_koji_session(self.workflow)
-        koji_setting = get_koji(self.workflow)
+        self.xmlrpc = get_koji_session(self.workflow.conf)
+        koji_setting = self.workflow.conf.koji
         self.reserve_build = koji_setting.get('reserve_build', False)
 
     def get_patched_release(self, original_release, increment=False):
@@ -245,7 +244,7 @@ class BumpReleasePlugin(PreBuildPlugin):
 
             return
 
-        parser = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
+        parser = df_parser(self.workflow.df_path, workflow=self.workflow)
         dockerfile_labels = parser.labels
         labels = Labels(dockerfile_labels)
         missing_labels = {}

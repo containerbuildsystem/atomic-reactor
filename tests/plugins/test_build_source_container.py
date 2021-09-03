@@ -21,12 +21,8 @@ from atomic_reactor.constants import EXPORTED_SQUASHED_IMAGE_NAME
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.plugin import BuildStepPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.build_source_container import SourceContainerPlugin
-from atomic_reactor.plugins.pre_reactor_config import (
-    ReactorConfigPlugin,
-)
 from atomic_reactor.utils import retries
 from tests.docker_mock import mock_docker
-from tests.constants import MOCK_SOURCE
 
 
 class MockSource(object):
@@ -58,14 +54,13 @@ class MockInsideBuilder(object):
 
 
 def mock_workflow(tmpdir, sources_dir='', remote_dir='', maven_dir=''):
-    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
+    workflow = DockerBuildWorkflow(source=None)
     builder = MockInsideBuilder()
     source = MockSource(tmpdir)
     setattr(builder, 'source', source)
     setattr(workflow, 'source', source)
     setattr(workflow, 'builder', builder)
 
-    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
     workflow.prebuild_results[PLUGIN_FETCH_SOURCES_KEY] = {
         'image_sources_dir': os.path.join(tmpdir.strpath, sources_dir),
         'remote_sources_dir': os.path.join(tmpdir.strpath, remote_dir),

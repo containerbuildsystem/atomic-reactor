@@ -15,6 +15,7 @@ import logging
 from tempfile import NamedTemporaryFile
 
 from atomic_reactor.constants import REPO_CONTAINER_CONFIG
+from atomic_reactor.config import get_koji_session, get_openshift_session
 from atomic_reactor import start_time as atomic_reactor_start_time
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.source import GitSource
@@ -31,7 +32,6 @@ from atomic_reactor.utils.koji import (
         get_source_tarballs_output, get_remote_sources_json_output,
         get_maven_metadata
 )
-from atomic_reactor.plugins.pre_reactor_config import get_openshift_session
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 
 try:
@@ -70,11 +70,6 @@ from atomic_reactor.util import (Output, get_build_json,
                                  has_operator_appregistry_manifest,
                                  )
 from atomic_reactor.utils.koji import (KojiUploadLogger, get_koji_task_owner)
-from atomic_reactor.plugins.pre_reactor_config import (
-    get_koji_session,
-    get_koji,
-    get_allow_multiple_remote_sources,
-)
 from atomic_reactor.metadata import label
 from osbs.utils import Labels, ImageName
 
@@ -105,39 +100,31 @@ class KojiImportBase(ExitPlugin):
     key = None
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, url=None, verify_ssl=True,
-                 use_auth=True, blocksize=None,
+    def __init__(self, tasker, workflow, blocksize=None,
                  target=None, poll_interval=5):
         """
         constructor
 
         :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param url: string, URL for OSv3 instance
-        :param verify_ssl: bool, verify OSv3 SSL certificate?
-        :param use_auth: bool, initiate authentication with OSv3?
+
         :param blocksize: int, blocksize to use for uploading files
         :param target: str, koji target
         :param poll_interval: int, seconds between Koji task status requests
         """
         super(KojiImportBase, self).__init__(tasker, workflow)
 
-        self.openshift_fallback = {
-            'url': url,
-            'insecure': not verify_ssl,
-            'auth': {'enable': use_auth}
-        }
-
         self.blocksize = blocksize
         self.target = target
         self.poll_interval = poll_interval
 
-        self.osbs = get_openshift_session(self.workflow, self.openshift_fallback)
+        self.osbs = get_openshift_session(self.workflow.conf,
+                                          self.workflow.user_params.get('namespace'))
         self.build_id = None
         self.koji_task_id = None
         self.session = None
-        self.reserve_build = get_koji(self.workflow).get('reserve_build', False)
-        self.delegate_enabled = get_koji(self.workflow).get('delegate_task', True)
+        self.reserve_build = self.workflow.conf.koji.get('reserve_build', False)
+        self.delegate_enabled = self.workflow.conf.koji.get('delegate_task', True)
         self.rebuild = is_rebuild(self.workflow)
 
     def get_output(self, *args):
@@ -243,7 +230,7 @@ class KojiImportBase(ExitPlugin):
             PLUGIN_RESOLVE_REMOTE_SOURCE
         )
         if remote_source_result:
-            if get_allow_multiple_remote_sources(self.workflow):
+            if self.workflow.conf.allow_multiple_remote_sources:
                 remote_sources_image_metadata = [
                     {"name": remote_source["name"], "url": remote_source["url"].rstrip('/download')}
                     for remote_source in remote_source_result
@@ -527,7 +514,7 @@ class KojiImportBase(ExitPlugin):
         """
 
         # get the session and token information in case we need to refund a failed build
-        self.session = get_koji_session(self.workflow)
+        self.session = get_koji_session(self.workflow.conf)
         build_token = self.workflow.reserved_token
         build_id = self.workflow.reserved_build_id
 
@@ -599,13 +586,9 @@ class KojiImportPlugin(KojiImportBase):
 
     key = PLUGIN_KOJI_IMPORT_PLUGIN_KEY  # type: ignore
 
-    def __init__(self, tasker, workflow, url=None,
-                 verify_ssl=True, use_auth=True,
-                 blocksize=None,
+    def __init__(self, tasker, workflow, blocksize=None,
                  target=None, poll_interval=5):
-        super(KojiImportPlugin, self).__init__(tasker, workflow, url,
-                                               verify_ssl, use_auth,
-                                               blocksize,
+        super(KojiImportPlugin, self).__init__(tasker, workflow, blocksize,
                                                target, poll_interval)
 
     def set_media_types(self, extra, worker_metadatas):
@@ -725,7 +708,7 @@ class KojiImportPlugin(KojiImportBase):
             extra['osbs_build']['subtypes'].append(KOJI_SUBTYPE_OP_BUNDLE)
 
     def _update_build(self, build):
-        labels = Labels(df_parser(self.workflow.builder.df_path,
+        labels = Labels(df_parser(self.workflow.df_path,
                                   workflow=self.workflow).labels)
         _, component = labels.get_name_and_value(Labels.LABEL_TYPE_COMPONENT)
         _, version = labels.get_name_and_value(Labels.LABEL_TYPE_VERSION)
@@ -751,13 +734,9 @@ class KojiImportSourceContainerPlugin(KojiImportBase):
 
     key = PLUGIN_KOJI_IMPORT_SOURCE_CONTAINER_PLUGIN_KEY  # type: ignore
 
-    def __init__(self, tasker, workflow, url=None,
-                 verify_ssl=True, use_auth=True,
-                 blocksize=None,
+    def __init__(self, tasker, workflow, blocksize=None,
                  target=None, poll_interval=5):
-        super(KojiImportSourceContainerPlugin, self).__init__(tasker, workflow, url,
-                                                              verify_ssl, use_auth,
-                                                              blocksize,
+        super(KojiImportSourceContainerPlugin, self).__init__(tasker, workflow, blocksize,
                                                               target, poll_interval)
 
     def get_output(self, worker_metadatas, buildroot_id):

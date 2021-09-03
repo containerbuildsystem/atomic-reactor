@@ -7,11 +7,11 @@ of the BSD license. See the LICENSE file for details.
 """
 
 from atomic_reactor.constants import PLUGIN_KOJI_TAG_BUILD_KEY
+from atomic_reactor.config import get_koji_session
 from atomic_reactor.utils.koji import tag_koji_build
 from atomic_reactor.util import is_scratch_build
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.plugins.exit_koji_import import KojiImportPlugin
-from atomic_reactor.plugins.pre_reactor_config import get_koji_session
 
 
 class KojiTagBuildPlugin(ExitPlugin):
@@ -68,7 +68,7 @@ class KojiTagBuildPlugin(ExitPlugin):
             self.log.info('No koji build from %s', KojiImportPlugin.key)
             return
 
-        session = get_koji_session(self.workflow)
+        session = get_koji_session(self.workflow.conf)
         build_tag = tag_koji_build(session, build_id, self.target,
                                    poll_interval=self.poll_interval)
 

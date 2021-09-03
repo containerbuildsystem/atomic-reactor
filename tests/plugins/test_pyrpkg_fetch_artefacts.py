@@ -13,6 +13,7 @@ from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins import pre_pyrpkg_fetch_artefacts
 from atomic_reactor.plugins.pre_pyrpkg_fetch_artefacts import DistgitFetchArtefactsPlugin
 from osbs.utils import ImageName
+from tests.stubs import StubSource
 from flexmock import flexmock
 from tests.constants import INPUT_IMAGE
 
@@ -33,7 +34,8 @@ def test_distgit_fetch_artefacts_plugin(tmpdir, docker_tasker, workflow):  # noq
     expected_command = ['fedpkg', 'sources']
 
     workflow.builder = X()
-    workflow.source = flexmock(path=str(tmpdir))
+    workflow.source = StubSource()
+    workflow.source.path = str(tmpdir)
 
     initial_dir = os.getcwd()
     assert initial_dir != str(tmpdir)
@@ -46,13 +48,13 @@ def test_distgit_fetch_artefacts_plugin(tmpdir, docker_tasker, workflow):  # noq
         .with_args(expected_command)
         .replace_with(assert_tmpdir)
         .once())
+    workflow.conf.conf['sources_command'] = command
 
     runner = PreBuildPluginsRunner(
         docker_tasker,
         workflow,
         [{
             'name': DistgitFetchArtefactsPlugin.key,
-            'args': {'command': command}
         }]
     )
     runner.run()
@@ -65,7 +67,8 @@ def test_distgit_fetch_artefacts_failure(tmpdir, docker_tasker, workflow):  # no
     expected_command = ['fedpkg', 'sources']
 
     workflow.builder = X()
-    workflow.source = flexmock(path=str(tmpdir))
+    workflow.source = StubSource()
+    workflow.source.path = str(tmpdir)
 
     initial_dir = os.getcwd()
     assert initial_dir != str(tmpdir)
@@ -75,16 +78,34 @@ def test_distgit_fetch_artefacts_failure(tmpdir, docker_tasker, workflow):  # no
         .with_args(expected_command)
         .and_raise(RuntimeError)
         .once())
+    workflow.conf.conf['sources_command'] = command
 
     runner = PreBuildPluginsRunner(
         docker_tasker,
         workflow,
         [{
             'name': DistgitFetchArtefactsPlugin.key,
-            'args': {'command': command}
         }]
     )
     with pytest.raises(PluginFailedException):
         runner.run()
 
     assert os.getcwd() == initial_dir
+
+
+def test_distgit_fetch_artefacts_skip(tmpdir, docker_tasker, workflow, caplog):  # noqa
+    workflow.builder = X()
+    workflow.source = StubSource()
+    workflow.source.path = str(tmpdir)
+
+    runner = PreBuildPluginsRunner(
+        docker_tasker,
+        workflow,
+        [{
+            'name': DistgitFetchArtefactsPlugin.key,
+        }]
+    )
+    runner.run()
+
+    log_msg = 'no sources command configuration, skipping plugin'
+    assert log_msg in caplog.text

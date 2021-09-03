@@ -9,9 +9,6 @@ of the BSD license. See the LICENSE file for details.
 from collections import OrderedDict
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_add_labels_in_df import AddLabelsPlugin
-from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY,
-                                                       ReactorConfig)
 from atomic_reactor.util import df_parser, DockerfileImages
 from atomic_reactor.source import VcsInfo
 from atomic_reactor.constants import INSPECT_CONFIG
@@ -41,10 +38,9 @@ class MockSource(object):
 
 
 class X(object):
-    def __init__(self, release_env=None, parent_images=()):
+    def __init__(self, release_env=None):
         self.image_id = "xxx"
         self.source = MockSource(release_env)
-        self.dockerfile_images = DockerfileImages(parent_images)
 
 
 DF_CONTENT = """\
@@ -143,17 +139,13 @@ LABEL "version"="x" "release"="1"
 
 
 def make_and_store_reactor_config_map(workflow, additional=None):
-    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-
     reactor_map = {
         'version': 1
     }
     if additional:
         reactor_map.update(additional)
 
-    workflow.plugin_workspace[ReactorConfigPlugin.key] = {
-        WORKSPACE_CONF_KEY: ReactorConfig(reactor_map)
-    }
+    workflow.conf.conf = reactor_map
 
 
 @pytest.mark.parametrize('df_content, labels_conf_base, labels_conf, eq_conf, dont_overwrite,'  # noqa
@@ -183,29 +175,27 @@ def make_and_store_reactor_config_map(workflow, additional=None):
 ])
 def test_add_labels_plugin(tmpdir, docker_tasker, workflow,
                            df_content, labels_conf_base, labels_conf, eq_conf,
-                           dont_overwrite, aliases, expected_output, caplog,
-                           reactor_config_map):
+                           dont_overwrite, aliases, expected_output, caplog):
     df = df_parser(str(tmpdir))
     df.content = df_content
 
     if MOCK:
         mock_docker()
 
-    setattr(workflow, 'builder', X(parent_images=df.parent_images))
-    setattr(workflow.builder, 'df_path', df.dockerfile_path)
+    setattr(workflow, 'builder', X())
+    flexmock(workflow, df_path=df.dockerfile_path)
     setattr(workflow.builder, 'base_image_inspect', labels_conf_base)
+    workflow.dockerfile_images = DockerfileImages(df.parent_images)
     flexmock(workflow, source=MockSource())
 
-    if reactor_config_map:
-        # reactor_config should not return json
-        if isinstance(labels_conf, str):
-            image_labels = json.loads(labels_conf)
-        else:
-            image_labels = deepcopy(labels_conf)
-        make_and_store_reactor_config_map(workflow, {
-            'image_labels': image_labels,
-            'image_equal_labels': eq_conf,
-        })
+    if isinstance(labels_conf, str):
+        image_labels = json.loads(labels_conf)
+    else:
+        image_labels = deepcopy(labels_conf)
+    make_and_store_reactor_config_map(workflow, {
+        'image_labels': image_labels,
+        'image_equal_labels': eq_conf,
+    })
 
     runner = PreBuildPluginsRunner(
         docker_tasker,
@@ -244,9 +234,10 @@ def test_add_labels_arrangement6(tmpdir, docker_tasker, workflow, release, use_r
     if MOCK:
         mock_docker()
 
-    setattr(workflow, 'builder', X(parent_images=df.parent_images))
+    setattr(workflow, 'builder', X())
     setattr(workflow.builder, 'base_image_inspect', LABELS_CONF_BASE)
-    setattr(workflow.builder, 'df_path', df.dockerfile_path)
+    workflow.dockerfile_images = DockerfileImages(df.parent_images)
+    flexmock(workflow, df_path=df.dockerfile_path)
     flexmock(workflow, source=MockSource())
 
     if use_reactor:
@@ -303,9 +294,10 @@ def test_add_labels_plugin_generated(tmpdir, docker_tasker, workflow,
     if MOCK:
         mock_docker()
 
-    setattr(workflow, 'builder', X(parent_images=df.parent_images))
-    setattr(workflow.builder, 'df_path', df.dockerfile_path)
+    setattr(workflow, 'builder', X())
+    flexmock(workflow, df_path=df.dockerfile_path)
     setattr(workflow.builder, 'base_image_inspect', LABELS_CONF_BASE)
+    workflow.dockerfile_images = DockerfileImages(df.parent_images)
     flexmock(workflow, source=MockSource())
 
     if reactor_config_map:
@@ -415,9 +407,10 @@ def test_add_labels_aliases(tmpdir, docker_tasker, workflow, caplog,
     df = df_parser(str(tmpdir))
     df.content = df_content
 
-    setattr(workflow, 'builder', X(parent_images=df.parent_images))
-    setattr(workflow.builder, 'df_path', df.dockerfile_path)
+    setattr(workflow, 'builder', X())
+    flexmock(workflow, df_path=df.dockerfile_path)
     setattr(workflow.builder, 'base_image_inspect', base_labels)
+    workflow.dockerfile_images = DockerfileImages(df.parent_images)
     flexmock(workflow, source=MockSource())
 
     if reactor_config_map:
@@ -473,8 +466,7 @@ def test_add_labels_aliases(tmpdir, docker_tasker, workflow, caplog,
     ((None, 'A'), ('A', None), ('A', 'A'), 'skipping label'),
 ])
 def test_add_labels_equal_aliases(tmpdir, docker_tasker, workflow, caplog,
-                                  base_l, df_l, expected, expected_log,
-                                  reactor_config_map):
+                                  base_l, df_l, expected, expected_log):
     if MOCK:
         mock_docker()
 
@@ -494,17 +486,17 @@ def test_add_labels_equal_aliases(tmpdir, docker_tasker, workflow, caplog,
     df = df_parser(str(tmpdir))
     df.content = df_content
 
-    setattr(workflow, 'builder', X(parent_images=df.parent_images))
-    setattr(workflow.builder, 'df_path', df.dockerfile_path)
+    setattr(workflow, 'builder', X())
+    flexmock(workflow, df_path=df.dockerfile_path)
     setattr(workflow.builder, 'base_image_inspect', base_labels)
+    workflow.dockerfile_images = DockerfileImages(df.parent_images)
     flexmock(workflow, source=MockSource())
 
-    if reactor_config_map:
-        make_and_store_reactor_config_map(
-            workflow,
-            {
-                'image_labels': plugin_labels,
-                'image_equal_labels': [['description', 'io.k8s.description']]})
+    make_and_store_reactor_config_map(
+        workflow,
+        {
+            'image_labels': plugin_labels,
+            'image_equal_labels': [['description', 'io.k8s.description']]})
 
     runner = PreBuildPluginsRunner(
         docker_tasker,
@@ -548,7 +540,7 @@ def test_add_labels_equal_aliases(tmpdir, docker_tasker, workflow, caplog,
     (('A', 'A', 'A'), ('B', None, 'D'), ('B', 'B', 'D'), 'adding equal label'),
 ])
 def test_add_labels_equal_aliases2(tmpdir, docker_tasker, workflow, caplog, base_l,
-                                   df_l, expected, expected_log, reactor_config_map):
+                                   df_l, expected, expected_log):
     """
     test with 3 equal labels
     """
@@ -575,19 +567,19 @@ def test_add_labels_equal_aliases2(tmpdir, docker_tasker, workflow, caplog, base
     df = df_parser(str(tmpdir))
     df.content = df_content
 
-    setattr(workflow, 'builder', X(parent_images=df.parent_images))
-    setattr(workflow.builder, 'df_path', df.dockerfile_path)
+    setattr(workflow, 'builder', X())
+    flexmock(workflow, df_path=df.dockerfile_path)
     setattr(workflow.builder, 'base_image_inspect', base_labels)
+    workflow.dockerfile_images = DockerfileImages(df.parent_images)
     flexmock(workflow, source=MockSource())
 
-    if reactor_config_map:
-        make_and_store_reactor_config_map(
-            workflow,
-            {
-                'image_labels': plugin_labels,
-                'image_equal_labels': [['description',
-                                        'io.k8s.description',
-                                        'description_third']]})
+    make_and_store_reactor_config_map(
+        workflow,
+        {
+            'image_labels': plugin_labels,
+            'image_equal_labels': [['description',
+                                    'io.k8s.description',
+                                    'description_third']]})
 
     runner = PreBuildPluginsRunner(
         docker_tasker,
@@ -660,9 +652,10 @@ def test_dont_overwrite_if_in_dockerfile(tmpdir, docker_tasker, workflow,
     if MOCK:
         mock_docker()
 
-    setattr(workflow, 'builder', X(parent_images=df.parent_images))
-    setattr(workflow.builder, 'df_path', df.dockerfile_path)
+    setattr(workflow, 'builder', X())
+    flexmock(workflow, df_path=df.dockerfile_path)
     setattr(workflow.builder, 'base_image_inspect', labels_conf_base)
+    workflow.dockerfile_images = DockerfileImages(df.parent_images)
     flexmock(workflow, source=MockSource())
 
     image_labels = {}
@@ -705,7 +698,7 @@ def test_dont_overwrite_if_in_dockerfile(tmpdir, docker_tasker, workflow,
      'url_pre authoritative-source-url_value com.redhat.component_value '
      'com.redhat.build-host_value url_post'),
 ])
-def test_url_label(tmpdir, docker_tasker, workflow, url_format, info_url, reactor_config_map):
+def test_url_label(tmpdir, docker_tasker, workflow, url_format, info_url):
     if MOCK:
         mock_docker()
 
@@ -714,16 +707,16 @@ def test_url_label(tmpdir, docker_tasker, workflow, url_format, info_url, reacto
     df = df_parser(str(tmpdir))
     df.content = DF_CONTENT_LABELS
 
-    setattr(workflow, 'builder', X(parent_images=df.parent_images))
-    setattr(workflow.builder, 'df_path', df.dockerfile_path)
+    setattr(workflow, 'builder', X())
+    flexmock(workflow, df_path=df.dockerfile_path)
     setattr(workflow.builder, 'base_image_inspect', base_labels)
+    workflow.dockerfile_images = DockerfileImages(df.parent_images)
     flexmock(workflow, source=MockSource())
 
-    if reactor_config_map:
-        make_and_store_reactor_config_map(workflow, {
-            'image_labels': plugin_labels,
-            'image_label_info_url_format': url_format,
-        })
+    make_and_store_reactor_config_map(workflow, {
+        'image_labels': plugin_labels,
+        'image_label_info_url_format': url_format,
+    })
 
     runner = PreBuildPluginsRunner(
         docker_tasker,
@@ -775,9 +768,10 @@ def test_add_labels_plugin_explicit(tmpdir, docker_tasker, workflow,
     if MOCK:
         mock_docker()
 
-    setattr(workflow, 'builder', X(parent_images=df.parent_images))
-    setattr(workflow.builder, 'df_path', df.dockerfile_path)
+    setattr(workflow, 'builder', X())
+    flexmock(workflow, df_path=df.dockerfile_path)
     setattr(workflow.builder, 'base_image_inspect', labels_base)
+    workflow.dockerfile_images = DockerfileImages(df.parent_images)
     flexmock(workflow, source=MockSource())
 
     prov_labels = {}
@@ -815,10 +809,11 @@ def test_add_labels_base_image(tmpdir, docker_tasker, workflow,
     if MOCK:
         mock_docker()
 
-    setattr(workflow, 'builder', X(parent_images=df.parent_images))
+    setattr(workflow, 'builder', X())
     setattr(workflow.builder, 'tasker', docker_tasker)
-    setattr(workflow.builder, 'df_path', df.dockerfile_path)
+    flexmock(workflow, df_path=df.dockerfile_path)
     setattr(workflow.builder, 'base_image_inspect', {})
+    workflow.dockerfile_images = DockerfileImages(df.parent_images)
     flexmock(workflow, source=MockSource())
 
     # When a 'release' label is provided by parameter and used to
@@ -896,9 +891,10 @@ def test_release_label(tmpdir, docker_tasker, workflow, caplog,
     df = df_parser(str(tmpdir))
     df.content = df_content
 
-    setattr(workflow, 'builder', X(release_env, parent_images=df.parent_images))
-    setattr(workflow.builder, 'df_path', df.dockerfile_path)
+    setattr(workflow, 'builder', X(release_env))
+    flexmock(workflow, df_path=df.dockerfile_path)
     setattr(workflow.builder, 'base_image_inspect', base_labels)
+    workflow.dockerfile_images = DockerfileImages(df.parent_images)
     flexmock(workflow, source=MockSource(release_env))
 
     if reactor_config_map:

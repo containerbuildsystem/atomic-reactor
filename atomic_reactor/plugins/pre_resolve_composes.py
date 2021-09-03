@@ -16,13 +16,10 @@ from osbs.repo_utils import ModuleSpec
 from atomic_reactor.constants import (PLUGIN_KOJI_PARENT_KEY,
                                       PLUGIN_RESOLVE_COMPOSES_KEY,
                                       BASE_IMAGE_KOJI_BUILD)
-
+from atomic_reactor.config import get_koji_session, get_odcs_session
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
-from atomic_reactor.plugins.pre_reactor_config import (get_config,
-                                                       get_odcs_session,
-                                                       get_koji_session, get_koji)
 from atomic_reactor.util import get_platforms, is_isolated_build, is_scratch_build
 
 ODCS_DATETIME_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
@@ -68,12 +65,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
 
         self.signing_intent = signing_intent
         self.compose_ids = compose_ids
-
         self.koji_target = koji_target
-        if koji_target:
-            if not get_koji(self.workflow)['hub_url']:
-                raise ValueError('koji_hub is required when koji_target is used')
-
         self.minimum_time_to_expire = minimum_time_to_expire
 
         self._koji_session = None
@@ -160,7 +152,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
             self.all_compose_ids = []
 
     def adjust_for_inherit(self):
-        if self.workflow.builder.dockerfile_images.base_from_scratch:
+        if self.workflow.dockerfile_images.base_from_scratch:
             self.log.debug('This is a base image based on scratch. '
                            'Skipping adjusting composes for inheritance.')
             return
@@ -203,7 +195,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
             self.has_complete_repos = True
 
     def read_configs(self):
-        self.odcs_config = get_config(self.workflow).get_odcs_config()
+        self.odcs_config = self.workflow.conf.odcs_config
         if not self.odcs_config:
             raise SkipResolveComposesPlugin('ODCS config not found')
 
@@ -232,7 +224,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
         self.adjust_signing_intent_from_parent()
 
     def adjust_signing_intent_from_parent(self):
-        if self.workflow.builder.dockerfile_images.base_from_scratch:
+        if self.workflow.dockerfile_images.base_from_scratch:
             self.log.debug('This is a base image based on scratch. '
                            'Signing intent will not be adjusted for it.')
             return
@@ -410,14 +402,14 @@ class ResolveComposesPlugin(PreBuildPlugin):
     @property
     def odcs_client(self):
         if not self._odcs_client:
-            self._odcs_client = get_odcs_session(self.workflow)
+            self._odcs_client = get_odcs_session(self.workflow.conf)
 
         return self._odcs_client
 
     @property
     def koji_session(self):
         if not self._koji_session:
-            self._koji_session = get_koji_session(self.workflow)
+            self._koji_session = get_koji_session(self.workflow.conf)
         return self._koji_session
 
 

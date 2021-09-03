@@ -12,8 +12,6 @@ import yaml
 
 from atomic_reactor.constants import (PLUGIN_CHECK_AND_SET_PLATFORMS_KEY, REPO_CONTAINER_CONFIG,
                                       PLUGIN_BUILD_ORCHESTRATE_KEY)
-from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin, WORKSPACE_CONF_KEY,
-                                                       ReactorConfig)
 import atomic_reactor.utils.koji as koji_util
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
@@ -23,7 +21,7 @@ from atomic_reactor.source import SourceConfig
 from atomic_reactor import util
 from flexmock import flexmock
 import pytest
-from tests.constants import SOURCE, MOCK
+from tests.constants import MOCK
 if MOCK:
     from tests.docker_mock import mock_docker
 
@@ -83,12 +81,10 @@ def set_reactor_config_map(workflow, platforms):
         for platform, enabled in platforms.items():
             clusters[platform] = [{'enabled': enabled, 'max_concurrent_builds': 1,
                                    'name': platform}]
-
-    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-        ReactorConfig({'version': 1,
-                       'koji': {'auth': {}, 'hub_url': 'test'},
-                       'clusters': clusters})
+        workflow.conf.conf = {'version': 1, 'koji': {'auth': {}, 'hub_url': 'test'},
+                              'clusters': clusters}
+    else:
+        workflow.conf.conf = {'version': 1, 'koji': {'auth': {}, 'hub_url': 'test'}}
 
 
 def write_container_yaml(tmpdir, platform_exclude='', platform_only=''):
@@ -117,7 +113,7 @@ def prepare(tmpdir, labels=None):
         mock_docker()
     labels = labels or {}
     tasker = DockerTasker()
-    workflow = DockerBuildWorkflow(source=SOURCE)
+    workflow = DockerBuildWorkflow(source=None)
     workflow.user_params['scratch'] = labels.get('scratch', False)
     workflow.user_params['isolated'] = labels.get('isolated', False)
     setattr(workflow, 'builder', X())

@@ -476,7 +476,7 @@ def get_output(workflow, buildroot_id, pullspec, platform, source_build=False, l
         # Parent of squashed built image is base image
         image_id = workflow.builder.image_id
         parent_id = None
-        if not workflow.builder.dockerfile_images.base_from_scratch:
+        if not workflow.dockerfile_images.base_from_scratch:
             parent_id = workflow.builder.base_image_inspect['Id']
 
         layer_sizes = workflow.layer_sizes
@@ -518,7 +518,7 @@ def get_output(workflow, buildroot_id, pullspec, platform, source_build=False, l
     if not source_build:
         metadata['components'] = get_image_components(workflow)
 
-        if not workflow.builder.dockerfile_images.base_from_scratch:
+        if not workflow.dockerfile_images.base_from_scratch:
             metadata['extra']['docker']['parent_id'] = parent_id
 
     # Add the 'docker save' image to the output

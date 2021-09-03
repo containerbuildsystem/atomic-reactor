@@ -7,12 +7,11 @@ of the BSD license. See the LICENSE file for details.
 """
 
 from osbs.exceptions import OsbsResponseException
-from osbs.utils import retry_on_conflict, ImageName
+from osbs.utils import retry_on_conflict
 
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.util import get_floating_images, is_scratch_build
-from atomic_reactor.plugins.pre_reactor_config import (get_openshift_session, get_source_registry,
-                                                       get_registries_organization)
+from atomic_reactor.config import get_openshift_session
 
 
 class ImportImagePlugin(ExitPlugin):
@@ -24,42 +23,24 @@ class ImportImagePlugin(ExitPlugin):
     key = 'import_image'
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, imagestream=None, docker_image_repo=None,
-                 url=None, build_json_dir=None, verify_ssl=True, use_auth=True,
-                 insecure_registry=None):
+    def __init__(self, tasker, workflow, imagestream=None):
         """
         constructor
 
         :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param imagestream: str, name of ImageStream
-        :param docker_image_repo: str, image repository to import tags from
-        :param url: str, URL to OSv3 instance
-        :param build_json_dir: str, path to directory with input json
-        :param verify_ssl: bool, verify SSL certificate?
-        :param use_auth: bool, initiate authentication with openshift?
-        :param insecure_registry: bool, whether the Docker registry uses
-               plain HTTP
         """
         # call parent constructor
         super(ImportImagePlugin, self).__init__(tasker, workflow)
         self.imagestream_name = imagestream
 
-        self.openshift_fallback = {
-            'url': url,
-            'insecure': not verify_ssl,
-            'auth': {'enable': use_auth},
-            'build_json_dir': build_json_dir
-        }
-
-        self.insecure_registry = get_source_registry(
-            self.workflow, {'insecure': insecure_registry})['insecure']
+        self.insecure_registry = self.workflow.conf.source_registry['insecure']
 
         self.osbs = None
         self.imagestream = None
         self.floating_images = None
         self.docker_image_repo = None
-        self.docker_image_repo_fallback = docker_image_repo
 
     def run(self):
         # Only run if the build was successful
@@ -82,7 +63,8 @@ class ImportImagePlugin(ExitPlugin):
 
         self.resolve_docker_image_repo()
 
-        self.osbs = get_openshift_session(self.workflow, self.openshift_fallback)
+        self.osbs = get_openshift_session(self.workflow.conf,
+                                          self.workflow.user_params.get('namespace'))
         self.get_or_create_imagestream()
 
         self.osbs.import_image_tags(self.imagestream_name, self.get_trackable_tags(),
@@ -110,16 +92,12 @@ class ImportImagePlugin(ExitPlugin):
         # The plugin parameter docker_image_repo is actually a combination
         # of source_registry_uri and name label. Thus, the fallback case must
         # be handled in a non-generic way.
-        try:
-            source_registry = get_source_registry(self.workflow)
-        except KeyError:
-            image = ImageName.parse(self.docker_image_repo_fallback)
-        else:
-            registry = source_registry['uri'].docker_uri
-            image = self.floating_images[0]
-            image.registry = registry
+        source_registry = self.workflow.conf.source_registry
+        registry = source_registry['uri'].docker_uri
+        image = self.floating_images[0]
+        image.registry = registry
 
-        organization = get_registries_organization(self.workflow)
+        organization = self.workflow.conf.registries_organization
         if organization:
             image.enclose(organization)
 

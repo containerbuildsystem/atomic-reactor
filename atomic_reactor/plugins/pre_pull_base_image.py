@@ -21,9 +21,6 @@ from atomic_reactor.util import (get_build_json, get_platforms, base_image_is_cu
                                  get_checksums, get_manifest_media_type,
                                  RegistrySession, RegistryClient)
 from atomic_reactor.core import RetryGeneratorException
-from atomic_reactor.plugins.pre_reactor_config import (get_source_registry,
-                                                       get_platform_to_goarch_mapping,
-                                                       get_pull_registries)
 from io import BytesIO
 from requests.exceptions import HTTPError, RetryError, Timeout
 from osbs.utils import ImageName
@@ -49,9 +46,9 @@ class PullBaseImagePlugin(PreBuildPlugin):
 
         self.check_platforms = check_platforms
         self.inspect_only = inspect_only
+        pull_registries = workflow.conf.pull_registries
 
-        pull_registries = get_pull_registries(workflow, [])
-        self.source_registry_docker_uri = get_source_registry(self.workflow)['uri'].docker_uri
+        self.source_registry_docker_uri = self.workflow.conf.source_registry['uri'].docker_uri
 
         self.allowed_registries = [reg['uri'].docker_uri for reg in pull_registries]
         self.allowed_registries.append(self.source_registry_docker_uri)
@@ -72,14 +69,14 @@ class PullBaseImagePlugin(PreBuildPlugin):
 
         build_json = get_build_json()
         digest_fetching_exceptions = []
-        for nonce, parent in enumerate(self.workflow.builder.dockerfile_images.keys()):
+        for nonce, parent in enumerate(self.workflow.dockerfile_images.keys()):
             if base_image_is_custom(parent.to_str()):
                 continue
 
             image = parent
             use_original_tag = False
             # base_image_key is an ImageName, so compare parent as an ImageName also
-            if image == self.workflow.builder.dockerfile_images.base_image_key:
+            if image == self.workflow.dockerfile_images.base_image_key:
                 use_original_tag = True
                 image = self._resolve_base_image(build_json)
 
@@ -102,7 +99,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
 
             if not self.inspect_only:
                 image = self._pull_and_tag_image(image, build_json, str(nonce))
-            self.workflow.builder.dockerfile_images[parent] = image
+            self.workflow.dockerfile_images[parent] = image
 
         if digest_fetching_exceptions:
             raise RuntimeError('Error when extracting parent images manifest digests: {}'
@@ -159,7 +156,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
             # image tag may have been replaced with a ref for autorebuild; use original tag
             # to simplify fetching parent_images_digests data in other plugins
             image = image.copy()
-            image.tag = self.workflow.builder.dockerfile_images.base_image_key.tag
+            image.tag = self.workflow.dockerfile_images.base_image_key.tag
             image_str = image.to_str()
 
         self.workflow.builder.parent_images_digests[image_str] = parent_digests
@@ -171,7 +168,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
             image_id = spec['triggeredBy'][0]['imageChangeBuild']['imageID']
         except (TypeError, KeyError, IndexError):
             # build not marked for auto-rebuilds; use regular base image
-            base_image = self.workflow.builder.dockerfile_images.base_image
+            base_image = self.workflow.dockerfile_images.base_image
             self.log.info("using %s as base image.", base_image)
         else:
             # build has auto-rebuilds enabled
@@ -272,12 +269,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
                           'because expected platforms are unknown')
             return
 
-        try:
-            platform_to_arch = get_platform_to_goarch_mapping(self.workflow)
-        except KeyError:
-            self.log.info('Cannot validate available platforms for base image '
-                          'because platform descriptors are not defined')
-            return
+        platform_to_arch = self.workflow.conf.platform_to_goarch_mapping
 
         manifest_list = self._get_manifest_list(image)
 

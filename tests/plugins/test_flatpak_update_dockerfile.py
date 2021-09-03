@@ -26,14 +26,11 @@ except ImportError:
 
 from atomic_reactor.utils.odcs import ODCSClient
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
-from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       ReactorConfig,
-                                                       WORKSPACE_CONF_KEY)
 from atomic_reactor.source import VcsInfo, SourceConfig
 from atomic_reactor.util import df_parser
 from osbs.utils import ImageName
 
-from tests.constants import (MOCK_SOURCE, FLATPAK_GIT, FLATPAK_SHA1)
+from tests.constants import (FLATPAK_GIT, FLATPAK_SHA1)
 from tests.flatpak import MODULEMD_AVAILABLE, build_flatpak_test_configs, setup_flatpak_composes
 
 
@@ -85,7 +82,7 @@ class MockBuilder(object):
 def mock_workflow(tmpdir, container_yaml, user_params=None):
     if user_params is None:
         user_params = USER_PARAMS
-    workflow = DockerBuildWorkflow(source=MOCK_SOURCE)
+    workflow = DockerBuildWorkflow(source=None)
     mock_source = MockSource(tmpdir)
     setattr(workflow, 'builder', MockBuilder())
     workflow.builder.source = mock_source
@@ -99,8 +96,8 @@ def mock_workflow(tmpdir, container_yaml, user_params=None):
     df = df_parser(str(tmpdir))
     df.content = DF_CONTENT
 
-    setattr(workflow.builder, 'df_dir', str(tmpdir))
-    setattr(workflow.builder, 'df_path', df.dockerfile_path)
+    workflow.df_dir = str(tmpdir)
+    flexmock(workflow, df_path=df.dockerfile_path)
 
     return workflow
 
@@ -225,28 +222,27 @@ def test_flatpak_update_dockerfile(tmpdir, docker_tasker,
     with open(os.path.join(secrets_path, "token"), "w") as f:
         f.write("green_eggs_and_ham")
 
-    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] =\
-        ReactorConfig({'version': 1,
-                       'odcs': {'api_url': ODCS_URL,
-                                'auth': {'openidc_dir': secrets_path},
-                                'signing_intents': [
-                                    {
-                                        'name': 'unsigned',
-                                        'keys': [],
-                                    },
-                                    {
-                                        'name': 'release',
-                                        'keys': ['R123', 'R234'],
-                                    },
-                                    {
-                                        'name': 'beta',
-                                        'keys': ['R123', 'B456', 'B457'],
-                                    },
-                                ],
-                                'default_signing_intent': 'unsigned'},
-                       'koji': {'auth': {},
-                                'hub_url': 'https://koji.example.com/hub'}})
+    rcm = {'version': 1,
+           'odcs': {'api_url': ODCS_URL,
+                    'auth': {'openidc_dir': secrets_path},
+                    'signing_intents': [
+                        {
+                            'name': 'unsigned',
+                            'keys': [],
+                        },
+                        {
+                            'name': 'release',
+                            'keys': ['R123', 'R234'],
+                        },
+                        {
+                            'name': 'beta',
+                            'keys': ['R123', 'B456', 'B457'],
+                        },
+                    ],
+                    'default_signing_intent': 'unsigned'},
+           'koji': {'auth': {},
+                    'hub_url': 'https://koji.example.com/hub'}}
+    workflow.conf.conf = rcm
 
     runner = PreBuildPluginsRunner(
         docker_tasker,
@@ -264,8 +260,8 @@ def test_flatpak_update_dockerfile(tmpdir, docker_tasker,
     else:
         runner.run()
 
-        assert os.path.exists(workflow.builder.df_path)
-        with open(workflow.builder.df_path) as f:
+        assert os.path.exists(workflow.df_path)
+        with open(workflow.df_path) as f:
             df = f.read()
 
         m = re.search(r'module enable\s*(.*?)\s*$', df, re.MULTILINE)
@@ -277,7 +273,7 @@ def test_flatpak_update_dockerfile(tmpdir, docker_tasker,
         else:
             assert enabled_modules == ['flatpak-runtime:f28']
 
-        includepkgs_path = os.path.join(workflow.builder.df_dir, 'atomic-reactor-includepkgs')
+        includepkgs_path = os.path.join(workflow.df_dir, 'atomic-reactor-includepkgs')
         assert os.path.exists(includepkgs_path)
         with open(includepkgs_path) as f:
             includepkgs = f.read()
@@ -285,7 +281,7 @@ def test_flatpak_update_dockerfile(tmpdir, docker_tasker,
             if config_name == 'app':
                 assert 'eog-0:3.28.3-1.module_2123+73a9ef6f.x86_64' in includepkgs
 
-        assert os.path.exists(os.path.join(workflow.builder.df_dir, 'cleanup.sh'))
+        assert os.path.exists(os.path.join(workflow.df_dir, 'cleanup.sh'))
 
         compose_info = get_flatpak_compose_info(workflow)
         assert compose_info.source_spec == config['source_spec']

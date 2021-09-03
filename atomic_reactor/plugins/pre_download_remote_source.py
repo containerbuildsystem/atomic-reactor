@@ -16,7 +16,6 @@ from shlex import quote
 from atomic_reactor.constants import REMOTE_SOURCE_DIR, CACHITO_ENV_FILENAME, CACHITO_ENV_ARG_ALIAS
 from atomic_reactor.download import download_url
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.plugins.pre_reactor_config import get_cachito
 from atomic_reactor.util import get_retrying_requests_session
 from atomic_reactor.utils.cachito import CFG_TYPE_B64
 from urllib.parse import urlparse
@@ -113,7 +112,7 @@ class DownloadRemoteSourcePlugin(PreBuildPlugin):
                 'REMOTE_SOURCE_DIR': REMOTE_SOURCE_DIR,
                 CACHITO_ENV_ARG_ALIAS: os.path.join(REMOTE_SOURCE_DIR, CACHITO_ENV_FILENAME),
                 }
-        self.workflow.builder.buildargs.update(args_for_dockerfile_to_add)
+        self.workflow.buildargs.update(args_for_dockerfile_to_add)
 
     def run(self):
         """
@@ -126,7 +125,7 @@ class DownloadRemoteSourcePlugin(PreBuildPlugin):
         session = get_retrying_requests_session()
 
         archives = []
-        cachito_config = get_cachito(self.workflow)
+        cachito_config = self.workflow.conf.cachito
         insecure_ssl_conn = cachito_config.get('insecure', False)
 
         for remote_source in self.remote_sources:
@@ -148,7 +147,7 @@ class DownloadRemoteSourcePlugin(PreBuildPlugin):
             archives.append(archive)
 
             # Unpack the source code archive into a dedicated dir in container build workdir
-            dest_dir = os.path.join(self.workflow.builder.df_dir, self.REMOTE_SOURCE)
+            dest_dir = os.path.join(self.workflow.df_dir, self.REMOTE_SOURCE)
             sub_path = self.REMOTE_SOURCE
 
             if self.multiple_remote_sources:
@@ -174,7 +173,7 @@ class DownloadRemoteSourcePlugin(PreBuildPlugin):
 
             # Set build args
             if not self.multiple_remote_sources:
-                self.workflow.builder.buildargs.update(remote_source['build_args'])
+                self.workflow.buildargs.update(remote_source['build_args'])
 
             # Create cachito.env file with environment variables received from cachito request
             self.generate_cachito_env_file(dest_dir, remote_source['build_args'])

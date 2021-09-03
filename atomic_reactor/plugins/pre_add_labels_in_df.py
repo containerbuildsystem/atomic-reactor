@@ -61,9 +61,6 @@ from atomic_reactor.util import (df_parser,
                                  get_docker_architecture,
                                  label_to_string,
                                  LabelFormatter)
-from atomic_reactor.plugins.pre_reactor_config import (get_image_equal_labels,
-                                                       get_image_labels,
-                                                       get_image_label_info_url_format)
 from osbs.utils import Labels
 import json
 import datetime
@@ -80,9 +77,8 @@ class AddLabelsPlugin(PreBuildPlugin):
                               "vcs-ref",
                               "com.redhat.build-host"),
                  aliases=None,
-                 dont_overwrite_if_in_dockerfile=("distribution-scope", "com.redhat.license_terms"),
-                 info_url_format=None,
-                 equal_labels=None):
+                 dont_overwrite_if_in_dockerfile=("distribution-scope",
+                                                  "com.redhat.license_terms")):
         """
         constructor
 
@@ -99,8 +95,6 @@ class AddLabelsPlugin(PreBuildPlugin):
                         added (with the same value)
         :param dont_overwrite_if_in_dockerfile : iterable, list of label keys which should not be
                                                  overwritten if they are present in dockerfile
-        :param info_url_format : string, format for url dockerfile label (deprecated)
-        :param equal_labels: list, with equal labels groups as lists
         """
         # call parent constructor
         super(AddLabelsPlugin, self).__init__(tasker, workflow)
@@ -112,7 +106,7 @@ class AddLabelsPlugin(PreBuildPlugin):
 
         # see if REACTOR_CONFIG has any labels. If so, merge them with the existing argument
         # and otherwise use the existing argument
-        image_labels = get_image_labels(self.workflow, False)
+        image_labels = self.workflow.conf.image_labels
 
         # validity of image_labels is enforced by REACTOR_CONFIG's schema, so no need to check
         if image_labels:
@@ -127,10 +121,9 @@ class AddLabelsPlugin(PreBuildPlugin):
         self.dont_overwrite_if_in_dockerfile = dont_overwrite_if_in_dockerfile
         self.aliases = aliases or Labels.get_new_names_by_old()
         self.auto_labels = auto_labels or ()
-        self.info_url_format = get_image_label_info_url_format(self.workflow,
-                                                               info_url_format)
+        self.info_url_format = self.workflow.conf.image_label_info_url_format
 
-        self.equal_labels = get_image_equal_labels(self.workflow, equal_labels or [])
+        self.equal_labels = self.workflow.conf.image_equal_labels
         if not isinstance(self.equal_labels, list):
             raise RuntimeError("equal_labels have to be list")
 
@@ -269,12 +262,12 @@ class AddLabelsPlugin(PreBuildPlugin):
         """
         run the plugin
         """
-        dockerfile = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
+        dockerfile = df_parser(self.workflow.df_path, workflow=self.workflow)
 
         lines = dockerfile.lines
 
-        if (self.workflow.builder.dockerfile_images.custom_base_image or
-                self.workflow.builder.dockerfile_images.base_from_scratch):
+        if (self.workflow.dockerfile_images.custom_base_image or
+                self.workflow.dockerfile_images.base_from_scratch):
             base_image_labels = {}
         else:
             try:

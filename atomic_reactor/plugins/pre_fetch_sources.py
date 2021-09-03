@@ -16,15 +16,8 @@ import yaml
 from atomic_reactor.constants import (PLUGIN_FETCH_SOURCES_KEY, PNC_SYSTEM_USER,
                                       REMOTE_SOURCE_JSON_FILENAME, REMOTE_SOURCE_TARBALL_FILENAME,
                                       KOJI_BTYPE_REMOTE_SOURCES)
+from atomic_reactor.config import get_koji_session
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.plugins.pre_reactor_config import (
-    get_koji,
-    get_koji_path_info,
-    get_koji_session,
-    get_config,
-    get_pnc,
-    get_source_container,
-)
 from atomic_reactor.source import GitSource
 from atomic_reactor.util import get_retrying_requests_session
 from atomic_reactor.download import download_url
@@ -69,17 +62,16 @@ class FetchSourcesPlugin(PreBuildPlugin):
         self.koji_build_id = koji_build_id
         self.koji_build_nvr = koji_build_nvr
         self.signing_intent = signing_intent
-        self.session = get_koji_session(self.workflow)
-        self.pathinfo = get_koji_path_info(self.workflow)
+        self.session = get_koji_session(self.workflow.conf)
+        self.pathinfo = self.workflow.conf.koji_path_info
         self._pnc_util = None
 
     @property
     def pnc_util(self):
         if not self._pnc_util:
-            try:
-                pnc_map = get_pnc(self.workflow)
-            except KeyError:
-                raise RuntimeError('No PNC configuration found in reactor config map') from KeyError
+            pnc_map = self.workflow.conf.pnc
+            if not pnc_map:
+                raise RuntimeError('No PNC configuration found in reactor config map')
             self._pnc_util = PNCUtil(pnc_map)
         return self._pnc_util
 
@@ -91,7 +83,7 @@ class FetchSourcesPlugin(PreBuildPlugin):
         self.set_koji_image_build_data()
         self.check_lookaside_cache_usage()
         signing_intent = self.get_signing_intent()
-        koji_config = get_koji(self.workflow)
+        koji_config = self.workflow.conf.koji
         insecure = koji_config.get('insecure_download', False)
         urls = self.get_srpm_urls(signing_intent['keys'], insecure=insecure)
         urls_remote, remote_sources_map = self.get_remote_urls()
@@ -518,7 +510,7 @@ class FetchSourcesPlugin(PreBuildPlugin):
         return sources
 
     def get_denylisted_srpms(self):
-        src_config = get_source_container(self.workflow, fallback={})
+        src_config = self.workflow.conf.source_container
         denylist_srpms = src_config.get('denylist_srpms')
         if not denylist_srpms:
             self.log.debug('denylist_srpms is not defined in reactor_config_map')
@@ -629,7 +621,7 @@ class FetchSourcesPlugin(PreBuildPlugin):
 
         :return: dict, signing intent object as per atomic_reactor/schemas/config.json
         """
-        odcs_config = get_config(self.workflow).get_odcs_config()
+        odcs_config = self.workflow.conf.odcs_config
         if odcs_config is None:
             self.log.warning('No ODCS configuration available. Allowing unsigned SRPMs')
             return {'keys': None}
@@ -727,7 +719,7 @@ class FetchSourcesPlugin(PreBuildPlugin):
                                          values are url with json from cachito
         :param remote_sources_dir: str, dir with downloaded sources from cachito
         """
-        src_config = get_source_container(self.workflow, fallback={})
+        src_config = self.workflow.conf.source_container
         denylist_sources_url = src_config.get('denylist_sources')
 
         if not denylist_sources_url:

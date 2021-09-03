@@ -29,8 +29,6 @@ from atomic_reactor import util
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_fetch_sources import FetchSourcesPlugin
-from atomic_reactor.plugins.pre_reactor_config import (ReactorConfigPlugin,
-                                                       WORKSPACE_CONF_KEY, ReactorConfig)
 from atomic_reactor.util import get_checksums
 from tests.stubs import StubInsideBuilder
 
@@ -162,14 +160,12 @@ def mock_reactor_config(workflow, tmpdir, data=None, default_si=DEFAULT_SIGNING_
             """.format(KOJI_HUB, KOJI_ROOT, PNC_BASE_API_URL, PNC_GET_SCM_ARCHIVE_PATH,
                        PNC_GET_ARTIFACT_PATH, default_si, tmpdir))
 
-    workflow.plugin_workspace[ReactorConfigPlugin.key] = {}
-
     config = {}
     if data:
         tmpdir.join('cert').write('')
-        config = util.read_yaml(data, 'schemas/config.json')
+        config = yaml.safe_load(data)
 
-    workflow.plugin_workspace[ReactorConfigPlugin.key][WORKSPACE_CONF_KEY] = ReactorConfig(config)
+    workflow.conf.conf = config
 
 
 def mock_workflow(tmpdir, for_orchestrator=False, config_map=None,

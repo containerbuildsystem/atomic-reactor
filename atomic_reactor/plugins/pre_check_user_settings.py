@@ -65,7 +65,7 @@ class CheckUserSettingsPlugin(PreBuildPlugin):
         msg = "Dockerfile version label can't contain '/' character"
         self.log.debug("Running check: %s", msg)
 
-        parser = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
+        parser = df_parser(self.workflow.df_path, workflow=self.workflow)
         dockerfile_labels = parser.labels
         labels = Labels(parser.labels)
 
@@ -100,8 +100,8 @@ class CheckUserSettingsPlugin(PreBuildPlugin):
             return
 
         if (
-            not self.workflow.builder.dockerfile_images.base_from_scratch or
-            len(self.workflow.builder.dockerfile_images.original_parents) > 1
+            not self.workflow.dockerfile_images.base_from_scratch or
+            len(self.workflow.dockerfile_images.original_parents) > 1
         ):
             raise ValueError(msg)
 
@@ -110,7 +110,7 @@ class CheckUserSettingsPlugin(PreBuildPlugin):
         if self.workflow.builder.tasker.build_method != CONTAINER_DOCKERPY_BUILD_METHOD:
             return
 
-        if len(self.workflow.builder.dockerfile_images.original_parents) > 1:
+        if len(self.workflow.dockerfile_images.original_parents) > 1:
             msg = "Multistage builds can't be built with docker_api," \
                   "use 'image_build_method' in container.yaml " \
                   "with '{}'".format(CONTAINER_IMAGEBUILDER_BUILD_METHOD)
@@ -127,7 +127,7 @@ class CheckUserSettingsPlugin(PreBuildPlugin):
         """Isolated builds for FROM scratch builds are prohibited
          except operator bundle images"""
         if (
-            self.workflow.builder.dockerfile_images.base_from_scratch and
+            self.workflow.dockerfile_images.base_from_scratch and
             is_isolated_build(self.workflow) and
             not has_operator_bundle_manifest(self.workflow)
         ):

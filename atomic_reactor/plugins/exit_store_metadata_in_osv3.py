@@ -10,12 +10,12 @@ import os
 
 from osbs.exceptions import OsbsResponseException
 
-from atomic_reactor.plugins.pre_reactor_config import get_openshift_session, get_koji
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.constants import (PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
                                       PLUGIN_VERIFY_MEDIA_KEY,
                                       PLUGIN_RESOLVE_REMOTE_SOURCE,
                                       SCRATCH_FROM)
+from atomic_reactor.config import get_openshift_session
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.util import get_build_json
 
@@ -24,22 +24,15 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
     key = "store_metadata_in_osv3"
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, url=None, verify_ssl=True, use_auth=True):
+    def __init__(self, tasker, workflow):
         """
         constructor
 
         :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
-        :param url: str, URL to OSv3 instance
-        :param use_auth: bool, initiate authentication with openshift?
         """
         # call parent constructor
         super(StoreMetadataInOSv3Plugin, self).__init__(tasker, workflow)
-        self.openshift_fallback = {
-            'url': url,
-            'insecure': not verify_ssl,
-            'auth': {'enable': use_auth}
-        }
         self.source_build = PLUGIN_FETCH_SOURCES_KEY in self.workflow.prebuild_results
 
     def get_result(self, result):
@@ -177,7 +170,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
         koji's configuration to be included in the build_annotations.json file,
         which will be attached in the koji task output.
         """
-        koji_config = get_koji(self.workflow)
+        koji_config = self.workflow.conf.koji
         whitelist = koji_config.get('task_annotations_whitelist')
         if whitelist:
             annotations['koji_task_annotations_whitelist'] = json.dumps(whitelist)
@@ -216,7 +209,8 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
             self.log.error("malformed build json")
             return
         self.log.info("build id = %s", build_id)
-        osbs = get_openshift_session(self.workflow, self.openshift_fallback)
+        osbs = get_openshift_session(self.workflow.conf,
+                                     self.workflow.user_params.get('namespace'))
 
         if not self.source_build:
             try:
@@ -224,9 +218,9 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
             except AttributeError:
                 commit_id = ""
 
-            base_image = self.workflow.builder.dockerfile_images.original_base_image
+            base_image = self.workflow.dockerfile_images.original_base_image
             if (base_image is not None and
-                    not self.workflow.builder.dockerfile_images.base_from_scratch):
+                    not self.workflow.dockerfile_images.base_from_scratch):
                 base_image_name = base_image
                 try:
                     base_image_id = self.workflow.builder.base_image_inspect.get('Id', "")
@@ -236,12 +230,12 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
                 base_image_name = ""
                 base_image_id = ""
 
-            parent_images_strings = self.workflow.builder.parent_images_to_str()
-            if self.workflow.builder.dockerfile_images.base_from_scratch:
+            parent_images_strings = self.workflow.parent_images_to_str()
+            if self.workflow.dockerfile_images.base_from_scratch:
                 parent_images_strings[SCRATCH_FROM] = SCRATCH_FROM
 
             try:
-                with open(self.workflow.builder.df_path) as f:
+                with open(self.workflow.df_path) as f:
                     dockerfile_contents = f.read()
             except AttributeError:
                 dockerfile_contents = ""

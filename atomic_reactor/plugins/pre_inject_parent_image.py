@@ -7,11 +7,9 @@ of the BSD license. See the LICENSE file for details.
 """
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
-from atomic_reactor.plugins.pre_reactor_config import (get_koji_session,
-                                                       get_registries_organization,
-                                                       get_source_registry)
 from osbs.utils import graceful_chain_get, ImageName
 from atomic_reactor.constants import PLUGIN_INJECT_PARENT_IMAGE_KEY
+from atomic_reactor.config import get_koji_session
 
 
 class InjectParentImage(PreBuildPlugin):
@@ -46,7 +44,7 @@ class InjectParentImage(PreBuildPlugin):
         """
         super(InjectParentImage, self).__init__(tasker, workflow)
 
-        self.koji_session = get_koji_session(self.workflow)
+        self.koji_session = get_koji_session(self.workflow.conf)
         try:
             self.koji_parent_build = int(koji_parent_build)
         except (ValueError, TypeError):
@@ -61,10 +59,10 @@ class InjectParentImage(PreBuildPlugin):
             self.log.info('no koji parent build, skipping plugin')
             return
 
-        if self.workflow.builder.dockerfile_images.base_from_scratch:
+        if self.workflow.dockerfile_images.base_from_scratch:
             self.log.info("from scratch can't inject parent image")
             return
-        if self.workflow.builder.dockerfile_images.custom_base_image:
+        if self.workflow.dockerfile_images.custom_base_image:
             self.log.info("custom base image builds can't inject parent image")
             return
 
@@ -117,8 +115,8 @@ class InjectParentImage(PreBuildPlugin):
 
     def adjust_new_parent_image(self):
         new_parent_image = ImageName.parse(self._new_parent_image)
-        organization = get_registries_organization(self.workflow)
-        source_registry_docker_uri = get_source_registry(self.workflow)['uri'].docker_uri
+        organization = self.workflow.conf.registries_organization
+        source_registry_docker_uri = self.workflow.conf.source_registry['uri'].docker_uri
 
         if new_parent_image.registry != source_registry_docker_uri:
             new_parent_image.registry = source_registry_docker_uri
@@ -129,7 +127,7 @@ class InjectParentImage(PreBuildPlugin):
         self._new_parent_image = new_parent_image.to_str()
 
     def set_new_parent_image(self):
-        base_image_key = self.workflow.builder.dockerfile_images.base_image_key
-        self.workflow.builder.dockerfile_images[base_image_key] = self._new_parent_image
+        base_image_key = self.workflow.dockerfile_images.base_image_key
+        self.workflow.dockerfile_images[base_image_key] = self._new_parent_image
 
         defer_removal(self.workflow, self._new_parent_image)

@@ -23,12 +23,10 @@ from atomic_reactor.plugin import ExitPlugin, PluginFailedException
 from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.plugins.exit_koji_import import KojiImportPlugin
 from atomic_reactor.plugins.exit_store_metadata_in_osv3 import StoreMetadataInOSv3Plugin
-from atomic_reactor.plugins.pre_reactor_config import (get_smtp_session, get_koji_session,
-                                                       get_smtp, get_koji, get_openshift,
-                                                       get_openshift_session, get_koji_path_info)
 from atomic_reactor.utils.koji import get_koji_task_owner
 from atomic_reactor.util import get_build_json, OSBSLogs, df_parser
 from atomic_reactor.constants import PLUGIN_SENDMAIL_KEY
+from atomic_reactor.config import get_koji_session, get_smtp_session, get_openshift_session
 from osbs.utils import Labels, ImageName
 
 
@@ -120,29 +118,15 @@ class SendMailPlugin(ExitPlugin):
         self.submitter = self.DEFAULT_SUBMITTER
         self.send_on = set(send_on)
 
-        self.smtp_fallback = {
-            'host': smtp_host,
-            'from_address': from_address,
-            'additional_addresses': list(additional_addresses),
-            'error_addresses': list(error_addresses),
-            'domain': email_domain,
-            'send_to_submitter': to_koji_submitter,
-            'send_to_pkg_owner': to_koji_pkgowner
-        }
-        smtp = get_smtp(self.workflow, self.smtp_fallback)
-        self.additional_addresses = smtp.get('additional_addresses', ())
-        self.from_address = smtp['from_address']
-        self.error_addresses = smtp.get('error_addresses', ())
-        self.email_domain = smtp.get('domain')
-        self.to_koji_submitter = smtp.get('send_to_submitter', False)
-        self.to_koji_pkgowner = smtp.get('send_to_pkg_owner', False)
+        self.smtp = self.workflow.conf.smtp
+        self.additional_addresses = self.smtp.get('additional_addresses', ())
+        self.from_address = self.smtp.get('from_address')
+        self.error_addresses = self.smtp.get('error_addresses', ())
+        self.email_domain = self.smtp.get('domain')
+        self.to_koji_submitter = self.smtp.get('send_to_submitter', False)
+        self.to_koji_pkgowner = self.smtp.get('send_to_pkg_owner', False)
 
-        self.openshift_fallback = {
-            'url': url,
-            'insecure': not verify_ssl,
-            'auth': {'enable': use_auth}
-        }
-        self.url = get_openshift(self.workflow, self.openshift_fallback)['url']
+        self.url = self.workflow.conf.openshift['url']
 
         self.koji_task_id = None
         try:
@@ -173,9 +157,9 @@ class SendMailPlugin(ExitPlugin):
             self.log.info("Koji build ID: %s", self.koji_build_id)
 
         self.session = None
-        if get_koji(self.workflow)['hub_url']:
+        if self.workflow.conf.koji['hub_url']:
             try:
-                self.session = get_koji_session(self.workflow)
+                self.session = get_koji_session(self.workflow.conf)
             except Exception:
                 self.log.exception("Failed to connect to koji")
                 self.session = None
@@ -183,7 +167,8 @@ class SendMailPlugin(ExitPlugin):
                 self.log.info("Koji connection established")
 
     def _fetch_log_files(self):
-        osbs = get_openshift_session(self.workflow, self.openshift_fallback)
+        osbs = get_openshift_session(self.workflow.conf,
+                                     self.workflow.user_params.get('namespace'))
         build_id = get_build_json()['metadata']['name'] or {}
         osbs_logs = OSBSLogs(self.log)
 
@@ -208,7 +193,7 @@ class SendMailPlugin(ExitPlugin):
     def _get_image_name_and_repos(self):
 
         repos = []
-        dockerfile = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
+        dockerfile = df_parser(self.workflow.df_path, workflow=self.workflow)
         labels = Labels(dockerfile.labels)
         _, image_name = labels.get_name_and_value(Labels.LABEL_TYPE_NAME)
 
@@ -313,7 +298,7 @@ class SendMailPlugin(ExitPlugin):
 
         s = None
         try:
-            s = get_smtp_session(self.workflow, self.smtp_fallback)
+            s = get_smtp_session(self.workflow.conf)
             s.sendmail(self.from_address, receivers_list, msg.as_string())
         except (socket.gaierror, smtplib.SMTPException):
             self.log.error('Error communicating with SMTP server')
@@ -363,7 +348,7 @@ class SendMailPlugin(ExitPlugin):
         if self.koji_task_id:
             # build via koji tasks
             try:
-                pathinfo = get_koji_path_info(self.workflow)
+                pathinfo = self.workflow.conf.koji_path_info
                 url = '/'.join([pathinfo.work(), pathinfo.taskrelpath(self.koji_task_id)])
             except Exception:
                 self.log.exception("Failed to fetch logs from koji")
@@ -418,6 +403,10 @@ class SendMailPlugin(ExitPlugin):
         if len(unknown_states) > 0:
             raise PluginFailedException('Unknown state(s) "%s" for sendmail plugin' %
                                         '", "'.join(sorted(unknown_states)))
+
+        if not self.smtp:
+            self.log.info('no smtp configuration, skipping plugin')
+            return
 
         rebuild = is_rebuild(self.workflow)
         success = not self.workflow.build_process_failed

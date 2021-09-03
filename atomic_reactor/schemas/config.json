@@ -40,10 +40,6 @@
       },
       "additionalProperties": false
     },
-    "clusters_client_config_dir": {
-      "description": "Path to directory with osbs.conf for communicating with workers",
-      "type": "string"
-    },
     "koji": {
         "description": "Koji instance",
         "type": "object",
@@ -154,52 +150,6 @@
         },
         "additionalProperties": false,
         "required": ["base_api_url", "get_scm_archive_path", "get_artifact_path"]
-    },
-    "pulp": {
-        "description": "Pulp registry instance (deprecated)",
-        "type": "object",
-        "properties": {
-            "name": {
-                "description": "Pulp registry name, specified in /etc/dockpulp.conf",
-                "type": "string"
-            },
-            "loglevel": {
-                "description": "Log level",
-                "type": "string"
-            },
-            "auth": {
-                "description": "Authentication information",
-                "type": "object",
-                "anyOf": [
-                    {
-                        "properties": {
-                            "ssl_certs_dir": {
-                                "description": "Path to directory with pulp.cer and pulp.key files",
-                                "type": "string"
-                            }
-                        },
-                        "required": ["ssl_certs_dir"],
-                        "additionalProperties": false
-                    },
-                    {
-                        "properties": {
-                            "username": {
-                                "description": "Pulp username",
-                                "type": "string"
-                            },
-                            "password": {
-                                "description": "Pulp password",
-                                "type": "string"
-                            }
-                        },
-                        "required": ["username", "password"],
-                        "additionalProperties": false
-                    }
-                ]
-            }
-        },
-        "additionalProperties": false,
-        "required": ["name", "auth"]
     },
     "odcs": {
         "description": "OnDemand Compose Service (ODCS) instance",
@@ -359,10 +309,6 @@
         "additionalProperties": false,
         "required": ["api_url", "auth"]
     },
-    "arrangement_version": {
-        "description": "Arrangement version",
-        "type": "integer"
-    },
     "artifacts_allowed_domains": {
         "description": "Domains allowed to use when fetching artifacts by url, if not specified no restrictions will be applied",
         "type": "array",
@@ -465,7 +411,8 @@
     },
     "group_manifests": {
         "description": "Create manifest list, or image index, in container registry",
-        "type": "boolean"
+        "type": "boolean",
+        "default": true
     },
     "platform_descriptors": {
         "description": "Definition of supported platforms",
@@ -485,7 +432,8 @@
     },
     "prefer_schema1_digest": {
         "description": "schema 1 as preferred digest",
-        "type": "boolean"
+        "type": "boolean",
+        "default": false
     },
     "content_versions": {
         "description": "Produce container image of given version",
@@ -523,7 +471,8 @@
     },
     "skip_koji_check_for_base_image": {
         "description": "Allow base image without a related koji build (insecure) when there are no NVR labels set on the base image. If the NVR labels are set on the base image, the check is performed regardless",
-        "type": "boolean"
+        "type": "boolean",
+        "default": false
     },
     "deep_manifest_list_inspection": {
         "description": "If manifest list digest check fails, inspect the manifest list contents",
@@ -597,21 +546,6 @@
         "description": "Specify different build_image image for platforms",
         "type": "object",
         "additionalProperties": {"type": "string"}
-    },
-    "default_image_build_method": {
-        "description": "Specify different default buildstep plugin for worker builds",
-        "enum": ["docker_api", "imagebuilder", "buildah_bud"]
-    },
-    "buildstep_alias": {
-        "description": "Aliases for buildstep plugins",
-        "type": "object",
-        "patternProperties": {
-            "^[\\w_]+$": {
-              "type": "string",
-              "enum": ["docker_api", "imagebuilder"]
-              }
-        },
-        "additionalProperties": false
     },
     "flatpak": {
         "description": "Flatpak specific properties",
@@ -850,5 +784,5 @@
         "examples": ["/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem"]
     }
   },
-  "required": ["version", "koji"]
+  "required": ["version", "koji", "openshift", "registries", "source_registry"]
 }

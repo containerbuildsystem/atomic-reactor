@@ -59,7 +59,7 @@ class AddHelpPlugin(PreBuildPlugin):
         or self.HELP_GENERATED if help man page was generated
         """
 
-        help_path = os.path.join(self.workflow.builder.df_dir, self.help_file)
+        help_path = os.path.join(self.workflow.df_dir, self.help_file)
 
         if not os.path.exists(help_path):
             self.log.info("File %s not found", help_path)
@@ -68,7 +68,7 @@ class AddHelpPlugin(PreBuildPlugin):
                 'status': self.NO_HELP_FILE_FOUND
             }
 
-        dockerfile = df_parser(self.workflow.builder.df_path, workflow=self.workflow)
+        dockerfile = df_parser(self.workflow.df_path, workflow=self.workflow)
         labels = Labels(dockerfile.labels)
         try:
             _, name = labels.get_name_and_value(Labels.LABEL_TYPE_NAME)
@@ -91,7 +91,7 @@ class AddHelpPlugin(PreBuildPlugin):
 
                 self.log.info("added metadata to %s for generating nicer manpages", help_path)
 
-        man_path = os.path.join(self.workflow.builder.df_dir, self.man_filename)
+        man_path = os.path.join(self.workflow.df_dir, self.man_filename)
 
         go_md2man_cmd = ['go-md2man', '-in={}'.format(help_path), '-out={}'.format(man_path)]
 
