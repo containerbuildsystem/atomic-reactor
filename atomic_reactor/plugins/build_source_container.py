@@ -15,6 +15,7 @@ from atomic_reactor.constants import (PLUGIN_SOURCE_CONTAINER_KEY, EXPORTED_SQUA
                                       IMAGE_TYPE_DOCKER_ARCHIVE, PLUGIN_FETCH_SOURCES_KEY)
 from atomic_reactor.plugin import BuildStepPlugin
 from atomic_reactor.util import get_exported_image_metadata
+from atomic_reactor.utils import retries
 
 
 class SourceContainerPlugin(BuildStepPlugin):
@@ -33,9 +34,8 @@ class SourceContainerPlugin(BuildStepPlugin):
         dest_img = 'docker-archive:{}'.format(output_path)
         cmd += [source_img, dest_img]
 
-        self.log.info("Calling: %s", ' '.join(cmd))
         try:
-            subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+            retries.run_cmd(cmd)
         except subprocess.CalledProcessError as e:
             self.log.error("failed to save docker-archive :\n%s", e.output)
             raise

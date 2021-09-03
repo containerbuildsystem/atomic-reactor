@@ -20,6 +20,7 @@ from atomic_reactor.plugin import PrePublishPlugin
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.plugins.pre_flatpak_update_dockerfile import get_flatpak_source_info
 from atomic_reactor.plugins.pre_reactor_config import get_flatpak_metadata
+from atomic_reactor.utils import retries
 from atomic_reactor.utils.rpm import parse_rpm_output
 from atomic_reactor.util import df_parser, get_exported_image_metadata, is_flatpak_build
 from osbs.utils import Labels
@@ -98,7 +99,7 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
 
     def _get_oci_image_id(self, oci_path):
         cmd = ['skopeo', 'inspect', '--raw', 'oci:{}'.format(oci_path)]
-        raw_manifest = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+        raw_manifest = retries.run_cmd(cmd)
         oci_image_manifest = json.loads(raw_manifest)
         return oci_image_manifest['config']['digest']
 
@@ -115,9 +116,8 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
         cmd = ['skopeo', 'copy', 'oci:{}'.format(oci_path), skopeo_copy_dst]
 
         self.log.info("Copying built image to internal container image storage as %s:%s", name, tag)
-        self.log.info("Calling: %s", ' '.join(cmd))
         try:
-            subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+            retries.run_cmd(cmd)
         except subprocess.CalledProcessError as e:
             self.log.error("image copy failed with output:\n%s", e.output)
             raise
