@@ -286,12 +286,6 @@ These are run after the buildstep plugin has successfully finished
      to Koji. The metadata is returned to be used by the store_metadata_osv3
      plugin. That plugin will use a ConfigMap object to store it for the
      orchestrator to retrieve it. It will replace **koji_promote** when enabled
-- **push_operator_manifests**
-  - Status: Enabled
-  - When OMPS service integration is configured and when specified through the
-     'com.redhat.delivery.appregistry' Dockerfile label, plugin uploads
-     manifests extracted by *export_operator_manifests* into app registry
-     specified in configuration
 
 ### Exit plugins
 
