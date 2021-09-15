@@ -423,10 +423,6 @@ def get_skip_koji_check_for_base_image(workflow, fallback=NO_FALLBACK):
     return get_value(workflow, 'skip_koji_check_for_base_image', fallback)
 
 
-def get_omps_config(workflow, fallback=NO_FALLBACK):
-    return get_value(workflow, 'omps', fallback)
-
-
 def get_deep_manifest_list_inspection(workflow, fallback=NO_FALLBACK):
     return get_value(workflow, 'deep_manifest_list_inspection', fallback)
 
