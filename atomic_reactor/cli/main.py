@@ -14,7 +14,6 @@ import locale
 from atomic_reactor import set_logging
 from osbs import set_logging as set_logging_osbs
 from atomic_reactor.constants import DESCRIPTION, PROG
-from atomic_reactor.inner import build_inside
 from atomic_reactor.util import (setup_introspection_signal_handler,
                                  exception_message)
 
@@ -45,11 +44,6 @@ def construct_kwargs(**kwargs):
     return ret
 
 
-def cli_inside_build(args):
-    build_inside(input_method=args.input, input_args=args.input_arg,
-                 substitutions=args.substitute)
-
-
 class CLI(object):
     def __init__(self, formatter_class=argparse.HelpFormatter, prog=PROG):
         self.parser = argparse.ArgumentParser(
@@ -74,28 +68,7 @@ class CLI(object):
         exclusive_group.add_argument("-v", "--verbose", action="store_true")
         exclusive_group.add_argument("-V", "--version", action="version", version=version)
 
-        subparsers = self.parser.add_subparsers(help='commands')
-
-        # inside build
-        self.ib_parser = subparsers.add_parser(
-            'inside-build',
-            usage="%s [OPTIONS] inside-build" % PROG,
-            description="build inside a container, taking build JSON input "
-                        "from the source specified by the --input option.")
-        self.ib_parser.add_argument("--input", action='store', default="auto",
-                                    help="input plugin name (determined automatically unless "
-                                    "given)")
-        self.ib_parser.add_argument("--input-arg", action='append',
-                                    help="argument for input plugin (in form of 'key=value'), "
-                                    "see input plugins to know what arguments they accept (can "
-                                    "be specified multiple times)")
-        self.ib_parser.add_argument("--dont-pull-base-image", action='store_true',
-                                    help="don't pull or update base image specified in "
-                                    "dockerfile")
-        self.ib_parser.add_argument("--substitute", action='append',
-                                    help="substitute values in build json (key=value, or "
-                                         "plugin_type.plugin_name.key=value)")
-        self.ib_parser.set_defaults(func=cli_inside_build)
+        # subparsers = self.parser.add_subparsers(help='commands')
 
 
     def run(self):
