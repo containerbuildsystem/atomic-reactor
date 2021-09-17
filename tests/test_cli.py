@@ -15,14 +15,13 @@ import encodings
 import pytest
 import flexmock
 
-from atomic_reactor.buildimage import BuildImageBuilder
 from atomic_reactor.core import DockerTasker
 from atomic_reactor.plugin import InputPluginsRunner
 import atomic_reactor.cli.main
 from atomic_reactor.constants import BUILD_JSON_ENV
 
 from tests.util import uuid_value
-from tests.constants import LOCALHOST_REGISTRY, DOCKERFILE_GIT, DOCKERFILE_OK_PATH, FILES, MOCK
+from tests.constants import DOCKERFILE_GIT, DOCKERFILE_OK_PATH, MOCK
 
 if MOCK:
     from tests.docker_mock import mock_docker
@@ -46,19 +45,6 @@ with_all_sources = pytest.mark.parametrize('source_provider, uri', [
 # TEST-SUITE SETUP
 
 
-def setup_module(module):
-    if MOCK:
-        return
-
-    b = BuildImageBuilder(reactor_local_path=reactor_root)
-    b.create_image(os.path.join(reactor_root, 'images', 'privileged-builder'),
-                   PRIV_BUILD_IMAGE, use_cache=True)
-
-    b2 = BuildImageBuilder(reactor_local_path=reactor_root)
-    b2.create_image(os.path.join(reactor_root, 'images', 'dockerhost-builder'),
-                    DH_BUILD_IMAGE, use_cache=True)
-
-
 def teardown_module(module):
     if MOCK:
         return
@@ -75,25 +61,6 @@ class TestCLISuite(object):
         sys.argv = command
         atomic_reactor.cli.main.run()
         sys.argv = saved_args
-
-    def test_create_build_image(self, temp_image_name):  # noqa
-        if MOCK:
-            mock_docker()
-
-        temp_image = temp_image_name
-        priv_builder_path = os.path.join(reactor_root, 'images', 'privileged-builder')
-        command = [
-            "main.py",
-            "--verbose",
-            "create-build-image",
-            "--reactor-local-path", reactor_root,
-            priv_builder_path,
-            temp_image.to_str(),
-        ]
-        with pytest.raises(SystemExit) as excinfo:
-            self.exec_cli(command)
-        assert excinfo.value.code == 0
-        dt.remove_image(temp_image, noprune=True)
 
     def test_log_encoding(self, caplog, monkeypatch):
         if MOCK:
