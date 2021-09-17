@@ -24,7 +24,6 @@ from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.source import SourceConfig
 from atomic_reactor.utils.odcs import ODCSClient, construct_compose_url
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
-from atomic_reactor.plugins import pre_check_and_set_rebuild
 from atomic_reactor.plugins.build_orchestrate_build import (WORKSPACE_KEY_OVERRIDE_KWARGS,
                                                             OrchestrateBuildPlugin)
 from atomic_reactor.plugins.pre_resolve_composes import (ResolveComposesPlugin,
@@ -1322,22 +1321,6 @@ class TestResolveComposes(object):
         }
         expect_error = 'No matching build target found'
         self.run_plugin_with_args(workflow, plugin_args, expect_error=expect_error)
-
-    @pytest.mark.parametrize(('plugin_args', 'msg'), (
-        ({'signing_intent': 'spam'},
-         'Autorebuild detected: Ignoring signing_intent plugin parameter'),
-
-        ({'compose_ids': [1, 2, 3]},
-         'Autorebuild detected: Ignoring compose_ids plugin parameter'),
-    ))
-    def test_parameters_ignored_for_autorebuild(self, caplog, workflow, plugin_args, msg):
-        mock_odcs_client_start_compose()
-        mock_odcs_client_wait_for_compose()
-        flexmock(pre_check_and_set_rebuild).should_receive('is_rebuild').and_return(True)
-        with caplog.at_level(logging.INFO):
-            self.run_plugin_with_args(workflow, plugin_args)
-
-        assert msg in (x.message for x in caplog.records)
 
     def run_plugin_with_args(self, workflow, plugin_args=None,
                              expect_error=None,

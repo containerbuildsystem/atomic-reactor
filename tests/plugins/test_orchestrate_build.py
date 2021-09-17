@@ -14,7 +14,6 @@ from atomic_reactor.plugins.build_orchestrate_build import (OrchestrateBuildPlug
                                                             get_worker_build_info,
                                                             get_koji_upload_dir,
                                                             override_build_kwarg)
-from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildPlugin
 from atomic_reactor.util import df_parser
 import atomic_reactor.util
 from atomic_reactor.constants import (PLUGIN_ADD_FILESYSTEM_KEY,
@@ -974,18 +973,13 @@ def test_orchestrate_build_failed_to_list_builds(tmpdir, fail_at):
                 in build_result.fail_reason
 
 
-@pytest.mark.parametrize('is_auto', [
-    True,
-    False
-])
-def test_orchestrate_build_worker_build_kwargs(tmpdir, caplog, is_auto):
+def test_orchestrate_build_worker_build_kwargs(tmpdir, caplog):
     workflow = mock_workflow(tmpdir, platforms=['x86_64'])
     expected_kwargs = {
         'git_uri': SOURCE['uri'],
         'git_ref': 'master',
         'git_branch': 'master',
         'user': 'bacon',
-        'is_auto': is_auto,
         'platform': 'x86_64',
         'release': '10',
         'arrangement_version': 6,
@@ -1017,8 +1011,6 @@ def test_orchestrate_build_worker_build_kwargs(tmpdir, caplog, is_auto):
             'args': plugin_args,
         }]
     )
-    workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = is_auto
-
     build_result = runner.run()
     assert not build_result.is_failed()
 
@@ -1035,7 +1027,6 @@ def test_orchestrate_override_build_kwarg(tmpdir, overrides):
         'git_ref': 'master',
         'git_branch': 'master',
         'user': 'bacon',
-        'is_auto': False,
         'platform': 'x86_64',
         'release': '4242',
         'arrangement_version': 6,
@@ -1086,7 +1077,6 @@ def test_orchestrate_override_content_versions(tmpdir, caplog, content_versions)
         'git_ref': 'master',
         'git_branch': 'master',
         'user': 'bacon',
-        'is_auto': False,
         'platform': 'x86_64',
         'release': '10',
         'arrangement_version': 6,
@@ -1151,7 +1141,6 @@ def test_orchestrate_operator_csv_modifications_url(tmpdir):
         'git_ref': 'master',
         'git_branch': 'master',
         'user': 'bacon',
-        'is_auto': False,
         'platform': 'x86_64',
         'release': '10',
         'arrangement_version': 6,
@@ -1192,7 +1181,7 @@ def test_orchestrate_operator_csv_modifications_url(tmpdir):
     assert not build_result.is_failed()
 
 
-@pytest.mark.parametrize(('build', 'exc_str', 'bc', 'bc_cont', 'ims', 'ims_cont',
+@pytest.mark.parametrize(('build', 'exc_str', 'ims', 'ims_cont',
                           'ml', 'ml_cont'), [
     ({"spec": {
         "strategy": {
@@ -1200,7 +1189,7 @@ def test_orchestrate_operator_csv_modifications_url(tmpdir):
                 "from": {"name_wrong": "osbs-buildroot:latest",
                          "kind": "DockerImage"}}}}},
      "Build object is malformed, failed to fetch buildroot image",
-     None, None, None, None, None, None),
+     None, None, None, None),
 
     ({"spec": {
         "strategy": {
@@ -1208,7 +1197,7 @@ def test_orchestrate_operator_csv_modifications_url(tmpdir):
                 "from": {"name": "osbs-buildroot:latest",
                          "kind_wrong": "DockerImage"}}}}},
      "Build object is malformed, failed to fetch buildroot image",
-     None, None, None, None, None, None),
+     None, None, None, None),
 
     ({"spec": {
         "strategy": {
@@ -1216,17 +1205,7 @@ def test_orchestrate_operator_csv_modifications_url(tmpdir):
                 "from": {"name": "osbs-buildroot:latest",
                          "kind": "wrong_kind"}}}}},
      "Build kind isn't 'DockerImage' but",
-     None, None, None, None, None, None),
-
-    ({"spec": {
-        "strategy": {
-            "customStrategy": {
-                "from": {"name": "osbs-buildroot:latest",
-                         "kind": "DockerImage"}}}},
-        "status": {
-            "config": {"kind": "wrong"}}},
-     "Build config type isn't BuildConfig :",
-     None, None, None, None, None, None),
+     None, None, None, None),
 
     ({"spec": {
         "strategy": {
@@ -1236,7 +1215,7 @@ def test_orchestrate_operator_csv_modifications_url(tmpdir):
         "metadata": {"annotations": {}}},
      "Build wasn't created from BuildConfig and neither has 'from'" +
      " annotation, which is needed for specified arch",
-     None, None, None, None, None, None),
+     None, None, None, None),
 
     ({"spec": {
         "strategy": {
@@ -1247,7 +1226,7 @@ def test_orchestrate_operator_csv_modifications_url(tmpdir):
             "annotations": {
                 "from": json.dumps({"kind": "wrong"})}}},
      "Build annotation has unknown 'kind'",
-     None, None, None, None, None, None),
+     None, None, None, None),
 
     ({"spec": {
         "strategy": {
@@ -1259,53 +1238,17 @@ def test_orchestrate_operator_csv_modifications_url(tmpdir):
                 "from": json.dumps({"kind": "DockerImage",
                                     "name": "registry/image@sha256:123456"})}}},
      "Buildroot image isn't manifest list, which is needed for specified arch",
-     None, None, None, None, False, None),
+     None, None, False, None),
 
     ({"spec": {
         "strategy": {
             "customStrategy": {
                 "from": {"name": "osbs-buildroot:latest",
                          "kind": "DockerImage"}}}},
-        "status": {
-            "config": {"kind": "BuildConfig",
-                       "name": "wrong build config"}}},
-     "Build config not found :",
-     False, None, None, None, None, None),
-
-    ({"spec": {
-        "strategy": {
-            "customStrategy": {
-                "from": {"name": "osbs-buildroot:latest",
-                         "kind": "DockerImage"}}}},
-        "status": {
-            "config": {"kind": "BuildConfig",
-                       "name": "build config"}}},
-     "BuildConfig object is malformed",
-     True, {"spec": {"strategy": {"customStrategy": {}}}}, None, None,
-     None, None),
-
-    ({"spec": {
-        "strategy": {
-            "customStrategy": {
-                "from": {"name": "osbs-buildroot:latest",
-                         "kind": "DockerImage"}}}},
-        "status": {
-            "config": {"kind": "BuildConfig", "name": "build config"}}},
-     "BuildConfig object has unknown 'kind'",
-     True, {"spec": {"strategy": {"customStrategy": {"from": {"kind": "wrong_kind"}}}}},
-     None, None, None, None),
-
-    ({"spec": {
-        "strategy": {
-            "customStrategy": {
-                "from": {"name": "osbs-buildroot:latest",
-                         "kind": "DockerImage"}}}},
-        "status": {
-            "config": {"kind": "BuildConfig",
-                       "name": "build config"}}},
+      "metadata": {
+        "annotations": {
+            "from": json.dumps({"kind": "ImageStreamTag", "name": "ims"})}}},
      "ImageStreamTag not found",
-     True, {"spec": {"strategy": {"customStrategy": {"from": {"kind": "ImageStreamTag",
-                                                              "name": "wrong_ims"}}}}},
      False, None, None, None),
 
     ({"spec": {
@@ -1313,12 +1256,10 @@ def test_orchestrate_operator_csv_modifications_url(tmpdir):
             "customStrategy": {
                 "from": {"name": "osbs-buildroot:latest",
                          "kind": "DockerImage"}}}},
-        "status": {
-            "config": {"kind": "BuildConfig",
-                       "name": "build config"}}},
+      "metadata": {
+        "annotations": {
+            "from": json.dumps({"kind": "ImageStreamTag", "name": "ims"})}}},
      "ImageStreamTag is malformed",
-     True, {"spec": {"strategy": {"customStrategy": {"from": {"kind": "ImageStreamTag",
-                                                              "name": "ims"}}}}},
      True, {"image": {}}, None, None),
 
     ({"spec": {
@@ -1326,12 +1267,10 @@ def test_orchestrate_operator_csv_modifications_url(tmpdir):
             "customStrategy": {
                 "from": {"name": "osbs-buildroot:latest",
                          "kind": "DockerImage"}}}},
-        "status": {
-            "config": {"kind": "BuildConfig",
-                       "name": "build config"}}},
+      "metadata": {
+        "annotations": {
+            "from": json.dumps({"kind": "ImageStreamTag", "name": "ims"})}}},
      "Image in imageStreamTag 'ims' is missing Labels",
-     True, {"spec": {"strategy": {"customStrategy": {"from": {"kind": "ImageStreamTag",
-                                                              "name": "ims"}}}}},
      True, {"image": {"dockerImageReference": "some@sha256:12345",
                       "dockerImageMetadata": {"Config": {}}}},
      None, None),
@@ -1346,7 +1285,7 @@ def test_orchestrate_operator_csv_modifications_url(tmpdir):
                 "from": json.dumps({"kind": "DockerImage",
                                     "name": "registry/image:tag"})}}},
      "Buildroot image isn't manifest list, which is needed for specified arch",
-     None, None, None, None, False, None),
+     None, None, False, None),
 
     ({"spec": {
         "strategy": {
@@ -1358,8 +1297,8 @@ def test_orchestrate_operator_csv_modifications_url(tmpdir):
                 "from": json.dumps({"kind": "DockerImage",
                                     "name": "registry/image:tag"})}}},
      "Platform for orchestrator 'x86_64' isn't in manifest list",
-     None, None, None, None, True, {"manifests": [{"platform": {"architecture": "ppc64le"},
-                                                   "digest": "some_image"}]}),
+     None, None, True, {"manifests": [{"platform": {"architecture": "ppc64le"},
+                                       "digest": "some_image"}]}),
 
     ({"spec": {
         "strategy": {
@@ -1372,8 +1311,8 @@ def test_orchestrate_operator_csv_modifications_url(tmpdir):
                                     "name": "registry/image:tag"})}}},
      "Orchestrator is using image digest 'osbs-buildroot@sha256:1949494494' " +
      "which isn't in manifest list",
-     None, None, None, None, True, {"manifests": [{"platform": {"architecture": "amd64"},
-                                                   "digest": "some_image"}]}),
+     None, None, True, {"manifests": [{"platform": {"architecture": "amd64"},
+                                       "digest": "some_image"}]}),
 
     ({"spec": {
         "strategy": {
@@ -1385,10 +1324,10 @@ def test_orchestrate_operator_csv_modifications_url(tmpdir):
                 "from": json.dumps({"kind": "DockerImage",
                                     "name": "registry/image:tag"})}}},
      "build_image for platform 'ppc64le' not available",
-     None, None, None, None, True, {"manifests": [{"platform": {"architecture": "amd64"},
-                                                   "digest": "osbs-buildroot:latest"}]}),
+     None, None, True, {"manifests": [{"platform": {"architecture": "amd64"},
+                                       "digest": "osbs-buildroot:latest"}]}),
 ])
-def test_set_build_image_raises(tmpdir, build, exc_str, bc, bc_cont, ims, ims_cont, ml, ml_cont):
+def test_set_build_image_raises(tmpdir, build, exc_str, ims, ims_cont, ml, ml_cont):
     build = json.dumps(build)
     workflow = mock_workflow(tmpdir)
 
@@ -1401,14 +1340,6 @@ def test_set_build_image_raises(tmpdir, build, exc_str, bc, bc_cont, ims, ims_co
     mock_osbs()
     mock_reactor_config(tmpdir, workflow)
 
-    if bc is False:
-        (flexmock(Openshift)
-         .should_receive('get_build_config')
-         .and_raise(OsbsException))
-    if bc is True:
-        (flexmock(Openshift)
-         .should_receive('get_build_config')
-         .and_return(bc_cont))
     if ims is False:
         (flexmock(Openshift)
          .should_receive('get_image_stream_tag')
@@ -1448,14 +1379,14 @@ def test_set_build_image_raises(tmpdir, build, exc_str, bc, bc_cont, ims, ims_co
     assert exc_str in str(ex.value)
 
 
-@pytest.mark.parametrize(('build', 'bc', 'bc_cont', 'ims', 'ims_cont',
+@pytest.mark.parametrize(('build', 'ims', 'ims_cont',
                           'ml', 'ml_cont', 'platforms'), [
     ({"spec": {
         "strategy": {
             "customStrategy": {
                 "from": {"name": "osbs-buildroot:latest",
                          "kind": "DockerImage"}}}}},
-     None, None, None, None, None, None, ['x86_64']),
+     None, None, None, None, ['x86_64']),
 
 
     ({"spec": {
@@ -1467,7 +1398,7 @@ def test_set_build_image_raises(tmpdir, build, exc_str, bc, bc_cont, ims, ims_co
           "annotations": {
               "from": json.dumps({"kind": "ImageStreamTag",
                                   "name": "image_stream_tag"})}}},
-     None, None, True,
+     True,
      {"image": {"dockerImageReference": "registry/osbs-buildroot:ims"}},
      True,
      {"manifests": [{"platform": {"architecture": "ppc64le"},
@@ -1486,7 +1417,7 @@ def test_set_build_image_raises(tmpdir, build, exc_str, bc, bc_cont, ims, ims_co
           "annotations": {
               "from": json.dumps({"kind": "ImageStreamTag",
                                   "name": "image_stream_tag"})}}},
-     None, None, True,
+     True,
      {"image": {"dockerImageReference": "registry/osbs-buildroot@sha256:12345",
                 "dockerImageMetadata": {
                     "Config": {
@@ -1497,27 +1428,8 @@ def test_set_build_image_raises(tmpdir, build, exc_str, bc, bc_cont, ims, ims_co
                     {"platform": {"architecture": "amd64"},
                      "digest": "sha256:12345"}]},
      ['ppc64le', 'x86_64']),
-
-
-    ({"spec": {
-        "strategy": {
-            "customStrategy": {
-                "from": {"name": "registry/osbs-buildroot@sha256:12345",
-                         "kind": "DockerImage"}}}},
-      "status": {
-          "config": {"kind": "BuildConfig",
-                     "name": "build config"}}},
-     True,
-     {"spec": {"strategy": {"customStrategy": {"from": {"kind": "DockerImage",
-                                                        "name": "registry/osbs-buildroot:bc"}}}}},
-     False, None, True,
-     {"manifests": [{"platform": {"architecture": "ppc64le"},
-                     "digest": "sha256:987654321"},
-                    {"platform": {"architecture": "amd64"},
-                     "digest": "sha256:12345"}]},
-     ['ppc64le', 'x86_64']),
 ])
-def test_set_build_image_works(tmpdir, build, bc, bc_cont, ims, ims_cont, ml, ml_cont,
+def test_set_build_image_works(tmpdir, build, ims, ims_cont, ml, ml_cont,
                                platforms):
     build = json.dumps(build)
     workflow = mock_workflow(tmpdir, platforms=platforms)
@@ -1530,10 +1442,6 @@ def test_set_build_image_works(tmpdir, build, bc, bc_cont, ims, ims_cont, ml, ml
     flexmock(os, environ={'BUILD': build})
     mock_osbs()
     mock_reactor_config(tmpdir, workflow)
-    if bc is True:
-        (flexmock(Openshift)
-         .should_receive('get_build_config')
-         .and_return(bc_cont))
     if ims is True:
         (flexmock(Openshift)
          .should_receive('get_image_stream_tag')
@@ -1582,14 +1490,6 @@ def test_set_build_image_with_override(tmpdir, platforms, override):
     mock_osbs()
     mock_manifest_list()
     mock_orchestrator_platfrom()
-
-    build_config = {"spec": {"strategy": {
-        "customStrategy": {
-            "from": {"kind": "DockerImage",
-                     "name": "registry/osbs-buildroot:bc"}}}}}
-    (flexmock(Openshift)
-     .should_receive('get_build_config')
-     .and_return(build_config))
 
     reactor_config = {
         'version': 1,
@@ -1670,7 +1570,6 @@ def test_parent_images_digests(tmpdir, caplog):
         'git_ref': 'master',
         'git_branch': 'master',
         'user': 'bacon',
-        'is_auto': False,
         'platform': 'x86_64',
         'release': '10',
         'arrangement_version': 6,

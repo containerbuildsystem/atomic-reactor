@@ -22,7 +22,6 @@ from atomic_reactor.source import GitSource
 from atomic_reactor.plugins.build_orchestrate_build import (get_worker_build_info,
                                                             get_koji_upload_dir)
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
-from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.util import (OSBSLogs, get_parent_image_koji_data, get_manifest_media_version,
                                  is_manifest_list)
 from atomic_reactor.utils.koji import get_buildroot as koji_get_buildroot
@@ -124,8 +123,6 @@ class KojiImportBase(ExitPlugin):
         self.koji_task_id = None
         self.session = None
         self.reserve_build = self.workflow.conf.koji.get('reserve_build', False)
-        self.delegate_enabled = self.workflow.conf.koji.get('delegate_task', True)
-        self.rebuild = is_rebuild(self.workflow)
 
     def get_output(self, *args):
         # Must be implemented by subclasses
@@ -537,9 +534,8 @@ class KojiImportBase(ExitPlugin):
             self.upload_scratch_metadata(koji_metadata, server_dir, self.session)
             return
 
-        # for all builds which have koji task, except for rebuild without delegate enabled,
-        # because such rebuild is reusing original task which won't be anymore OPEN
-        if self.koji_task_id and (not self.rebuild or (self.rebuild and self.delegate_enabled)):
+        # for all builds which have koji task
+        if self.koji_task_id:
             task_info = self.session.getTaskInfo(self.koji_task_id)
             task_state = koji.TASK_STATES[task_info['state']]
             if task_state != 'OPEN':
@@ -642,14 +638,10 @@ class KojiImportPlugin(KojiImportBase):
         return buildroots
 
     def _update_extra(self, extra, metadata, worker_metadatas):
-        extra['image']['autorebuild'] = self.rebuild
+        extra['image']['autorebuild'] = False
 
         if not isinstance(self.workflow.source, GitSource):
             raise RuntimeError('git source required')
-
-        if self.workflow.triggered_after_koji_task:
-            extra['image']['triggered_after_koji_task'] =\
-                self.workflow.triggered_after_koji_task
 
         try:
             isolated = str(metadata['labels']['isolated']).lower() == 'true'

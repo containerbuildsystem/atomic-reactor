@@ -19,7 +19,6 @@ from atomic_reactor.constants import (PLUGIN_KOJI_PARENT_KEY,
 from atomic_reactor.config import get_koji_session, get_odcs_session
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
-from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.util import get_platforms, is_isolated_build, is_scratch_build
 
 ODCS_DATETIME_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
@@ -81,7 +80,6 @@ class ResolveComposesPlugin(PreBuildPlugin):
         self.parent_compose_ids = []
 
     def run(self):
-        self.adjust_for_autorebuild()
         if self.allow_inheritance():
             self.adjust_for_inherit()
         self.workflow.all_yum_repourls = self.repourls
@@ -131,25 +129,6 @@ class ResolveComposesPlugin(PreBuildPlugin):
             return False
 
         return True
-
-    def adjust_for_autorebuild(self):
-        """Ignore pre-filled signing_intent and compose_ids for autorebuids
-
-        Auto rebuilds are expected to use a known configuration. The parameters
-        signing_intent and compose_ids are meant for one-off build calls. This
-        method ensure that these parameters are ignored for autorebuilds.
-        """
-        if not is_rebuild(self.workflow):
-            return
-
-        if self.signing_intent:
-            self.log.info('Autorebuild detected: Ignoring signing_intent plugin parameter')
-            self.signing_intent = None
-
-        if self.compose_ids:
-            self.log.info('Autorebuild detected: Ignoring compose_ids plugin parameter')
-            self.compose_ids = tuple()
-            self.all_compose_ids = []
 
     def adjust_for_inherit(self):
         if self.workflow.dockerfile_images.base_from_scratch:

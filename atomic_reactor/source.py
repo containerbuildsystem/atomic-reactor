@@ -53,7 +53,6 @@ class SourceConfig(object):
                 raise
 
         self.release_env_var = self.data.get('set_release_env')
-        self.autorebuild = self.data.get('autorebuild') or {}
         self.flatpak = self.data.get('flatpak')
         self.compose = self.data.get('compose')
         self.go = self.data.get('go') or {}

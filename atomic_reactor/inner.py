@@ -21,7 +21,6 @@ from textwrap import dedent
 
 from atomic_reactor.build import InsideBuilder
 from atomic_reactor.plugin import (
-    AutoRebuildCanceledException,
     BuildCanceledException,
     BuildStepPluginsRunner,
     ExitPluginsRunner,
@@ -376,7 +375,6 @@ class DockerBuildWorkflow(object):
         self.plugins_timestamps = {}
         self.plugins_durations = {}
         self.plugins_errors = {}
-        self.autorebuild_canceled = False
         self.build_canceled = False
         self.plugin_failed = False
         self.plugin_files = plugin_files
@@ -421,7 +419,6 @@ class DockerBuildWorkflow(object):
         # info about pre-declared build, build-id and token
         self.reserved_build_id = None
         self.reserved_token = None
-        self.triggered_after_koji_task = None
         self.cancel_isolated_autorebuild = False
         self.koji_source_nvr = {}
         self.koji_source_source_url = None
@@ -596,10 +593,6 @@ class DockerBuildWorkflow(object):
                 prebuild_runner.run()
             except PluginFailedException as ex:
                 logger.error("one or more prebuild plugins failed: %s", ex)
-                raise
-            except AutoRebuildCanceledException as ex:
-                logger.info(str(ex))
-                self.autorebuild_canceled = True
                 raise
 
             # we are delaying initialization, because prebuild plugin reactor_config
