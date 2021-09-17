@@ -22,7 +22,7 @@ import time
 from collections import namedtuple
 
 from atomic_reactor.build import BuildResult
-from atomic_reactor.util import process_substitutions, exception_message
+from atomic_reactor.util import exception_message
 from dockerfile_parse import DockerfileParser
 
 MODULE_EXTENSIONS = ('.py', '.pyc', '.pyo')
@@ -512,93 +512,6 @@ class ExitPluginsRunner(BuildPluginsRunner):
         self.plugins_results = workflow.exit_results
         super(ExitPluginsRunner, self).__init__(dt, workflow, 'ExitPlugin',
                                                 plugins_conf, *args, **kwargs)
-
-
-class InputPlugin(Plugin):
-
-    def __init__(self, substitutions=None, **kwargs):
-        """
-        constructor
-        """
-        # call parent constructor
-        super(InputPlugin, self).__init__(**kwargs)
-        self.substitutions = substitutions
-
-    def substitute_configuration(self, build_json):
-        """
-        replace values of provided build json according to self.substitutions
-
-        path to values can be specified in two ways:
-
-         * single key value for root arguments, e.g. 'image'
-         * plugin configuration: you following convention:
-
-             plugin_type.plugin_name.argument_name
-
-           hence
-
-             prebuild_plugins.koji.target
-
-        :param build_json: dict, build json
-        :return: dict, substituted build json
-        """
-        process_substitutions(build_json, self.substitutions)
-        return build_json
-
-    @classmethod
-    def is_autousable(cls):
-        """
-        Determine if this plugin can run without providing any further user input,
-        e.g. if expected default environment variables are defined, if expected default
-        files exist etc
-
-        :return: True if this plugin is autousable, False otherwise
-        """
-        raise NotImplementedError('is_autousable not implemented in {0}'.format(cls))
-
-
-class InputPluginsRunner(PluginsRunner):
-    def __init__(self, plugins_conf, *args, **kwargs):
-        """Wrap `PluginsRunner.__init__()` while implementing the `auto` input behaviour.
-
-        If input plugin name is `auto`, then call `is_autousable` on all input plugins.
-        Assuming exactly one of these returns `True`, then use that as input plugin, else raise.
-        """
-        plugin_class_name = 'InputPlugin'
-        self.autoinput = plugins_conf[0]['name'] == 'auto'
-        # implement the "auto" input behavior
-        if self.autoinput:
-            logger.debug('"auto" input used, determining what input plugin to use.')
-            autousable = None
-            self.plugin_files = kwargs.get("plugin_files", [])
-            plugin_classes = self.load_plugins(plugin_class_name)
-            for clsname, clsobj in plugin_classes.items():
-                logger.debug('checking if "%s" plugin is autousable ...', clsname)
-                if clsobj.is_autousable():
-                    if autousable:
-                        raise PluginFailedException('More than one usable plugin with "auto" '
-                                                    'input: {0}, {1}. Please specify --input '
-                                                    'explicitly.'.format(autousable, clsname))
-                    else:
-                        autousable = clsname
-            if not autousable:
-                raise PluginFailedException('No autousable input plugin. '
-                                            'Please specify --input explicitly')
-            logger.debug('using "%s" for input', autousable)
-            plugins_conf[0]['name'] = autousable
-
-        super(InputPluginsRunner, self).__init__(plugin_class_name, plugins_conf, *args, **kwargs)
-        self.plugins_results = {}
-
-    def run(self, keep_going=False, buildstep_phase=False):
-        result = super(InputPluginsRunner, self).run(
-            keep_going=keep_going, buildstep_phase=buildstep_phase
-        )
-
-        if self.autoinput:
-            autousable = self.plugins_conf[0]['name']
-            result['auto'] = result.pop(autousable)
-        return result
 
 
 # Built-in plugins
