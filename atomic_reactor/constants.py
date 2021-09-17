@@ -20,6 +20,9 @@ METADATA_TAG = "_metadata_"
 WORKSPACE_BASE_PATH = '/workspace'
 REACTOR_CONFIG_WORKSPACE = 'ws-reactor-config-map'
 REACTOR_CONFIG_BASE_NAME = 'config.yaml'
+REACTOR_CONFIG_FULL_PATH = os.path.join(
+    WORKSPACE_BASE_PATH, REACTOR_CONFIG_WORKSPACE, REACTOR_CONFIG_BASE_NAME
+)
 REACTOR_CONFIG_ENV_NAME = 'REACTOR_CONFIG'
 
 CONTAINER_SHARE_PATH = '/run/share/'
@@ -58,7 +61,7 @@ INSPECT_ROOTFS_LAYERS = 'Layers'
 
 # docs constants
 
-DESCRIPTION = "Python library with command line interface for building docker images."
+DESCRIPTION = "Python library with command line interface for building container images."
 HOMEPAGE = "https://github.com/containerbuildsystem/atomic-reactor"
 PROG = "atomic-reactor"
 MANPAGE_AUTHORS = "Jiri Popelka <jpopelka@redhat.com>, " \
