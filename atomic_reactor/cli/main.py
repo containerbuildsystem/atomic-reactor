@@ -8,33 +8,18 @@ of the BSD license. See the LICENSE file for details.
 
 import argparse
 import logging
-import sys
 import pkg_resources
 import locale
 
 from atomic_reactor import set_logging
 from osbs import set_logging as set_logging_osbs
 from atomic_reactor.constants import DESCRIPTION, PROG
-from atomic_reactor.buildimage import BuildImageBuilder
 from atomic_reactor.inner import build_inside
 from atomic_reactor.util import (setup_introspection_signal_handler,
                                  exception_message)
 
 
 logger = logging.getLogger('atomic_reactor')
-
-
-def cli_create_build_image(args):
-    b = BuildImageBuilder(reactor_tarball_path=args.reactor_tarball_path,
-                          reactor_local_path=args.reactor_local_path,
-                          reactor_remote_path=args.reactor_remote_git,
-                          use_official_reactor_git=args.reactor_latest)
-    try:
-        b.create_image(args.dockerfile_dir_path, args.image, use_cache=args.use_cache)
-    except RuntimeError:
-        logger.error("build failed")
-        sys.exit(1)
-    sys.exit(0)
 
 
 def construct_kwargs(**kwargs):
@@ -90,34 +75,6 @@ class CLI(object):
         exclusive_group.add_argument("-V", "--version", action="version", version=version)
 
         subparsers = self.parser.add_subparsers(help='commands')
-
-        # CREATE BUILD IMAGE
-
-        self.bi_parser = subparsers.add_parser('create-build-image',
-                                               usage="%s [OPTIONS] create-build-image" % PROG,
-                                               description='Create build image; Atomic Reactor '
-                                               'installs itself inside and is capable of '
-                                               'building images within this image.')
-        self.bi_parser.set_defaults(func=cli_create_build_image)
-        reactor_source = self.bi_parser.add_mutually_exclusive_group()
-        reactor_source.add_argument("--reactor-latest", action='store_true',
-                                    help="put latest Atomic Reactor inside (from public git)")
-        reactor_source.add_argument("--reactor-remote-git", action='store',
-                                    help="URL to git repo with Atomic Reactor (has to contain "
-                                    "setup.py)")
-        reactor_source.add_argument("--reactor-local-path", action='store',
-                                    help="path to directory with Atomic Reactor (has to contain "
-                                    "setup.py)")
-        reactor_source.add_argument("--reactor-tarball-path", action='store',
-                                    help="path to distribution tarball with Atomic Reactor")
-        self.bi_parser.add_argument("dockerfile_dir_path", action="store",
-                                    metavar="DOCKERFILE_DIR_PATH",
-                                    help="path to directory with Dockerfile")
-        self.bi_parser.add_argument("image", action='store', metavar="IMAGE",
-                                    help="name under the image will be accessible")
-        self.bi_parser.add_argument("--use-cache", action='store_true', default=False,
-                                    help="use cache to build image (may be faster, but not up "
-                                    "to date)")
 
         # inside build
         self.ib_parser = subparsers.add_parser(
