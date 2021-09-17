@@ -11,7 +11,6 @@ from atomic_reactor.constants import (
     KOJI_BTYPE_IMAGE
 )
 from atomic_reactor.config import get_koji_session
-from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.util import (
     base_image_is_custom, get_manifest_media_type, is_scratch_build,
     get_platforms, RegistrySession, RegistryClient
@@ -75,19 +74,6 @@ class KojiParentPlugin(PreBuildPlugin):
         self.registry_clients = {}
         self._deep_manifest_list_inspection = self.workflow.conf.deep_manifest_list_inspection
 
-    def ignore_isolated_autorebuilds(self):
-        if not self.workflow.source.config.autorebuild.get('ignore_isolated_builds', False):
-            self.log.debug("ignoring_isolated_builds isn't configured, won't skip autorebuild")
-            return
-
-        base_koji_build = self.wait_for_parent_image_build(self._base_image_nvr)
-
-        is_isolated = base_koji_build['extra']['image'].get('isolated', False)
-
-        if is_isolated:
-            self.log.debug("setting cancel_isolated_autorebuild")
-            self.workflow.cancel_isolated_autorebuild = True
-
     def run(self):
         if is_scratch_build(self.workflow):
             self.log.info('scratch build, skipping plugin')
@@ -99,8 +85,6 @@ class KojiParentPlugin(PreBuildPlugin):
                 self.workflow.dockerfile_images.base_image,
                 inspect_data=self.workflow.builder.base_image_inspect,
             )
-            if is_rebuild(self.workflow):
-                self.ignore_isolated_autorebuilds()
 
         manifest_mismatches = []
         for img, local_tag in self.workflow.dockerfile_images.items():

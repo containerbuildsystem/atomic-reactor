@@ -78,7 +78,6 @@
     "signing_intent": {"type": "string"},
     "tags_from_yaml": {"type": "boolean"},
     "trigger_imagestreamtag": {"type": "string"},
-    "triggered_after_koji_task": {"type": "integer"},
     "user": {"type": "string"},
     "worker_deadline": {"type": "integer"},
     "yum_repourls": {

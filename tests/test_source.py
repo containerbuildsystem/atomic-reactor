@@ -96,7 +96,6 @@ class TestSourceConfigSchemaValidation(object):
     Related to class source.SourceConfig
     """
     SOURCE_CONFIG_EMPTY = {
-        'autorebuild': {},
         'flatpak': None,
         'compose': None,
         'go': {}
@@ -151,17 +150,6 @@ class TestSourceConfigSchemaValidation(object):
             platforms:
             """,
             {'data': {'platforms': None}}
-        ), (
-            """\
-            autorebuild:
-              from_latest: true
-            """,
-            {'autorebuild': {'from_latest': True}}
-        ), (
-            """\
-            autorebuild:
-            """,
-            {}
         ), (
             """\
             flatpak:
@@ -347,20 +335,6 @@ class TestSourceConfigSchemaValidation(object):
         """\
         platforms:
           undefined_attr: s390x
-        """,
-
-        """\
-        autorebuild: not_an_object
-        """,
-
-        """\
-        autorebuild:
-          undefined_attr: something
-        """,
-
-        """\
-        autorebuild:
-          from_latest: not_a_boolean
         """,
 
         """\

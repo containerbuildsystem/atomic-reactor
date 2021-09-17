@@ -8,7 +8,6 @@ import pytest
 import json
 
 from atomic_reactor.plugin import PluginFailedException
-from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildPlugin
 from atomic_reactor.plugins.exit_sendmail import SendMailPlugin, validate_address
 from atomic_reactor.plugins.exit_store_metadata_in_osv3 import StoreMetadataInOSv3Plugin
 from atomic_reactor.plugins.exit_koji_import import KojiImportPlugin
@@ -21,8 +20,7 @@ from osbs.exceptions import OsbsException
 from smtplib import SMTPException
 
 MS, MF = SendMailPlugin.MANUAL_SUCCESS, SendMailPlugin.MANUAL_FAIL
-AS, AF = SendMailPlugin.AUTO_SUCCESS, SendMailPlugin.AUTO_FAIL
-MC, AC = SendMailPlugin.MANUAL_CANCELED, SendMailPlugin.AUTO_CANCELED
+MC = SendMailPlugin.MANUAL_CANCELED
 
 MOCK_EMAIL_DOMAIN = "domain.com"
 MOCK_KOJI_TASK_ID = 12345
@@ -199,35 +197,22 @@ class TestSendMailPlugin(object):
             p.run()
         assert str(e.value) == 'Unknown state(s) "unknown_state" for sendmail plugin'
 
-    @pytest.mark.parametrize('rebuild, success, auto_canceled, manual_canceled, send_on, expected', [  # noqa
+    @pytest.mark.parametrize('success, manual_canceled, send_on, expected', [  # noqa
         # make sure that right combinations only succeed for the specific state
-        (False, True, False, False, [MS], True),
-        (False, True, False, True, [MS], True),
-        (False, True, False, False, [MF, AS, AF, AC], False),
-        (False, True, False, True, [MF, AS, AF, AC], False),
-        (None, False, False, False, [MF], True),  # may be non-bool
-        (False, None, False, False, [MF], True),  # may be non-bool
-        (False, False, None, False, [MF], True),  # may be non-bool
-        (False, False, False, None, [MF], True),  # may be non-bool
-        (False, False, False, False, [MF], True),
-        (False, False, False, True, [MF], True),
-        (False, False, False, False, [MS, AS, AF, AC], False),
-        (False, False, False, True, [MS, AS, AF, AC], False),
-        (False, False, True, True, [MC], True),
-        (False, True, True, True, [MC], True),
-        (False, True, False, True, [MC], True),
-        (False, True, False, False, [MC], False),
-        (True, True, False, False, [AS], True),
-        (True, True, False, False, [MS, MF, AF, AC], False),
-        (True, False, False, False, [AF], True),
-        (True, False, False, False, [MS, MF, AS, AC], False),
-        (True, False, True, True, [AC], True),
-        # auto_fail would also give us True in this case
-        (True, False, True, True, [MS, MF, AS], False),
-        # also make sure that a random combination of more plugins works ok
-        (True, False, False, False, [AF, MS], True)
+        (True, False, [MS], True),
+        (False, True, [MS], False),
+        (False, False, [MS], False),
+        (True, False, [MF], False),
+        (False, True, [MF], True),
+        (False, False, [MF], True),
+        (True, False, [MC], False),
+        (False, True, [MC], True),
+        (False, False, [MC], False),
+        (True, False, [MS, MF], True),
+        (False, True, [MS, MF], True),
+        (False, False, [MS, MF], True),
     ])
-    def test_should_send(self, rebuild, success, auto_canceled, manual_canceled, send_on, expected):
+    def test_should_send(self, success, manual_canceled, send_on, expected):
         kwargs = {
             'smtp_host': 'smtp.bar.com',
             'from_address': 'foo@bar.com',
@@ -247,7 +232,7 @@ class TestSendMailPlugin(object):
                                  ssl_certs_dir='/certs')
 
         p = SendMailPlugin(None, workflow, **kwargs)
-        assert p._should_send(rebuild, success, auto_canceled, manual_canceled) == expected
+        assert p._should_send(success, manual_canceled) == expected
 
     @pytest.mark.parametrize(('has_kerberos', 'koji_task_id',
                               'email_domain', 'expected_email'), [
@@ -364,49 +349,16 @@ class TestSendMailPlugin(object):
         (False, False, False, True)
     ])
     @pytest.mark.parametrize('koji_integration', (True, False))
-    @pytest.mark.parametrize(('autorebuild', 'auto_cancel', 'manual_cancel',
-                              'to_koji_submitter', 'has_koji_logs'), [
-        (True, False, False, True, True),
-        (True, True, False, True, True),
-        (True, False, True, True, True),
-        (True, False, False, True, False),
-        (True, True, False, True, False),
-        (True, False, True, True, False),
-        (False, False, False, True, True),
-        (False, True, False, True, True),
-        (False, False, True, True, True),
-        (False, False, False, True, False),
-        (False, True, False, True, False),
-        (False, False, True, True, False),
-        (True, False, False, False, True),
-        (True, True, False, False, True),
-        (True, False, True, False, True),
-        (True, False, False, False, False),
-        (True, True, False, False, False),
-        (True, False, True, False, False),
-        (False, False, False, False, True),
-        (False, True, False, False, True),
-        (False, False, True, False, True),
-        (False, False, False, False, False),
-        (False, True, False, False, False),
-        (False, False, True, False, False),
+    @pytest.mark.parametrize(('manual_cancel', 'to_koji_submitter'), [
+        (True, True),
+        (False, True),
+        (True, False),
+        (False, False),
     ])
-    def test_render_mail(self, monkeypatch, tmpdir, autorebuild, auto_cancel,
-                         manual_cancel, to_koji_submitter, has_koji_logs,
+    def test_render_mail(self, monkeypatch, tmpdir,
+                         manual_cancel, to_koji_submitter,
                          koji_integration, success, has_store_metadata_results,
                          annotations, has_repositories, expect_error):
-        log_url_cases = {
-            # (koji_integration,autorebuild,success)
-            (False, False, False): False,
-            (False, False, True): False,
-            (False, True, False): False,  # Included as attachment
-            (False, True, True): False,
-            (True, False, False): True,
-            (True, False, True): True,
-            (True, True, False): False,   # Included as attachment
-            (True, True, True): False,    # Logs in Koji Build
-        }
-
         git_source_url = 'git_source_url'
         git_source_ref = '123423431234123'
         VcsInfo = namedtuple('VcsInfo', ['vcs_type', 'vcs_url', 'vcs_ref'])
@@ -422,10 +374,9 @@ class TestSendMailPlugin(object):
 
         session = MockedClientSession('', has_kerberos=True)
         pathinfo = MockedPathInfo('https://koji')
-        if not has_koji_logs:
-            (flexmock(pathinfo)
-                .should_receive('work')
-                .and_raise(RuntimeError, "xyz"))
+        (flexmock(pathinfo)
+            .should_receive('work')
+            .and_raise(RuntimeError, "xyz"))
 
         fake_logs = [LogEntry(None, 'orchestrator'),
                      LogEntry(None, 'orchestrator line 2'),
@@ -452,7 +403,6 @@ class TestSendMailPlugin(object):
                                                        vcs_url=git_source_url,
                                                        vcs_ref=git_source_ref))
 
-        workflow.autorebuild_canceled = auto_cancel
         workflow.build_canceled = manual_cancel
         workflow.openshift_build_selflink = '/builds/blablabla'
 
@@ -490,13 +440,12 @@ class TestSendMailPlugin(object):
 
         if expect_error:
             with pytest.raises(ValueError):
-                p._render_mail(autorebuild, success, auto_cancel, manual_cancel)
+                p._render_mail(success, manual_cancel)
             return
 
-        subject, body, logs = p._render_mail(autorebuild, success,
-                                             auto_cancel, manual_cancel)
+        subject, body, logs = p._render_mail(success, manual_cancel)
 
-        if auto_cancel or manual_cancel:
+        if manual_cancel:
             status = 'Canceled'
             assert not logs
         elif success:
@@ -504,8 +453,6 @@ class TestSendMailPlugin(object):
             assert not logs
         else:
             status = 'Failed'
-            # Full logs are only generated on a failed autorebuild
-            assert autorebuild == bool(logs)
 
         if has_repositories:
             exp_subject = '%s building image foo/bar' % status
@@ -531,18 +478,13 @@ class TestSendMailPlugin(object):
         ]
         exp_body.extend(common_body)
 
-        if autorebuild:
-            exp_body[-4] += '<autorebuild>'
-        elif koji_integration and to_koji_submitter:
+        if koji_integration and to_koji_submitter:
             exp_body[-4] += MOCK_KOJI_SUBMITTER_EMAIL
         else:
             exp_body[-4] += SendMailPlugin.DEFAULT_SUBMITTER
 
-        if log_url_cases[(koji_integration, autorebuild, success)]:
-            if has_koji_logs:
-                exp_body.insert(-2, "Logs: https://koji/work/tasks/12345")
-            else:
-                exp_body.insert(-2, "Logs: https://something.com/builds/blablabla/log")
+        if koji_integration:
+            exp_body.insert(-2, "Logs: https://something.com/builds/blablabla/log")
 
         assert subject == exp_subject
         assert body == '\n'.join(exp_body)
@@ -596,7 +538,7 @@ class TestSendMailPlugin(object):
                                  ssl_certs_dir='/certs')
 
         p = SendMailPlugin(None, workflow, **kwargs)
-        _, _, fail_logs = p._render_mail(True, False, False, False)
+        _, _, fail_logs = p._render_mail(False, False)
         assert not fail_logs
 
     @pytest.mark.parametrize(('has_addit_address', 'to_koji_submitter',
@@ -832,7 +774,6 @@ class TestSendMailPlugin(object):
         receivers = ['foo@bar.com', 'x@y.com']
 
         workflow = DockerBuildWorkflow(source=None)
-        workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = True
         with open(os.path.join(str(tmpdir), 'Dockerfile'), 'wt') as df:
             df.write(MOCK_DOCKERFILE)
             flexmock(workflow, df_path=df.name)
@@ -850,12 +791,11 @@ class TestSendMailPlugin(object):
 
         p = SendMailPlugin(None, workflow,
                            from_address='foo@bar.com', smtp_host='smtp.spam.com',
-                           send_on=[AF])
+                           send_on=[])
 
         (flexmock(p).should_receive('_should_send')
-         .with_args(True, False, False, False).and_return(True))
+         .with_args(False, False).and_return(True))
         flexmock(p).should_receive('_get_receivers_list').and_return(receivers)
-        flexmock(p).should_receive('_fetch_log_files').and_return(None)
         flexmock(p).should_receive('_send_mail').with_args(receivers,
                                                            str, str, None)
 
@@ -879,7 +819,6 @@ class TestSendMailPlugin(object):
         }))
 
         workflow = DockerBuildWorkflow(source=None)
-        workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = True
 
         smtp_map = {
             'from_address': 'foo@bar.com',
@@ -897,10 +836,10 @@ class TestSendMailPlugin(object):
                      LogEntry('x86_64', 'line 2')]
         p = SendMailPlugin(None, workflow,
                            from_address='foo@bar.com', smtp_host='smtp.spam.com',
-                           send_on=[AF])
+                           send_on=[])
 
         (flexmock(p).should_receive('_should_send')
-            .with_args(True, False, False, False).and_return(True))
+            .with_args(False, False).and_return(True))
         flexmock(p).should_receive('_get_receivers_list').and_return(receivers)
         flexmock(OSBS).should_receive('get_orchestrator_build_logs').and_return(fake_logs)
         flexmock(p).should_receive('_get_image_name_and_repos').and_return(('foobar',
@@ -914,7 +853,6 @@ class TestSendMailPlugin(object):
     def test_run_fails_to_obtain_receivers(self):  # noqa
         error_addresses = ['error@address.com']
         workflow = DockerBuildWorkflow(source=None)
-        workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = True
         mock_store_metadata_results(workflow)
 
         smtp_map = {
@@ -929,12 +867,11 @@ class TestSendMailPlugin(object):
 
         p = SendMailPlugin(None, workflow,
                            from_address='foo@bar.com', smtp_host='smtp.spam.com',
-                           send_on=[AF], error_addresses=error_addresses)
+                           send_on=[], error_addresses=error_addresses)
 
         (flexmock(p).should_receive('_should_send')
-            .with_args(True, False, False, False).and_return(True))
+            .with_args(False, False).and_return(True))
         flexmock(p).should_receive('_get_receivers_list').and_raise(RuntimeError())
-        flexmock(p).should_receive('_fetch_log_files').and_return(None)
         flexmock(p).should_receive('_get_image_name_and_repos').and_return(('foobar',
                                                                            ['foo/bar:baz',
                                                                             'foo/bar:spam']))
@@ -945,7 +882,6 @@ class TestSendMailPlugin(object):
     def test_run_invalid_receivers(self, caplog):  # noqa
         error_addresses = ['error@address.com']
         workflow = DockerBuildWorkflow(source=None)
-        workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = True
 
         mock_store_metadata_results(workflow)
 
@@ -961,12 +897,11 @@ class TestSendMailPlugin(object):
 
         p = SendMailPlugin(None, workflow,
                            from_address='foo@bar.com', smtp_host='smtp.spam.com',
-                           send_on=[AF], error_addresses=error_addresses)
+                           send_on=[], error_addresses=error_addresses)
 
         (flexmock(p).should_receive('_should_send')
-            .with_args(True, False, False, False).and_return(True))
+            .with_args(False, False).and_return(True))
         flexmock(p).should_receive('_get_receivers_list').and_return([])
-        flexmock(p).should_receive('_fetch_log_files').and_return(None)
         flexmock(p).should_receive('_get_image_name_and_repos').and_return(('foobar',
                                                                            ['foo/bar:baz',
                                                                             'foo/bar:spam']))
@@ -975,7 +910,6 @@ class TestSendMailPlugin(object):
 
     def test_run_does_nothing_if_conditions_not_met(self):  # noqa
         workflow = DockerBuildWorkflow(source=None)
-        workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = True
 
         smtp_map = {
             'from_address': 'foo@bar.com',
@@ -991,7 +925,7 @@ class TestSendMailPlugin(object):
                            send_on=[MS])
 
         (flexmock(p).should_receive('_should_send')
-            .with_args(True, False, False, False).and_return(False))
+            .with_args(False, False).and_return(False))
         flexmock(p).should_receive('_get_receivers_list').times(0)
         flexmock(p).should_receive('_send_mail').times(0)
 

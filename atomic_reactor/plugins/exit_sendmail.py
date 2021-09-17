@@ -20,13 +20,12 @@ except ImportError:
     from urllib.parse import urljoin
 
 from atomic_reactor.plugin import ExitPlugin, PluginFailedException
-from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.plugins.exit_koji_import import KojiImportPlugin
 from atomic_reactor.plugins.exit_store_metadata_in_osv3 import StoreMetadataInOSv3Plugin
 from atomic_reactor.utils.koji import get_koji_task_owner
-from atomic_reactor.util import get_build_json, OSBSLogs, df_parser
+from atomic_reactor.util import get_build_json, df_parser
 from atomic_reactor.constants import PLUGIN_SENDMAIL_KEY
-from atomic_reactor.config import get_koji_session, get_smtp_session, get_openshift_session
+from atomic_reactor.config import get_koji_session, get_smtp_session
 from osbs.utils import Labels, ImageName
 
 
@@ -53,7 +52,7 @@ class SendMailPlugin(ExitPlugin):
         "exit_plugins": [{
                 "name": "sendmail",
                 "args": {
-                    "send_on": ["auto_canceled", "auto_fail"],
+                    "send_on": ["manual_fail", "manual_canceled"],
                     "url": "https://openshift-instance.com",
                     "smtp_host": "smtp-server.com",
                     "from_address": "osbs@mycompany.com",
@@ -71,23 +70,17 @@ class SendMailPlugin(ExitPlugin):
     MANUAL_SUCCESS = 'manual_success'
     MANUAL_FAIL = 'manual_fail'
     MANUAL_CANCELED = 'manual_canceled'
-    AUTO_SUCCESS = 'auto_success'
-    AUTO_FAIL = 'auto_fail'
-    AUTO_CANCELED = 'auto_canceled'
     DEFAULT_SUBMITTER = 'Unknown'
 
     allowed_states = {
         MANUAL_SUCCESS,
         MANUAL_FAIL,
         MANUAL_CANCELED,
-        AUTO_SUCCESS,
-        AUTO_FAIL,
-        AUTO_CANCELED
     }
 
     def __init__(self, tasker, workflow,
                  smtp_host=None, from_address=None,
-                 send_on=(AUTO_CANCELED, AUTO_FAIL, MANUAL_SUCCESS, MANUAL_FAIL),
+                 send_on=(MANUAL_SUCCESS, MANUAL_FAIL),
                  url=None,
                  error_addresses=(),
                  additional_addresses=(),
@@ -166,25 +159,14 @@ class SendMailPlugin(ExitPlugin):
             else:
                 self.log.info("Koji connection established")
 
-    def _fetch_log_files(self):
-        osbs = get_openshift_session(self.workflow.conf,
-                                     self.workflow.user_params.get('namespace'))
-        build_id = get_build_json()['metadata']['name'] or {}
-        osbs_logs = OSBSLogs(self.log)
-
-        return osbs_logs.get_log_files(osbs, build_id)
-
-    def _should_send(self, rebuild, success, auto_canceled, manual_canceled):
+    def _should_send(self, success, manual_canceled):
         """Return True if any state in `self.send_on` meets given conditions, thus meaning
         that a notification mail should be sent.
         """
         should_send_mapping = {
-            self.MANUAL_SUCCESS: not rebuild and success,
-            self.MANUAL_FAIL: not rebuild and not success,
-            self.MANUAL_CANCELED: not rebuild and manual_canceled,
-            self.AUTO_SUCCESS: rebuild and success,
-            self.AUTO_FAIL: rebuild and not success,
-            self.AUTO_CANCELED: rebuild and auto_canceled
+            self.MANUAL_SUCCESS: success,
+            self.MANUAL_FAIL: not success,
+            self.MANUAL_CANCELED: manual_canceled,
         }
 
         should_send = any(should_send_mapping[state] for state in self.send_on)
@@ -213,7 +195,7 @@ class SendMailPlugin(ExitPlugin):
 
         return (image_name, repos)
 
-    def _render_mail(self, rebuild, success, auto_canceled, manual_canceled):
+    def _render_mail(self, success, manual_canceled):
         """Render and return subject and body of the mail to send."""
         subject_template = '%(endstate)s building image %(image_name)s'
         body_template = '\n'.join([
@@ -224,14 +206,13 @@ class SendMailPlugin(ExitPlugin):
             'Task id: %(task_id)s'
         ])
 
-        # Failed autorebuilds include logs as attachments.
         # Koji integration stores logs in successful Koji Builds.
         # Don't include logs in these cases.
-        if self.session and not rebuild:
+        if self.session:
             body_template += '\nLogs: %(logs)s'
 
         endstate = None
-        if auto_canceled or manual_canceled:
+        if manual_canceled:
             endstate = 'Canceled'
         else:
             endstate = 'Succeeded' if success else 'Failed'
@@ -248,7 +229,7 @@ class SendMailPlugin(ExitPlugin):
             'repositories': repositories,
             'image_name': image_name,
             'endstate': endstate,
-            'user': '<autorebuild>' if rebuild else self.submitter,
+            'user': self.submitter,
             'logs': url,
             'task_id': self.koji_task_id
         }
@@ -264,8 +245,6 @@ class SendMailPlugin(ExitPlugin):
             formatting_dict['vcs-ref'] = vcs.vcs_ref
 
         log_files = None
-        if rebuild and endstate == 'Failed':
-            log_files = self._fetch_log_files()
 
         return (subject_template % formatting_dict, body_template % formatting_dict, log_files)
 
@@ -408,16 +387,13 @@ class SendMailPlugin(ExitPlugin):
             self.log.info('no smtp configuration, skipping plugin')
             return
 
-        rebuild = is_rebuild(self.workflow)
         success = not self.workflow.build_process_failed
-        auto_canceled = self.workflow.autorebuild_canceled
         manual_canceled = self.workflow.build_canceled
 
         self.log.info('checking conditions for sending notification ...')
-        if self._should_send(rebuild, success, auto_canceled, manual_canceled):
+        if self._should_send(success, manual_canceled):
             self.log.info('notification about build result will be sent')
-            subject, body, full_logs = self._render_mail(rebuild, success,
-                                                         auto_canceled, manual_canceled)
+            subject, body, full_logs = self._render_mail(success, manual_canceled)
             try:
                 self.log.debug('getting list of receivers for this component ...')
                 receivers = self._get_receivers_list()

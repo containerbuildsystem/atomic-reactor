@@ -20,7 +20,6 @@ import platform
 
 from atomic_reactor.build import BuildResult
 from atomic_reactor.plugin import BuildStepPlugin
-from atomic_reactor.plugins.pre_check_and_set_rebuild import is_rebuild
 from atomic_reactor.util import (df_parser, get_build_json, get_manifest_list,
                                  get_platforms)
 from atomic_reactor.utils.koji import generate_koji_upload_dir
@@ -441,7 +440,6 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         build_kwargs['release'] = release
         build_kwargs['platform'] = platform
         build_kwargs['koji_upload_dir'] = koji_upload_dir
-        build_kwargs['is_auto'] = is_rebuild(self.workflow)
         if task_id:
             build_kwargs['filesystem_koji_task_id'] = task_id
 
@@ -645,35 +643,6 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
             raise RuntimeError("Orchestrator is using image digest '%s' which isn't"
                                " in manifest list" % current_buildimage)
 
-    def get_image_info_from_buildconfig(self):
-        status = get_build_json().get("status", {})
-
-        if 'config' not in status:
-            return None, None
-
-        config = status['config']
-        if config['kind'] == 'BuildConfig':
-            build_config_name = config['name']
-        else:
-            raise RuntimeError("Build config type isn't BuildConfig : %s" % config['kind'])
-
-        try:
-            build_config = self.openshift_session.os.get_build_config(build_config_name)
-        except OsbsException as exc:
-            raise RuntimeError("Build config not found : %s" % build_config_name) from exc
-
-        try:
-            build_from = build_config['spec']['strategy']['customStrategy']['from']
-        except KeyError as exc:
-            raise RuntimeError("BuildConfig object is malformed") from exc
-
-        try:
-            return self.process_image_from(build_from)
-        except UnknownKindException as exc:
-            raise RuntimeError(
-                "BuildConfig object has unknown 'kind' %s" % build_from['kind']
-            ) from exc
-
     def get_image_info_from_annotations(self):
         annotations = get_build_json().get("metadata", {}).get('annotations', {})
         if 'from' in annotations:
@@ -740,12 +709,9 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
             self.build_image_digests[orchestrator_platform] = current_buildimage
             return
 
-        # BuildConfig exists
-        build_image, imagestream = self.get_image_info_from_buildconfig()
-        if not (build_image or imagestream):
-            # get image build from build metadata, which is set for direct builds
-            # this is explicitly set by osbs-client, it isn't default OpenShift behaviour
-            build_image, imagestream = self.get_image_info_from_annotations()
+        # get image build from build metadata, which is set for direct builds
+        # this is explicitly set by osbs-client, it isn't default OpenShift behaviour
+        build_image, imagestream = self.get_image_info_from_annotations()
 
         # if imageStream is used
         if imagestream:

@@ -22,7 +22,6 @@ from atomic_reactor.plugins.build_orchestrate_build import (OrchestrateBuildPlug
 from atomic_reactor.plugins.exit_koji_import import (KojiImportPlugin,
                                                      KojiImportSourceContainerPlugin)
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
-from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildPlugin
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
@@ -251,7 +250,7 @@ def mock_reactor_config(workflow, allow_multiple_remote_sources=False):
 def mock_environment(tmpdir, session=None, name=None,
                      component=None, version=None, release=None,
                      source=None, build_process_failed=False, build_process_canceled=False,
-                     is_rebuild=True, docker_registry=True, additional_tags=None,
+                     docker_registry=True, additional_tags=None,
                      has_config=None, add_tag_conf_primaries=True,
                      container_first=False, yum_repourls=None,
                      has_op_appregistry_manifests=False,
@@ -389,7 +388,6 @@ def mock_environment(tmpdir, session=None, name=None,
     workflow.prebuild_plugins_conf = {}
     workflow.prebuild_results[PLUGIN_FETCH_SOURCES_KEY] = {'sources_for_nvr': SOURCES_FOR_KOJI_NVR,
                                                            'signing_intent': SOURCES_SIGNING_INTENT}
-    workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = is_rebuild
     workflow.postbuild_results[PostBuildRPMqaPlugin.key] = [
         "name1;1.0;1;x86_64;0;2000;" + FAKE_SIGMD5.decode() + ";23000;"
         "RSA/SHA256, Tue 30 Aug 2016 00:00:00, Key ID 01234567890abc;(none)",
@@ -1147,12 +1145,6 @@ class TestKojiImport(object):
             repositories_digest = list(filter(lambda repo: '@sha256' in repo, repositories))
             assert sorted(repositories_digest) == sorted(set(repositories_digest))
 
-            # if has_config:
-            #    config = docker['config']
-            #    assert isinstance(config, dict)
-            #    assert 'container_config' not in [x.lower() for x in config.keys()]
-            #    assert all(is_string_type(entry) for entry in config)
-
     def test_koji_import_import_fail(self, tmpdir, os_env, caplog):  # noqa
         session = MockedClientSession('')
         (flexmock(session)
@@ -1318,12 +1310,6 @@ class TestKojiImport(object):
         assert AddFilesystemPlugin.key in caplog.text
 
     @pytest.mark.parametrize('blocksize', (None, 1048576))
-    @pytest.mark.parametrize(('has_config', 'is_autorebuild', 'triggered_task'), [
-        (False,
-         False, None),
-        (False,
-         True, 12345),
-    ])
     @pytest.mark.parametrize(('verify_media', 'expect_id'), (
         (['v1', 'v2', 'v2_list'], 'ab12'),
         (['v1'], 'ab12'),
@@ -1337,9 +1323,9 @@ class TestKojiImport(object):
         (['OPEN'], False),
         (['FAILED'], True),
     ])
-    def test_koji_import_success(self, tmpdir, caplog, blocksize, os_env, has_config,
-                                 is_autorebuild, triggered_task, verify_media, expect_id,
-                                 reserved_build, build_method, task_states, skip_import):
+    def test_koji_import_success(self, tmpdir, caplog, blocksize, os_env, verify_media,
+                                 expect_id, reserved_build, build_method, task_states,
+                                 skip_import):
         session = MockedClientSession('', task_states=task_states)
         component = 'component'
         name = 'ns/name'
@@ -1352,10 +1338,7 @@ class TestKojiImport(object):
                                             component=component,
                                             version=version,
                                             release=release,
-                                            has_config=has_config,
                                             build_method=build_method)
-        workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = is_autorebuild
-        workflow.triggered_after_koji_task = triggered_task
 
         if verify_media:
             workflow.exit_results[PLUGIN_VERIFY_MEDIA_KEY] = verify_media
@@ -1462,13 +1445,6 @@ class TestKojiImport(object):
         assert 'autorebuild' in image
         autorebuild = image['autorebuild']
         assert isinstance(autorebuild, bool)
-        assert autorebuild == is_autorebuild
-
-        if triggered_task:
-            assert 'triggered_after_koji_task' in image
-            assert triggered_task == image['triggered_after_koji_task']
-        else:
-            assert 'triggered_after_koji_task' not in image
 
         if expected_media_types:
             media_types = image['media_types']
@@ -1483,7 +1459,7 @@ class TestKojiImport(object):
                         if b['id'] == buildroot['id']]) == 1
 
         for output in output_files:
-            self.validate_output(output, has_config)
+            self.validate_output(output, False)
             buildroot_id = output['buildroot_id']
 
             # References one of the buildroots

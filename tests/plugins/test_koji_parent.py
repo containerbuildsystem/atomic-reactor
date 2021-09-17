@@ -17,7 +17,6 @@ from atomic_reactor.constants import (
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_koji_parent import KojiParentPlugin
-from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildPlugin
 from atomic_reactor.util import get_manifest_media_type, DockerfileImages
 from atomic_reactor.constants import SCRATCH_FROM
 from osbs.utils import ImageName
@@ -460,35 +459,6 @@ class TestKojiParent(object):
                                   user_params=user_params)
 
         assert 'scratch build, skipping plugin' in caplog.text
-
-    @pytest.mark.parametrize('isolated_build', [True, False])
-    @pytest.mark.parametrize('ignore_isolated', [True, False])
-    def test_ignore_isolated_autorebuilds(self, workflow, caplog,
-                                          isolated_build, ignore_isolated):  # noqa
-        setattr(workflow, 'prebuild_results', {CheckAndSetRebuildPlugin.key: True})
-        workflow.source.config = flexmock(autorebuild=dict(ignore_isolated_builds=ignore_isolated))
-
-        koji_extra = {'image': {'index': {'digests': {V2_LIST: 'stubDigest'}},
-                                'isolated': isolated_build}}
-        koji_build = {'nvr': KOJI_BUILD_NVR, 'id': KOJI_BUILD_ID, 'state': KOJI_STATE_COMPLETE,
-                      'extra': koji_extra}
-
-        session = flexmock()
-        (flexmock(session).should_receive('getBuild').with_args(KOJI_BUILD_NVR)
-         .and_return(koji_build))
-        flexmock(session).should_receive('krb_login').and_return(True)
-        flexmock(koji).should_receive('ClientSession').and_return(session)
-
-        self.run_plugin_with_args(workflow, is_isolated=isolated_build)
-
-        if not ignore_isolated:
-            log_msg = "ignoring_isolated_builds isn't configured, won't skip autorebuild"
-            assert log_msg in caplog.text
-
-        if isolated_build and ignore_isolated:
-            log_msg = "setting cancel_isolated_autorebuild"
-            assert log_msg in caplog.text
-            assert workflow.cancel_isolated_autorebuild
 
     def run_plugin_with_args(self, workflow, plugin_args=None, expect_result=True,  # noqa
                              external_base=False, deep_inspection=True, mismatch_failure=False,

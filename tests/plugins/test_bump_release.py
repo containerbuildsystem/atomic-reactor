@@ -12,7 +12,6 @@ from copy import deepcopy
 from textwrap import dedent
 
 from atomic_reactor.plugins.pre_bump_release import BumpReleasePlugin
-from atomic_reactor.plugins.pre_check_and_set_rebuild import CheckAndSetRebuildPlugin
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.util import df_parser
@@ -55,7 +54,6 @@ class TestBumpRelease(object):
                 certs=False,
                 append=False,
                 reserve_build=False,
-                is_auto=False,
                 add_timestamp=None,
                 fetch_source=False,
                 scratch=None):
@@ -65,7 +63,6 @@ class TestBumpRelease(object):
         workflow = DockerBuildWorkflow(source=None)
         setattr(workflow, 'builder', flexmock())
         workflow.source = MockSource(tmpdir, add_timestamp)
-        workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = is_auto
         if scratch is not None:
             workflow.user_params['scratch'] = scratch
         if fetch_source:
@@ -115,8 +112,6 @@ class TestBumpRelease(object):
         (False, 'FAILED', False),
         (False, 'CANCELED', False),
     ])
-    @pytest.mark.parametrize('add_timestamp', [True, False])
-    @pytest.mark.parametrize('is_auto', [True, False])
     @pytest.mark.parametrize('scratch', [True, False])
     @pytest.mark.parametrize('build_exists', [True, False])
     @pytest.mark.parametrize('release_label', [
@@ -125,7 +120,7 @@ class TestBumpRelease(object):
     ])
     @pytest.mark.parametrize('user_provided_relese', [True, False])
     def test_release_label_already_set(self, tmpdir, caplog, reserve_build, koji_build_status,
-                                       init_fails, add_timestamp, is_auto, scratch,
+                                       init_fails, scratch,
                                        build_exists, release_label, user_provided_relese,
                                        user_params):
         class MockedClientSession(object):
@@ -152,7 +147,6 @@ class TestBumpRelease(object):
         plugin = self.prepare(tmpdir, labels={release_label: '1',
                                               'com.redhat.component': 'component',
                                               'version': 'version'},
-                              add_timestamp=add_timestamp, is_auto=is_auto,
                               reserve_build=reserve_build,
                               scratch=scratch)
 
@@ -176,13 +170,7 @@ class TestBumpRelease(object):
         plugin.run()
 
         if not user_provided_relese:
-            timestamp_msg = 'autorebuild with add_timestamp_to_release and release ' \
-                            'set explicitly, appending timestamp:'
-
-            if is_auto and add_timestamp:
-                assert timestamp_msg in caplog.text
-            else:
-                assert 'not incrementing' in caplog.text
+            assert 'not incrementing' in caplog.text
 
     @pytest.mark.parametrize(('labels', 'all_wrong_labels'), [
         ({'com.redhat.component': 'component'},
