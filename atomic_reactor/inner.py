@@ -25,7 +25,6 @@ from atomic_reactor.plugin import (
     BuildCanceledException,
     BuildStepPluginsRunner,
     ExitPluginsRunner,
-    InputPluginsRunner,
     PluginFailedException,
     PostBuildPluginsRunner,
     PreBuildPluginsRunner,
@@ -46,7 +45,7 @@ from atomic_reactor.util import (exception_message, DockerfileImages, df_parser,
                                  base_image_is_custom)
 from atomic_reactor.build import BuildResult
 from atomic_reactor.config import Configuration
-from atomic_reactor import get_logging_encoding
+# from atomic_reactor import get_logging_encoding
 from osbs.utils import ImageName
 
 
@@ -676,56 +675,3 @@ class DockerBuildWorkflow(object):
                 self.fs_watcher.finish()
 
             signal.signal(signal.SIGTERM, signal.SIG_DFL)
-
-
-def build_inside(input_method, input_args=None, substitutions=None):
-    """
-    use requested input plugin to load configuration and then initiate build
-    """
-    def process_keyvals(keyvals):
-        """ ["key=val", "x=y"] -> {"key": "val", "x": "y"} """
-        keyvals = keyvals or []
-        processed_keyvals = {}
-        for arg in keyvals:
-            key, value = arg.split("=", 1)
-            processed_keyvals[key] = value
-        return processed_keyvals
-
-    main = __name__.split('.', 1)[0]
-    log_encoding = get_logging_encoding(main)
-    logger.info("log encoding: %s", log_encoding)
-
-    if not input_method:
-        raise RuntimeError("No input method specified!")
-
-    logger.debug("getting build json from input %s", input_method)
-
-    cleaned_input_args = process_keyvals(input_args)
-    cleaned_input_args['substitutions'] = process_keyvals(substitutions)
-
-    input_runner = InputPluginsRunner([{'name': input_method,
-                                        'args': cleaned_input_args}])
-    build_json = input_runner.run()[input_method]
-
-    if isinstance(build_json, Exception):
-        raise RuntimeError("Input plugin raised exception: {}".format(build_json))
-    logger.debug("build json: %s", build_json)
-    if not build_json:
-        raise RuntimeError("No valid build json!")
-    if not isinstance(build_json, dict):
-        raise RuntimeError("Input plugin did not return valid build json: {}".format(build_json))
-
-    dbw = DockerBuildWorkflow(**build_json)
-    try:
-        build_result = dbw.build_docker_image()
-    except Exception as e:
-        if dbw.builder:
-            logger.info("Dockerfile used for build:\n%s", dbw.original_df)
-        logger.error('image build failed: %s', e)
-        raise
-    else:
-        logger.info("Dockerfile used for build:\n%s", dbw.original_df)
-        if not build_result or build_result.is_failed():
-            raise RuntimeError("no image built")
-        else:
-            logger.info("build has finished successfully \\o/")

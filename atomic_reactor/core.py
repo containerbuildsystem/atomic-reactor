@@ -34,13 +34,11 @@ import atomic_reactor.util
 from docker.errors import APIError
 from functools import wraps
 
-from atomic_reactor.constants import (CONTAINER_SHARE_PATH, CONTAINER_SHARE_SOURCE_SUBDIR,
-                                      BUILD_JSON, DOCKER_SOCKET_PATH, DOCKER_MAX_RETRIES,
-                                      DOCKER_BACKOFF_FACTOR, DOCKER_CLIENT_STATUS_RETRY,
+from atomic_reactor.constants import (DOCKER_MAX_RETRIES, DOCKER_BACKOFF_FACTOR,
+                                      DOCKER_CLIENT_STATUS_RETRY,
                                       CONTAINER_IMAGEBUILDER_BUILD_METHOD,
                                       CONTAINER_DOCKERPY_BUILD_METHOD)
 
-from atomic_reactor.source import get_source_instance_for
 from atomic_reactor.util import figure_out_build_file, Dockercfg
 from osbs.utils import clone_git_repo, ImageName
 
