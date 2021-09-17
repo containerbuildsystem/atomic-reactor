@@ -70,7 +70,6 @@ class CLI(object):
 
         # subparsers = self.parser.add_subparsers(help='commands')
 
-
     def run(self):
         self.set_arguments()
         args = self.parser.parse_args()
