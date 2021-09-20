@@ -55,7 +55,7 @@ from requests.utils import guess_json_utf
 
 from osbs.exceptions import OsbsException
 from osbs.utils import clone_git_repo, reset_git_repo, Labels, ImageName
-from osbs.utils.yaml import read_yaml as osbs_read_yaml
+from osbs.utils import yaml as osbs_yaml
 
 from tempfile import NamedTemporaryFile
 from faulthandler import dump_traceback
@@ -1301,7 +1301,7 @@ def read_yaml_from_file_path(file_path, schema, package='atomic_reactor'):
     """
     with open(file_path) as f:
         yaml_data = f.read()
-    return osbs_read_yaml(yaml_data, schema, package)
+    return osbs_yaml.read_yaml(yaml_data, schema, package)
 
 
 def read_yaml_from_url(url, schema, package='atomic_reactor'):
@@ -1319,7 +1319,7 @@ def read_yaml_from_url(url, schema, package='atomic_reactor'):
         f.write(chunk.decode('utf-8'))
 
     f.seek(0)
-    return osbs_read_yaml(f.read(), schema, package)
+    return osbs_yaml.read_yaml(f.read(), schema, package)
 
 
 def read_yaml(yaml_data, schema, package='atomic_reactor'):
@@ -1328,7 +1328,19 @@ def read_yaml(yaml_data, schema, package='atomic_reactor'):
     :param schema: string, path to the JSON schema file
     :param package: string, package name containing the JSON schema file
     """
-    return osbs_read_yaml(yaml_data, schema, package)
+    return osbs_yaml.read_yaml(yaml_data, schema, package)
+
+
+def validate_with_schema(data: dict, schema: str, package: str = "atomic_reactor") -> None:
+    """Validate data against a JSON schema.
+
+    :param data: data typically from a JSON or yaml file
+    :param schema: path to the JSON schema file
+    :param package: package name containing the JSON schema file
+    :raises osbs.OsbsValidationException: if the data is not valid according to the schema
+    """
+    schema = osbs_yaml.load_schema(package, schema)
+    osbs_yaml.validate_with_schema(data, schema)
 
 
 def allow_repo_dir_in_dockerignore(build_path):

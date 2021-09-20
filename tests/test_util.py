@@ -56,6 +56,7 @@ from atomic_reactor.util import (wait_for_command,
                                  get_unique_images,
                                  get_image_upload_filename,
                                  read_yaml, read_yaml_from_file_path, read_yaml_from_url,
+                                 validate_with_schema,
                                  OSBSLogs,
                                  get_platforms_in_limits, get_orchestrator_platforms,
                                  dump_stacktraces, setup_introspection_signal_handler,
@@ -69,6 +70,7 @@ import atomic_reactor.util
 from atomic_reactor.constants import INSPECT_CONFIG, PLUGIN_BUILD_ORCHESTRATE_KEY
 from atomic_reactor.source import SourceConfig
 from osbs.utils import ImageName
+from osbs.exceptions import OsbsValidationException
 from tests.util import requires_internet
 from tests.stubs import StubInsideBuilder, StubSource
 
@@ -1223,6 +1225,21 @@ def test_read_yaml_from_url_different_content_types(content_type):
     output = read_yaml_from_url(url, 'schemas/config.json')
     expected = yaml.safe_load(REACTOR_CONFIG_MAP)
     assert output == expected
+
+
+@pytest.mark.parametrize(
+    "data, schema, valid",
+    [
+        (yaml.safe_load(REACTOR_CONFIG_MAP), "schemas/config.json", True),
+        ({"exit_plugins": [{"name": None}]}, "schemas/plugins.json", False),
+    ],
+)
+def test_validate_with_schema(data, schema, valid):
+    if valid:
+        validate_with_schema(data, schema)
+    else:
+        with pytest.raises(OsbsValidationException):
+            validate_with_schema(data, schema)
 
 
 LogEntry = namedtuple('LogEntry', ['platform', 'line'])
