@@ -259,12 +259,13 @@ def test_check_CachitoAPIUnsuccessfulRequest_text(error_state, error_reason, cap
         callback=handle_wait_for_request)
 
     burst_params = {'burst_retry': 0.001, 'burst_length': 0.5}
-    expected_exc_text = dedent('''\
-                               Cachito request is in "{}" state, reason: {}
-                               Request {} ({}) tried to get repo '{}' at reference '{}'.
-                               '''.format(error_state, error_reason, CACHITO_REQUEST_ID,
-                                          cachito_request_url, CACHITO_REQUEST_REPO,
-                                          CACHITO_REQUEST_REF))
+    expected_exc_text = (
+        "Cachito request is in \"{}\" state, reason: {}. "
+        "Request {} ({}) tried to get repo '{}' at reference '{}'.".format(
+            error_state, error_reason, CACHITO_REQUEST_ID,
+            cachito_request_url, CACHITO_REQUEST_REPO,
+            CACHITO_REQUEST_REF)
+    )
     with pytest.raises(CachitoAPIUnsuccessfulRequest) as excinfo:
         CachitoAPI(CACHITO_URL).wait_for_request(CACHITO_REQUEST_ID, **burst_params)
     assert len(responses.calls) == expected_total_responses_calls
