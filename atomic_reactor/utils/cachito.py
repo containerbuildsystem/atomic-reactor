@@ -131,11 +131,12 @@ class CachitoAPI(object):
                    Request %s is in "%s" state: %s
                    Details: %s
                    """), request_id, state, state_reason, json.dumps(response_json, indent=4))
-                raise CachitoAPIUnsuccessfulRequest(dedent('''\
-                    Cachito request is in "{}" state, reason: {}
-                    Request {} ({}) tried to get repo '{}' at reference '{}'.
-                    '''.format(state, state_reason, request_id, url,
-                               response_json['repo'], response_json['ref']))
+                raise CachitoAPIUnsuccessfulRequest(
+                    "Cachito request is in \"{}\" state, reason: {}. "
+                    "Request {} ({}) tried to get repo '{}' at reference '{}'.".format(
+                        state, state_reason, request_id, url,
+                        response_json['repo'], response_json['ref']
+                    )
                 )
             if state == 'complete':
                 logger.debug(dedent("""\
