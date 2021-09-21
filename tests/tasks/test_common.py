@@ -42,8 +42,8 @@ class TestPluginsDef:
         assert plugins.exit == []
 
     def test_create_invalid(self):
-        with pytest.raises(OsbsValidationException, match="1 is not of type 'string'"):
-            common.PluginsDef(build=[{"name": 1}])
+        with pytest.raises(OsbsValidationException, match="1 is not of type 'boolean'"):
+            common.PluginsDef(prebuild=[{"name": "some_plugin", "required": 1}])
 
 
 class TestTaskParams:

@@ -19,9 +19,11 @@
       "allOf": [
         {"$ref": "#/definitions/base_plugins_phase"},
         {
-          "properties": {
-            "is_allowed_to_fail": {"type": "boolean"},
-            "required": {"type": "boolean"}
+          "items": {
+            "properties": {
+              "is_allowed_to_fail": {"type": "boolean"},
+              "required": {"type": "boolean"}
+            }
           }
         }
       ]
