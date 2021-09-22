@@ -19,7 +19,7 @@ jobs:
         os:
           - name: centos
             version: 8
-            python: 3
+            python: "3.8"
             engine: docker
 
           - name: fedora
