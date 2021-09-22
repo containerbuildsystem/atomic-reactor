@@ -5,7 +5,6 @@
 
   "type": "object",
   "properties": {
-    "arrangement_version": {"type": "integer"},
     "build_from": {"type": "string"},
     "build_image": {"type": "string"},
     "build_imagestream": {"type": "string"},

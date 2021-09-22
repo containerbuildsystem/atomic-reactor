@@ -91,8 +91,6 @@ smtp:
     send_to_submitter: True
     send_to_pkg_owner: True
 
-arrangement_version: 6
-
 artifacts_allowed_domains:
 - download.example.com/released
 - download.example.com/candidates

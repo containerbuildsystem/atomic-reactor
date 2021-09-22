@@ -226,8 +226,7 @@ def test_add_labels_plugin(tmpdir, docker_tasker, workflow,
 
 @pytest.mark.parametrize('use_reactor', [True, False])  # noqa
 @pytest.mark.parametrize('release', [None, 'test'])
-def test_add_labels_arrangement6(tmpdir, docker_tasker, workflow, release, use_reactor):
-    # explicitly test arrangement 6's handling of reactor config
+def test_add_labels(tmpdir, docker_tasker, workflow, release, use_reactor):
     df = df_parser(str(tmpdir))
     df.content = DF_CONTENT
 
