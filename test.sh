@@ -5,7 +5,7 @@ set -eux
 ENGINE=${ENGINE:="podman"}
 OS=${OS:="centos"}
 OS_VERSION=${OS_VERSION:="8"}
-PYTHON_VERSION=${PYTHON_VERSION:="3"}
+PYTHON_VERSION=${PYTHON_VERSION:="3.8"}
 ACTION=${ACTION:="test"}
 IMAGE="$OS:$OS_VERSION"
 CONTAINER_NAME="atomic-reactor-$OS-$OS_VERSION-py$PYTHON_VERSION"
@@ -34,20 +34,23 @@ function setup_osbs() {
   ENVS='-e PIP_PREFIX=/usr'
   RUN="$ENGINE exec -i ${ENVS} $CONTAINER_NAME"
   PYTHON="python$PYTHON_VERSION"
-  PIP_PKG="$PYTHON-pip"
+  # If the version is e.g. "3.8", the package name is python38
+  # DISCLAIMER: Does not work with fedora, stick with python "3"
+  PY_PKG="${PYTHON/./}"
+  PIP_PKG="$PY_PKG-pip"
   PIP="pip$PYTHON_VERSION"
   PKG="dnf"
-  PKG_EXTRA=(dnf-plugins-core desktop-file-utils flatpak ostree libmodulemd skopeo glibc-langpack-en "$PYTHON"-pylint)
+  PKG_EXTRA=(dnf-plugins-core desktop-file-utils flatpak ostree libmodulemd skopeo glibc-langpack-en "$PY_PKG" python3-pylint)
   BUILDDEP=(dnf builddep)
   if [[ $OS == "centos" ]]; then
     ENABLE_REPO=
   else
-    PKG_EXTRA+=("$PYTHON-libmodulemd")
+    PKG_EXTRA+=(python3-libmodulemd)
     ENABLE_REPO="--enablerepo=updates-testing"
   fi
 
   # List common install dependencies
-  PKG_COMMON_EXTRA=(git gcc krb5-devel python3-devel popt-devel)
+  PKG_COMMON_EXTRA=(git gcc krb5-devel "$PY_PKG-devel" popt-devel)
   PKG_EXTRA+=("${PKG_COMMON_EXTRA[@]}")
 
   PIP_INST=("$PIP" install --index-url "${PYPI_INDEX:-https://pypi.org/simple}")
