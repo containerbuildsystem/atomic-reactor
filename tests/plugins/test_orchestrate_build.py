@@ -266,7 +266,6 @@ def make_worker_build_kwargs(**overrides):
         'git_ref': 'master',
         'git_branch': 'master',
         'user': 'bacon',
-        'arrangement_version': 6
     }
     kwargs.update(overrides)
     return kwargs
@@ -319,7 +318,7 @@ def test_orchestrate_build(tmpdir, caplog,
 
     clusters = deepcopy(DEFAULT_CLUSTERS)
 
-    reactor_dict = {'version': 1, 'arrangement_version': 6}
+    reactor_dict = {'version': 1}
     if config_kwargs and 'sources_command' in config_kwargs:
         reactor_dict['sources_command'] = 'fedpkg source'
 
@@ -982,7 +981,6 @@ def test_orchestrate_build_worker_build_kwargs(tmpdir, caplog):
         'user': 'bacon',
         'platform': 'x86_64',
         'release': '10',
-        'arrangement_version': 6,
         'parent_images_digests': {},
         'operator_manifests_extract_platform': 'x86_64',
     }
@@ -1029,7 +1027,6 @@ def test_orchestrate_override_build_kwarg(tmpdir, overrides):
         'user': 'bacon',
         'platform': 'x86_64',
         'release': '4242',
-        'arrangement_version': 6,
         'parent_images_digests': {},
         'operator_manifests_extract_platform': 'x86_64',
     }
@@ -1079,7 +1076,6 @@ def test_orchestrate_override_content_versions(tmpdir, caplog, content_versions)
         'user': 'bacon',
         'platform': 'x86_64',
         'release': '10',
-        'arrangement_version': 6,
         'parent_images_digests': {},
         'operator_manifests_extract_platform': 'x86_64',
     }
@@ -1143,7 +1139,6 @@ def test_orchestrate_operator_csv_modifications_url(tmpdir):
         'user': 'bacon',
         'platform': 'x86_64',
         'release': '10',
-        'arrangement_version': 6,
         'parent_images_digests': {},
         'operator_csv_modifications_url': csv_mods_url,
         'operator_manifests_extract_platform': 'x86_64',
@@ -1572,7 +1567,6 @@ def test_parent_images_digests(tmpdir, caplog):
         'user': 'bacon',
         'platform': 'x86_64',
         'release': '10',
-        'arrangement_version': 6,
         'parent_images_digests': PARENT_IMAGES_DIGESTS,
         'operator_manifests_extract_platform': 'x86_64',
     }

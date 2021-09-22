@@ -9,7 +9,6 @@
       "type": "array",
       "items": {"type": "string"}
     },
-    "arrangement_version": {"type": "integer"},
     "base_image": {"type": "string"},
     "build_from": {"type": "string"},
     "build_image": {"type": "string"},
