@@ -6,6 +6,7 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
+import json
 from flexmock import flexmock
 from textwrap import dedent
 
@@ -28,6 +29,9 @@ LABEL "version"="version_value"
 LABEL "release"="$parentrelease"
 '''
 
+TEST_VERSION = "v1.2.5"
+TEST_IMAGE = f"holy-hand-grenade:{TEST_VERSION}"
+
 pytestmark = pytest.mark.usefixtures('user_params')
 
 
@@ -41,16 +45,6 @@ class MockSource(object):
         return self.dockerfile_path, self.path
 
 
-def mock_additional_tags_file(tmpdir, tags):
-    file_path = os.path.join(tmpdir, 'additional-tags')
-
-    with open(file_path, 'w') as f:
-        for tag in tags:
-            f.write(tag + '\n')
-
-    return file_path
-
-
 def mock_workflow(tmpdir):
     workflow = DockerBuildWorkflow(source=None)
     mock_source = MockSource(tmpdir)
@@ -61,38 +55,6 @@ def mock_workflow(tmpdir):
     workflow.df_dir = str(tmpdir)
 
     return workflow
-
-
-@pytest.mark.parametrize(('tags', 'name', 'expected'), [  # noqa
-    ([], 'fedora', []),
-    (['spam'], 'fedora', ['fedora:spam']),
-    (['spam', 'bacon'], 'foo', ['foo:spam', 'foo:bacon']),
-    # ignore tags with hyphens
-    (['foo-bar', 'baz'], 'name', ['name:baz']),
-    # make sure that tags are also valid
-    (['illegal@char', '.starts.with.dot'], 'bar', []),
-    (['has_under', 'ends.dot.'], 'bar', ['bar:has_under', 'bar:ends.dot.']),
-    (None, 'fedora', []),
-])
-def test_tag_from_config_plugin_generated(tmpdir, tags, name, expected):
-    workflow = mock_workflow(tmpdir)
-    workflow.built_image_inspect = {
-        INSPECT_CONFIG: {'Labels': {'Name': name}}
-    }
-    workflow.build_result = BuildResult(image_id=IMPORTED_IMAGE_ID)
-
-    # Simulate missing additional-tags file.
-    if tags is not None:
-        mock_additional_tags_file(str(tmpdir), tags)
-
-    runner = PostBuildPluginsRunner(
-        workflow,
-        [{'name': TagFromConfigPlugin.key}]
-    )
-
-    results = runner.run()
-    plugin_result = results[TagFromConfigPlugin.key]
-    assert plugin_result == expected
 
 
 @pytest.mark.parametrize(('inspect', 'error'), [  # noqa
@@ -108,8 +70,6 @@ def test_bad_inspect_data(tmpdir, inspect, error):
         }
     workflow.build_result = BuildResult(image_id=IMPORTED_IMAGE_ID)
 
-    mock_additional_tags_file(str(tmpdir), ['spam', 'bacon'])
-
     runner = PostBuildPluginsRunner(
         workflow,
         [{'name': TagFromConfigPlugin.key}]
@@ -122,7 +82,6 @@ def test_bad_inspect_data(tmpdir, inspect, error):
 
 
 @pytest.mark.parametrize(('floating_tags', 'unique_tags', 'primary_tags', 'expected'), [  # noqa
-    (None, None, None, ['name_value:get_tags', 'name_value:file_tags']),
     ([], [], [], []),
     ([], ['foo', 'bar'], [], ['name_value:foo', 'name_value:bar']),
     ([], [], ['foo', 'bar'], ['name_value:foo', 'name_value:bar']),
@@ -161,7 +120,6 @@ def test_tag_parse(tmpdir, floating_tags, unique_tags, primary_tags, expected):
         }
     }
     flexmock(imageutil).should_receive('base_image_inspect').and_return(base_inspect)
-    mock_additional_tags_file(str(tmpdir), ['get_tags', 'file_tags'])
 
     if unique_tags is not None and primary_tags is not None and floating_tags is not None:
         input_tags = {
@@ -171,14 +129,12 @@ def test_tag_parse(tmpdir, floating_tags, unique_tags, primary_tags, expected):
         }
     else:
         input_tags = None
-    runner = PostBuildPluginsRunner(
-        workflow,
-        [{'name': TagFromConfigPlugin.key,
-          'args': {'tag_suffixes': input_tags}}]
-    )
+
+    plugin = TagFromConfigPlugin(workflow)
+    plugin.tag_suffixes = input_tags
+
     if expected is not None:
-        results = runner.run()
-        plugin_result = results[TagFromConfigPlugin.key]
+        plugin_result = plugin.run()
 
         # Plugin should return the tags we expect
         assert plugin_result == expected
@@ -190,8 +146,8 @@ def test_tag_parse(tmpdir, floating_tags, unique_tags, primary_tags, expected):
         # Workflow should not have any other tags configured
         assert len(workflow.tag_conf.images) == len(expected)
     else:
-        with pytest.raises(PluginFailedException):
-            runner.run()
+        with pytest.raises(KeyError):
+            plugin.run()
 
 
 @pytest.mark.parametrize(('name', 'organization', 'expected'), (
@@ -224,14 +180,10 @@ def test_tags_enclosed(tmpdir, name, organization, expected):
         'primary': ['{version}', '{version}-{release}'],
     }
 
-    runner = PostBuildPluginsRunner(
-        workflow,
-        [{'name': TagFromConfigPlugin.key,
-          'args': {'tag_suffixes': input_tags}}]
-    )
+    plugin = TagFromConfigPlugin(workflow)
+    plugin.tag_suffixes = input_tags
 
-    results = runner.run()
-    plugin_result = results[TagFromConfigPlugin.key]
+    plugin_result = plugin.run()
 
     expected_tags = ['{}:{}'.format(expected, tag) for tag in ['foo', 'bar', '1.7', '1.7-99']]
     # Plugin should return the tags we expect
@@ -243,3 +195,96 @@ def test_tags_enclosed(tmpdir, name, organization, expected):
 
     # Workflow should not have any other tags configured
     assert len(workflow.tag_conf.images) == len(expected_tags)
+
+
+@pytest.mark.parametrize(
+    "user_params, is_orchestrator, expect_suffixes",
+    [
+        # default worker tags
+        (
+            {"image_tag": TEST_IMAGE},
+            False,
+            {"unique": [TEST_VERSION], "primary": [], "floating": []},
+        ),
+        # default orchestrator tags
+        (
+            {"image_tag": TEST_IMAGE},
+            True,
+            {
+                "unique": [TEST_VERSION],
+                "primary": ["{version}-{release}"],
+                "floating": ["latest", "{version}"],
+            },
+        ),
+        # scratch build
+        (
+            {"image_tag": TEST_IMAGE, "scratch": True},
+            True,
+            {
+                "unique": [TEST_VERSION],
+                "primary": [],
+                "floating": [],
+            },
+        ),
+        # isolated build
+        (
+            {"image_tag": TEST_IMAGE, "isolated": True},
+            True,
+            {
+                "unique": [TEST_VERSION],
+                "primary": ["{version}-{release}"],
+                "floating": [],
+            },
+        ),
+        # additional tags from additional-tags file
+        (
+            {"image_tag": TEST_IMAGE, "additional_tags": ["spam"]},
+            True,
+            {
+                "unique": [TEST_VERSION],
+                "primary": ["{version}-{release}"],
+                "floating": ["latest", "{version}", "spam"],
+            },
+        ),
+        # additional tags from container.yaml
+        (
+            {"image_tag": TEST_IMAGE, "additional_tags": ["spam"], "tags_from_yaml": True},
+            True,
+            {
+                "unique": [TEST_VERSION],
+                "primary": ["{version}-{release}"],
+                "floating": ["spam"],
+            },
+        ),
+        # additional tags don't apply if build is scratch
+        (
+            {"image_tag": TEST_IMAGE, "additional_tags": ["spam"], "scratch": True},
+            True,
+            {
+                "unique": [TEST_VERSION],
+                "primary": [],
+                "floating": [],
+            },
+        ),
+        # additional tags don't apply if build is isolated
+        (
+            {"image_tag": TEST_IMAGE, "additional_tags": ["spam"], "isolated": True},
+            True,
+            {
+                "unique": [TEST_VERSION],
+                "primary": ["{version}-{release}"],
+                "floating": [],
+            },
+        ),
+    ],
+)
+def test_tag_suffixes_from_user_params(
+    user_params, is_orchestrator, expect_suffixes, monkeypatch, tmpdir
+):
+    monkeypatch.setenv("USER_PARAMS", json.dumps(user_params))
+    workflow = mock_workflow(tmpdir)
+
+    plugin = TagFromConfigPlugin(workflow)
+    flexmock(plugin).should_receive("is_in_orchestrator").and_return(is_orchestrator)
+
+    assert plugin.tag_suffixes == expect_suffixes

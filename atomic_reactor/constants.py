@@ -73,8 +73,6 @@ TOOLS_USED = (
 
 DEFAULT_DOWNLOAD_BLOCK_SIZE = 10 * 1024 * 1024  # 10Mb
 
-TAG_NAME_REGEX = r'^[\w][\w.-]{0,127}$'
-
 IMAGE_TYPE_DOCKER_ARCHIVE = 'docker-archive'
 IMAGE_TYPE_OCI = 'oci'
 IMAGE_TYPE_OCI_TAR = 'oci-tar'

@@ -43,7 +43,7 @@ class OrchestratorTask(plugin_based.PluginBasedTask):
         postbuild=[
             {"name": "fetch_worker_metadata"},
             {"name": "compare_components"},
-            {"name": "tag_from_config", "args": {"tag_suffixes": "{{TAG_SUFFIXES}}"}},
+            {"name": "tag_from_config"},
             {"name": "group_manifests"},
             {"name": "generate_maven_metadata"},
         ],

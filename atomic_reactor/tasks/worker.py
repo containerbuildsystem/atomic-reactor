@@ -50,7 +50,7 @@ class WorkerTask(plugin_based.PluginBasedTask):
         ],
         postbuild=[
             {"name": "all_rpm_packages", "args": {"image_id": "BUILT_IMAGE_ID"}},
-            {"name": "tag_from_config", "args": {"tag_suffixes": "{{TAG_SUFFIXES}}"}},
+            {"name": "tag_from_config"},
             {"name": "tag_and_push"},
             {"name": "export_operator_manifests"},
             {"name": "compress", "args": {"load_exported_image": True, "method": "gzip"}},
