@@ -6,48 +6,51 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
-import os
-import re
+import functools
 
 from atomic_reactor.plugin import PostBuildPlugin
-from atomic_reactor.constants import INSPECT_CONFIG, TAG_NAME_REGEX
+from atomic_reactor.constants import INSPECT_CONFIG
 from atomic_reactor.util import df_parser, LabelFormatter
 from osbs.utils import Labels, ImageName
 
 
 class TagFromConfigPlugin(PostBuildPlugin):
+    """Computes tags to be applied to the built image.
+
+    The tags are saved in the tag configuration object in the build workflow. They are later
+    applied by the tag_and_push and push_floating_tags plugins.
     """
-    Tags image with additional tags found in configuration file
 
-    Configuration file must be named "additional-tags" and it must
-    reside in repository as a sibling of Dockerfile. Each line in file
-    is considered as a different tag to be applied. Empty lines and
-    tag names containing hyphens are ignored. Tags will be prefixed by
-    the value of Name label.
-
-    For example, using the following configuration file:
-
-        v1.0
-        v1.0.1
-
-    And assuming the Name label in Dockerfile is set to "fedora", the
-    image will be tagged as:
-
-        fedora:v1.0
-        fedora:v1.0.1
-
-    If configuration file is not found, this plugin takes no action.
-
-    """
     key = 'tag_from_config'
     is_allowed_to_fail = False
 
-    TAGS_FILENAME = 'additional-tags'
-
-    def __init__(self, workflow, tag_suffixes=None):
+    def __init__(self, workflow):
         super(TagFromConfigPlugin, self).__init__(workflow)
-        self.tag_suffixes = tag_suffixes
         self.labels = None
+
+    @functools.cached_property
+    def tag_suffixes(self):
+        user_params = self.workflow.user_params
+
+        unique_tag = user_params["image_tag"].split(":")[-1]
+        tag_suffixes = {"unique": [unique_tag], "primary": [], "floating": []}
+
+        if self.is_in_orchestrator():
+            additional_tags = user_params.get("additional_tags", [])
+
+            if user_params.get("scratch"):
+                pass
+            elif user_params.get("isolated"):
+                tag_suffixes["primary"].extend(["{version}-{release}"])
+            elif user_params.get("tags_from_yaml"):
+                tag_suffixes["primary"].extend(["{version}-{release}"])
+                tag_suffixes["floating"].extend(additional_tags)
+            else:
+                tag_suffixes["primary"].extend(["{version}-{release}"])
+                tag_suffixes["floating"].extend(["latest", "{version}"])
+                tag_suffixes["floating"].extend(additional_tags)
+
+        return tag_suffixes
 
     def parse_and_add_tags(self):
         tags = []
@@ -87,44 +90,6 @@ class TagFromConfigPlugin(PostBuildPlugin):
 
         return tags
 
-    def get_and_add_tags(self):
-        tags = []
-
-        build_file_dir = self.workflow.source.get_build_file_path()[1]
-        tags_filename = os.path.join(build_file_dir, self.TAGS_FILENAME)
-        if not os.path.exists(tags_filename):
-            self.log.debug('"%s" not found. '
-                           'No additional tags will be applied.',
-                           tags_filename)
-            return tags
-
-        self.log.user_warning(
-            f"File '{self.TAGS_FILENAME}' is deprecated. "
-            f"Please consider using tags in container.yaml instead"
-        )
-
-        with open(tags_filename) as tags_file:
-            for tag in tags_file:
-                tag = tag.strip()
-                tag_name_is_valid = re.match(TAG_NAME_REGEX, tag) is not None
-
-                if tag_name_is_valid and '-' not in tag:
-                    tags.append(tag)
-                else:
-                    self.log.warning("tag '%s' does not match '%s'"
-                                     "or includes dashes, ignoring", tag, TAG_NAME_REGEX)
-
-        if tags:
-            name = self.get_component_name()
-            for i, tag_suffix in enumerate(tags):
-                tag = '{}:{}'.format(name, tag_suffix)
-                self.log.debug('Using additional tag: %s', tag)
-                self.workflow.tag_conf.add_primary_image(tag)
-                # Store modified name.
-                tags[i] = tag
-
-        return tags
-
     def get_component_name(self):
         try:
             labels = Labels(self.labels)
@@ -143,13 +108,7 @@ class TagFromConfigPlugin(PostBuildPlugin):
 
     def run(self):
         self.lookup_labels()
-
-        if self.tag_suffixes is not None:
-            tags = self.parse_and_add_tags()
-        else:
-            tags = self.get_and_add_tags()
-
-        return tags
+        return self.parse_and_add_tags()
 
     def lookup_labels(self):
         if self.workflow.build_result.is_image_available():
