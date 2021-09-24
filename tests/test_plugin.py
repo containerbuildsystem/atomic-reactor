@@ -19,7 +19,7 @@ from atomic_reactor.plugin import (BuildPluginsRunner, PreBuildPluginsRunner,
                                    PluginFailedException, PrePublishPluginsRunner,
                                    ExitPluginsRunner, BuildStepPluginsRunner,
                                    PluginsRunner, InappropriateBuildStepError,
-                                   BuildStepPlugin, PreBuildPlugin, ExitPlugin,
+                                   BuildPlugin, BuildStepPlugin, PreBuildPlugin, ExitPlugin,
                                    PreBuildSleepPlugin, PrePublishPlugin, PostBuildPlugin)
 
 from tests.constants import DOCKERFILE_GIT
@@ -307,15 +307,25 @@ class TestBuildPluginsRunner(object):
         workflow.source = flexmock()
         workflow.source.dockerfile_path = 'dockerfile-path'
         workflow.source.path = 'path'
+        workflow.user_params = {'shrubbery': 'yrebburhs'}
 
-        class MyPlugin(object):
-            def __init__(self, workflow, spam=None):
+        class MyPlugin(BuildPlugin):
+            @staticmethod
+            def args_from_user_params(user_params):
+                return {'shrubbery': user_params['shrubbery']}
+
+            def __init__(self, workflow, spam=None, shrubbery=None):
                 self.spam = spam
+                self.shrubbery = shrubbery
+
+            def run(self):
+                pass
 
         bpr = BuildPluginsRunner(workflow, 'PreBuildPlugin', {})
         plugin = bpr.create_instance_from_plugin(MyPlugin, params)
 
         assert plugin.spam == params['spam']
+        assert plugin.shrubbery == 'yrebburhs'
 
     @pytest.mark.parametrize(('params'), [
         {'spam': 'maps'},
@@ -327,12 +337,16 @@ class TestBuildPluginsRunner(object):
         workflow.source = flexmock()
         workflow.source.dockerfile_path = 'dockerfile-path'
         workflow.source.path = 'path'
+        workflow.user_params = {}
 
-        class MyPlugin(object):
+        class MyPlugin(BuildPlugin):
             def __init__(self, workflow, spam=None, **kwargs):
                 self.spam = spam
                 for key, value in kwargs.items():
                     setattr(self, key, value)
+
+            def run(self):
+                pass
 
         bpr = BuildPluginsRunner(workflow, 'PreBuildPlugin', {})
         plugin = bpr.create_instance_from_plugin(MyPlugin, params)

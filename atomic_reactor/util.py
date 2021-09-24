@@ -25,6 +25,7 @@ import signal
 from collections import namedtuple
 from copy import deepcopy
 from base64 import b64decode
+from typing import Callable
 
 from urllib.parse import urlparse
 
@@ -1898,3 +1899,29 @@ def terminal_key_paths(obj: dict) -> Iterator[Sequence]:
                 stack.append((v, path + (k, )))
         else:
             yield path
+
+
+def map_to_user_params(*args_to_params: str) -> Callable[[dict], dict]:
+    """Make a function that reads plugin arguments from user_params.
+
+    The returned function can usually be directly assigned to the args_from_user_params attribute
+    of plugin classes.
+
+    :param args_to_params: each item can be <arg_name> or <arg_name>:<param_name>
+        if <arg_name>, the plugin argument will be arg_name=user_params[arg_name]
+        if <arg_name>:<param_name>, the argument will be arg_name=user_params[param_name]
+    :return: function that takes a user_params dict and returns a dict of keyword arguments
+    """
+
+    def get_args(user_params: dict) -> dict:
+        args = {}
+
+        for atp in args_to_params:
+            arg_name, _, param_name = atp.partition(":")
+            value = user_params.get(param_name or arg_name)
+            if value is not None:
+                args[arg_name] = value
+
+        return args
+
+    return get_args

@@ -104,6 +104,14 @@ class BuildPlugin(Plugin):
         """
         return self.workflow.is_orchestrator_build()
 
+    @staticmethod
+    def args_from_user_params(user_params: dict) -> dict:
+        """Get keyword arguments for this plugin based on values in user params.
+
+        Plugin runners will set these automatically for all plugins.
+        """
+        return {}
+
 
 class PluginsRunner(object):
 
@@ -390,8 +398,9 @@ class BuildPluginsRunner(PluginsRunner):
         return known_plugin_conf
 
     def create_instance_from_plugin(self, plugin_class, plugin_conf):
-        plugin_conf = self._translate_special_values(plugin_conf)
         plugin_conf = self._remove_unknown_args(plugin_class, plugin_conf)
+        plugin_conf.update(plugin_class.args_from_user_params(self.workflow.user_params))
+        plugin_conf = self._translate_special_values(plugin_conf)
         logger.info("running plugin instance with args: '%s'", plugin_conf)
         plugin_instance = plugin_class(self.workflow, **plugin_conf)
         return plugin_instance
