@@ -482,13 +482,10 @@ def base_image_is_custom(base_image_name):
 
 
 def get_orchestrator_platforms(workflow):
-    try:
-        orchestrate_build_plugin = workflow.get_orchestrate_build_plugin()
-    except ValueError:
-        # Not an orchestrator build
-        return None
+    if workflow.is_orchestrator_build():
+        return workflow.user_params.get("platforms")
     else:
-        return orchestrate_build_plugin['args']['platforms']
+        return None
 
 
 def get_platforms(workflow):

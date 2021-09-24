@@ -1082,53 +1082,6 @@ def test_orchestrate_override_content_versions(tmpdir, caplog, content_versions)
         assert not build_result.is_failed()
 
 
-def test_orchestrate_operator_csv_modifications_url(tmpdir):
-    """Test if operator_csv_modifications_url is passed to worker build when defined"""
-    csv_mods_url = "https://example.com/test.json"
-    workflow = mock_workflow(tmpdir, platforms=['x86_64'])
-    expected_kwargs = {
-        'git_uri': SOURCE['uri'],
-        'git_ref': 'master',
-        'git_branch': 'master',
-        'user': 'bacon',
-        'platform': 'x86_64',
-        'release': '10',
-        'parent_images_digests': {},
-        'operator_csv_modifications_url': csv_mods_url,
-        'operator_manifests_extract_platform': 'x86_64',
-    }
-
-    reactor_config_override = mock_reactor_config(tmpdir, workflow)
-    reactor_config_override['openshift'] = {
-        'auth': {'enable': None},
-        'build_json_dir': None,
-        'insecure': False,
-        'url': 'https://worker_x86_64.com/'
-    }
-    expected_kwargs['reactor_config_override'] = reactor_config_override
-    mock_osbs(worker_expect=expected_kwargs)
-
-    plugin_args = {
-        'platforms': ['x86_64'],
-        'build_kwargs': make_worker_build_kwargs(),
-        'worker_build_image': 'fedora:latest',
-    }
-
-    # defined as user param
-    workflow.user_params['operator_csv_modifications_url'] = csv_mods_url
-
-    runner = BuildStepPluginsRunner(
-        workflow,
-        [{
-            'name': OrchestrateBuildPlugin.key,
-            'args': plugin_args,
-        }]
-    )
-
-    build_result = runner.run()
-    assert not build_result.is_failed()
-
-
 @pytest.mark.parametrize(('build', 'exc_str', 'ims', 'ims_cont',
                           'ml', 'ml_cont'), [
     ({"spec": {
@@ -1546,3 +1499,37 @@ def test_parent_images_digests(tmpdir, caplog):
 
     build_result = runner.run()
     assert not build_result.is_failed()
+
+
+@pytest.mark.parametrize(
+    "user_params_for_config, expect_build_from",
+    [
+        ({"buildroot_is_imagestream": True, "build_image": "ignored"}, None),
+        (
+            {"build_image": "registry.io/osbs/buildroot:latest"},
+            "image:registry.io/osbs/buildroot:latest",
+        ),
+    ],
+)
+def test_args_from_user_params(user_params_for_config, expect_build_from, tmpdir):
+    workflow = mock_workflow(tmpdir)
+    mock_reactor_config(tmpdir, workflow)
+
+    operator_mods_url = "http://example.org/modifications.json"
+
+    workflow.user_params.update(user_params_for_config)
+    workflow.user_params.update({
+        "koji_target": "some-target",
+        "operator_csv_modifications_url": operator_mods_url,
+    })
+
+    runner = BuildStepPluginsRunner(workflow, [])
+    plugin = runner.create_instance_from_plugin(OrchestrateBuildPlugin, {})
+
+    if expect_build_from:
+        assert plugin.config_kwargs["build_from"] == expect_build_from
+    else:
+        assert "build_from" not in plugin.config_kwargs
+
+    assert plugin.build_kwargs["target"] == "some-target"
+    assert plugin.build_kwargs["operator_csv_modifications_url"] == operator_mods_url

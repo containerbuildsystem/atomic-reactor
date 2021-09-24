@@ -986,21 +986,18 @@ def test_is_flatpak_build(workflow, extra_user_params, flatpak, user_params):
     assert is_flatpak_build(workflow) == flatpak
 
 
-@pytest.mark.parametrize(('inputs', 'results'), [
-    (None, None),
-    ([], None),
-    ([{'name': 'Bogus', 'args': {'platforms': ['spam']}}], None),
-    ([{'name': 'Bogus', 'args': {'platforms': ['spam']}},
-      {'name': PLUGIN_BUILD_ORCHESTRATE_KEY, 'args': {'platforms': ['ppce64le', 'arm64']}}],
-     ['arm64', 'ppce64le'])
-])
-def test_get_orchestrator_platforms(inputs, results, user_params):
-    workflow = DockerBuildWorkflow(source=None,
-                                   buildstep_plugins=inputs)
-    if results:
-        assert sorted(get_orchestrator_platforms(workflow)) == sorted(results)
+@pytest.mark.parametrize("is_orchestrator", [True, False])
+def test_get_orchestrator_platforms(is_orchestrator, user_params):
+    workflow = DockerBuildWorkflow(source=None)
+    if is_orchestrator:
+        workflow.buildstep_plugins_conf = [{"name": PLUGIN_BUILD_ORCHESTRATE_KEY}]
+
+    workflow.user_params["platforms"] = ["x86_64", "ppc64le"]
+
+    if is_orchestrator:
+        assert get_orchestrator_platforms(workflow) == ["x86_64", "ppc64le"]
     else:
-        assert get_orchestrator_platforms(workflow) == results
+        assert get_orchestrator_platforms(workflow) is None
 
 
 def test_df_parser(tmpdir):
