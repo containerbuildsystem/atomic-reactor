@@ -19,7 +19,7 @@ import docker
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import (get_build_json, get_platforms, base_image_is_custom,
                                  get_checksums, get_manifest_media_type,
-                                 RegistrySession, RegistryClient)
+                                 RegistrySession, RegistryClient, map_to_user_params)
 from atomic_reactor.utils import imageutil
 from io import BytesIO
 from requests.exceptions import HTTPError, RetryError, Timeout
@@ -29,6 +29,8 @@ from osbs.utils import ImageName
 class PullBaseImagePlugin(PreBuildPlugin):
     key = "pull_base_image"
     is_allowed_to_fail = False
+
+    args_from_user_params = map_to_user_params("parent_images_digests")
 
     def __init__(self, workflow, check_platforms=False, inspect_only=False,
                  parent_images_digests=None):

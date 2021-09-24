@@ -39,6 +39,13 @@ class ResolveComposesPlugin(PreBuildPlugin):
     key = PLUGIN_RESOLVE_COMPOSES_KEY
     is_allowed_to_fail = False
 
+    args_from_user_params = util.map_to_user_params(
+        "koji_target",
+        "signing_intent",
+        "compose_ids",
+        "repourls:yum_repourls",
+    )
+
     def __init__(self, workflow, koji_target=None, signing_intent=None, compose_ids=tuple(),
                  repourls=None, minimum_time_to_expire=MINIMUM_TIME_TO_EXPIRE):
         """

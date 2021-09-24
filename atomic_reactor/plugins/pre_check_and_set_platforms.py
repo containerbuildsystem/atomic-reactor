@@ -16,7 +16,7 @@ when koji build tags change.
 
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import (get_platforms_in_limits, is_scratch_build, is_isolated_build,
-                                 get_orchestrator_platforms)
+                                 get_orchestrator_platforms, map_to_user_params)
 from atomic_reactor.constants import PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
 from atomic_reactor.config import get_koji_session
 
@@ -24,6 +24,8 @@ from atomic_reactor.config import get_koji_session
 class CheckAndSetPlatformsPlugin(PreBuildPlugin):
     key = PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
     is_allowed_to_fail = False
+
+    args_from_user_params = map_to_user_params("koji_target")
 
     def __init__(self, workflow, koji_target=None):
 

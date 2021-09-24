@@ -24,7 +24,7 @@ Example configuration to add content of repo file at URL:
 
 """
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.util import is_scratch_build
+from atomic_reactor.util import is_scratch_build, map_to_user_params
 from atomic_reactor.utils.yum import YumRepo
 from urllib.parse import urlparse
 
@@ -32,6 +32,8 @@ from urllib.parse import urlparse
 class AddYumRepoByUrlPlugin(PreBuildPlugin):
     key = "add_yum_repo_by_url"
     is_allowed_to_fail = False
+
+    args_from_user_params = map_to_user_params("repourls:yum_repourls")
 
     def __init__(self, workflow, repourls=None, inject_proxy=None):
         """

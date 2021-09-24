@@ -19,7 +19,7 @@ from atomic_reactor.constants import (PLUGIN_FETCH_SOURCES_KEY, PNC_SYSTEM_USER,
 from atomic_reactor.config import get_koji_session
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.source import GitSource
-from atomic_reactor.util import get_retrying_requests_session
+from atomic_reactor.util import get_retrying_requests_session, map_to_user_params
 from atomic_reactor.download import download_url
 from atomic_reactor.metadata import label_map
 from atomic_reactor.utils.pnc import PNCUtil
@@ -33,6 +33,12 @@ class FetchSourcesPlugin(PreBuildPlugin):
     SRPMS_DOWNLOAD_DIR = 'image_sources'
     REMOTE_SOURCES_DOWNLOAD_DIR = 'remote_sources'
     MAVEN_SOURCES_DOWNLOAD_DIR = 'maven_sources'
+
+    args_from_user_params = map_to_user_params(
+        "koji_build_id:sources_for_koji_build_id",
+        "koji_build_nvr:sources_for_koji_build_nvr",
+        "signing_intent",
+    )
 
     def __init__(
         self, workflow, koji_build_id=None, koji_build_nvr=None, signing_intent=None,

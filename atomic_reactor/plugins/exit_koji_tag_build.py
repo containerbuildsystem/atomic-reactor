@@ -9,7 +9,7 @@ of the BSD license. See the LICENSE file for details.
 from atomic_reactor.constants import PLUGIN_KOJI_TAG_BUILD_KEY
 from atomic_reactor.config import get_koji_session
 from atomic_reactor.utils.koji import tag_koji_build
-from atomic_reactor.util import is_scratch_build
+from atomic_reactor.util import is_scratch_build, map_to_user_params
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.plugins.exit_koji_import import KojiImportPlugin
 
@@ -32,6 +32,8 @@ class KojiTagBuildPlugin(ExitPlugin):
 
     key = PLUGIN_KOJI_TAG_BUILD_KEY
     is_allowed_to_fail = False
+
+    args_from_user_params = map_to_user_params("target:koji_target")
 
     def __init__(self, workflow, target=None, poll_interval=5):
         """

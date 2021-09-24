@@ -18,7 +18,7 @@ from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.util import (get_manifest_digests, get_config_from_registry, Dockercfg,
-                                 get_all_manifests)
+                                 get_all_manifests, map_to_user_params)
 from atomic_reactor.utils import retries
 from osbs.utils import ImageName
 import osbs.utils
@@ -39,6 +39,8 @@ class TagAndPushPlugin(PostBuildPlugin):
 
     key = "tag_and_push"
     is_allowed_to_fail = False
+
+    args_from_user_params = map_to_user_params("koji_target")
 
     def __init__(self, workflow, koji_target=None):
         """

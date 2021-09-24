@@ -20,7 +20,7 @@ from atomic_reactor.plugin import PreBuildPlugin, BuildCanceledException
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.utils.koji import TaskWatcher, stream_task_output
 from atomic_reactor.utils.yum import YumRepo
-from atomic_reactor.util import get_platforms, df_parser, base_image_is_custom
+from atomic_reactor.util import get_platforms, df_parser, base_image_is_custom, map_to_user_params
 from atomic_reactor.metadata import label_map
 from atomic_reactor import util
 from osbs.utils import Labels, ImageName
@@ -70,6 +70,13 @@ class AddFilesystemPlugin(PreBuildPlugin):
         [factory-parameters]
         create_docker_metadata = False
         ''')
+
+    args_from_user_params = map_to_user_params(
+        "from_task_id:filesystem_koji_task_id",
+        "repos:yum_repourls",
+        "architecture:platform",
+        "koji_target",
+    )
 
     def __init__(self, workflow, from_task_id=None, poll_interval=5,
                  blocksize=DEFAULT_DOWNLOAD_BLOCK_SIZE,

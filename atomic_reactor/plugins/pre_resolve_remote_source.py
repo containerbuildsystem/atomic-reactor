@@ -18,7 +18,7 @@ from atomic_reactor.config import get_koji_session, get_cachito_session
 from atomic_reactor.utils.koji import get_koji_task_owner
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
-from atomic_reactor.util import get_build_json, is_scratch_build
+from atomic_reactor.util import get_build_json, is_scratch_build, map_to_user_params
 
 
 class ResolveRemoteSourcePlugin(PreBuildPlugin):
@@ -31,6 +31,8 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
 
     key = PLUGIN_RESOLVE_REMOTE_SOURCE
     is_allowed_to_fail = False
+
+    args_from_user_params = map_to_user_params("dependency_replacements")
 
     def __init__(self, workflow, dependency_replacements=None):
         """

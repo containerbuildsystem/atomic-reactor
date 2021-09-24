@@ -16,7 +16,7 @@ from shlex import quote
 from atomic_reactor.constants import REMOTE_SOURCE_DIR, CACHITO_ENV_FILENAME, CACHITO_ENV_ARG_ALIAS
 from atomic_reactor.download import download_url
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.util import get_retrying_requests_session
+from atomic_reactor.util import get_retrying_requests_session, map_to_user_params
 from atomic_reactor.utils.cachito import CFG_TYPE_B64
 from urllib.parse import urlparse
 
@@ -25,6 +25,8 @@ class DownloadRemoteSourcePlugin(PreBuildPlugin):
     key = 'download_remote_source'
     is_allowed_to_fail = False
     REMOTE_SOURCE = 'unpacked_remote_sources'
+
+    args_from_user_params = map_to_user_params("remote_sources")
 
     def __init__(self, workflow, remote_sources=None):
         """

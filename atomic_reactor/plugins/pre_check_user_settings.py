@@ -16,7 +16,8 @@ from atomic_reactor.util import (
     read_content_sets,
     read_fetch_artifacts_koji,
     read_fetch_artifacts_pnc,
-    read_fetch_artifacts_url
+    read_fetch_artifacts_url,
+    map_to_user_params,
 )
 
 from osbs.utils import Labels
@@ -35,6 +36,8 @@ class CheckUserSettingsPlugin(PreBuildPlugin):
     """
     key = PLUGIN_CHECK_USER_SETTINGS
     is_allowed_to_fail = False
+
+    args_from_user_params = map_to_user_params("flatpak")
 
     def __init__(self, workflow, flatpak=False):
         """

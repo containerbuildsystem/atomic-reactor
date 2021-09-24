@@ -20,7 +20,7 @@ from atomic_reactor.constants import (IMAGE_BUILD_INFO_DIR, INSPECT_ROOTFS,
 from atomic_reactor.config import get_cachito_session
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import (base_image_is_scratch, df_parser, read_yaml,
-                                 read_content_sets
+                                 read_content_sets, map_to_user_params
                                  )
 from atomic_reactor.utils import imageutil
 from atomic_reactor.utils.pnc import PNCUtil
@@ -84,6 +84,8 @@ class AddImageContentManifestPlugin(PreBuildPlugin):
         'content_sets': [],
         'image_contents': [],
     }
+
+    args_from_user_params = map_to_user_params("remote_sources")
 
     def __init__(self, workflow, remote_sources=None, destdir=IMAGE_BUILD_INFO_DIR):
         """
