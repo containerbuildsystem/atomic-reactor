@@ -34,7 +34,7 @@ from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.pre_flatpak_create_dockerfile import (FLATPAK_INCLUDEPKGS_FILENAME,
                                                                   FLATPAK_CLEANUPSCRIPT_FILENAME,
                                                                   get_flatpak_source_spec)
-from atomic_reactor.util import df_parser, is_flatpak_build
+from atomic_reactor.util import df_parser, is_flatpak_build, map_to_user_params
 
 
 # ODCS API constant
@@ -95,6 +95,8 @@ def set_flatpak_compose_info(workflow, source):
 class FlatpakUpdateDockerfilePlugin(PreBuildPlugin):
     key = "flatpak_update_dockerfile"
     is_allowed_to_fail = False
+
+    args_from_user_params = map_to_user_params("compose_ids")
 
     def __init__(self, workflow, compose_ids=tuple()):
         """

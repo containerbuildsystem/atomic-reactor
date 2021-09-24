@@ -17,6 +17,7 @@ from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.util import (
     has_operator_appregistry_manifest,
     has_operator_bundle_manifest,
+    map_to_user_params,
 )
 from atomic_reactor.utils.operator import OperatorManifest
 from platform import machine
@@ -35,6 +36,8 @@ class ExportOperatorManifestsPlugin(PostBuildPlugin):
 
     key = PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY
     is_allowed_to_fail = False
+
+    args_from_user_params = map_to_user_params("operator_manifests_extract_platform", "platform")
 
     def __init__(self, workflow, operator_manifests_extract_platform=None, platform=None):
         super(ExportOperatorManifestsPlugin, self).__init__(workflow)

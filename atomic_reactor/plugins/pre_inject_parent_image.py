@@ -7,6 +7,7 @@ of the BSD license. See the LICENSE file for details.
 """
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
+from atomic_reactor.util import map_to_user_params
 from osbs.utils import graceful_chain_get, ImageName
 from atomic_reactor.constants import PLUGIN_INJECT_PARENT_IMAGE_KEY
 from atomic_reactor.config import get_koji_session
@@ -35,6 +36,8 @@ class InjectParentImage(PreBuildPlugin):
 
     key = PLUGIN_INJECT_PARENT_IMAGE_KEY
     is_allowed_to_fail = False
+
+    args_from_user_params = map_to_user_params("koji_parent_build")
 
     def __init__(self, workflow, koji_parent_build=None):
         """

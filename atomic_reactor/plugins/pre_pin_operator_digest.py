@@ -20,7 +20,8 @@ from atomic_reactor.util import (RegistrySession,
                                  RegistryClient,
                                  has_operator_bundle_manifest,
                                  read_yaml_from_url, df_parser,
-                                 terminal_key_paths,)
+                                 terminal_key_paths,
+                                 map_to_user_params)
 from osbs.utils.yaml import (
     load_schema,
     validate_with_schema,
@@ -54,6 +55,11 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
 
     key = PLUGIN_PIN_OPERATOR_DIGESTS_KEY
     is_allowed_to_fail = False
+
+    args_from_user_params = map_to_user_params(
+        "replacement_pullspecs:operator_bundle_replacement_pullspecs",
+        "operator_csv_modifications_url",
+    )
 
     def __init__(self, workflow, replacement_pullspecs=None,
                  operator_csv_modifications_url=None):

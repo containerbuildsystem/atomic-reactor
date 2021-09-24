@@ -12,13 +12,15 @@ import os
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.constants import YUM_REPOS_DIR
 from atomic_reactor.utils.yum import YumRepo
-from atomic_reactor.util import render_yum_repo
+from atomic_reactor.util import render_yum_repo, map_to_user_params
 from atomic_reactor.config import get_koji_session
 
 
 class KojiPlugin(PreBuildPlugin):
     key = "koji"
     is_allowed_to_fail = False
+
+    args_from_user_params = map_to_user_params("target:koji_target")
 
     def __init__(self, workflow, target=None):
         """
