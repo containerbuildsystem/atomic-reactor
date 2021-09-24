@@ -853,3 +853,12 @@ def test_release_label(tmpdir, workflow, caplog, base_new, df_new, plugin_new,
 
     if expected_log:
         assert expected_log in caplog.text
+
+
+def test_labels_from_user_params(workflow):
+    workflow.user_params["release"] = "42"
+
+    runner = PreBuildPluginsRunner(workflow, [])
+    plugin = runner.create_instance_from_plugin(AddLabelsPlugin, {})
+
+    assert plugin.labels == {"release": "42"}

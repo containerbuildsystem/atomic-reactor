@@ -71,6 +71,12 @@ class AddLabelsPlugin(PreBuildPlugin):
     key = "add_labels_in_dockerfile"
     is_allowed_to_fail = False
 
+    @staticmethod
+    def args_from_user_params(user_params: dict) -> dict:
+        if release := user_params.get("release"):
+            return {"labels": {"release": release}}
+        return {}
+
     def __init__(self, workflow, labels=None, dont_overwrite=None,
                  auto_labels=("build-date",
                               "architecture",
