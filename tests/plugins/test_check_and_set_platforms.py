@@ -95,8 +95,8 @@ def write_container_yaml(tmpdir, platform_exclude='', platform_only=''):
 
 
 def set_orchestrator_platforms(workflow, orchestrator_platforms):
-    workflow.buildstep_plugins_conf = [{'name': PLUGIN_BUILD_ORCHESTRATE_KEY,
-                                        'args': {'platforms': orchestrator_platforms}}]
+    workflow.buildstep_plugins_conf = [{'name': PLUGIN_BUILD_ORCHESTRATE_KEY}]
+    workflow.user_params['platforms'] = orchestrator_platforms
 
 
 def prepare(tmpdir, labels=None):

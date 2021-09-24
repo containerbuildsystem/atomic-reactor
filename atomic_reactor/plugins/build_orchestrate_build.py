@@ -21,7 +21,7 @@ import platform
 from atomic_reactor.inner import BuildResult
 from atomic_reactor.plugin import BuildStepPlugin
 from atomic_reactor.util import (df_parser, get_build_json, get_manifest_list,
-                                 get_platforms)
+                                 get_platforms, map_to_user_params)
 from atomic_reactor.utils.koji import generate_koji_upload_dir
 from atomic_reactor.constants import (PLUGIN_ADD_FILESYSTEM_KEY, PLUGIN_BUILD_ORCHESTRATE_KEY)
 from atomic_reactor.config import get_openshift_session
@@ -239,7 +239,38 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
 
     key = PLUGIN_BUILD_ORCHESTRATE_KEY
 
-    def __init__(self, workflow, build_kwargs, platforms=None,
+    @staticmethod
+    def args_from_user_params(user_params: dict) -> dict:
+        args = {}
+
+        if not user_params.get("buildroot_is_imagestream") and "build_image" in user_params:
+            args["config_kwargs"] = {"build_from": f"image:{user_params['build_image']}"}
+
+        build_kwargs_from_user_params = map_to_user_params(
+            "component",
+            "git_branch",
+            "git_ref",
+            "git_uri",
+            "koji_task_id",
+            "filesystem_koji_task_id",
+            "scratch",
+            "target:koji_target",
+            "user",
+            "yum_repourls",
+            "koji_parent_build",
+            "isolated",
+            "reactor_config_map",
+            "reactor_config_override",
+            "git_commit_depth",
+            "flatpak",
+            "operator_csv_modifications_url",
+        )
+        if build_kwargs := build_kwargs_from_user_params(user_params):
+            args["build_kwargs"] = build_kwargs
+
+        return args
+
+    def __init__(self, workflow, build_kwargs=None,
                  worker_build_image=None, config_kwargs=None,
                  find_cluster_retry_delay=FIND_CLUSTER_RETRY_DELAY,
                  failure_retry_delay=FAILURE_RETRY_DELAY,
@@ -249,8 +280,6 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
 
         :param workflow: DockerBuildWorkflow instance
         :param build_kwargs: dict, keyword arguments for starting worker builds
-        :param platforms: list<str>, platforms to build
-                          (used via utils.get_orchestrator_platforms())
         :param worker_build_image: str, the builder image to use for worker builds
                                   (not used, image is inherited from the orchestrator)
         :param config_kwargs: dict, keyword arguments to override worker configuration
@@ -262,7 +291,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         super(OrchestrateBuildPlugin, self).__init__(workflow)
         self.platforms = get_platforms(self.workflow)
 
-        self.build_kwargs = build_kwargs
+        self.build_kwargs = build_kwargs or {}
         self.config_kwargs = config_kwargs or {}
 
         self.adjust_build_kwargs()
@@ -332,10 +361,6 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         # All platforms should generate the same operator manifests. We can use any of them
         if self.platforms:
             self.build_kwargs['operator_manifests_extract_platform'] = list(self.platforms)[0]
-
-        op_csv_mods_url = self.workflow.user_params.get('operator_csv_modifications_url')
-        if op_csv_mods_url:
-            self.build_kwargs['operator_csv_modifications_url'] = op_csv_mods_url
 
     def get_current_builds(self, osbs):
         field_selector = ','.join(['status!={status}'.format(status=status.capitalize())
