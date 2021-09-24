@@ -61,6 +61,7 @@ from atomic_reactor.util import (LazyGit, figure_out_build_file,
                                  has_operator_appregistry_manifest,
                                  has_operator_bundle_manifest, DockerfileImages,
                                  terminal_key_paths,
+                                 map_to_user_params,
                                  )
 from tests.constants import (DOCKERFILE_GIT, MOCK, REACTOR_CONFIG_MAP)
 import atomic_reactor.util
@@ -1951,3 +1952,18 @@ def test_dockerfile_images(source_registry, organization, dockerfile_images, bas
 def test_terminal_key_paths(data, expected):
     """Unittest for terminal_key_paths data"""
     assert set(terminal_key_paths(data)) == expected
+
+
+def test_map_to_user_params():
+    get_args = map_to_user_params(
+        "arg1",
+        "arg2:param2",
+        "arg_none",
+        "arg_missing",
+    )
+    user_params = {
+        "arg1": 1,
+        "param2": 2,
+        "arg_none": None,
+    }
+    assert get_args(user_params) == {"arg1": 1, "arg2": 2}
