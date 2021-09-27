@@ -126,8 +126,8 @@ class ManifestUtil(object):
         references = []
         if media_type in (MEDIA_TYPE_DOCKER_V2_SCHEMA2, MEDIA_TYPE_OCI_V1):
             references.append(parsed['config']['digest'])
-            for l in parsed['layers']:
-                references.append(l['digest'])
+            for layer in parsed['layers']:
+                references.append(layer['digest'])
         else:
             # manifest list support could be added here, but isn't needed currently, since
             # we never copy a manifest list as a whole between repositories
