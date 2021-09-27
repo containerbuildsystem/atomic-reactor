@@ -676,10 +676,10 @@ def test_flatpak_create_oci(tmpdir, docker_tasker, user_params,
             assert n not in components
 
         metadata_lines = inspector.cat_file('/metadata').split('\n')
-        assert any(re.match(r'runtime=org.fedoraproject.Platform/.*/f28$', l)
-                   for l in metadata_lines)
-        assert any(re.match(r'sdk=org.fedoraproject.Sdk/.*/f28$', l)
-                   for l in metadata_lines)
+        assert any(re.match(r'runtime=org.fedoraproject.Platform/.*/f28$', line)
+                   for line in metadata_lines)
+        assert any(re.match(r'sdk=org.fedoraproject.Sdk/.*/f28$', line)
+                   for line in metadata_lines)
 
         if config_name == 'app':
             # Check that the desktop file was rewritten
