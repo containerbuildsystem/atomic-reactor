@@ -63,8 +63,8 @@ class SourceConfig(object):
             # to decide whether any ODCS composes will be created
             self.compose.pop('inherit', None)
         assert meth is None or meth in CONTAINER_BUILD_METHODS, (
-               "unknown build method '{}' specified in {}; also, schema validated it."
-               .format(meth, REPO_CONTAINER_CONFIG)
+           "unknown build method '{}' specified in {}; also, schema validated it."
+           .format(meth, REPO_CONTAINER_CONFIG)
         )
         self.remote_source = self.data.get('remote_source')
         self.remote_sources = self.data.get('remote_sources')
