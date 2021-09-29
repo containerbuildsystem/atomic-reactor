@@ -28,7 +28,7 @@ function setup_osbs() {
   # Optionally specify repo and branch for osbs-client to test changes
   # which depend on osbs-client patches not yet available in upstream master
   OSBS_CLIENT_REPO=${OSBS_CLIENT_REPO:-https://github.com/containerbuildsystem/osbs-client}
-  OSBS_CLIENT_BRANCH=${OSBS_CLIENT_BRANCH:-master}
+  OSBS_CLIENT_BRANCH=${OSBS_CLIENT_BRANCH:-osbs_ocp3}
 
   # PIP_PREFIX: osbs-client provides input templates that must be copied into /usr/share/...
   ENVS='-e PIP_PREFIX=/usr'
