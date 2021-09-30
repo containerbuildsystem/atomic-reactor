@@ -82,7 +82,7 @@ class TestCompress(object):
             assert 'skipping, no exported source image to compress' in caplog.text
         else:
             compressed_img = os.path.join(
-                workflow.source.tmpdir,
+                workflow.source.workdir,
                 EXPORTED_COMPRESSED_IMAGE_NAME_TEMPLATE.format(extension))
             assert os.path.exists(compressed_img)
             metadata = workflow.exported_image_sequence[-1]

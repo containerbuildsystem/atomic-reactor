@@ -19,9 +19,9 @@ from tests.util import requires_internet
 
 
 class TestSource(object):
-    def test_creates_tmpdir_if_not_passed(self):
+    def test_creates_workdir_if_not_passed(self):
         s = Source('git', 'foo')
-        assert os.path.exists(s.tmpdir)
+        assert os.path.exists(s.workdir)
 
 
 @requires_internet

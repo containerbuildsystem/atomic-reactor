@@ -1301,7 +1301,7 @@ def test_no_base_image(tmpdir):
 
 def test_different_custom_base_images(tmpdir):
     source = {'provider': 'path', 'uri': 'file://' + DOCKERFILE_MULTISTAGE_CUSTOM_BAD_PATH,
-              'tmpdir': str(tmpdir)}
+              'workdir': str(tmpdir)}
     with pytest.raises(NotImplementedError) as exc:
         DockerBuildWorkflow(source=source)
     message = "multiple different custom base images aren't allowed in Dockerfile"
@@ -1310,7 +1310,7 @@ def test_different_custom_base_images(tmpdir):
 
 def test_copy_from_is_blocked(tmpdir):
     """test when user has specified COPY --from=image (instead of builder)"""
-    source = {'provider': 'path', 'uri': 'file://' + str(tmpdir), 'tmpdir': str(tmpdir)}
+    source = {'provider': 'path', 'uri': 'file://' + str(tmpdir), 'workdir': str(tmpdir)}
 
     dfp = df_parser(str(tmpdir))
     dfp.content = dedent("""\

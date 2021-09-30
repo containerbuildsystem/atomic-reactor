@@ -190,7 +190,7 @@ class FetchSourcesPlugin(PreBuildPlugin):
             if os.path.getsize(sources_cache_file) > 0:
                 raise RuntimeError('Repository is using lookaside cache, which is not allowed '
                                    'for source container builds')
-        source.remove_tmpdir()
+        source.remove_workdir()
 
     def assemble_srpm_url(self, base_url, srpm_filename, sign_key=None):
         """Assemble the URL used to fetch an SRPM file
