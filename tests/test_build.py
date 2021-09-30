@@ -51,7 +51,7 @@ def test_inspect_built_image(tmpdir, source_params):
         mock_docker(provided_image_repotags=provided_image)
 
     flexmock(InsideBuilder, ensure_is_built=None)
-    source_params.update({'tmpdir': str(tmpdir)})
+    source_params.update({'workdir': str(tmpdir)})
     s = get_source_instance_for(source_params)
     b = InsideBuilder(s, provided_image)
     b.tasker.build_method = default_build_method
@@ -70,7 +70,7 @@ def test_parent_image_inspect(insecure, parents_pulled, tmpdir, source_params):
     if MOCK:
         mock_docker(provided_image_repotags=provided_image)
 
-    source_params.update({'tmpdir': str(tmpdir)})
+    source_params.update({'workdir': str(tmpdir)})
     s = get_source_instance_for(source_params)
     b = InsideBuilder(s, provided_image)
     b.tasker.build_method = default_build_method
@@ -102,7 +102,7 @@ def test_base_image_inspect(tmpdir, source_params, parents_pulled, insecure, bas
     if MOCK:
         mock_docker()
 
-    source_params.update({'tmpdir': str(tmpdir)})
+    source_params.update({'workdir': str(tmpdir)})
     s = get_source_instance_for(source_params)
     df_path, _ = s.get_build_file_path()
     dfp = df_parser(df_path)
@@ -170,7 +170,7 @@ def test_ensure_built(tmpdir, source_params, is_built):
     if MOCK:
         mock_docker()
 
-    source_params.update({'tmpdir': str(tmpdir)})
+    source_params.update({'workdir': str(tmpdir)})
     s = get_source_instance_for(source_params)
     b = InsideBuilder(s, '')
     b.is_built = is_built

@@ -72,20 +72,20 @@ class SourceConfig(object):
 
 
 class Source(object):
-    def __init__(self, provider, uri, dockerfile_path=None, provider_params=None, tmpdir=None):
+    def __init__(self, provider, uri, dockerfile_path=None, provider_params=None, workdir=None):
         self._config = None
         self.provider = provider
         self.uri = uri
         self.dockerfile_path = dockerfile_path
         self.provider_params = provider_params or {}
-        self.tmpdir = tmpdir or tempfile.mkdtemp()
-        logger.debug("workdir is %r", self.tmpdir)
+        self._workdir = workdir or tempfile.mkdtemp()
+        logger.debug("workdir is %r", self.workdir)
         parsed_uri = urlparse(uri)
         git_reponame = os.path.basename(parsed_uri.path)
         if git_reponame.endswith('.git'):
             git_reponame = git_reponame[:-4]
 
-        self.source_path = os.path.join(self.tmpdir, git_reponame)
+        self.source_path = os.path.join(self.workdir, git_reponame)
         logger.debug("source path is %r", self.source_path)
 
     @property
@@ -94,7 +94,7 @@ class Source(object):
 
     @property
     def workdir(self):
-        return self.tmpdir
+        return self._workdir
 
     @property
     def manifests_dir(self):
@@ -110,7 +110,7 @@ class Source(object):
         return manifests_dir
 
     def get(self):
-        """Run this to get source and save it to `tmpdir` or a newly created tmpdir."""
+        """Run this to get source and save it to `workdir` or a newly created workdir."""
         raise NotImplementedError('Must override in subclasses!')
 
     def get_build_file_path(self):
@@ -122,8 +122,8 @@ class Source(object):
         self._config = self._config or SourceConfig(self.path)
         return self._config
 
-    def remove_tmpdir(self):
-        shutil.rmtree(self.tmpdir)
+    def remove_workdir(self):
+        shutil.rmtree(self.workdir)
 
     def get_vcs_info(self):
         """Returns VcsInfo namedtuple or None if not applicable."""
@@ -131,9 +131,9 @@ class Source(object):
 
 
 class GitSource(Source):
-    def __init__(self, provider, uri, dockerfile_path=None, provider_params=None, tmpdir=None):
+    def __init__(self, provider, uri, dockerfile_path=None, provider_params=None, workdir=None):
         super(GitSource, self).__init__(provider, uri, dockerfile_path,
-                                        provider_params, tmpdir)
+                                        provider_params, workdir)
         self.git_commit = self.provider_params.get('git_commit', None)
         branch = self.provider_params.get('git_branch', None)
         depth = self.provider_params.get('git_commit_depth', None)
@@ -159,9 +159,9 @@ class GitSource(Source):
 
 
 class PathSource(Source):
-    def __init__(self, provider, uri, dockerfile_path=None, provider_params=None, tmpdir=None):
+    def __init__(self, provider, uri, dockerfile_path=None, provider_params=None, workdir=None):
         super(PathSource, self).__init__(provider, uri, dockerfile_path,
-                                         provider_params, tmpdir)
+                                         provider_params, workdir)
         # make sure we have canonical URI representation even if we got path without "file://"
         if not self.uri.startswith('file://'):
             self.uri = 'file://' + self.uri
@@ -191,7 +191,7 @@ class DummySource(Source):
     """
     def __init__(
         self, provider, uri, dockerfile_path=None,
-        provider_params=None, tmpdir=None
+        provider_params=None, workdir=None
     ):
         # intentionally not calling `super()`
         self._config = None
@@ -199,9 +199,9 @@ class DummySource(Source):
         self.uri = uri
         self.dockerfile_path = dockerfile_path
         self.provider_params = provider_params or {}
-        self.tmpdir = tmpdir or tempfile.mkdtemp()
-        logger.debug("workdir is %r", self.tmpdir)
-        self.source_path = tempfile.mkdtemp(dir=self.tmpdir)
+        self._workdir = workdir or tempfile.mkdtemp()
+        logger.debug("workdir is %r", self.workdir)
+        self.source_path = tempfile.mkdtemp(dir=self.workdir)
         logger.debug("source path is %r", self.source_path)
         self._add_fake_dockerfile()
 
@@ -216,7 +216,7 @@ class DummySource(Source):
         return self.source_path
 
 
-def get_source_instance_for(source, tmpdir=None):
+def get_source_instance_for(source, workdir=None):
     validate_source_dict_schema(source)
     klass = None
     provider = source['provider'].lower()
@@ -229,7 +229,7 @@ def get_source_instance_for(source, tmpdir=None):
 
     # don't modify original source
     args = copy.deepcopy(source)
-    args['tmpdir'] = tmpdir
+    args['workdir'] = workdir
     return klass(**args)
 
 

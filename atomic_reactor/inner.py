@@ -356,9 +356,9 @@ class DockerBuildWorkflow(object):
         """
         tmp_dir = tempfile.mkdtemp()
         if source is None:
-            self.source = DummySource(None, None, tmpdir=tmp_dir)
+            self.source = DummySource(None, None, workdir=tmp_dir)
         else:
-            self.source = get_source_instance_for(source, tmpdir=tmp_dir)
+            self.source = get_source_instance_for(source, workdir=tmp_dir)
 
         self.prebuild_plugins_conf = prebuild_plugins
         self.buildstep_plugins_conf = buildstep_plugins
@@ -664,7 +664,7 @@ class DockerBuildWorkflow(object):
                 if not exception_being_handled:
                     raise ex
             finally:
-                self.source.remove_tmpdir()
+                self.source.remove_workdir()  # OSBS2 TBD: Don't remove here, remove in exit task?
                 self.fs_watcher.finish()
 
             signal.signal(signal.SIGTERM, signal.SIG_DFL)
