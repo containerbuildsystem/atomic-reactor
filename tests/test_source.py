@@ -12,12 +12,10 @@ from atomic_reactor.source import (
     get_source_instance_for,
     DummySource,
 )
-import atomic_reactor.source
 from osbs.exceptions import OsbsValidationException
 
-from tests.constants import DOCKERFILE_GIT, DOCKERFILE_OK_PATH, SOURCE_CONFIG_ERROR_PATH
+from tests.constants import DOCKERFILE_GIT, SOURCE_CONFIG_ERROR_PATH
 from tests.util import requires_internet
-import flexmock
 
 
 class TestSource(object):
@@ -72,17 +70,6 @@ class TestGetSourceInstanceFor(object):
             get_source_instance_for(source)
 
         assert str(ex.value) == error
-
-    def test_retrieves_source_config_file(self):
-        s = get_source_instance_for({'provider': 'path', 'uri': DOCKERFILE_OK_PATH})
-        assert s.config
-        assert s.config.image_build_method == 'imagebuilder'
-
-    def test_sourceconfig_bad_build_method(self, monkeypatch):
-        s = get_source_instance_for({'provider': 'path', 'uri': DOCKERFILE_OK_PATH})
-        flexmock(atomic_reactor.source, CONTAINER_BUILD_METHODS=[])
-        with pytest.raises(AssertionError):
-            s.config    # pylint: disable=pointless-statement; is a property
 
     def test_broken_source_config_file(self):
         s = get_source_instance_for({'provider': 'path', 'uri': SOURCE_CONFIG_ERROR_PATH})
