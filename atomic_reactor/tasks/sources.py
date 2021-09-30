@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import ClassVar
 
 from atomic_reactor.tasks import common
+from atomic_reactor.tasks import plugin_based
 
 
 @dataclass(frozen=True)
@@ -20,10 +21,10 @@ class SourceBuildTaskParams(common.TaskParams):
     user_params_schema: ClassVar[str] = "schemas/source_containers_user_params.json"
 
 
-class SourceBuildTask(common.Task):
+class SourceBuildTask(plugin_based.PluginBasedTask):
     """Source container build task."""
 
-    plugins_def = common.PluginsDef(
+    plugins_def = plugin_based.PluginsDef(
         prebuild=[
             {"name": "fetch_sources"},
             {"name": "bump_release"},
@@ -42,6 +43,3 @@ class SourceBuildTask(common.Task):
             {"name": "store_metadata_in_osv3"},
         ],
     )
-
-    def execute(self):
-        raise NotImplementedError("This task is not yet implemented.")

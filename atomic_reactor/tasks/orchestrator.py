@@ -9,6 +9,7 @@ of the BSD license. See the LICENSE file for details.
 from dataclasses import dataclass
 
 from atomic_reactor.tasks import common
+from atomic_reactor.tasks import plugin_based
 
 
 @dataclass(frozen=True)
@@ -16,10 +17,10 @@ class OrchestratorTaskParams(common.TaskParams):
     """Orchestrator task parameters (this task only uses common parameters)."""
 
 
-class OrchestratorTask(common.Task):
+class OrchestratorTask(plugin_based.PluginBasedTask):
     """Orchestrator task."""
 
-    plugins_def = common.PluginsDef(
+    plugins_def = plugin_based.PluginsDef(
         prebuild=[
             {"name": "check_user_settings"},
             {"name": "check_and_set_platforms", "required": False},
@@ -57,6 +58,3 @@ class OrchestratorTask(common.Task):
             {"name": "remove_worker_metadata"},
         ],
     )
-
-    def execute(self):
-        raise NotImplementedError("This task is not yet implemented.")
