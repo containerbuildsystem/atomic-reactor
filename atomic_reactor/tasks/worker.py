@@ -9,6 +9,7 @@ of the BSD license. See the LICENSE file for details.
 from dataclasses import dataclass
 
 from atomic_reactor.tasks import common
+from atomic_reactor.tasks import plugin_based
 
 
 @dataclass(frozen=True)
@@ -16,10 +17,10 @@ class WorkerTaskParams(common.TaskParams):
     """Worker task parameters (this task only uses common parameters)."""
 
 
-class WorkerTask(common.Task):
+class WorkerTask(plugin_based.PluginBasedTask):
     """Worker task."""
 
-    plugins_def = common.PluginsDef(
+    plugins_def = plugin_based.PluginsDef(
         prebuild=[
             {"name": "flatpak_create_dockerfile"},
             {"name": "flatpak_update_dockerfile"},
@@ -60,6 +61,3 @@ class WorkerTask(common.Task):
             {"name": "remove_built_image"},
         ],
     )
-
-    def execute(self):
-        raise NotImplementedError("This task is not yet implemented.")

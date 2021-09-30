@@ -7,32 +7,10 @@ of the BSD license. See the LICENSE file for details.
 """
 
 import abc
-from dataclasses import dataclass, field, fields
-from typing import List, Dict, Any, ClassVar
+from dataclasses import dataclass, fields
+from typing import Dict, Any, ClassVar
 
 from atomic_reactor import util
-
-
-@dataclass(frozen=True)
-class PluginsDef:
-    """Defines the plugins to be executed by a task."""
-
-    prebuild: List[dict] = field(default_factory=list)
-    build: List[dict] = field(default_factory=list)
-    prepublish: List[dict] = field(default_factory=list)
-    postbuild: List[dict] = field(default_factory=list)
-    exit: List[dict] = field(default_factory=list)
-
-    def __post_init__(self):
-        """Validate the plugin definition right after the instance is created."""
-        to_validate = {
-            "prebuild_plugins": self.prebuild,
-            "buildstep_plugins": self.build,
-            "prepublish_plugins": self.prepublish,
-            "postbuild_plugins": self.postbuild,
-            "exit_plugins": self.exit,
-        }
-        util.validate_with_schema(to_validate, "schemas/plugins.json")
 
 
 @dataclass(frozen=True)
@@ -79,8 +57,6 @@ class TaskParams:
 
 class Task(abc.ABC):
     """Task; the main execution unit in atomic-reactor."""
-
-    plugins_def: PluginsDef = NotImplemented
 
     def __init__(self, params: TaskParams):
         """Initialize a Task."""

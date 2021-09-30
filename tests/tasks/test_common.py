@@ -12,8 +12,6 @@ from typing import Optional, ClassVar
 import flexmock
 import pytest
 
-from osbs.exceptions import OsbsValidationException
-
 from atomic_reactor import util
 from atomic_reactor.tasks import common
 
@@ -28,22 +26,6 @@ USER_PARAMS_FILE = "user_params.json"
 USER_PARAMS = {"a": "b"}
 
 TASK_ARGS_WITH_USER_PARAMS = {**TASK_ARGS, "user_params": USER_PARAMS_STR}
-
-
-class TestPluginsDef:
-    """Tests for the PluginsDef class."""
-
-    def test_create_valid(self):
-        plugins = common.PluginsDef(build=[{"name": "some_plugin"}])
-        assert plugins.prebuild == []
-        assert plugins.build == [{"name": "some_plugin"}]
-        assert plugins.prepublish == []
-        assert plugins.postbuild == []
-        assert plugins.exit == []
-
-    def test_create_invalid(self):
-        with pytest.raises(OsbsValidationException, match="1 is not of type 'boolean'"):
-            common.PluginsDef(prebuild=[{"name": "some_plugin", "required": 1}])
 
 
 class TestTaskParams:
