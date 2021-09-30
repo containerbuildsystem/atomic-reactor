@@ -80,7 +80,7 @@ class TaskParams:
 class Task(abc.ABC):
     """Task; the main execution unit in atomic-reactor."""
 
-    plugins: PluginsDef = NotImplemented
+    plugins_def: PluginsDef = NotImplemented
 
     def __init__(self, params: TaskParams):
         """Initialize a Task."""
