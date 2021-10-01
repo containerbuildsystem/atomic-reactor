@@ -11,6 +11,7 @@ to the more specific names given by the builder.
 """
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import df_parser, base_image_is_scratch
+from atomic_reactor.utils import imageutil
 
 
 class BaseImageMismatch(RuntimeError):
@@ -33,15 +34,14 @@ class ChangeFromPlugin(PreBuildPlugin):
     key = "change_from_in_dockerfile"
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow):
+    def __init__(self, workflow):
         """
         constructor
 
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         """
         # call parent constructor
-        super(ChangeFromPlugin, self).__init__(tasker, workflow)
+        super(ChangeFromPlugin, self).__init__(workflow)
 
     def _sanity_check(self, df_base, builder_base):
         if builder_base != self.workflow.dockerfile_images[df_base]:
@@ -53,7 +53,6 @@ class ChangeFromPlugin(PreBuildPlugin):
             )
 
     def run(self):
-        builder = self.workflow.builder
         dfp = df_parser(self.workflow.df_path)
         self.workflow.original_df = dfp.content
 
@@ -94,7 +93,8 @@ class ChangeFromPlugin(PreBuildPlugin):
                 new_parents.append(df_img)
                 continue
             local_image = self.workflow.dockerfile_images[df_img]
-            inspection = builder.parent_image_inspect(local_image)
+            # OSBS2 TBD
+            inspection = imageutil.get_inspect_for_image(local_image)
 
             try:
                 parent_image_ids[df_img] = inspection['Id']

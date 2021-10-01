@@ -32,12 +32,11 @@ class GenerateMavenMetadataPlugin(PostBuildPlugin):
     is_allowed_to_fail = False
     DOWNLOAD_DIR = 'url_sources'
 
-    def __init__(self, tasker, workflow):
+    def __init__(self, workflow):
         """
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         """
-        super(GenerateMavenMetadataPlugin, self).__init__(tasker, workflow)
+        super(GenerateMavenMetadataPlugin, self).__init__(workflow)
         self.session = None
         self.workdir = self.workflow.source.get_build_file_path()[1]
         self.no_source_artifacts = []

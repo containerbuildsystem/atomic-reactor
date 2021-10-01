@@ -26,13 +26,12 @@ class DownloadRemoteSourcePlugin(PreBuildPlugin):
     is_allowed_to_fail = False
     REMOTE_SOURCE = 'unpacked_remote_sources'
 
-    def __init__(self, tasker, workflow, remote_sources=None):
+    def __init__(self, workflow, remote_sources=None):
         """
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param remote_sources: list of dicts, each dict contains info about particular
         remote source with the following keys:
-            build_args: dict, extra args for `builder.build_args`, if any
+            build_args: dict, extra args for `workflow.buildargs`, if any
             configs: list of str, configuration files to be injected into
             the exploded remote sources dir
             request_id: int, cachito request id; used to request the
@@ -40,7 +39,7 @@ class DownloadRemoteSourcePlugin(PreBuildPlugin):
             url: str, URL from which to download a source archive
             name: str, name of remote source
         """
-        super(DownloadRemoteSourcePlugin, self).__init__(tasker, workflow)
+        super(DownloadRemoteSourcePlugin, self).__init__(workflow)
         self.remote_sources = remote_sources
         self.multiple_remote_sources = bool(self.workflow.source.config.remote_sources)
 

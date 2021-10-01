@@ -58,19 +58,20 @@ from atomic_reactor import start_time as atomic_reactor_start_time
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.constants import INSPECT_CONFIG
 from atomic_reactor.util import (df_parser,
-                                 get_docker_architecture,
                                  label_to_string,
                                  LabelFormatter)
+from atomic_reactor.utils import imageutil
 from osbs.utils import Labels
 import json
 import datetime
+import platform
 
 
 class AddLabelsPlugin(PreBuildPlugin):
     key = "add_labels_in_dockerfile"
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, labels=None, dont_overwrite=None,
+    def __init__(self, workflow, labels=None, dont_overwrite=None,
                  auto_labels=("build-date",
                               "architecture",
                               "vcs-type",
@@ -82,7 +83,6 @@ class AddLabelsPlugin(PreBuildPlugin):
         """
         constructor
 
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param labels: dict, key value pairs to set as labels; or str, JSON-encoded dict
         :param dont_overwrite: iterable, list of label keys which should not be overwritten
@@ -97,7 +97,7 @@ class AddLabelsPlugin(PreBuildPlugin):
                                                  overwritten if they are present in dockerfile
         """
         # call parent constructor
-        super(AddLabelsPlugin, self).__init__(tasker, workflow)
+        super(AddLabelsPlugin, self).__init__(workflow)
 
         if isinstance(labels, str):
             labels = json.loads(labels)
@@ -138,11 +138,12 @@ class AddLabelsPlugin(PreBuildPlugin):
         generated['build-date'] = dt.isoformat()
 
         # architecture - assuming host and image architecture is the same
-        generated['architecture'], _ = get_docker_architecture(self.tasker)
-
+        # OSBS2 TBD
+        generated['architecture'] = platform.processor()
         # build host
-        docker_info = self.tasker.get_info()
-        generated['com.redhat.build-host'] = docker_info['Name']
+        # generated['com.redhat.build-host'] = docker_info['Name']
+        # OSBS2 TBD get host somehow
+        generated['com.redhat.build-host'] = 'dummy_host'
 
         # VCS info
         vcs = self.workflow.source.get_vcs_info()
@@ -271,7 +272,8 @@ class AddLabelsPlugin(PreBuildPlugin):
             base_image_labels = {}
         else:
             try:
-                config = self.workflow.builder.base_image_inspect[INSPECT_CONFIG]
+                # OSBS2 TBD
+                config = imageutil.base_image_inspect()[INSPECT_CONFIG]
             except KeyError as exc:
                 message = "base image was not inspected"
                 self.log.error(message)

@@ -35,10 +35,9 @@ class FetchSourcesPlugin(PreBuildPlugin):
     MAVEN_SOURCES_DOWNLOAD_DIR = 'maven_sources'
 
     def __init__(
-        self, tasker, workflow, koji_build_id=None, koji_build_nvr=None, signing_intent=None,
+        self, workflow, koji_build_id=None, koji_build_nvr=None, signing_intent=None,
     ):
         """
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param koji_build_id: int, container image koji build id
         :param koji_build_nvr: str, container image koji build NVR
@@ -57,7 +56,7 @@ class FetchSourcesPlugin(PreBuildPlugin):
         if type_errors:
             raise TypeError(type_errors)
 
-        super(FetchSourcesPlugin, self).__init__(tasker, workflow)
+        super(FetchSourcesPlugin, self).__init__(workflow)
         self.koji_build = None
         self.koji_build_id = koji_build_id
         self.koji_build_nvr = koji_build_nvr

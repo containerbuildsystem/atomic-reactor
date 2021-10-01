@@ -21,17 +21,16 @@ class DistgitFetchArtefactsPlugin(PreBuildPlugin):
     key = PLUGIN_DISTGIT_FETCH_KEY
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow):
+    def __init__(self, workflow):
         """
         constructor
 
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param command: str, command to use to get artefacts (e.g. 'make sources')
                              it is executed in cloned git repo
         """
         # call parent constructor
-        super(DistgitFetchArtefactsPlugin, self).__init__(tasker, workflow)
+        super(DistgitFetchArtefactsPlugin, self).__init__(workflow)
         self.command = self.workflow.conf.sources_command
 
     def run(self):

@@ -25,17 +25,16 @@ class CheckAndSetPlatformsPlugin(PreBuildPlugin):
     key = PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, koji_target=None):
+    def __init__(self, workflow, koji_target=None):
 
         """
         constructor
 
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param koji_target: str, Koji build target name
         """
         # call parent constructor
-        super(CheckAndSetPlatformsPlugin, self).__init__(tasker, workflow)
+        super(CheckAndSetPlatformsPlugin, self).__init__(workflow)
         self.koji_target = koji_target
 
     def run(self):

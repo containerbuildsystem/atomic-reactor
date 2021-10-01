@@ -20,16 +20,15 @@ class KojiPlugin(PreBuildPlugin):
     key = "koji"
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, target=None):
+    def __init__(self, workflow, target=None):
         """
         constructor
 
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param target: string, koji target to use as a source
         """
         # call parent constructor
-        super(KojiPlugin, self).__init__(tasker, workflow)
+        super(KojiPlugin, self).__init__(workflow)
         self.target = target
 
         self.xmlrpc = get_koji_session(self.workflow.conf)

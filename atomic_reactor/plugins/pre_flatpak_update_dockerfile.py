@@ -96,17 +96,15 @@ class FlatpakUpdateDockerfilePlugin(PreBuildPlugin):
     key = "flatpak_update_dockerfile"
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow,
-                 compose_ids=tuple()):
+    def __init__(self, workflow, compose_ids=tuple()):
         """
         constructor
 
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param compose_ids: compose_ids forwarded from the orchestrator build
         """
         # call parent constructor
-        super(FlatpakUpdateDockerfilePlugin, self).__init__(tasker, workflow)
+        super(FlatpakUpdateDockerfilePlugin, self).__init__(workflow)
 
         self.compose_ids = compose_ids
 

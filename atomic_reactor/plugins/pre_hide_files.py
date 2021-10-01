@@ -9,6 +9,7 @@ import os
 
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import df_parser
+from atomic_reactor.utils import imageutil
 from atomic_reactor.constants import INSPECT_CONFIG, SCRATCH_FROM
 
 
@@ -16,14 +17,13 @@ class HideFilesPlugin(PreBuildPlugin):
     key = 'hide_files'
     is_allowed_to_fail = True
 
-    def __init__(self, tasker, workflow):
+    def __init__(self, workflow):
         """
         Plugin initializer
 
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         """
-        super(HideFilesPlugin, self).__init__(tasker, workflow)
+        super(HideFilesPlugin, self).__init__(workflow)
         self.start_lines = []
         self.end_lines = []
         self.dfp = None
@@ -91,7 +91,8 @@ class HideFilesPlugin(PreBuildPlugin):
         if parent_image_id == SCRATCH_FROM:
             return
 
-        inspect = self.workflow.builder.parent_image_inspect(parent_image_id)
+        # OSBS2 TBD
+        inspect = imageutil.get_inspect_for_image(parent_image_id)
         inherited_user = inspect.get(INSPECT_CONFIG).get('User', '')
 
         if inherited_user:

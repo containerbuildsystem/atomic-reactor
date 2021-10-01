@@ -33,16 +33,15 @@ class KojiTagBuildPlugin(ExitPlugin):
     key = PLUGIN_KOJI_TAG_BUILD_KEY
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, target=None, poll_interval=5):
+    def __init__(self, workflow, target=None, poll_interval=5):
         """
         constructor
 
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param target: str, koji target
         :param poll_interval: int, seconds between Koji task status requests
         """
-        super(KojiTagBuildPlugin, self).__init__(tasker, workflow)
+        super(KojiTagBuildPlugin, self).__init__(workflow)
 
         self.target = target
         self.poll_interval = poll_interval

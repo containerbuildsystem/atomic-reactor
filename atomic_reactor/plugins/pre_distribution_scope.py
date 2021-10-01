@@ -8,6 +8,7 @@ of the BSD license. See the LICENSE file for details.
 from atomic_reactor.constants import INSPECT_CONFIG
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import df_parser
+from atomic_reactor.utils import imageutil
 
 
 class NothingToCheck(Exception):
@@ -88,7 +89,8 @@ class DistributionScopePlugin(PreBuildPlugin):
             scope = self.get_scope('current', labels)
 
             # Find out the parent's intended scope
-            inspect = self.workflow.builder.base_image_inspect
+            # OSBS2 TBD
+            inspect = imageutil.base_image_inspect()
             parent_labels = {}
             if not self.workflow.dockerfile_images.base_from_scratch:
                 parent_labels = inspect[INSPECT_CONFIG]['Labels']

@@ -64,12 +64,11 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
     key = 'flatpak_create_oci'
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow):
+    def __init__(self, workflow):
         """
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         """
-        super(FlatpakCreateOciPlugin, self).__init__(tasker, workflow)
+        super(FlatpakCreateOciPlugin, self).__init__(workflow)
         self.builder = None
 
         try:
@@ -77,28 +76,33 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
         except KeyError:
             self.flatpak_metadata = FLATPAK_METADATA_ANNOTATIONS
 
-    def _export_container(self, container_id):
-        export_generator = self.tasker.export_container(container_id)
-        export_stream = StreamAdapter(export_generator)
-
-        outfile, manifestfile = self.builder._export_from_stream(export_stream)
-
-        return outfile, manifestfile
+#    def _export_container(self, container_id):
+#        export_generator = self.tasker.export_container(container_id)
+#        export_stream = StreamAdapter(export_generator)
+#
+#        outfile, manifestfile = self.builder._export_from_stream(export_stream)
+#
+#        return outfile, manifestfile
 
     def _export_filesystem(self):
-        image = self.workflow.image
+        # image = self.workflow.image
         self.log.info("Creating temporary docker container")
         # The command here isn't used, since we only use the container for export,
         # but (in some circumstances) the docker daemon will error out if no
         # command is specified.
-        container_dict = self.tasker.create_container(image, command=["/bin/bash"])
-        container_id = container_dict['Id']
 
-        try:
-            return self._export_container(container_id)
-        finally:
-            self.log.info("Cleaning up docker container")
-            self.tasker.remove_container(container_id)
+        # no longer create and export container, just use oc image extract
+        # to get content of the image
+        # OSBS2 TBD
+        # container_dict = self.tasker.create_container(image, command=["/bin/bash"])
+        # container_id = container_dict['Id']
+
+        # try:
+        #     return self._export_container(container_id)
+        # finally:
+        #     self.log.info("Cleaning up docker container")
+        #     self.tasker.remove_container(container_id)
+        return None, None
 
     def _get_oci_image_id(self, oci_path):
         cmd = ['skopeo', 'inspect', '--raw', 'oci:{}'.format(oci_path)]
@@ -151,12 +155,14 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
 
         ref_name, outfile, tarred_outfile = self.builder.build_container(tarred_filesystem)
 
-        self.log.info('Marking filesystem image "%s" for removal', self.workflow.builder.image_id)
-        defer_removal(self.workflow, self.workflow.builder.image_id)
+        # OSBS2 TBD
+        self.log.info('Marking filesystem image "%s" for removal', self.workflow.image_id)
+        defer_removal(self.workflow, self.workflow.image_id)
 
         image_id = self._get_oci_image_id(outfile)
         self.log.info('New OCI image ID is %s', image_id)
-        self.workflow.builder.image_id = image_id
+        # OSBS2 TBD
+        self.workflow.image_id = image_id
 
         labels = Labels(df_labels)
         _, image_name = labels.get_name_and_value(Labels.LABEL_TYPE_NAME)

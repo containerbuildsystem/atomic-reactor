@@ -10,7 +10,6 @@ from io import StringIO
 
 from textwrap import dedent
 
-import json
 import re
 import os
 
@@ -72,12 +71,10 @@ class AddFilesystemPlugin(PreBuildPlugin):
         create_docker_metadata = False
         ''')
 
-    def __init__(self, tasker, workflow,
-                 from_task_id=None, poll_interval=5,
+    def __init__(self, workflow, from_task_id=None, poll_interval=5,
                  blocksize=DEFAULT_DOWNLOAD_BLOCK_SIZE,
                  repos=None, architecture=None, koji_target=None):
         """
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param from_task_id: int, use existing Koji image task ID
         :param poll_interval: int, seconds between polling Koji while waiting
@@ -91,7 +88,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
         :param koji_target: str, koji target name
         """
         # call parent constructor
-        super(AddFilesystemPlugin, self).__init__(tasker, workflow)
+        super(AddFilesystemPlugin, self).__init__(workflow)
 
         self.from_task_id = from_task_id
         self.poll_interval = poll_interval
@@ -295,11 +292,16 @@ class AddFilesystemPlugin(PreBuildPlugin):
         return contents
 
     def import_base_image(self, filesystem):
-        result = self.tasker.import_image_from_stream(filesystem)
+        # import won't be needed anymore as we will substitue FROM koji/image-build
+        # with FROM scratch; ADD <filesystem_content>
+        # OBS2 TBD
+        # result = self.tasker.import_image_from_stream(filesystem)
+        result = {'status': None}
         # Response not deserialized:
         #   https://github.com/docker/docker-py/issues/1060
         self.log.info('import base image result: %s', result)
-        result = json.loads(result)
+        # result = json.loads(result)
+        result = {'status': None}
         return result['status']
 
     def run_image_task(self, image_build_conf):

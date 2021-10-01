@@ -99,19 +99,18 @@ class KojiImportBase(ExitPlugin):
     key = None
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, blocksize=None,
+    def __init__(self, workflow, blocksize=None,
                  target=None, poll_interval=5):
         """
         constructor
 
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
 
         :param blocksize: int, blocksize to use for uploading files
         :param target: str, koji target
         :param poll_interval: int, seconds between Koji task status requests
         """
-        super(KojiImportBase, self).__init__(tasker, workflow)
+        super(KojiImportBase, self).__init__(workflow)
 
         self.blocksize = blocksize
         self.target = target
@@ -582,10 +581,9 @@ class KojiImportPlugin(KojiImportBase):
 
     key = PLUGIN_KOJI_IMPORT_PLUGIN_KEY  # type: ignore
 
-    def __init__(self, tasker, workflow, blocksize=None,
+    def __init__(self, workflow, blocksize=None,
                  target=None, poll_interval=5):
-        super(KojiImportPlugin, self).__init__(tasker, workflow, blocksize,
-                                               target, poll_interval)
+        super(KojiImportPlugin, self).__init__(workflow, blocksize, target, poll_interval)
 
     def set_media_types(self, extra, worker_metadatas):
         media_types = []
@@ -693,7 +691,8 @@ class KojiImportPlugin(KojiImportBase):
         self.set_go_metadata(extra)
         self.set_group_manifest_info(extra, worker_metadatas)
         extra['osbs_build']['kind'] = KOJI_KIND_IMAGE_BUILD
-        extra['osbs_build']['engine'] = self.workflow.builder.tasker.build_method
+        # OSBS2 TBD
+        extra['osbs_build']['engine'] = 'podman'
         if has_operator_appregistry_manifest(self.workflow):
             extra['osbs_build']['subtypes'].append(KOJI_SUBTYPE_OP_APPREGISTRY)
         if has_operator_bundle_manifest(self.workflow):
@@ -726,9 +725,9 @@ class KojiImportSourceContainerPlugin(KojiImportBase):
 
     key = PLUGIN_KOJI_IMPORT_SOURCE_CONTAINER_PLUGIN_KEY  # type: ignore
 
-    def __init__(self, tasker, workflow, blocksize=None,
+    def __init__(self, workflow, blocksize=None,
                  target=None, poll_interval=5):
-        super(KojiImportSourceContainerPlugin, self).__init__(tasker, workflow, blocksize,
+        super(KojiImportSourceContainerPlugin, self).__init__(workflow, blocksize,
                                                               target, poll_interval)
 
     def get_output(self, worker_metadatas, buildroot_id):
@@ -750,8 +749,7 @@ class KojiImportSourceContainerPlugin(KojiImportBase):
         """
         buildroots = []
 
-        buildroot = koji_get_buildroot(build_id=self.build_id, tasker=self.tasker,
-                                       osbs=self.osbs, rpms=False)
+        buildroot = koji_get_buildroot(build_id=self.build_id, osbs=self.osbs, rpms=False)
         buildroot['id'] = '{}-{}'.format(buildroot['container']['arch'], buildroot['id'])
 
         registry = self.workflow.push_conf.docker_registries[0]

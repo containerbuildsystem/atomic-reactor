@@ -31,17 +31,16 @@ class BumpReleasePlugin(PreBuildPlugin):
     # The target parameter is no longer used by this plugin. It's
     # left as an optional parameter to allow a graceful transition
     # in osbs-client.
-    def __init__(self, tasker, workflow, append=False):
+    def __init__(self, workflow, append=False):
         """
         constructor
 
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param append: if True, the release will be obtained by appending a
             '.' and a unique integer to the release label in the dockerfile.
         """
         # call parent constructor
-        super(BumpReleasePlugin, self).__init__(tasker, workflow)
+        super(BumpReleasePlugin, self).__init__(workflow)
 
         self.append = append
         self.xmlrpc = get_koji_session(self.workflow.conf)

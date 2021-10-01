@@ -22,6 +22,7 @@ from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import (base_image_is_scratch, df_parser, read_yaml,
                                  read_content_sets
                                  )
+from atomic_reactor.utils import imageutil
 from atomic_reactor.utils.pnc import PNCUtil
 
 
@@ -84,13 +85,12 @@ class AddImageContentManifestPlugin(PreBuildPlugin):
         'image_contents': [],
     }
 
-    def __init__(self, tasker, workflow, remote_sources=None, destdir=IMAGE_BUILD_INFO_DIR):
+    def __init__(self, workflow, remote_sources=None, destdir=IMAGE_BUILD_INFO_DIR):
         """
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param remote_sources: list of dicts, each dict contains info about particular
         remote source with the following keys:
-            build_args: dict, extra args for `builder.build_args`, if any
+            build_args: dict, extra args for `workflow.buildargs`, if any
             configs: list of str, configuration files to be injected into
             the exploded remote sources dir
             request_id: int, cachito request id; used to request the
@@ -99,7 +99,7 @@ class AddImageContentManifestPlugin(PreBuildPlugin):
             name: str, name of remote source
         :param destdir: image path to carry content_manifests data dir
         """
-        super(AddImageContentManifestPlugin, self).__init__(tasker, workflow)
+        super(AddImageContentManifestPlugin, self).__init__(workflow)
         self.content_manifests_dir = os.path.join(destdir, 'content_manifests')
         self.remote_sources = remote_sources
         self.dfp = df_parser(self.workflow.df_path, workflow=self.workflow)
@@ -124,7 +124,8 @@ class AddImageContentManifestPlugin(PreBuildPlugin):
             #     *always* have 2 layers
             self._layer_index = 1
         if not base_image_is_scratch(self.dfp.baseimage):
-            inspect = self.workflow.builder.base_image_inspect
+            # OSBS2 TBD
+            inspect = imageutil.base_image_inspect()
             self._layer_index = len(inspect[INSPECT_ROOTFS][INSPECT_ROOTFS_LAYERS])
         return self._layer_index
 

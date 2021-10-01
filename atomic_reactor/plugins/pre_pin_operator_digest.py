@@ -55,19 +55,18 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
     key = PLUGIN_PIN_OPERATOR_DIGESTS_KEY
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, replacement_pullspecs=None,
+    def __init__(self, workflow, replacement_pullspecs=None,
                  operator_csv_modifications_url=None):
         """
         Initialize pin_operator_digests plugin
 
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param replacement_pullspecs: Dict[str, str], computed in orchestrator,
                                       provided to workers by osbs-client
         :param operator_csv_modifications_url: str, URL to JSON file with operator
                                       CSV modifications
         """
-        super(PinOperatorDigestsPlugin, self).__init__(tasker, workflow)
+        super(PinOperatorDigestsPlugin, self).__init__(workflow)
         self.user_config = workflow.source.config.operator_manifests
         self.replacement_pullspecs = replacement_pullspecs or {}
         self.operator_csv_modifications_url = operator_csv_modifications_url

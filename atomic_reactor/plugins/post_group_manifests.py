@@ -29,11 +29,10 @@ class GroupManifestsPlugin(PostBuildPlugin):
     is_allowed_to_fail = False
     key = PLUGIN_GROUP_MANIFESTS_KEY
 
-    def __init__(self, tasker, workflow, registries=None):
+    def __init__(self, workflow, registries=None):
         """
         constructor
 
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param registries: dict, keys are docker registries, values are dicts containing
                            per-registry parameters.
@@ -42,7 +41,7 @@ class GroupManifestsPlugin(PostBuildPlugin):
                               login and password for remote registry
         """
         # call parent constructor
-        super(GroupManifestsPlugin, self).__init__(tasker, workflow)
+        super(GroupManifestsPlugin, self).__init__(workflow)
 
         self.group = self.workflow.conf.group_manifests
         self.goarch = self.workflow.conf.platform_to_goarch_mapping

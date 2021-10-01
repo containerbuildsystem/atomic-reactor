@@ -18,15 +18,14 @@ class AddFlatpakLabelsPlugin(PreBuildPlugin):
     key = "add_flatpak_labels"
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow):
+    def __init__(self, workflow):
         """
         constructor
 
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         """
         # call parent constructor
-        super(AddFlatpakLabelsPlugin, self).__init__(tasker, workflow)
+        super(AddFlatpakLabelsPlugin, self).__init__(workflow)
 
     def run(self):
         """

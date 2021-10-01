@@ -21,7 +21,7 @@ import inspect
 import time
 from collections import namedtuple
 
-from atomic_reactor.build import BuildResult
+import atomic_reactor.inner
 from atomic_reactor.util import exception_message
 from dockerfile_parse import DockerfileParser
 
@@ -81,19 +81,17 @@ class Plugin(object):
 class BuildPlugin(Plugin):
     """
     abstract plugin class: base for build plugins, it is
-    flavored with ContainerTasker and BuildWorkflow instances
+    flavored with BuildWorkflow instances
     """
 
-    def __init__(self, tasker, workflow, *args, **kwargs):
+    def __init__(self, workflow, *args, **kwargs):
         """
         constructor
 
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param args: arguments from user input
         :param kwargs: keyword arguments from user input
         """
-        self.tasker = tasker
         self.workflow = workflow
         super(BuildPlugin, self).__init__(*args, **kwargs)
 
@@ -255,7 +253,7 @@ class PluginsRunner(object):
                 plugin_response = plugin_instance.run()
                 plugin_successful = True
                 if buildstep_phase:
-                    assert isinstance(plugin_response, BuildResult)
+                    assert isinstance(plugin_response, atomic_reactor.inner.BuildResult)
                     if plugin_response.is_failed():
                         logger.error("Build step plugin %s failed: %s",
                                      plugin.plugin_class.key,
@@ -322,16 +320,14 @@ class PluginsRunner(object):
 
 
 class BuildPluginsRunner(PluginsRunner):
-    def __init__(self, dt, workflow, plugin_class_name, plugins_conf, *args, **kwargs):
+    def __init__(self, workflow, plugin_class_name, plugins_conf, *args, **kwargs):
         """
         constructor
 
-        :param dt: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param plugin_class_name: str, name of plugin class to filter (e.g. 'PreBuildPlugin')
         :param plugins_conf: list of dicts, configuration for plugins
         """
-        self.dt = dt
         self.workflow = workflow
         super(BuildPluginsRunner, self).__init__(plugin_class_name, plugins_conf, *args, **kwargs)
 
@@ -353,7 +349,8 @@ class BuildPluginsRunner(PluginsRunner):
         translate some reserved values to the runtime values
         """
         translation_dict = {
-            'BUILT_IMAGE_ID': self.workflow.builder.image_id,
+            # OSBS2 TBD
+            'BUILT_IMAGE_ID': self.workflow.image_id,
             'BUILD_DOCKERFILE_PATH': self.workflow.source.dockerfile_path,
             'BUILD_SOURCE_PATH': self.workflow.source.path,
         }
@@ -396,7 +393,7 @@ class BuildPluginsRunner(PluginsRunner):
         plugin_conf = self._translate_special_values(plugin_conf)
         plugin_conf = self._remove_unknown_args(plugin_class, plugin_conf)
         logger.info("running plugin instance with args: '%s'", plugin_conf)
-        plugin_instance = plugin_class(self.dt, self.workflow, **plugin_conf)
+        plugin_instance = plugin_class(self.workflow, **plugin_conf)
         return plugin_instance
 
 
@@ -406,10 +403,10 @@ class PreBuildPlugin(BuildPlugin):
 
 class PreBuildPluginsRunner(BuildPluginsRunner):
 
-    def __init__(self, dt, workflow, plugins_conf, *args, **kwargs):
+    def __init__(self, workflow, plugins_conf, *args, **kwargs):
         logger.info("initializing runner of pre-build plugins")
         self.plugins_results = workflow.prebuild_results
-        super(PreBuildPluginsRunner, self).__init__(dt, workflow, 'PreBuildPlugin', plugins_conf,
+        super(PreBuildPluginsRunner, self).__init__(workflow, 'PreBuildPlugin', plugins_conf,
                                                     *args, **kwargs)
 
 
@@ -419,7 +416,7 @@ class BuildStepPlugin(BuildPlugin):
 
 class BuildStepPluginsRunner(BuildPluginsRunner):
 
-    def __init__(self, dt, workflow, plugin_conf, *args, **kwargs):
+    def __init__(self, workflow, plugin_conf, *args, **kwargs):
         logger.info("initializing runner of build-step plugin")
         self.plugins_results = workflow.buildstep_result
 
@@ -430,14 +427,11 @@ class BuildStepPluginsRunner(BuildPluginsRunner):
                 plugin['is_allowed_to_fail'] = False
 
         super(BuildStepPluginsRunner, self).__init__(
-            dt, workflow, 'BuildStepPlugin', plugin_conf, *args, **kwargs)
+            workflow, 'BuildStepPlugin', plugin_conf, *args, **kwargs)
 
     def run(self, keep_going=False, buildstep_phase=True):
-        builder = self.workflow.builder
-
         logger.info('building image %r inside current environment',
-                    builder.image)
-        builder.ensure_not_built()
+                    self.workflow.image)
         if self.workflow.df_path:
             logger.debug('using dockerfile:\n%s',
                          DockerfileParser(self.workflow.df_path).content)
@@ -456,10 +450,10 @@ class PrePublishPlugin(BuildPlugin):
 
 class PrePublishPluginsRunner(BuildPluginsRunner):
 
-    def __init__(self, dt, workflow, plugins_conf, *args, **kwargs):
+    def __init__(self, workflow, plugins_conf, *args, **kwargs):
         logger.info("initializing runner of pre-publish plugins")
         self.plugins_results = workflow.prepub_results
-        super(PrePublishPluginsRunner, self).__init__(dt, workflow, 'PrePublishPlugin',
+        super(PrePublishPluginsRunner, self).__init__(workflow, 'PrePublishPlugin',
                                                       plugins_conf, *args, **kwargs)
 
 
@@ -469,10 +463,10 @@ class PostBuildPlugin(BuildPlugin):
 
 class PostBuildPluginsRunner(BuildPluginsRunner):
 
-    def __init__(self, dt, workflow, plugins_conf, *args, **kwargs):
+    def __init__(self, workflow, plugins_conf, *args, **kwargs):
         logger.info("initializing runner of post-build plugins")
         self.plugins_results = workflow.postbuild_results
-        super(PostBuildPluginsRunner, self).__init__(dt, workflow, 'PostBuildPlugin',
+        super(PostBuildPluginsRunner, self).__init__(workflow, 'PostBuildPlugin',
                                                      plugins_conf, *args, **kwargs)
 
     def create_instance_from_plugin(self, plugin_class, plugin_conf):
@@ -485,15 +479,15 @@ class PostBuildPluginsRunner(BuildPluginsRunner):
 class ExitPlugin(PostBuildPlugin):
     """
     Plugin base class for plugins which should be run just before
-    exit. It is flavored with ContainerTasker and DockerBuildWorkflow instances.
+    exit. It is flavored with DockerBuildWorkflow instances.
     """
 
 
 class ExitPluginsRunner(BuildPluginsRunner):
-    def __init__(self, dt, workflow, plugins_conf, *args, **kwargs):
+    def __init__(self, workflow, plugins_conf, *args, **kwargs):
         logger.info("initializing runner of exit plugins")
         self.plugins_results = workflow.exit_results
-        super(ExitPluginsRunner, self).__init__(dt, workflow, 'ExitPlugin',
+        super(ExitPluginsRunner, self).__init__(workflow, 'ExitPlugin',
                                                 plugins_conf, *args, **kwargs)
 
 
@@ -507,7 +501,7 @@ class PreBuildSleepPlugin(PreBuildPlugin):
 
     key = 'pre_sleep'
 
-    def __init__(self, tasker, workflow, seconds=60):
+    def __init__(self, workflow, seconds=60):
         self.seconds = seconds
 
     def run(self):

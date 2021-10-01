@@ -9,8 +9,7 @@ of the BSD license. See the LICENSE file for details.
 Remove built image (this only makes sense if you store the image in some registry first)
 """
 from atomic_reactor.plugin import ExitPlugin
-
-from docker.errors import APIError
+from atomic_reactor.utils import imageutil
 
 __all__ = ('GarbageCollectionPlugin', )
 
@@ -26,20 +25,20 @@ def defer_removal(workflow, image):
 class GarbageCollectionPlugin(ExitPlugin):
     key = "remove_built_image"
 
-    def __init__(self, tasker, workflow, remove_pulled_base_image=True):
+    def __init__(self, workflow, remove_pulled_base_image=True):
         """
         constructor
 
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param remove_pulled_base_image: bool, remove also base image? default=True
         """
         # call parent constructor
-        super(GarbageCollectionPlugin, self).__init__(tasker, workflow)
+        super(GarbageCollectionPlugin, self).__init__(workflow)
         self.remove_base_image = remove_pulled_base_image
 
     def run(self):
-        image = self.workflow.builder.image_id
+        # OSBS2 TBD
+        image = self.workflow.image_id
         if image:
             self.remove_image(image, force=True)
 
@@ -54,13 +53,8 @@ class GarbageCollectionPlugin(ExitPlugin):
 
     def remove_image(self, image, force=False):
         try:
-            self.tasker.remove_image(image, force=force)
-        except APIError as ex:
-            if ex.is_client_error():
-                self.log.warning("failed to remove image %s (%s: %s), ignoring",
-                                 image, ex.response.status_code, ex.response.reason)
-            else:
-                raise
+            # OSBS2 TBD
+            imageutil.remove_image(image, force=force)
         except Exception as ex:
             self.log.warning("exception while removing image %s: %r, ignoring",
                              image, ex)

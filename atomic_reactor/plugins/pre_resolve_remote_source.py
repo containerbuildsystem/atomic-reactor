@@ -32,14 +32,13 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
     key = PLUGIN_RESOLVE_REMOTE_SOURCE
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, dependency_replacements=None):
+    def __init__(self, workflow, dependency_replacements=None):
         """
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param dependency_replacements: list<str>, dependencies for the cachito fetched artifact to
         be replaced. Must be of the form pkg_manager:name:version[:new_name]
         """
-        super(ResolveRemoteSourcePlugin, self).__init__(tasker, workflow)
+        super(ResolveRemoteSourcePlugin, self).__init__(workflow)
         self._cachito_session = None
         self._osbs = None
         self._dependency_replacements = self.parse_dependency_replacements(dependency_replacements)

@@ -19,7 +19,6 @@ from atomic_reactor.util import (
     has_operator_bundle_manifest,
 )
 from atomic_reactor.utils.operator import OperatorManifest
-from docker.errors import APIError
 from platform import machine
 
 MANIFESTS_DIR_NAME = 'manifests'
@@ -37,8 +36,8 @@ class ExportOperatorManifestsPlugin(PostBuildPlugin):
     key = PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, operator_manifests_extract_platform=None, platform=None):
-        super(ExportOperatorManifestsPlugin, self).__init__(tasker, workflow)
+    def __init__(self, workflow, operator_manifests_extract_platform=None, platform=None):
+        super(ExportOperatorManifestsPlugin, self).__init__(workflow)
 
         self.operator_manifests_extract_platform = operator_manifests_extract_platform
         if platform:
@@ -80,29 +79,31 @@ class ExportOperatorManifestsPlugin(PostBuildPlugin):
             return
 
         manifests_archive_dir = tempfile.mkdtemp()
-        image = self.workflow.image
-        # As in flatpak_create_oci, we specify command to prevent possible docker daemon errors.
-        container_dict = self.tasker.create_container(image, command=['/bin/bash'])
-        container_id = container_dict['Id']
-        try:
-            bits, _ = self.tasker.get_archive(container_id,
-                                              IMG_MANIFESTS_PATH)
-        except APIError as ex:
-            msg = ('Could not extract operator manifest files. '
-                   'Is there a %s path in the image?' % (IMG_MANIFESTS_PATH))
-            self.log.debug('Error while trying to extract %s from image: %s',
-                           IMG_MANIFESTS_PATH, ex)
-            self.log.error(msg)
-            raise RuntimeError('%s %s' % (msg, ex)) from ex
-
-        except Exception as ex:
-            raise RuntimeError('%s' % ex) from ex
-
-        finally:
-            try:
-                self.tasker.remove_container(container_id)
-            except Exception as ex:
-                self.log.warning('Failed to remove container %s: %s', container_id, ex)
+#        image = self.workflow.image
+        # OSBS2 TBD
+        # just use oc image extract to get image content
+#        container_dict = self.tasker.create_container(image, command=['/bin/bash'])
+#        container_id = container_dict['Id']
+#        try:
+#            bits, _ = self.tasker.get_archive(container_id,
+#                                              IMG_MANIFESTS_PATH)
+#        except APIError as ex:
+#            msg = ('Could not extract operator manifest files. '
+#                   'Is there a %s path in the image?' % (IMG_MANIFESTS_PATH))
+#            self.log.debug('Error while trying to extract %s from image: %s',
+#                           IMG_MANIFESTS_PATH, ex)
+#            self.log.error(msg)
+#            raise RuntimeError('%s %s' % (msg, ex)) from ex
+#
+#        except Exception as ex:
+#            raise RuntimeError('%s' % ex) from ex
+#
+#        finally:
+#            try:
+#                self.tasker.remove_container(container_id)
+#            except Exception as ex:
+#                self.log.warning('Failed to remove container %s: %s', container_id, ex)
+        bits = b''
 
         with tempfile.NamedTemporaryFile() as extracted_file:
             for chunk in bits:

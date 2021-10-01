@@ -16,6 +16,7 @@ from atomic_reactor.constants import YUM_REPOS_DIR, RELATIVE_REPOS_PATH, INSPECT
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import df_parser
 from atomic_reactor.utils.yum import YumRepo
+from atomic_reactor.utils import imageutil
 
 
 class InjectYumRepoPlugin(PreBuildPlugin):
@@ -27,9 +28,9 @@ class InjectYumRepoPlugin(PreBuildPlugin):
         if user:
             return user
 
-        builder = self.workflow.builder
         if not self.workflow.dockerfile_images.base_from_scratch:
-            inspect = builder.base_image_inspect
+            # OSBS2 TBD
+            inspect = imageutil.base_image_inspect()
             user = inspect.get(INSPECT_CONFIG).get('User')
             if user:
                 return f'USER {user}'
@@ -60,8 +61,8 @@ class InjectYumRepoPlugin(PreBuildPlugin):
 
         return lines
 
-    def __init__(self, tasker, workflow, *args, **kwargs):
-        super().__init__(tasker, workflow, *args, **kwargs)
+    def __init__(self, workflow, *args, **kwargs):
+        super().__init__(workflow, *args, **kwargs)
         self._builder_ca_bundle = None
         self._ca_bundle_pem = None
         self._dockerfile = None

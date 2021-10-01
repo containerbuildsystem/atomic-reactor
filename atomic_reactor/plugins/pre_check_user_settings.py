@@ -6,8 +6,7 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
-from atomic_reactor.constants import (PLUGIN_CHECK_USER_SETTINGS, CONTAINER_DOCKERPY_BUILD_METHOD,
-                                      CONTAINER_IMAGEBUILDER_BUILD_METHOD)
+from atomic_reactor.constants import PLUGIN_CHECK_USER_SETTINGS
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import (
     df_parser,
@@ -37,13 +36,12 @@ class CheckUserSettingsPlugin(PreBuildPlugin):
     key = PLUGIN_CHECK_USER_SETTINGS
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, flatpak=False):
+    def __init__(self, workflow, flatpak=False):
         """
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param flatpak: bool, if build is for flatpak
         """
-        super(CheckUserSettingsPlugin, self).__init__(tasker, workflow)
+        super(CheckUserSettingsPlugin, self).__init__(workflow)
 
         self.flatpak = flatpak
 
@@ -58,7 +56,6 @@ class CheckUserSettingsPlugin(PreBuildPlugin):
         self.label_version_check()
         self.appregistry_bundle_label_mutually_exclusive()
         self.operator_bundle_from_scratch()
-        self.multistage_docker_api_check()
 
     def label_version_check(self):
         """Check that Dockerfile version has correct name."""
@@ -104,17 +101,6 @@ class CheckUserSettingsPlugin(PreBuildPlugin):
             len(self.workflow.dockerfile_images.original_parents) > 1
         ):
             raise ValueError(msg)
-
-    def multistage_docker_api_check(self):
-        """Check if multistage build isn't tried with docker_api"""
-        if self.workflow.builder.tasker.build_method != CONTAINER_DOCKERPY_BUILD_METHOD:
-            return
-
-        if len(self.workflow.dockerfile_images.original_parents) > 1:
-            msg = "Multistage builds can't be built with docker_api," \
-                  "use 'image_build_method' in container.yaml " \
-                  "with '{}'".format(CONTAINER_IMAGEBUILDER_BUILD_METHOD)
-            raise RuntimeError(msg)
 
     def validate_user_config_files(self):
         """Validate some user config files"""

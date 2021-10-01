@@ -86,15 +86,14 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
     key = "flatpak_create_dockerfile"
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow):
+    def __init__(self, workflow):
         """
         constructor
 
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         """
         # call parent constructor
-        super(FlatpakCreateDockerfilePlugin, self).__init__(tasker, workflow)
+        super(FlatpakCreateDockerfilePlugin, self).__init__(workflow)
 
         self.default_base_image = self.workflow.conf.flatpak_base_image
 

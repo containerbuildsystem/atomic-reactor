@@ -44,8 +44,8 @@ class TagFromConfigPlugin(PostBuildPlugin):
 
     TAGS_FILENAME = 'additional-tags'
 
-    def __init__(self, tasker, workflow, tag_suffixes=None):
-        super(TagFromConfigPlugin, self).__init__(tasker, workflow)
+    def __init__(self, workflow, tag_suffixes=None):
+        super(TagFromConfigPlugin, self).__init__(workflow)
         self.tag_suffixes = tag_suffixes
         self.labels = None
 

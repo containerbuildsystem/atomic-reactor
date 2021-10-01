@@ -33,17 +33,16 @@ class AddYumRepoByUrlPlugin(PreBuildPlugin):
     key = "add_yum_repo_by_url"
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, repourls=None, inject_proxy=None):
+    def __init__(self, workflow, repourls=None, inject_proxy=None):
         """
         constructor
 
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param repourls: list of str, URLs to the repo files
         :param inject_proxy: set proxy server for this repo
         """
         # call parent constructor
-        super(AddYumRepoByUrlPlugin, self).__init__(tasker, workflow)
+        super(AddYumRepoByUrlPlugin, self).__init__(workflow)
         self.repourls = repourls or []
         self.inject_proxy = inject_proxy
         self.allowed_domains = self.workflow.conf.yum_repo_allowed_domains
