@@ -11,17 +11,14 @@ import logging
 import json
 import os
 import time
-import docker
 from dockerfile_parse import DockerfileParser
 from textwrap import dedent
 
-from atomic_reactor.build import InsideBuilder
 from atomic_reactor.plugin import (PreBuildPlugin, PrePublishPlugin, PostBuildPlugin, ExitPlugin,
                                    PluginFailedException,
                                    BuildStepPlugin, InappropriateBuildStepError)
 from flexmock import flexmock
 import pytest
-from tests.docker_mock import mock_docker
 from tests.util import requires_internet, is_string_type
 from tests.constants import DOCKERFILE_MULTISTAGE_CUSTOM_BAD_PATH
 import inspect
@@ -34,6 +31,7 @@ from atomic_reactor.constants import (INSPECT_ROOTFS,
                                       INSPECT_ROOTFS_LAYERS,
                                       PLUGIN_BUILD_ORCHESTRATE_KEY)
 from atomic_reactor.util import DockerfileImages, df_parser
+from atomic_reactor.utils import imageutil
 
 
 BUILD_RESULTS_ATTRS = ['build_logs',
@@ -73,65 +71,17 @@ def test_build_results_decoder():
         assert getattr(results, attr) == getattr(expected_results, attr)
 
 
-class MockDockerTasker(object):
-    def inspect_image(self, name):
-        return {}
-
-    def build_image_from_path(self):
-        return True
-
-    def get_image_history(self, name):
-        return [{'Size': 1, 'Id': "sha256:layer1-newest"},
-                {'Size': 2, 'Id': "sha256:layer2"},
-                {'Size': 3, 'Id': "sha256:layer3"},
-                {'Size': 4, 'Id': "sha256:layer4-oldest"}]
-
-
-class MockDockerTaskerBaseImage(MockDockerTasker):
-    def inspect_image(self, name):
-        raise docker.errors.NotFound(message='foo', response='bar', explanation='baz')
-
-
-class MockInsideBuilder(object):
-    def __init__(self, failed=False, is_base_image=False):
-        if is_base_image:
-            self.tasker = MockDockerTaskerBaseImage()
-        else:
-            self.tasker = MockDockerTasker()
-        self.dockerfile_images = None
-        self.image_id = 'asd'
-        self.image = 'image'
-        self.failed = failed
-        self.df_path = 'some'
-        self.df_dir = 'some'
-        self.original_df = DUMMY_ORIGINAL_DF
-
-        def simplegen(x, y):
-            yield "some"
-        flexmock(self.tasker, build_image_from_path=simplegen)
-
-    @property
-    def source(self):
-        return flexmock(
-            dockerfile_path='/',
-            path='/tmp',
-            config=flexmock(image_build_method=None),
-        )
-
-    def pull_base_image(self, source_registry, insecure=False):
-        pass
-
-    def get_built_image_info(self):
-        return {'Id': 'some'}
-
-    def inspect_built_image(self):
-        return {INSPECT_ROOTFS: {INSPECT_ROOTFS_LAYERS: ['sha256:diff_id1-oldest',
-                                                         'sha256:diff_id2',
-                                                         'sha256:diff_id3',
-                                                         'sha256:diff_id4-newest']}}
-
-    def ensure_not_built(self):
-        pass
+def mock_inspect():
+    mocked_history = [{'Size': 1, 'Id': "sha256:layer1-newest"},
+                      {'Size': 2, 'Id': "sha256:layer2"},
+                      {'Size': 3, 'Id': "sha256:layer3"},
+                      {'Size': 4, 'Id': "sha256:layer4-oldest"}]
+    image_inspect = {INSPECT_ROOTFS: {INSPECT_ROOTFS_LAYERS: ['sha256:diff_id1-oldest',
+                                                              'sha256:diff_id2',
+                                                              'sha256:diff_id3',
+                                                              'sha256:diff_id4-newest']}}
+    flexmock(imageutil).should_receive('inspect_built_image').and_return(image_inspect)
+    flexmock(imageutil).should_receive('get_image_history').and_return(mocked_history)
 
 
 class RaisesMixIn(object):
@@ -141,9 +91,8 @@ class RaisesMixIn(object):
 
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, *args, **kwargs):
-        super(RaisesMixIn, self).__init__(tasker, workflow,
-                                          *args, **kwargs)
+    def __init__(self, workflow, *args, **kwargs):
+        super(RaisesMixIn, self).__init__(workflow, *args, **kwargs)
 
     def run(self):
         raise RuntimeError
@@ -186,9 +135,8 @@ class WatchedMixIn(object):
     Mix-in class for plugins we want to watch.
     """
 
-    def __init__(self, tasker, workflow, watcher, *args, **kwargs):
-        super(WatchedMixIn, self).__init__(tasker, workflow,
-                                           *args, **kwargs)
+    def __init__(self, workflow, watcher, *args, **kwargs):
+        super(WatchedMixIn, self).__init__(workflow, *args, **kwargs)
         self.watcher = watcher
 
     def run(self):
@@ -200,9 +148,8 @@ class WatchedBuildStep(object):
     class for buildstep plugins we want to watch.
     """
 
-    def __init__(self, tasker, workflow, watcher, *args, **kwargs):
-        super(WatchedBuildStep, self).__init__(tasker, workflow,
-                                               *args, **kwargs)
+    def __init__(self, workflow, watcher, *args, **kwargs):
+        super(WatchedBuildStep, self).__init__(workflow, *args, **kwargs)
         self.watcher = watcher
 
     def run(self):
@@ -307,10 +254,8 @@ def test_workflow_base_images():
     """
 
     flexmock(DockerfileParser, content='df_content')
+    mock_inspect()
     this_file = inspect.getfile(PreWatched)
-    mock_docker()
-    fake_builder = MockInsideBuilder(is_base_image=True)
-    flexmock(InsideBuilder).new_instances(fake_builder)
     watch_pre = Watcher()
     watch_prepub = Watcher()
     watch_buildstep = Watcher()
@@ -356,10 +301,8 @@ def test_workflow_compat(caplog):
     exit plugin as a post-build plugin.
     """
     flexmock(DockerfileParser, content='df_content')
+    mock_inspect()
     this_file = inspect.getfile(PreWatched)
-    mock_docker()
-    fake_builder = MockInsideBuilder()
-    flexmock(InsideBuilder).new_instances(fake_builder)
     watch_exit = Watcher()
     watch_buildstep = Watcher()
 
@@ -652,20 +595,14 @@ def test_plugin_errors(plugins, should_fail, should_log, caplog):
     Try bad plugin configuration.
     """
     flexmock(DockerfileParser, content='df_content')
+    mock_inspect()
     this_file = inspect.getfile(PreRaises)
-    mock_docker()
-    fake_builder = MockInsideBuilder()
-    flexmock(InsideBuilder).new_instances(fake_builder)
 
     caplog.clear()
     workflow = DockerBuildWorkflow(source=None,
                                    plugin_files=[this_file],
                                    **plugins)
 
-    print('===============================================')
-    print(plugins)
-    print(should_fail)
-    print('===============================================')
     # Find the 'watcher' parameter
     watchers = [conf.get('args', {}).get('watcher')
                 for plugin in plugins.values()
@@ -708,10 +645,8 @@ def test_workflow_plugin_error(fail_at):
     However, all the exit plugins should run.
     """
     flexmock(DockerfileParser, content='df_content')
+    mock_inspect()
     this_file = inspect.getfile(PreRaises)
-    mock_docker()
-    fake_builder = MockInsideBuilder()
-    flexmock(InsideBuilder).new_instances(fake_builder)
     watch_pre = Watcher()
     watch_prepub = Watcher()
     watch_buildstep = Watcher()
@@ -805,9 +740,6 @@ def test_workflow_docker_build_error():
     """
     flexmock(DockerfileParser, content='df_content')
     this_file = inspect.getfile(PreRaises)
-    mock_docker()
-    fake_builder = MockInsideBuilder(failed=True)
-    flexmock(InsideBuilder).new_instances(fake_builder)
     watch_pre = Watcher()
     watch_buildstep = Watcher(raise_exc=Exception())
     watch_prepub = Watcher()
@@ -880,10 +812,8 @@ def test_workflow_docker_build_error_reports(steps_to_fail, step_reported):
         return watcher
 
     flexmock(DockerfileParser, content='df_content')
+    mock_inspect()
     this_file = inspect.getfile(PreRaises)
-    mock_docker()
-    fake_builder = MockInsideBuilder(failed=True)
-    flexmock(InsideBuilder).new_instances(fake_builder)
     watch_pre = construct_watcher('pre')
     watch_buildstep = construct_watcher('buildstep')
     watch_prepub = construct_watcher('prepub')
@@ -934,10 +864,8 @@ class ExitUsesSource(ExitWatched):
 @requires_internet
 def test_source_not_removed_for_exit_plugins():
     flexmock(DockerfileParser, content='df_content')
+    mock_inspect()
     this_file = inspect.getfile(PreRaises)
-    mock_docker()
-    fake_builder = MockInsideBuilder()
-    flexmock(InsideBuilder).new_instances(fake_builder)
     watch_exit = Watcher()
     watch_buildstep = Watcher()
     workflow = DockerBuildWorkflow(source=None,
@@ -959,8 +887,8 @@ def test_source_not_removed_for_exit_plugins():
 
 class ValueMixIn(object):
 
-    def __init__(self, tasker, workflow, *args, **kwargs):
-        super(ValueMixIn, self).__init__(tasker, workflow, *args, **kwargs)
+    def __init__(self, workflow, *args, **kwargs):
+        super(ValueMixIn, self).__init__(workflow, *args, **kwargs)
 
     def run(self):
         return '%s_result' % self.key
@@ -968,8 +896,8 @@ class ValueMixIn(object):
 
 class ValueBuildStep(object):
 
-    def __init__(self, tasker, workflow, *args, **kwargs):
-        super(ValueBuildStep, self).__init__(tasker, workflow, *args, **kwargs)
+    def __init__(self, workflow, *args, **kwargs):
+        super(ValueBuildStep, self).__init__(workflow, *args, **kwargs)
 
     def run(self):
         return DUMMY_BUILD_RESULT
@@ -1072,10 +1000,8 @@ def test_workflow_plugin_results(buildstep_plugin, buildstep_raises):
     """
 
     flexmock(DockerfileParser, content='df_content')
+    mock_inspect()
     this_file = inspect.getfile(PreRaises)
-    mock_docker()
-    fake_builder = MockInsideBuilder()
-    flexmock(InsideBuilder).new_instances(fake_builder)
 
     prebuild_plugins = [{'name': 'pre_build_value'}]
     buildstep_plugins = [{'name': buildstep_plugin}]
@@ -1119,10 +1045,8 @@ def test_cancel_build(fail_at, caplog):
     phase_signal = defaultdict(lambda: None)
     phase_signal[fail_at] = signal.SIGTERM
     flexmock(DockerfileParser, content='df_content')
+    mock_inspect()
     this_file = inspect.getfile(PreRaises)
-    mock_docker()
-    fake_builder = MockInsideBuilder()
-    flexmock(InsideBuilder).new_instances(fake_builder)
     watch_pre = WatcherWithSignal(phase_signal['pre'])
     watch_prepub = WatcherWithSignal(phase_signal['prepub'])
     watch_buildstep = WatcherWithSignal(phase_signal['buildstep'])
@@ -1198,12 +1122,8 @@ def test_show_version(has_version, caplog):
     """
     VERSION = "1.0"
     flexmock(DockerfileParser, content='df_content')
+    mock_inspect()
     this_file = inspect.getfile(PreRaises)
-
-    mock_docker()
-    fake_builder = MockInsideBuilder()
-    flexmock(InsideBuilder).new_instances(fake_builder)
-
     watch_buildstep = Watcher()
 
     caplog.clear()
@@ -1232,10 +1152,8 @@ def test_show_version(has_version, caplog):
 
 def test_layer_sizes():
     flexmock(DockerfileParser, content='df_content')
+    mock_inspect()
     this_file = inspect.getfile(PreRaises)
-    mock_docker()
-    fake_builder = MockInsideBuilder()
-    flexmock(InsideBuilder).new_instances(fake_builder)
     watch_exit = Watcher()
     watch_buildstep = Watcher()
     workflow = DockerBuildWorkflow(source=None,
@@ -1399,6 +1317,7 @@ class TestPushConf(object):
         assert not push_conf.has_some_docker_registry
         assert len(push_conf.docker_registries) == 0
         assert push_conf.all_registries == push_conf.docker_registries
+
 
 def test_build_result():
     with pytest.raises(AssertionError):

@@ -445,7 +445,7 @@ def mock_url_downloads(remote_files=None, overrides=None):
 
 
 @responses.activate
-def test_generate_maven_metadata(tmpdir, docker_tasker, user_params):
+def test_generate_maven_metadata(tmpdir, user_params):
     mock_koji_session()
     mock_fetch_artifacts_by_nvr(tmpdir)
     mock_nvr_downloads()
@@ -454,7 +454,7 @@ def test_generate_maven_metadata(tmpdir, docker_tasker, user_params):
     mock_fetch_artifacts_by_url(tmpdir)
     mock_url_downloads()
 
-    results = mock_env(tmpdir).create_runner(docker_tasker).run()
+    results = mock_env(tmpdir).create_runner().run()
 
     plugin_result = results[GenerateMavenMetadataPlugin.key]
 
@@ -495,34 +495,33 @@ def test_generate_maven_metadata(tmpdir, docker_tasker, user_params):
         """),
 ))
 @responses.activate
-def test_generate_maven_metadata_no_source_url(tmpdir, docker_tasker, caplog, user_params,
-                                               contents):
+def test_generate_maven_metadata_no_source_url(tmpdir, caplog, user_params, contents):
     """Throw deprecation warning when no source-url is provided"""
     mock_koji_session()
     mock_fetch_artifacts_by_url(tmpdir, contents=contents)
     mock_url_downloads()
 
-    mock_env(tmpdir).create_runner(docker_tasker).run()
+    mock_env(tmpdir).create_runner().run()
 
     msg = 'fetch-artifacts-url without source-url is deprecated'
     assert msg in caplog.text
 
 
 @responses.activate
-def test_generate_maven_metadata_url_bad_checksum(tmpdir, docker_tasker, user_params):
+def test_generate_maven_metadata_url_bad_checksum(tmpdir, user_params):
     """Err when downloaded archive from URL has unexpected checksum."""
     mock_koji_session()
     mock_fetch_artifacts_by_url(tmpdir)
     mock_url_downloads(overrides={REMOTE_FILE_SPAM['source-url']: {'body': 'corrupted-file'}})
 
     with pytest.raises(PluginFailedException) as e:
-        mock_env(tmpdir).create_runner(docker_tasker).run()
+        mock_env(tmpdir).create_runner().run()
 
     assert 'does not match expected checksum' in str(e.value)
 
 
 @responses.activate
-def test_generate_maven_metadata_source_url_no_headers(tmpdir, docker_tasker, user_params):
+def test_generate_maven_metadata_source_url_no_headers(tmpdir, user_params):
     """
     Err if headers are not present.
     """
@@ -536,14 +535,13 @@ def test_generate_maven_metadata_source_url_no_headers(tmpdir, docker_tasker, us
                        overrides={remote_file['source-url']: {'head': True}})
 
     with pytest.raises(PluginFailedException) as e:
-        mock_env(tmpdir).create_runner(docker_tasker).run()
+        mock_env(tmpdir).create_runner().run()
 
     assert 'AttributeError' in str(e.value)
 
 
 @responses.activate
-def test_generate_maven_metadata_source_url_no_filename_in_headers(tmpdir, docker_tasker,
-                                                                   user_params):
+def test_generate_maven_metadata_source_url_no_filename_in_headers(tmpdir, user_params):
     """
     Err if filename not present in content-disposition.
     """
@@ -559,6 +557,6 @@ def test_generate_maven_metadata_source_url_no_filename_in_headers(tmpdir, docke
                                    'head': True}})
 
     with pytest.raises(PluginFailedException) as e:
-        mock_env(tmpdir).create_runner(docker_tasker).run()
+        mock_env(tmpdir).create_runner().run()
 
     assert 'IndexError' in str(e.value)

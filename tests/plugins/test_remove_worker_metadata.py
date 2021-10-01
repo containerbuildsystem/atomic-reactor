@@ -11,18 +11,12 @@ import logging
 
 from flexmock import flexmock
 
-from atomic_reactor.core import DockerTasker
 from atomic_reactor.constants import PLUGIN_REMOVE_WORKER_METADATA_KEY
-from atomic_reactor.inner import DockerBuildWorkflow
+from atomic_reactor.inner import DockerBuildWorkflow, BuildResult
 from atomic_reactor.plugin import ExitPluginsRunner
-from osbs.utils import ImageName
-from atomic_reactor.build import BuildResult
 from osbs.exceptions import OsbsResponseException
 from atomic_reactor.plugins.build_orchestrate_build import (WorkerBuildInfo, ClusterInfo,
                                                             OrchestrateBuildPlugin)
-
-from tests.constants import INPUT_IMAGE
-from tests.docker_mock import mock_docker
 import pytest
 
 
@@ -49,22 +43,6 @@ class MockSource(object):
     def get_dockerfile_path(self):
         return self.dockerfile_path, self.path
 
-
-class MockInsideBuilder(object):
-
-    def __init__(self):
-        mock_docker()
-        self.tasker = DockerTasker()
-        self.base_image = ImageName(repo='fedora', tag='25')
-        self.image_id = 'image_id'
-        self.image = INPUT_IMAGE
-        self.df_path = 'df_path'
-        self.df_dir = 'df_dir'
-
-        def simplegen(x, y):
-            yield "some\u2018".encode('utf-8')
-        flexmock(self.tasker, build_image_from_path=simplegen)
-
     def get_built_image_info(self):
         return {'Id': 'some'}
 
@@ -77,9 +55,7 @@ class MockInsideBuilder(object):
 
 def mock_workflow(tmpdir):
     workflow = DockerBuildWorkflow(source=None)
-    setattr(workflow, 'builder', MockInsideBuilder())
     setattr(workflow, 'source', MockSource(tmpdir))
-    setattr(workflow.builder, 'source', MockSource(tmpdir))
 
     return workflow
 
@@ -140,7 +116,6 @@ def test_remove_worker_plugin(tmpdir, caplog, user_params,
     workflow.plugin_workspace[OrchestrateBuildPlugin.key] = workspace
 
     runner = ExitPluginsRunner(
-        None,
         workflow,
         [{
             'name': PLUGIN_REMOVE_WORKER_METADATA_KEY,
@@ -171,7 +146,6 @@ def test_remove_worker_metadata_no_worker_build(tmpdir, caplog, user_params):
     workflow.build_result = BuildResult(annotations=annotations, image_id="id1234")
 
     runner = ExitPluginsRunner(
-        None,
         workflow,
         [{
             'name': PLUGIN_REMOVE_WORKER_METADATA_KEY,

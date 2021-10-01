@@ -16,20 +16,14 @@ import os
 import requests
 from collections import OrderedDict
 
-from tests.constants import MOCK, DOCKER0_REGISTRY
-from tests.stubs import StubInsideBuilder
+from tests.constants import DOCKER0_REGISTRY
 
-from atomic_reactor.core import DockerTasker
-from atomic_reactor.build import BuildResult
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
-from atomic_reactor.inner import DockerBuildWorkflow, TagConf
+from atomic_reactor.inner import DockerBuildWorkflow, TagConf, BuildResult
 from atomic_reactor.util import (registry_hostname, ManifestDigest, get_floating_images,
                                  get_primary_images, sha256sum)
 from atomic_reactor.plugins.post_group_manifests import GroupManifestsPlugin
 from osbs.utils import ImageName
-
-if MOCK:
-    from tests.docker_mock import mock_docker
 
 
 def to_bytes(value):
@@ -300,19 +294,7 @@ def mock_registries(registries, config, schema_version='v2', foreign_layers=Fals
 
 def mock_environment(tmpdir, primary_images=None,
                      annotations=None):
-    if MOCK:
-        mock_docker()
-    tasker = DockerTasker()
     workflow = DockerBuildWorkflow(source=None)
-    base_image_id = '123456parent-id'
-    setattr(workflow, '_base_image_inspect', {'Id': base_image_id})
-    setattr(workflow, 'builder', StubInsideBuilder())
-    setattr(workflow.builder, 'image_id', '123456imageid')
-    setattr(workflow.builder, 'base_image', ImageName(repo='Fedora', tag='22'))
-    setattr(workflow.builder, 'source', StubInsideBuilder())
-    setattr(workflow.builder, 'built_image_info', {'ParentId': base_image_id})
-    setattr(workflow.builder.source, 'dockerfile_path', None)
-    setattr(workflow.builder.source, 'path', None)
     setattr(workflow, 'tag_conf', TagConf())
     if primary_images:
         for image in primary_images:
@@ -323,7 +305,7 @@ def mock_environment(tmpdir, primary_images=None,
     workflow.tag_conf.add_floating_image('namespace/httpd:floating')
     workflow.build_result = BuildResult(image_id='123456', annotations=annotations or {})
 
-    return tasker, workflow
+    return workflow
 
 
 REGISTRY_V2 = 'registry_v2.example.com'
@@ -428,9 +410,6 @@ OTHER_V2 = 'registry.example.com:5001'
 @responses.activate  # noqa
 def test_group_manifests(tmpdir, schema_version, test_name, group, foreign_layers,
                          registries, workers, expected_exception, user_params):
-    if MOCK:
-        mock_docker()
-
     test_images = ['namespace/httpd:2.4',
                    'namespace/httpd:latest']
 
@@ -471,8 +450,7 @@ def test_group_manifests(tmpdir, schema_version, test_name, group, foreign_layer
     mocked_registries, annotations = mock_registries(registry_conf, workers,
                                                      schema_version=schema_version,
                                                      foreign_layers=foreign_layers)
-    tasker, workflow = mock_environment(tmpdir, primary_images=test_images,
-                                        annotations=annotations)
+    workflow = mock_environment(tmpdir, primary_images=test_images, annotations=annotations)
 
     registries_list = []
 
@@ -503,7 +481,7 @@ def test_group_manifests(tmpdir, schema_version, test_name, group, foreign_layer
                               'registries': registries_list,
                               'platform_descriptors': platform_descriptors_list}
 
-    runner = PostBuildPluginsRunner(tasker, workflow, plugins_conf)
+    runner = PostBuildPluginsRunner(workflow, plugins_conf)
     if expected_exception is None:
         results = runner.run()
 

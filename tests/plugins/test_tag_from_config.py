@@ -12,16 +12,13 @@ from textwrap import dedent
 import pytest
 import os.path
 
-from atomic_reactor.build import BuildResult
-from atomic_reactor.inner import DockerBuildWorkflow
+from atomic_reactor.inner import DockerBuildWorkflow, BuildResult
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.post_tag_from_config import TagFromConfigPlugin
 from atomic_reactor.util import df_parser
-from osbs.utils import ImageName
+from atomic_reactor.utils import imageutil
 from atomic_reactor.constants import INSPECT_CONFIG
-from tests.constants import MOCK, IMPORTED_IMAGE_ID
-if MOCK:
-    from tests.docker_mock import mock_docker
+from tests.constants import IMPORTED_IMAGE_ID
 
 
 DF_CONTENT_LABELS = '''\
@@ -44,11 +41,6 @@ class MockSource(object):
         return self.dockerfile_path, self.path
 
 
-class X(object):
-    image_id = "xxx"
-    base_image = ImageName.parse("fedora")
-
-
 def mock_additional_tags_file(tmpdir, tags):
     file_path = os.path.join(tmpdir, 'additional-tags')
 
@@ -60,12 +52,8 @@ def mock_additional_tags_file(tmpdir, tags):
 
 
 def mock_workflow(tmpdir):
-    if MOCK:
-        mock_docker()
-
     workflow = DockerBuildWorkflow(source=None)
     mock_source = MockSource(tmpdir)
-    setattr(workflow, 'builder', X)
     flexmock(workflow, source=mock_source)
 
     df = df_parser(str(tmpdir))
@@ -86,7 +74,7 @@ def mock_workflow(tmpdir):
     (['has_under', 'ends.dot.'], 'bar', ['bar:has_under', 'bar:ends.dot.']),
     (None, 'fedora', []),
 ])
-def test_tag_from_config_plugin_generated(tmpdir, docker_tasker, tags, name, expected):
+def test_tag_from_config_plugin_generated(tmpdir, tags, name, expected):
     workflow = mock_workflow(tmpdir)
     workflow.built_image_inspect = {
         INSPECT_CONFIG: {'Labels': {'Name': name}}
@@ -98,7 +86,6 @@ def test_tag_from_config_plugin_generated(tmpdir, docker_tasker, tags, name, exp
         mock_additional_tags_file(str(tmpdir), tags)
 
     runner = PostBuildPluginsRunner(
-        docker_tasker,
         workflow,
         [{'name': TagFromConfigPlugin.key}]
     )
@@ -113,7 +100,7 @@ def test_tag_from_config_plugin_generated(tmpdir, docker_tasker, tags, name, exp
     ({}, "KeyError: 'Labels'"),
     (None, "RuntimeError: There is no inspect data"),
 ])
-def test_bad_inspect_data(tmpdir, docker_tasker, inspect, error):
+def test_bad_inspect_data(tmpdir, inspect, error):
     workflow = mock_workflow(tmpdir)
     if inspect is not None:
         workflow.built_image_inspect = {
@@ -124,7 +111,6 @@ def test_bad_inspect_data(tmpdir, docker_tasker, inspect, error):
     mock_additional_tags_file(str(tmpdir), ['spam', 'bacon'])
 
     runner = PostBuildPluginsRunner(
-        docker_tasker,
         workflow,
         [{'name': TagFromConfigPlugin.key}]
     )
@@ -160,12 +146,12 @@ def test_bad_inspect_data(tmpdir, docker_tasker, inspect, error):
      ['name_value:foo', 'name_value:bar', 'name_value:baz',
       'name_value:version_value']),
 ])
-def test_tag_parse(tmpdir, docker_tasker, floating_tags, unique_tags, primary_tags, expected):
+def test_tag_parse(tmpdir, floating_tags, unique_tags, primary_tags, expected):
     df = df_parser(str(tmpdir))
     df.content = DF_CONTENT_LABELS
 
     workflow = mock_workflow(tmpdir)
-    setattr(workflow.builder, 'df_path', df.dockerfile_path)
+    flexmock(workflow, df_path=df.dockerfile_path)
     workflow.build_result = BuildResult.make_remote_image_result()
 
     base_inspect = {
@@ -174,7 +160,7 @@ def test_tag_parse(tmpdir, docker_tasker, floating_tags, unique_tags, primary_ta
             'Env': {'parentrelease': '7.4.1'},
         }
     }
-    setattr(workflow.builder, 'base_image_inspect', base_inspect)
+    flexmock(imageutil).should_receive('base_image_inspect').and_return(base_inspect)
     mock_additional_tags_file(str(tmpdir), ['get_tags', 'file_tags'])
 
     if unique_tags is not None and primary_tags is not None and floating_tags is not None:
@@ -186,7 +172,6 @@ def test_tag_parse(tmpdir, docker_tasker, floating_tags, unique_tags, primary_ta
     else:
         input_tags = None
     runner = PostBuildPluginsRunner(
-        docker_tasker,
         workflow,
         [{'name': TagFromConfigPlugin.key,
           'args': {'tag_suffixes': input_tags}}]
@@ -215,7 +200,7 @@ def test_tag_parse(tmpdir, docker_tasker, floating_tags, unique_tags, primary_ta
     ('custom/etcd', None, 'custom/etcd'),
     ('custom/etcd', 'org', 'org/custom-etcd'),
 ))
-def test_tags_enclosed(tmpdir, docker_tasker, name, organization, expected):
+def test_tags_enclosed(tmpdir, name, organization, expected):
     df = df_parser(str(tmpdir))
     df.content = dedent("""\
         FROM fedora
@@ -225,7 +210,6 @@ def test_tags_enclosed(tmpdir, docker_tasker, name, organization, expected):
     """.format(name))
 
     workflow = mock_workflow(tmpdir)
-    setattr(workflow.builder, 'df_path', df.dockerfile_path)
     workflow.build_result = BuildResult.make_remote_image_result()
 
     if organization:
@@ -241,7 +225,6 @@ def test_tags_enclosed(tmpdir, docker_tasker, name, organization, expected):
     }
 
     runner = PostBuildPluginsRunner(
-        docker_tasker,
         workflow,
         [{'name': TagFromConfigPlugin.key,
           'args': {'tag_suffixes': input_tags}}]

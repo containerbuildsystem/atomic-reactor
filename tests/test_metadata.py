@@ -39,10 +39,9 @@ def test_store_metadata(metadata_decorator, metadata_attr):
         def run(self):
             return None
 
-    tasker = object()
     workflow = DockerBuildWorkflow()
-    p1 = BP1(tasker, workflow)
-    p2 = BP2(tasker, workflow)
+    p1 = BP1(workflow)
+    p2 = BP2(workflow)
 
     assert p1.run() == 1
     assert p2.run() is None
@@ -71,10 +70,9 @@ def test_store_metadata_map(metadata_map_decorator, metadata_attr):
         def run(self):
             return None
 
-    tasker = object()
     workflow = DockerBuildWorkflow()
-    p1 = BP1(tasker, workflow)
-    p2 = BP2(tasker, workflow)
+    p1 = BP1(workflow)
+    p2 = BP2(workflow)
 
     assert p1.run() == {'foo': 1, 'bar': 2, 'baz': 3}
     assert p2.run() is None
@@ -110,9 +108,8 @@ def test_store_metadata_wrong_return_type(metadata_decorator, expected_err_msg):
         def run(self):
             return 1
 
-    tasker = object()
     workflow = DockerBuildWorkflow()
-    p = BP(tasker, workflow)
+    p = BP(workflow)
 
     with pytest.raises(TypeError) as exc_info:
         p.run()
@@ -132,9 +129,8 @@ def test_store_metadata_missing_key(metadata_decorator, expected_err_msg):
         def run(self):
             return {'foo': 1}
 
-    tasker = object()
     workflow = DockerBuildWorkflow()
-    p = BP(tasker, workflow)
+    p = BP(workflow)
 
     with pytest.raises(RuntimeError) as exc_info:
         p.run()
@@ -155,9 +151,8 @@ def test_store_metadata_conflict(metadata_decorator, expected_err_msg):
         def run(self):
             return {'foo': 1}
 
-    tasker = object()
     workflow = DockerBuildWorkflow()
-    p = BP(tasker, workflow)
+    p = BP(workflow)
 
     p.run()
     with pytest.raises(RuntimeError) as exc_info:
@@ -176,9 +171,8 @@ def test_store_metadata_combined():
         def run(self):
             return {'bar': 1, 'eggs': 2}
 
-    tasker = object()
     workflow = DockerBuildWorkflow()
-    p = BP(tasker, workflow)
+    p = BP(workflow)
 
     p.run()
     assert workflow.annotations == {

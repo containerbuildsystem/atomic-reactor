@@ -9,17 +9,14 @@ of the BSD license. See the LICENSE file for details.
 import os
 import subprocess
 import pytest
+from datetime import datetime as dt
+from textwrap import dedent
+from flexmock import flexmock
 
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 from atomic_reactor.util import df_parser
 from atomic_reactor import start_time as atomic_reactor_start_time
-
-from datetime import datetime as dt
-from tests.stubs import StubInsideBuilder
-
-from textwrap import dedent
-from flexmock import flexmock
 
 
 class MockedPopen(object):
@@ -45,7 +42,7 @@ def generate_a_file(destpath, contents):
 
 
 @pytest.mark.parametrize('filename', ['help.md', 'other_file.md'])  # noqa
-def test_add_help_plugin(tmpdir, docker_tasker, workflow, filename):
+def test_add_help_plugin(tmpdir, workflow, filename):
     df_content = dedent("""
         FROM fedora
         RUN yum install -y python-django
@@ -53,7 +50,6 @@ def test_add_help_plugin(tmpdir, docker_tasker, workflow, filename):
     df = df_parser(str(tmpdir))
     df.content = df_content
 
-    workflow.builder = StubInsideBuilder().set_df_path(df.dockerfile_path)
     flexmock(workflow, df_path=df.dockerfile_path)
     workflow.df_dir = str(tmpdir)
 
@@ -74,7 +70,6 @@ def test_add_help_plugin(tmpdir, docker_tasker, workflow, filename):
      .replace_with(check_popen))
 
     runner = PreBuildPluginsRunner(
-        docker_tasker,
         workflow,
         [{
             'name': AddHelpPlugin.key,
@@ -93,17 +88,15 @@ def test_add_help_plugin(tmpdir, docker_tasker, workflow, filename):
 
 
 @pytest.mark.parametrize('filename', ['help.md', 'other_file.md'])  # noqa
-def test_add_help_no_help_file(workflow, tmpdir, docker_tasker, filename):
+def test_add_help_no_help_file(workflow, tmpdir, filename):
     df_content = "FROM fedora"
     df = df_parser(str(tmpdir))
     df.content = df_content
 
-    workflow.builder = StubInsideBuilder().set_df_path(df.dockerfile_path)
     flexmock(workflow, df_path=df.dockerfile_path)
     workflow.df_dir = str(tmpdir)
 
     runner = PreBuildPluginsRunner(
-        docker_tasker,
         workflow,
         [{
             'name': AddHelpPlugin.key,
@@ -122,13 +115,11 @@ def test_add_help_no_help_file(workflow, tmpdir, docker_tasker, filename):
 @pytest.mark.parametrize('go_md2man_result', [
     'binary_missing', 'input_missing', 'other_os_error',
     'result_missing', 'fail', 'pass'])
-def test_add_help_md2man_error(workflow, tmpdir, docker_tasker, filename,
-                               go_md2man_result, caplog):
+def test_add_help_md2man_error(workflow, tmpdir, filename, go_md2man_result, caplog):
     df_content = "FROM fedora"
     df = df_parser(str(tmpdir))
     df.content = df_content
 
-    workflow.builder = StubInsideBuilder().set_df_path(df.dockerfile_path)
     flexmock(workflow, df_path=df.dockerfile_path)
     workflow.df_dir = str(tmpdir)
 
@@ -181,7 +172,6 @@ def test_add_help_md2man_error(workflow, tmpdir, docker_tasker, filename,
          .replace_with(check_popen_pass))
 
     runner = PreBuildPluginsRunner(
-        docker_tasker,
         workflow,
         [{
             'name': AddHelpPlugin.key,
@@ -231,7 +221,7 @@ def test_add_help_md2man_error(workflow, tmpdir, docker_tasker, filename,
 
 
 @pytest.mark.parametrize('filename', ['help.md', 'other_file.md'])  # noqa
-def test_add_help_generate_metadata(tmpdir, docker_tasker, workflow, filename):
+def test_add_help_generate_metadata(tmpdir, workflow, filename):
     df_content = dedent("""\
         FROM fedora
         LABEL name='test' \\
@@ -241,7 +231,6 @@ def test_add_help_generate_metadata(tmpdir, docker_tasker, workflow, filename):
     df = df_parser(str(tmpdir))
     df.content = df_content
 
-    workflow.builder = StubInsideBuilder().set_df_path(df.dockerfile_path)
     flexmock(workflow, df_path=df.dockerfile_path)
     workflow.df_dir = str(tmpdir)
 
@@ -262,7 +251,6 @@ def test_add_help_generate_metadata(tmpdir, docker_tasker, workflow, filename):
      .replace_with(check_popen))
 
     runner = PreBuildPluginsRunner(
-        docker_tasker,
         workflow,
         [{
             'name': AddHelpPlugin.key,

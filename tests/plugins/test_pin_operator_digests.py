@@ -87,15 +87,13 @@ def make_user_config(operator_config):
     return config
 
 
-def mock_env(docker_tasker, repo_dir, orchestrator,
-             user_config=None, site_config=None,
+def mock_env(repo_dir, orchestrator, user_config=None, site_config=None,
              df_base='scratch', df_operator_label=True,
              replacement_pullspecs=None, add_to_config=None,
              write_container_yaml=True, operator_csv_modifications_url=None):
     """
     Mock environment for test
 
-    :param docker_tasker: conftest fixture
     :param repo_dir: pylint fixture,
     :type repo_dir: py.path.LocalPath
     :param orchestrator: is the plugin running in orchestrator?
@@ -136,7 +134,7 @@ def mock_env(docker_tasker, repo_dir, orchestrator,
     # NOTE: is this path correct?
     env.workflow._df_path = str(repo_dir)
 
-    return env.create_runner(docker_tasker)
+    return env.create_runner()
 
 
 def mock_operator_csv(tmpdir, filename, pullspecs, for_ocp_44=False,
@@ -297,20 +295,15 @@ class TestPinOperatorDigest(object):
         return get_build_kwarg(workflow, "operator_bundle_replacement_pullspecs")
 
     @pytest.mark.parametrize('orchestrator', [True, False])
-    def test_run_only_for_operator_bundle_label(self, orchestrator,
-                                                docker_tasker, tmpdir, caplog):
-        runner = mock_env(docker_tasker, tmpdir,
-                          orchestrator=orchestrator,
-                          df_operator_label=False,
+    def test_run_only_for_operator_bundle_label(self, orchestrator, tmpdir, caplog):
+        runner = mock_env(tmpdir, orchestrator=orchestrator, df_operator_label=False,
                           write_container_yaml=False)
         runner.run()
         assert "Not an operator manifest bundle build, skipping plugin" in caplog.text
 
     @pytest.mark.parametrize('orchestrator', [True, False])
-    def test_missing_site_config(self, orchestrator, docker_tasker, tmpdir, caplog):
-        runner = mock_env(docker_tasker, tmpdir,
-                          orchestrator=orchestrator,
-                          write_container_yaml=False)
+    def test_missing_site_config(self, orchestrator, tmpdir, caplog):
+        runner = mock_env(tmpdir, orchestrator=orchestrator, write_container_yaml=False)
         runner.run()
 
         msg = "operator_manifests configuration missing in reactor config map, aborting"
@@ -318,13 +311,11 @@ class TestPinOperatorDigest(object):
         assert "Looking for operator CSV files" not in caplog.text
 
     @pytest.mark.parametrize('orchestrator', [True, False])
-    def test_missing_user_config(self, orchestrator, docker_tasker, tmpdir):
+    def test_missing_user_config(self, orchestrator, tmpdir):
         # make sure plugin is not skipped because of missing site config
         site_config = get_site_config()
 
-        runner = mock_env(docker_tasker, tmpdir,
-                          orchestrator=orchestrator,
-                          site_config=site_config,
+        runner = mock_env(tmpdir, orchestrator=orchestrator, site_config=site_config,
                           write_container_yaml=False)
 
         with pytest.raises(PluginFailedException) as exc_info:
@@ -337,13 +328,11 @@ class TestPinOperatorDigest(object):
         ('foo', {'foo': '/tmp/foo'}),
     ])
     def test_manifests_dir_not_subdir_of_repo(self, manifests_dir, symlinks,
-                                              orchestrator, docker_tasker, tmpdir):
+                                              orchestrator, tmpdir):
         # make sure plugin is not skipped because of missing site config
         site_config = get_site_config()
         user_config = get_user_config(manifests_dir)
-        runner = mock_env(docker_tasker, tmpdir, orchestrator,
-                          site_config=site_config,
-                          user_config=user_config)
+        runner = mock_env(tmpdir, orchestrator, site_config=site_config, user_config=user_config)
 
         # make symlinks
         for rel_dest, src in (symlinks or {}).items():
@@ -362,7 +351,7 @@ class TestPinOperatorDigest(object):
         ['csv1.yaml', 'csv2.yaml']
     ])
     @pytest.mark.parametrize('skip_all', [True, False])
-    def test_orchestrator_no_pullspecs(self, docker_tasker, tmpdir, caplog, filepaths, skip_all):
+    def test_orchestrator_no_pullspecs(self, tmpdir, caplog, filepaths, skip_all):
         manifests_dir = tmpdir.join(OPERATOR_MANIFESTS_DIR).mkdir()
         for path in filepaths:
             mock_operator_csv(manifests_dir, path, [])
@@ -370,8 +359,8 @@ class TestPinOperatorDigest(object):
         user_config = get_user_config(OPERATOR_MANIFESTS_DIR, skip_all=skip_all)
         site_config = get_site_config(skip_all_allow_list=[PKG_NAME])
 
-        runner = mock_env(docker_tasker, tmpdir, orchestrator=True,
-                          user_config=user_config, site_config=site_config)
+        runner = mock_env(tmpdir, orchestrator=True, user_config=user_config,
+                          site_config=site_config)
 
         if len(filepaths) > 1:
             with pytest.raises(PluginFailedException) as exc_info:
@@ -406,13 +395,13 @@ class TestPinOperatorDigest(object):
         assert result['pin_operator_digest'] == expected
 
     @pytest.mark.parametrize('orchestrator', [True, False])
-    def test_fail_without_csv(self, docker_tasker, tmpdir, orchestrator):
+    def test_fail_without_csv(self, tmpdir, orchestrator):
         """CSV file is mandatory part of operator, fail if it's not present"""
         tmpdir.join(OPERATOR_MANIFESTS_DIR).mkdir()
         user_config = get_user_config(OPERATOR_MANIFESTS_DIR)
         site_config = get_site_config()
 
-        runner = mock_env(docker_tasker, tmpdir, orchestrator=orchestrator,
+        runner = mock_env(tmpdir, orchestrator=orchestrator,
                           user_config=user_config, site_config=site_config)
 
         with pytest.raises(PluginFailedException) as exc_info:
@@ -420,15 +409,15 @@ class TestPinOperatorDigest(object):
 
         assert "Missing ClusterServiceVersion in operator manifests" in str(exc_info.value)
 
-    def test_orchestrator_disallowed_registry(self, docker_tasker, tmpdir):
+    def test_orchestrator_disallowed_registry(self, tmpdir):
         pullspecs = ['allowed-registry/ns/foo:1', 'disallowed-registry/ns/bar:2']
         mock_operator_csv(tmpdir.join(OPERATOR_MANIFESTS_DIR).mkdir(), 'csv.yaml', pullspecs)
 
         user_config = get_user_config(OPERATOR_MANIFESTS_DIR)
         site_config = get_site_config(allowed_registries=['allowed-registry'])
 
-        runner = mock_env(docker_tasker, tmpdir, orchestrator=True,
-                          user_config=user_config, site_config=site_config)
+        runner = mock_env(tmpdir, orchestrator=True, user_config=user_config,
+                          site_config=site_config)
 
         with pytest.raises(PluginFailedException) as exc_info:
             runner.run()
@@ -436,7 +425,7 @@ class TestPinOperatorDigest(object):
         assert msg in str(exc_info.value)
 
     def test_orchestrator_raise_error_if_csv_has_both_related_images_and_related_env_vars(
-        self, docker_tasker, tmpdir, caplog
+        self, tmpdir, caplog
     ):
         csv = mock_operator_csv(tmpdir.join(OPERATOR_MANIFESTS_DIR).mkdir(),
                                 'csv.yaml', ['foo'],
@@ -446,8 +435,8 @@ class TestPinOperatorDigest(object):
         user_config = get_user_config(OPERATOR_MANIFESTS_DIR)
         site_config = get_site_config()
 
-        runner = mock_env(docker_tasker, tmpdir, orchestrator=True,
-                          user_config=user_config, site_config=site_config)
+        runner = mock_env(tmpdir, orchestrator=True, user_config=user_config,
+                          site_config=site_config)
 
         with pytest.raises(PluginFailedException) as exc_info:
             runner.run()
@@ -461,7 +450,7 @@ class TestPinOperatorDigest(object):
         assert expected in str(exc_info.value)
 
     @responses.activate
-    def test_orchestrator(self, docker_tasker, tmpdir, caplog):
+    def test_orchestrator(self, tmpdir, caplog):
         pullspecs = [
             # registry.private.example.com: do not replace registry or repos
             'registry.private.example.com/ns/foo@sha256:1',  # -> no change
@@ -523,9 +512,8 @@ class TestPinOperatorDigest(object):
             {'url': 'https://weird-registry'},
         ]}
 
-        runner = mock_env(docker_tasker, tmpdir, orchestrator=True,
-                          user_config=user_config, site_config=site_config,
-                          add_to_config=pull_registries)
+        runner = mock_env(tmpdir, orchestrator=True, user_config=user_config,
+                          site_config=site_config, add_to_config=pull_registries)
 
         result = runner.run()
 
@@ -635,7 +623,7 @@ class TestPinOperatorDigest(object):
     @pytest.mark.parametrize('replace_repo', [True, False])
     @pytest.mark.parametrize('replace_registry', [True, False])
     def test_orchestrator_replacement_opt_out(self, pin_digest, replace_repo, replace_registry,
-                                              docker_tasker, tmpdir, caplog):
+                                              tmpdir, caplog):
         original = '{}/ns/foo:1'.format(SOURCE_REGISTRY_URI)
         replaced = ImageName.parse(original)
 
@@ -674,8 +662,8 @@ class TestPinOperatorDigest(object):
                                       enable_registry_replacements=replace_registry)
         site_config = get_site_config(registry_post_replace=registry_post_replace)
 
-        runner = mock_env(docker_tasker, tmpdir, orchestrator=True,
-                          user_config=user_config, site_config=site_config)
+        runner = mock_env(tmpdir, orchestrator=True, user_config=user_config,
+                          site_config=site_config)
         result = runner.run()
 
         if not pin_digest:
@@ -698,7 +686,7 @@ class TestPinOperatorDigest(object):
         assert result['pin_operator_digest']['related_images']['pullspecs']
 
     @pytest.mark.parametrize('has_envs', [True, False])
-    def test_worker_exclude_csvs(self, docker_tasker, tmpdir, caplog, has_envs):
+    def test_worker_exclude_csvs(self, tmpdir, caplog, has_envs):
         # Worker does not care if there is a conflict between relatedImages
         # and RELATED_IMAGE_* env vars, orchestrator should have caught this already
         csv = mock_operator_csv(tmpdir.join(OPERATOR_MANIFESTS_DIR).mkdir(), 'csv.yaml', ['foo'],
@@ -708,8 +696,8 @@ class TestPinOperatorDigest(object):
 
         user_config = get_user_config(OPERATOR_MANIFESTS_DIR)
 
-        runner = mock_env(docker_tasker, tmpdir, orchestrator=False,
-                          site_config=get_site_config(), user_config=user_config)
+        runner = mock_env(tmpdir, orchestrator=False, site_config=get_site_config(),
+                          user_config=user_config)
         runner.run()
 
         assert "Replacing pullspecs" not in caplog.text
@@ -717,7 +705,7 @@ class TestPinOperatorDigest(object):
         assert csv.read() == original_content
 
     @pytest.mark.parametrize('ocp_44', [True, False])
-    def test_worker(self, ocp_44, docker_tasker, tmpdir, caplog):
+    def test_worker(self, ocp_44, tmpdir, caplog):
         pullspecs = [
             'keep-registry/ns/foo',
             'replace-registry/ns/bar:1',
@@ -747,7 +735,7 @@ class TestPinOperatorDigest(object):
 
         user_config = get_user_config(OPERATOR_MANIFESTS_DIR)
 
-        runner = mock_env(docker_tasker, tmpdir, orchestrator=False, site_config=get_site_config(),
+        runner = mock_env(tmpdir, orchestrator=False, site_config=get_site_config(),
                           user_config=user_config, replacement_pullspecs=replacement_pullspecs)
         runner.run()
 
@@ -766,7 +754,7 @@ class TestPinOperatorDigest(object):
         assert 'Replacing pullspecs in {}'.format(reference) not in caplog_text
         assert 'Creating relatedImages section in {}'.format(reference) not in caplog_text
 
-    def test_return_pullspecs_in_related_images(self, docker_tasker, tmpdir):
+    def test_return_pullspecs_in_related_images(self, tmpdir):
         """
         Ensure the pullspecs listed in spec.relatedImages are returned if a CSV
         file has such a section
@@ -780,8 +768,7 @@ class TestPinOperatorDigest(object):
         mock_operator_csv(tmpdir.join(OPERATOR_MANIFESTS_DIR).mkdir(), 'csv1.yaml', pullspecs,
                           with_related_images=True)
 
-        runner = mock_env(docker_tasker, tmpdir,
-                          orchestrator=True,
+        runner = mock_env(tmpdir, orchestrator=True,
                           user_config=get_user_config(OPERATOR_MANIFESTS_DIR),
                           site_config=get_site_config())
         result = runner.run()
@@ -815,7 +802,7 @@ class TestPinOperatorDigest(object):
         (['foo'], False),
     ])
     @pytest.mark.parametrize('skip_all_allow_list', [None, [PKG_NAME]])
-    def test_skip_all(self, docker_tasker, tmpdir, caplog, orchestrator, has_related_images,
+    def test_skip_all(self, tmpdir, caplog, orchestrator, has_related_images,
                       pull_specs, has_related_image_envs, skip_all_allow_list):
         mock_operator_csv(tmpdir.join(OPERATOR_MANIFESTS_DIR).mkdir(), 'csv.yaml', pull_specs,
                           with_related_images=has_related_images,
@@ -823,7 +810,7 @@ class TestPinOperatorDigest(object):
 
         user_config = get_user_config(OPERATOR_MANIFESTS_DIR, skip_all=True)
 
-        runner = mock_env(docker_tasker, tmpdir, orchestrator=orchestrator,
+        runner = mock_env(tmpdir, orchestrator=orchestrator,
                           site_config=get_site_config(skip_all_allow_list=skip_all_allow_list),
                           user_config=user_config)
 
@@ -1068,7 +1055,7 @@ class TestOperatorCSVModifications:
     """Test suite for user modifications for Operator CSV file"""
 
     def _test_assert_error(
-        self, *, tmpdir, docker_tasker, test_url, pull_specs, exc_msg,
+        self, *, tmpdir, test_url, pull_specs, exc_msg,
         operator_csv_modifications_allowed_attributes=None,
     ):
         manifests_dir = tmpdir.join(OPERATOR_MANIFESTS_DIR).mkdir()
@@ -1081,7 +1068,7 @@ class TestOperatorCSVModifications:
         )
 
         runner = mock_env(
-            docker_tasker, tmpdir, orchestrator=True,
+            tmpdir, orchestrator=True,
             user_config=user_config,
             site_config=site_config,
             operator_csv_modifications_url=test_url
@@ -1106,7 +1093,7 @@ class TestOperatorCSVModifications:
         ),
     ])
     @responses.activate
-    def test_pullspecs_replacements_errors(self, tmpdir, docker_tasker, pull_specs, exc_msg):
+    def test_pullspecs_replacements_errors(self, tmpdir, pull_specs, exc_msg):
         """Plugin should fail when CSV modifications doesn't meet expectations"""
         test_url = "https://example.com/modifications.json"
         modification_data = {
@@ -1116,14 +1103,13 @@ class TestOperatorCSVModifications:
 
         self._test_assert_error(
             tmpdir=tmpdir,
-            docker_tasker=docker_tasker,
             test_url=test_url,
             pull_specs=pull_specs,
             exc_msg=exc_msg,
         )
 
     @responses.activate
-    def test_fetch_modifications_http_error(self, tmpdir, docker_tasker):
+    def test_fetch_modifications_http_error(self, tmpdir):
         """Test if HTTP error during fetching is properly described to user"""
         test_url = "https://example.com/modifications.json"
         exc_msg = f"Failed to fetch the operator CSV modification JSON from {test_url}"
@@ -1131,13 +1117,12 @@ class TestOperatorCSVModifications:
 
         self._test_assert_error(
             tmpdir=tmpdir,
-            docker_tasker=docker_tasker,
             test_url=test_url,
             pull_specs=['mytestimage:v5'],
             exc_msg=exc_msg)
 
     @responses.activate
-    def test_fetch_modifications_json_error(self, tmpdir, docker_tasker):
+    def test_fetch_modifications_json_error(self, tmpdir):
         """Test if JSON decoding failure properly described to user"""
         test_url = "https://example.com/modifications.json"
         exc_msg = f"Failed to parse operator CSV modification JSON from {test_url}"
@@ -1145,14 +1130,13 @@ class TestOperatorCSVModifications:
 
         self._test_assert_error(
             tmpdir=tmpdir,
-            docker_tasker=docker_tasker,
             test_url=test_url,
             pull_specs=['mytestimage:v5'],
             exc_msg=exc_msg
         )
 
     @responses.activate
-    def test_csv_has_related_images(self, tmpdir, docker_tasker):
+    def test_csv_has_related_images(self, tmpdir):
         """Modifications must fail if RelatedImages section exists"""
         test_url = "https://example.com/modifications.json"
         modification_data = {
@@ -1169,7 +1153,7 @@ class TestOperatorCSVModifications:
         site_config = get_site_config()
 
         runner = mock_env(
-            docker_tasker, tmpdir, orchestrator=True,
+            tmpdir, orchestrator=True,
             user_config=user_config,
             site_config=site_config,
             operator_csv_modifications_url=test_url,
@@ -1186,7 +1170,7 @@ class TestOperatorCSVModifications:
         assert exc_msg in str(exc_info.value)
 
     @responses.activate
-    def test_pullspecs_replacements(self, tmpdir, docker_tasker):
+    def test_pullspecs_replacements(self, tmpdir):
         """Test if pullspecs are properly replaced"""
         test_url = "https://example.com/modifications.json"
         modification_data = {
@@ -1201,7 +1185,7 @@ class TestOperatorCSVModifications:
         site_config = get_site_config()
 
         runner = mock_env(
-            docker_tasker, tmpdir, orchestrator=True,
+            tmpdir, orchestrator=True,
             user_config=user_config,
             site_config=site_config,
             operator_csv_modifications_url=test_url
@@ -1293,7 +1277,7 @@ class TestOperatorCSVModifications:
                 validate_with_schema(data, schema)
 
     @responses.activate
-    def test_duplicated_pullspec_replacements(self, tmpdir, docker_tasker):
+    def test_duplicated_pullspec_replacements(self, tmpdir):
         """Fail when duplicated pullspecs are detected"""
         test_pullspec = "thesameimage:v1"
         test_url = "https://example.com/modifications.json"
@@ -1307,7 +1291,6 @@ class TestOperatorCSVModifications:
 
         self._test_assert_error(
             tmpdir=tmpdir,
-            docker_tasker=docker_tasker,
             test_url=test_url,
             pull_specs=[test_pullspec],
             exc_msg=f"Provided CSV modifications contain duplicated "
@@ -1332,7 +1315,7 @@ class TestOperatorCSVModifications:
         )
     ])
     @responses.activate
-    def test_not_allowed_attributes_for_modifications(self, tmpdir, docker_tasker, mods, exc_msg):
+    def test_not_allowed_attributes_for_modifications(self, tmpdir, mods, exc_msg):
         """Test if not allowed attributes causes expected error"""
         test_pullspec = "thesameimage:v1"
         test_url = "https://example.com/modifications.json"
@@ -1346,7 +1329,6 @@ class TestOperatorCSVModifications:
 
         self._test_assert_error(
             tmpdir=tmpdir,
-            docker_tasker=docker_tasker,
             test_url=test_url,
             pull_specs=[test_pullspec],
             exc_msg=exc_msg,
@@ -1428,9 +1410,7 @@ class TestOperatorCSVModifications:
          ]
     )
     @responses.activate
-    def test_other_metadata_replacements_pass(self, tmpdir, docker_tasker,
-                                              mods,
-                                              allowed_attrs,
+    def test_other_metadata_replacements_pass(self, tmpdir, mods, allowed_attrs,
                                               expected_final_csv):
         csv_yaml = 'csv.yaml'
         pullspecs = ['myimage:v1.2.2']
@@ -1451,7 +1431,7 @@ class TestOperatorCSVModifications:
         )
 
         runner = mock_env(
-            docker_tasker, tmpdir, orchestrator=False,
+            tmpdir, orchestrator=False,
             user_config=user_config,
             site_config=site_config,
             operator_csv_modifications_url=test_url

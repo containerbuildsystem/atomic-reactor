@@ -6,23 +6,14 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
-import os
 import logging
 
-from flexmock import flexmock
-
-from atomic_reactor.core import DockerTasker
 from atomic_reactor.constants import PLUGIN_FETCH_WORKER_METADATA_KEY
-from atomic_reactor.build import BuildResult
-from atomic_reactor.inner import DockerBuildWorkflow
+from atomic_reactor.inner import DockerBuildWorkflow, BuildResult
 from atomic_reactor.plugin import PostBuildPluginsRunner
-from osbs.utils import ImageName
-
 from atomic_reactor.plugins.build_orchestrate_build import (WorkerBuildInfo, ClusterInfo,
                                                             OrchestrateBuildPlugin)
 
-from tests.constants import INPUT_IMAGE
-from tests.docker_mock import mock_docker
 import pytest
 
 
@@ -42,48 +33,8 @@ class MockOSBS(object):
         return MockConfigMapResponse(self.config_map[name])
 
 
-class MockSource(object):
-
-    def __init__(self, tmpdir):
-        tmpdir = str(tmpdir)
-        self.dockerfile_path = os.path.join(tmpdir, 'Dockerfile')
-        self.path = tmpdir
-
-    def get_dockerfile_path(self):
-        return self.dockerfile_path, self.path
-
-
-class MockInsideBuilder(object):
-
-    def __init__(self):
-        mock_docker()
-        self.tasker = DockerTasker()
-        self.base_image = ImageName(repo='fedora', tag='25')
-        self.image_id = 'image_id'
-        self.image = INPUT_IMAGE
-        self.df_path = 'df_path'
-        self.df_dir = 'df_dir'
-
-        def simplegen(x, y):
-            yield "some\u2018".encode('utf-8')
-        flexmock(self.tasker, build_image_from_path=simplegen)
-
-    def get_built_image_info(self):
-        return {'Id': 'some'}
-
-    def inspect_built_image(self):
-        return None
-
-    def ensure_not_built(self):
-        pass
-
-
 def mock_workflow(tmpdir):
     workflow = DockerBuildWorkflow(source=None)
-    setattr(workflow, 'builder', MockInsideBuilder())
-    setattr(workflow, 'source', MockSource(tmpdir))
-    setattr(workflow.builder, 'source', MockSource(tmpdir))
-
     return workflow
 
 
@@ -142,7 +93,6 @@ def test_fetch_worker_plugin(tmpdir, user_params, fragment_key):
     workflow.plugin_workspace[OrchestrateBuildPlugin.key] = workspace
 
     runner = PostBuildPluginsRunner(
-        None,
         workflow,
         [{
             'name': PLUGIN_FETCH_WORKER_METADATA_KEY,

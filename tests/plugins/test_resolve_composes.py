@@ -19,7 +19,6 @@ from atomic_reactor.constants import (
     PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
     BASE_IMAGE_KOJI_BUILD
 )
-from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.source import SourceConfig
 from atomic_reactor.utils.odcs import ODCSClient, construct_compose_url
@@ -33,16 +32,11 @@ import yaml
 from atomic_reactor.util import DockerfileImages
 from datetime import datetime, timedelta
 from flexmock import flexmock
-from tests.constants import MOCK
 from tests.util import add_koji_map_in_workflow
 from textwrap import dedent
 
 import logging
 import pytest
-
-if MOCK:
-    from tests.docker_mock import mock_docker
-
 
 KOJI_HUB = 'http://koji.com/hub'
 
@@ -85,20 +79,8 @@ SIGNING_INTENTS = {
 DEFAULT_SIGNING_INTENT = 'release'
 
 
-class MockInsideBuilder(object):
-    def __init__(self, tmpdir):
-        self.tasker = DockerTasker()
-        self.dockerfile_images = DockerfileImages(['Fedora:22'])
-        self.image_id = 'image_id'
-        self.image = 'image'
-        self.source = MockSource(tmpdir)
-
-
 @pytest.fixture()
 def workflow(tmpdir, user_params):
-    if MOCK:
-        mock_docker()
-
     buildstep_plugin = [{
         'name': OrchestrateBuildPlugin.key,
         'args': {
@@ -109,14 +91,11 @@ def workflow(tmpdir, user_params):
         source=None,
         buildstep_plugins=buildstep_plugin,
     )
-    workflow.builder = MockInsideBuilder(tmpdir)
     workflow.dockerfile_images = DockerfileImages(['Fedora:22'])
-    workflow.source = workflow.builder.source
+    workflow.source = MockSource(tmpdir)
     workflow._tmpdir = tmpdir
     workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(
                                                                     ODCS_COMPOSE_DEFAULT_ARCH_LIST)
-    setattr(workflow.builder, 'base_image_inspect', {})
-
     mock_reactor_config(workflow, tmpdir)
     mock_repo_config(tmpdir)
     workflow._koji_session = mock_koji_session()
@@ -680,8 +659,7 @@ class TestResolveComposes(object):
 
         # just confirm that render_requests is returning valid data, without the overhead of
         # mocking the compose results
-        plugin = ResolveComposesPlugin(workflow.builder.tasker, workflow,
-                                       koji_target=KOJI_TARGET_NAME)
+        plugin = ResolveComposesPlugin(workflow, koji_target=KOJI_TARGET_NAME)
         plugin.read_configs()
         plugin.adjust_compose_config()
         composed_arches = set()
@@ -1341,7 +1319,6 @@ class TestResolveComposes(object):
             del(plugin_args['koji_ssl_certs_dir'])
 
         runner = PreBuildPluginsRunner(
-            workflow.builder.tasker,
             workflow,
             [
                 {'name': ResolveComposesPlugin.key, 'args': plugin_args},
@@ -1499,7 +1476,7 @@ class TestResolveComposes(object):
 
     def test_skip_adjust_composes_for_inheritance_if_image_is_based_on_scratch(
             self, workflow, caplog):
-        plugin = ResolveComposesPlugin(workflow.builder.tasker, workflow)
+        plugin = ResolveComposesPlugin(workflow)
         workflow.dockerfile_images = DockerfileImages(['scratch'])
         plugin.adjust_for_inherit()
         assert ('This is a base image based on scratch. '
@@ -1507,7 +1484,7 @@ class TestResolveComposes(object):
 
     def test_skip_adjust_signing_intent_from_parent_if_image_is_based_on_scratch(
             self, workflow, caplog):
-        plugin = ResolveComposesPlugin(workflow.builder.tasker, workflow)
+        plugin = ResolveComposesPlugin(workflow)
         workflow.dockerfile_images = DockerfileImages(['scratch'])
         plugin.adjust_signing_intent_from_parent()
         assert ('This is a base image based on scratch. '

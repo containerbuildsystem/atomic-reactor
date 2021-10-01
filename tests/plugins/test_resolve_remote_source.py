@@ -29,7 +29,7 @@ from atomic_reactor.plugins.build_orchestrate_build import (
 from atomic_reactor.plugins.pre_resolve_remote_source import ResolveRemoteSourcePlugin
 from atomic_reactor.source import SourceConfig
 
-from tests.stubs import StubInsideBuilder, StubSource
+from tests.stubs import StubSource
 
 
 KOJI_HUB = 'http://koji.com/hub'
@@ -217,11 +217,6 @@ def workflow(tmpdir, user_params):
             self.workdir = workdir
 
     workflow.source = MockSource(str(tmpdir))
-
-    builder = StubInsideBuilder().for_workflow(workflow)
-    builder.set_df_path(str(tmpdir))
-    builder.tasker = flexmock()
-    workflow.builder = flexmock(builder)
     workflow.buildstep_plugins_conf = [{'name': PLUGIN_BUILD_ORCHESTRATE_KEY}]
 
     mock_repo_config(workflow)
@@ -818,7 +813,6 @@ def run_plugin_with_args(workflow, dependency_replacements=None, expect_error=No
                          expect_result=True, expected_plugin_results=None,
                          expected_worker_params=None):
     runner = PreBuildPluginsRunner(
-        workflow.builder.tasker,
         workflow,
         [
             {

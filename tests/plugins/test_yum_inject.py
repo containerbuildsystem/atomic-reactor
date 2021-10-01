@@ -13,18 +13,15 @@ import pytest
 import responses
 import shutil
 from atomic_reactor.constants import RELATIVE_REPOS_PATH, INSPECT_CONFIG
-from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PluginFailedException, PreBuildPluginsRunner
 from atomic_reactor.plugins.pre_add_yum_repo_by_url import AddYumRepoByUrlPlugin
 from atomic_reactor.plugins.pre_inject_yum_repo import InjectYumRepoPlugin
 from atomic_reactor.util import df_parser, sha256sum, DockerfileImages
 from atomic_reactor.utils.yum import YumRepo
+from atomic_reactor.utils import imageutil
 from flexmock import flexmock
-from tests.constants import MOCK
-from tests.stubs import StubInsideBuilder, StubSource
-if MOCK:
-    from tests.docker_mock import mock_docker
+from tests.stubs import StubSource
 
 BUILDER_CA_BUNDLE = '/path/to/tls-ca-bundle.pem'
 CA_BUNDLE_PEM = os.path.basename(BUILDER_CA_BUNDLE)
@@ -34,34 +31,24 @@ pytestmark = pytest.mark.usefixtures('user_params')
 
 
 def prepare(df_path, df_dir, inherited_user=''):
-    if MOCK:
-        mock_docker()
-    tasker = DockerTasker()
     workflow = DockerBuildWorkflow(source=None)
     workflow.source = StubSource()
-    workflow.builder = (StubInsideBuilder()
-                        .for_workflow(workflow)
-                        .set_dockerfile_images(df_parser(df_path).parent_images)
-                        .set_df_path(df_path)
-                        .set_inspection_data({
-                            INSPECT_CONFIG: {
-                                'User': inherited_user,
-                            },
-                        }))
+    inspect_data = {INSPECT_CONFIG: {'User': inherited_user}}
     flexmock(workflow, df_path=df_path)
+    flexmock(imageutil).should_receive('base_image_inspect').and_return(inspect_data)
     workflow.df_dir = df_dir
     workflow.dockerfile_images = DockerfileImages(df_parser(df_path).parent_images)
-    return tasker, workflow
+    return workflow
 
 
 def test_no_base_image_in_dockerfile(tmpdir):
     dockerfile = tmpdir.join('Dockerfile')
     dockerfile.write_text('', encoding='utf8')
 
-    tasker, workflow = prepare(str(dockerfile), str(tmpdir))
+    workflow = prepare(str(dockerfile), str(tmpdir))
     workflow.files = {'/etc/yum.repos.d/foo.repo': 'repo'}
 
-    runner = PreBuildPluginsRunner(tasker, workflow, [{
+    runner = PreBuildPluginsRunner(workflow, [{
         'name': InjectYumRepoPlugin.key,
         'args': {},
     }])
@@ -474,7 +461,7 @@ def test_inject_repos(configure_ca_bundle, inherited_user,
     dockerfile = tmpdir.join('Dockerfile')
     dockerfile.write_text(dockerfile_content, encoding='utf8')
 
-    tasker, workflow = prepare(str(dockerfile), str(tmpdir), inherited_user)
+    workflow = prepare(str(dockerfile), str(tmpdir), inherited_user)
 
     config = {
         'version': 1,
@@ -494,7 +481,7 @@ def test_inject_repos(configure_ca_bundle, inherited_user,
     for repofile_url, repofile_content, _ in repos:
         responses.add(responses.GET, repofile_url, body=repofile_content)
 
-    PreBuildPluginsRunner(tasker, workflow, [
+    PreBuildPluginsRunner(workflow, [
         {
             'name': AddYumRepoByUrlPlugin.key,
             'args': {'repourls': [url for url, _, _ in repos]},

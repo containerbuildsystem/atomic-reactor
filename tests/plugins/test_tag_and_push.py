@@ -15,16 +15,14 @@ import koji as koji
 import osbs
 import atomic_reactor.plugins.post_tag_and_push
 from atomic_reactor.constants import IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR
-from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.post_tag_and_push import ExceedsImageSizeError, TagAndPushPlugin
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.util import ManifestDigest, get_exported_image_metadata
 from atomic_reactor.utils import retries
-from tests.constants import (LOCALHOST_REGISTRY, TEST_IMAGE, TEST_IMAGE_NAME, INPUT_IMAGE, MOCK,
+from tests.constants import (LOCALHOST_REGISTRY, TEST_IMAGE, TEST_IMAGE_NAME, MOCK,
                              DOCKER0_REGISTRY)
-from tests.stubs import StubInsideBuilder
 from tests.util import add_koji_map_in_workflow
 
 import json
@@ -36,9 +34,7 @@ import tarfile
 from base64 import b64encode
 
 if MOCK:
-    import docker
     from flexmock import flexmock
-    from tests.docker_mock import mock_docker
     from tests.retry_mock import mock_get_retry_session
 
 DIGEST_V1 = 'sha256:7de72140ec27a911d3f88d60335f08d6530a4af136f7beab47797a196e840afd'
@@ -86,6 +82,8 @@ PUSH_ERROR_LOGS = [
 ]
 
 
+@pytest.mark.skip(reason="plugin needs rework, should be used just for source container also, "
+                         "tagging and pushing will be done via registry api or skopeo")
 @pytest.mark.parametrize("use_secret", [
     True,
     False,
@@ -120,17 +118,9 @@ def test_tag_and_push_plugin(
         image_name, logs, should_raise, has_config, missing_v2,
         use_secret, file_name, dockerconfig_contents):
 
-    if MOCK:
-        mock_docker()
-        flexmock(docker.APIClient, push=lambda iid, **kwargs: iter(logs),
-                 login=lambda username, registry, dockercfg_path: {'Status': 'Login Succeeded'})
-
-    tasker = DockerTasker(retry_times=0)
     workflow = DockerBuildWorkflow(source=None)
     workflow.user_params['image_tag'] = TEST_IMAGE
     workflow.tag_conf.add_primary_image(image_name)
-    workflow.builder = StubInsideBuilder()
-    workflow.builder.image_id = INPUT_IMAGE
 
     secret_path = None
     if use_secret:
@@ -286,7 +276,6 @@ def test_tag_and_push_plugin(
     add_koji_map_in_workflow(workflow, hub_url='', root_url='')
 
     runner = PostBuildPluginsRunner(
-        tasker,
         workflow,
         [{
             'name': TagAndPushPlugin.key,
@@ -305,9 +294,7 @@ def test_tag_and_push_plugin(
         with pytest.raises(PluginFailedException):
             runner.run()
     else:
-        output = runner.run()
-        image = output[TagAndPushPlugin.key][0]
-        tasker.remove_image(image)
+        runner.run()
         assert len(workflow.push_conf.docker_registries) > 0
 
         if MOCK:
@@ -351,9 +338,7 @@ def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, user_params,
                                  fail_push, caplog):
     # For now, we don't want to require having a skopeo and an OCI-supporting
     # registry in the test environment
-    if MOCK:
-        mock_docker()
-    else:
+    if not MOCK:
         return
 
     sources_dir_path = '/oci_source_image_path'
@@ -368,11 +353,8 @@ def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, user_params,
                                            sources_timestamp.strftime('%Y%m%d%H%M%S'),
                                            current_platform)
 
-    tasker = DockerTasker()
     workflow = DockerBuildWorkflow(source=None)
     workflow.user_params['image_tag'] = TEST_IMAGE
-    workflow.builder = StubInsideBuilder()
-    workflow.builder.image_id = INPUT_IMAGE
     if source_docker_archive:
         workflow.build_result._source_docker_archive = sources_dir_path
         workflow.prebuild_results[PLUGIN_FETCH_SOURCES_KEY] =\
@@ -577,7 +559,6 @@ def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, user_params,
     add_koji_map_in_workflow(workflow, hub_url='', root_url='')
 
     runner = PostBuildPluginsRunner(
-        tasker,
         workflow,
         [{
             'name': TagAndPushPlugin.key,
@@ -600,10 +581,8 @@ def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, user_params,
         if not fail_push and source_docker_archive and not v2s2:
             assert "Unable to fetch v2 schema 2 digest for" in caplog.text
     else:
-        output = runner.run()
+        runner.run()
 
-        image = output[TagAndPushPlugin.key][0]
-        tasker.remove_image(image)
         assert len(workflow.push_conf.docker_registries) > 0
 
         push_conf_digests = workflow.push_conf.docker_registries[0].digests
@@ -637,8 +616,6 @@ def test_exceed_binary_image_size(image_size_limit, workflow):
         config['image_size_limit'] = image_size_limit
 
     workflow.conf.conf = config
-    workflow.builder = StubInsideBuilder()
-    workflow.builder.image_id = INPUT_IMAGE
     # fake layer sizes of the test image
     workflow.layer_sizes = [
         {'diff_id': '12345', 'size': 1000},
@@ -646,9 +623,7 @@ def test_exceed_binary_image_size(image_size_limit, workflow):
         {'diff_id': '34567', 'size': 3000},
     ]
 
-    mock_docker()
-
-    plugin = TagAndPushPlugin(DockerTasker(), workflow)
+    plugin = TagAndPushPlugin(workflow)
 
     if image_size_limit is None or image_size_limit['binary_image'] == 0:
         # The plugin should skip the check on image size

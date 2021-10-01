@@ -13,18 +13,11 @@ from flexmock import flexmock
 import pytest
 
 from atomic_reactor.constants import INSPECT_CONFIG
-from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.plugins.pre_hide_files import HideFilesPlugin
 from atomic_reactor.util import df_parser
-
-from tests.constants import MOCK
-from tests.stubs import StubInsideBuilder
-
-
-if MOCK:
-    from tests.docker_mock import mock_docker
+from atomic_reactor.utils import imageutil
 
 
 @pytest.mark.usefixtures('user_params')
@@ -39,9 +32,9 @@ class TestHideFilesPlugin(object):
         df = df_parser(str(tmpdir))
         df.content = df_content
 
-        tasker, workflow = self.prepare(df.dockerfile_path)
+        workflow = self.prepare(df.dockerfile_path)
 
-        runner = PreBuildPluginsRunner(tasker, workflow, [
+        runner = PreBuildPluginsRunner(workflow, [
             {'name': HideFilesPlugin.key, 'args': {}},
         ])
         runner_results = runner.run()
@@ -162,11 +155,10 @@ class TestHideFilesPlugin(object):
             'sha256:123456',
         ]
 
-        tasker, workflow = self.prepare(
-            df.dockerfile_path, hide_files=hide_files, parent_images=parent_images,
-            inherited_user=inherited_user)
+        workflow = self.prepare(df.dockerfile_path, hide_files=hide_files,
+                                parent_images=parent_images, inherited_user=inherited_user)
 
-        runner = PreBuildPluginsRunner(tasker, workflow, [
+        runner = PreBuildPluginsRunner(workflow, [
             {'name': HideFilesPlugin.key, 'args': {}},
         ])
         runner.run()
@@ -197,11 +189,10 @@ class TestHideFilesPlugin(object):
             'sha256:654321',
         ]
 
-        tasker, workflow = self.prepare(
-            df.dockerfile_path, hide_files=hide_files, parent_images=parent_images,
-            inherited_user="inherited_user")
+        workflow = self.prepare(df.dockerfile_path, hide_files=hide_files,
+                                parent_images=parent_images, inherited_user="inherited_user")
 
-        runner = PreBuildPluginsRunner(tasker, workflow, [
+        runner = PreBuildPluginsRunner(workflow, [
             {'name': HideFilesPlugin.key, 'args': {}},
         ])
         runner.run()
@@ -247,28 +238,21 @@ class TestHideFilesPlugin(object):
         assert df.content == expected_df_content
 
     def prepare(self, df_path, inherited_user='', hide_files=None, parent_images=None):
-        if MOCK:
-            mock_docker()
-        tasker = DockerTasker()
         workflow = DockerBuildWorkflow(source=None)
         workflow.source = MockSource(df_path)
-        workflow.builder = (StubInsideBuilder()
-                            .for_workflow(workflow)
-                            .set_df_path(df_path))
         flexmock(workflow, df_path=df_path)
 
         for parent in parent_images or []:
-            workflow.builder.set_parent_inspection_data(parent, {
-                INSPECT_CONFIG: {
-                    'User': inherited_user,
-                },
-            })
+            (flexmock(imageutil)
+             .should_receive('get_inspect_for_image')
+             .with_args(parent)
+             .and_return({INSPECT_CONFIG: {'User': inherited_user}}))
 
         if hide_files is not None:
             reactor_config = {'version': 1, 'hide_files': hide_files}
             workflow.conf.conf = reactor_config
 
-        return tasker, workflow
+        return workflow
 
 
 class MockSource(object):

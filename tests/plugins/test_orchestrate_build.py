@@ -6,7 +6,6 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
-from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import BuildCanceledException, PluginFailedException
 from atomic_reactor.plugin import BuildStepPluginsRunner
@@ -24,9 +23,7 @@ from osbs.api import OSBS
 from osbs.build.build_response import BuildResponse
 from osbs.exceptions import OsbsException
 from osbs.core import Openshift
-from osbs.utils import ImageName
-from tests.constants import INPUT_IMAGE, SOURCE
-from tests.docker_mock import mock_docker
+from tests.constants import SOURCE
 from tests.util import add_koji_map_in_workflow
 from textwrap import dedent
 from copy import deepcopy
@@ -75,32 +72,6 @@ class MockSource(object):
         return self.dockerfile_path, self.path
 
 
-class MockInsideBuilder(object):
-
-    def __init__(self):
-        mock_docker()
-        self.tasker = DockerTasker()
-        self.base_image = ImageName(repo='fedora', tag='25')
-        self.image_id = 'image_id'
-        self.image = INPUT_IMAGE
-        self.df_path = 'df_path'
-        self.df_dir = 'df_dir'
-        self.parent_images_digests = {}
-
-        def simplegen(x, y):
-            yield "some\u2018".encode('utf-8')
-        flexmock(self.tasker, build_image_from_path=simplegen)
-
-    def get_built_image_info(self):
-        return {'Id': 'some'}
-
-    def inspect_built_image(self):
-        return None
-
-    def ensure_not_built(self):
-        pass
-
-
 class fake_imagestream_tag(object):
     def __init__(self, json_cont):
         self.json_cont = json_cont
@@ -122,11 +93,8 @@ pytestmark = pytest.mark.usefixtures('user_params')
 
 def mock_workflow(tmpdir, platforms=None):
     workflow = DockerBuildWorkflow(source=None)
-    builder = MockInsideBuilder()
     source = MockSource(tmpdir)
-    setattr(builder, 'source', source)
     setattr(workflow, 'source', source)
-    setattr(workflow, 'builder', builder)
 
     df_path = os.path.join(str(tmpdir), 'Dockerfile')
     with open(df_path, 'w') as f:
@@ -376,7 +344,6 @@ def test_orchestrate_build(tmpdir, caplog,
                     """.format(name=cluster['name'])))
 
     runner = BuildStepPluginsRunner(
-        workflow.builder.tasker,
         workflow,
         [{
             'name': OrchestrateBuildPlugin.key,
@@ -460,7 +427,6 @@ def test_orchestrate_build_annotations_and_labels(tmpdir, metadata_fragment):
     workflow.conf.conf['platform_descriptors'] = [{'platform': 'x86_64', 'architecture': 'amd64'}]
 
     runner = BuildStepPluginsRunner(
-        workflow.builder.tasker,
         workflow,
         [{
             'name': OrchestrateBuildPlugin.key,
@@ -549,7 +515,6 @@ def test_orchestrate_choose_cluster_retry(tmpdir):
     workflow.conf.conf['platform_descriptors'] = [{'platform': 'x86_64', 'architecture': 'amd64'}]
 
     runner = BuildStepPluginsRunner(
-        workflow.builder.tasker,
         workflow,
         [{
             'name': OrchestrateBuildPlugin.key,
@@ -588,7 +553,6 @@ def test_orchestrate_choose_cluster_retry_timeout(tmpdir):
     workflow.conf.conf['platform_descriptors'] = [{'platform': 'x86_64', 'architecture': 'amd64'}]
 
     runner = BuildStepPluginsRunner(
-        workflow.builder.tasker,
         workflow,
         [{
             'name': OrchestrateBuildPlugin.key,
@@ -615,7 +579,6 @@ def test_orchestrate_build_cancelation(tmpdir):
     workflow.conf.conf['platform_descriptors'] = [{'platform': 'x86_64', 'architecture': 'amd64'}]
 
     runner = BuildStepPluginsRunner(
-        workflow.builder.tasker,
         workflow,
         [{
             'name': OrchestrateBuildPlugin.key,
@@ -693,7 +656,6 @@ def test_orchestrate_build_choose_clusters(tmpdir, clusters_x86_64, clusters_ppc
     workflow.conf.conf['platform_descriptors'] = [{'platform': 'x86_64', 'architecture': 'amd64'}]
 
     runner = BuildStepPluginsRunner(
-        workflow.builder.tasker,
         workflow,
         [{
             'name': OrchestrateBuildPlugin.key,
@@ -721,7 +683,6 @@ def test_orchestrate_build_unknown_platform(tmpdir):  # noqa
     workflow.conf.conf['platform_descriptors'] = [{'platform': 'x86_64', 'architecture': 'amd64'}]
 
     runner = BuildStepPluginsRunner(
-        workflow.builder.tasker,
         workflow,
         [{
             'name': OrchestrateBuildPlugin.key,
@@ -760,7 +721,6 @@ def test_orchestrate_build_failed_create(tmpdir):
     workflow.conf.conf['platform_descriptors'] = [{'platform': 'x86_64', 'architecture': 'amd64'}]
 
     runner = BuildStepPluginsRunner(
-        workflow.builder.tasker,
         workflow,
         [{
             'name': OrchestrateBuildPlugin.key,
@@ -867,7 +827,6 @@ def test_orchestrate_build_failed_waiting(tmpdir,
     workflow.conf.conf['platform_descriptors'] = [{'platform': 'x86_64', 'architecture': 'amd64'}]
 
     runner = BuildStepPluginsRunner(
-        workflow.builder.tasker,
         workflow,
         [{
             'name': OrchestrateBuildPlugin.key,
@@ -906,7 +865,6 @@ def test_orchestrate_build_get_fs_task_id(tmpdir, task_id, error):
         'filesystem-koji-task-id': task_id,
     }
     runner = BuildStepPluginsRunner(
-        workflow.builder.tasker,
         workflow,
         [{
             'name': OrchestrateBuildPlugin.key,
@@ -949,7 +907,6 @@ def test_orchestrate_build_failed_to_list_builds(tmpdir, fail_at):
         flexmock_chain.and_return(['a', 'b'])
 
     runner = BuildStepPluginsRunner(
-        workflow.builder.tasker,
         workflow,
         [{
             'name': OrchestrateBuildPlugin.key,
@@ -1002,7 +959,6 @@ def test_orchestrate_build_worker_build_kwargs(tmpdir, caplog):
     }
 
     runner = BuildStepPluginsRunner(
-        workflow.builder.tasker,
         workflow,
         [{
             'name': OrchestrateBuildPlugin.key,
@@ -1050,7 +1006,6 @@ def test_orchestrate_override_build_kwarg(tmpdir, overrides):
         override_build_kwarg(workflow, 'release', value, plat)
 
     runner = BuildStepPluginsRunner(
-        workflow.builder.tasker,
         workflow,
         [{
             'name': OrchestrateBuildPlugin.key,
@@ -1111,7 +1066,6 @@ def test_orchestrate_override_content_versions(tmpdir, caplog, content_versions)
     }
 
     runner = BuildStepPluginsRunner(
-        workflow.builder.tasker,
         workflow,
         [{
             'name': OrchestrateBuildPlugin.key,
@@ -1164,7 +1118,6 @@ def test_orchestrate_operator_csv_modifications_url(tmpdir):
     workflow.user_params['operator_csv_modifications_url'] = csv_mods_url
 
     runner = BuildStepPluginsRunner(
-        workflow.builder.tasker,
         workflow,
         [{
             'name': OrchestrateBuildPlugin.key,
@@ -1360,7 +1313,6 @@ def test_set_build_image_raises(tmpdir, build, exc_str, ims, ims_cont, ml, ml_co
     workflow.conf.conf['platform_descriptors'] = [{'platform': 'x86_64', 'architecture': 'amd64'}]
 
     runner = BuildStepPluginsRunner(
-        workflow.builder.tasker,
         workflow,
         [{
             'name': OrchestrateBuildPlugin.key,
@@ -1455,7 +1407,6 @@ def test_set_build_image_works(tmpdir, build, ims, ims_cont, ml, ml_cont,
     workflow.conf.conf['platform_descriptors'] = [{'platform': 'x86_64', 'architecture': 'amd64'}]
 
     runner = BuildStepPluginsRunner(
-        workflow.builder.tasker,
         workflow,
         [{
             'name': OrchestrateBuildPlugin.key,
@@ -1506,7 +1457,6 @@ def test_set_build_image_with_override(tmpdir, platforms, override):
     }
 
     runner = BuildStepPluginsRunner(
-        workflow.builder.tasker,
         workflow,
         [{'name': OrchestrateBuildPlugin.key, 'args': plugin_args}]
     )
@@ -1536,7 +1486,6 @@ def test_no_platforms(tmpdir):
     }
 
     runner = BuildStepPluginsRunner(
-        workflow.builder.tasker,
         workflow,
         [{
             'name': OrchestrateBuildPlugin.key,
@@ -1559,7 +1508,7 @@ def test_parent_images_digests(tmpdir, caplog):
     }
 
     workflow = mock_workflow(tmpdir, platforms=['x86_64'])
-    workflow.builder.parent_images_digests.update(PARENT_IMAGES_DIGESTS)
+    workflow.parent_images_digests.update(PARENT_IMAGES_DIGESTS)
     expected_kwargs = {
         'git_uri': SOURCE['uri'],
         'git_ref': 'master',
@@ -1588,7 +1537,6 @@ def test_parent_images_digests(tmpdir, caplog):
     }
 
     runner = BuildStepPluginsRunner(
-        workflow.builder.tasker,
         workflow,
         [{
             'name': OrchestrateBuildPlugin.key,

@@ -50,14 +50,12 @@ def mock_workflow(tmpdir, container_yaml, user_params=None):
         user_params = USER_PARAMS
 
     mock_source = MockSource(tmpdir)
-    setattr(workflow, 'builder', MockBuilder())
-    workflow.builder.source = mock_source
     workflow.user_params = user_params
     flexmock(workflow, source=mock_source)
 
     with open(mock_source.container_yaml_path, "w") as f:
         f.write(container_yaml)
-    workflow.builder.source.config = SourceConfig(str(tmpdir))
+    workflow.source.config = SourceConfig(str(tmpdir))
 
     df = df_parser(str(tmpdir))
     df.content = DF_CONTENT
@@ -73,9 +71,8 @@ def mock_workflow(tmpdir, container_yaml, user_params=None):
     ({}, None),
     ({'a': 'b'}, 'LABEL "a"="b"'),
     ({'a': 'b', 'c': 'd"'}, 'LABEL "a"="b" "c"="d\\""'),
-]) # noqa - docker_tasker fixture
-def test_add_flatpak_labels(tmpdir, docker_tasker, user_params,
-                            labels, expected):
+]) # noqa
+def test_add_flatpak_labels(tmpdir, user_params, labels, expected):
 
     if labels is not None:
         data = {'flatpak': {'labels': labels}}
@@ -86,7 +83,6 @@ def test_add_flatpak_labels(tmpdir, docker_tasker, user_params,
     workflow = mock_workflow(tmpdir, container_yaml)
 
     runner = PreBuildPluginsRunner(
-        docker_tasker,
         workflow,
         [{
             'name': AddFlatpakLabelsPlugin.key,
@@ -108,11 +104,10 @@ def test_add_flatpak_labels(tmpdir, docker_tasker, user_params,
         assert last_line == "CMD sleep 1000"
 
 
-def test_skip_plugin(tmpdir, caplog, docker_tasker, user_params):
+def test_skip_plugin(tmpdir, caplog, user_params):
     workflow = mock_workflow(tmpdir, '', user_params={})
 
     runner = PreBuildPluginsRunner(
-        docker_tasker,
         workflow,
         [{
             'name': AddFlatpakLabelsPlugin.key,

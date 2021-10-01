@@ -13,19 +13,13 @@ import pytest
 from flexmock import flexmock
 
 from atomic_reactor.constants import EXPORTED_SQUASHED_IMAGE_NAME, IMAGE_TYPE_DOCKER_ARCHIVE
-from atomic_reactor.core import DockerTasker
-from atomic_reactor.inner import DockerBuildWorkflow
+from atomic_reactor.inner import DockerBuildWorkflow, BuildResult
 from atomic_reactor.plugin import PrePublishPluginsRunner, PluginFailedException
 from atomic_reactor.plugins import exit_remove_built_image
 from atomic_reactor.plugins.prepub_squash import PrePublishSquashPlugin
 from atomic_reactor.util import DockerfileImages
-from atomic_reactor.build import BuildResult
+from atomic_reactor.utils import imageutil
 from docker_squash.squash import Squash
-from tests.constants import MOCK
-
-
-if MOCK:
-    from tests.docker_mock import mock_docker
 
 
 DUMMY_TARBALL = {
@@ -34,36 +28,18 @@ DUMMY_TARBALL = {
     'sha256sum': '5fefd3ff57b97c856958bfc0333231f4f8a600b305d749c9616b0879765f2472',
     'size': 19
 }
-
-
+BASE_IMAGE_ID = '3ab9a7ed8a169ab89b09fb3e12a14a390d3c662703b65b4541c0c7bde0ee97eb'
 SET_DEFAULT_LAYER_ID = object()
-
-
-class MockInsideBuilder(object):
-    def __init__(self):
-        self.tasker = DockerTasker(retry_times=0)
-        self.dockerfile_images = DockerfileImages(['Fedora:22'])
-        self.image_id = 'image_id'
-        self.image = 'image'
-        self.df_path = 'df_path'
-        self.df_dir = 'df_dir'
-
-    @property
-    def source(self):
-        result = flexmock()
-        setattr(result, 'dockerfile_path', '/')
-        setattr(result, 'path', '/tmp')
-        return result
-
-    @property
-    def base_image_inspect(self):
-        return self.tasker.inspect_image(self.dockerfile_images.base_image)
 
 
 def mock_workflow():
     workflow = DockerBuildWorkflow(source=None)
-    workflow.builder = MockInsideBuilder()
     workflow.dockerfile_images = DockerfileImages(['Fedora:22'])
+    workflow.image_id = 'image_id'
+    flexmock(workflow, image='image')
+    (flexmock(imageutil)
+        .should_receive('base_image_inspect')
+        .and_return({'Id': BASE_IMAGE_ID}))
     return workflow
 
 
@@ -72,8 +48,6 @@ class TestSquashPlugin(object):
     output_path = None
 
     def setup_method(self, method):
-        if MOCK:
-            mock_docker()
         # Expected path for exported squashed image.
         self.output_path = None
 
@@ -119,8 +93,6 @@ class TestSquashPlugin(object):
         self.run_plugin_with_args(workflow, {'from_base': from_base, 'from_layer': from_layer})
 
     def test_missing_base_image_id(self):
-        if MOCK:
-            mock_docker(inspect_should_fail=True)
         workflow = mock_workflow()
         self.should_squash_with_kwargs(workflow, from_layer=None)
         with pytest.raises(PluginFailedException):
@@ -131,12 +103,10 @@ class TestSquashPlugin(object):
         ('sha256:abcdef', 'sha256:abcdef'),
     ])
     def test_sha256_prefix(self, new_id, expected_id):
-        if MOCK:
-            mock_docker()
         workflow = mock_workflow()
         self.should_squash_with_kwargs(workflow, new_id=new_id)
         self.run_plugin_with_args(workflow, {})
-        assert workflow.builder.image_id == expected_id
+        assert workflow.image_id == expected_id
 
     def test_skip_saving_archive(self):
         workflow = mock_workflow()
@@ -151,21 +121,21 @@ class TestSquashPlugin(object):
         assert 'flatpak build, skipping plugin' in caplog.text
 
     def should_squash_with_kwargs(self, workflow, new_id='abc', base_from_scratch=False, **kwargs):
-        kwargs.setdefault('image', workflow.builder.image_id)
+        kwargs.setdefault('image', workflow.image_id)
         kwargs.setdefault('load_image', True)
         kwargs.setdefault('log', logging.Logger)
         kwargs.setdefault('output_path', os.path.join(workflow.source.workdir,
                                                       EXPORTED_SQUASHED_IMAGE_NAME))
-        kwargs.setdefault('tag', workflow.builder.image)
+        kwargs.setdefault('tag', workflow.image)
 
         # Avoid inspect errors at this point
         if 'from_layer' not in kwargs:
-            kwargs['from_layer'] = workflow.builder.base_image_inspect['Id']
+            kwargs['from_layer'] = BASE_IMAGE_ID
 
         self.output_path = kwargs['output_path']
 
         if kwargs.get('from_layer') == SET_DEFAULT_LAYER_ID:
-            kwargs['from_layer'] = workflow.builder.base_image_inspect['Id']
+            kwargs['from_layer'] = BASE_IMAGE_ID
 
         if base_from_scratch:
             kwargs['from_layer'] = None
@@ -185,7 +155,6 @@ class TestSquashPlugin(object):
 
     def run_plugin_with_args(self, workflow, plugin_args):
         runner = PrePublishPluginsRunner(
-            workflow.builder.tasker,
             workflow,
             [{'name': PrePublishSquashPlugin.key, 'args': plugin_args}]
         )

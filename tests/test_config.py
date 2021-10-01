@@ -27,7 +27,6 @@ import osbs.api
 from osbs.utils import RegistryURI, ImageName
 from osbs.exceptions import OsbsValidationException
 from tests.constants import REACTOR_CONFIG_MAP
-from tests.stubs import StubInsideBuilder
 from flexmock import flexmock
 from atomic_reactor.config import (Configuration, ODCSConfig, get_koji_session, get_odcs_session,
                                    get_cachito_session, get_smtp_session, get_openshift_session)
@@ -1399,7 +1398,6 @@ build_env_vars:
         with open(filename, 'w') as fp:
             fp.write(dedent(config))
         workflow = DockerBuildWorkflow(source=None)
-        workflow.builder = StubInsideBuilder()
 
         if dockerfile_images:
             parent_images = ['parent:latest', 'base:latest']

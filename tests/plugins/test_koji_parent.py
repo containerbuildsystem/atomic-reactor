@@ -18,18 +18,13 @@ from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_koji_parent import KojiParentPlugin
 from atomic_reactor.util import get_manifest_media_type, DockerfileImages
-from atomic_reactor.constants import SCRATCH_FROM
+from atomic_reactor.utils import imageutil
 from osbs.utils import ImageName
 from flexmock import flexmock
-from tests.constants import MOCK
-from tests.stubs import StubInsideBuilder
 from tests.util import add_koji_map_in_workflow
 from copy import deepcopy
 
 import pytest
-
-if MOCK:
-    from tests.docker_mock import mock_docker
 
 
 KOJI_HUB = 'http://koji.com/hub'
@@ -81,18 +76,14 @@ class MockSource(object):
 
 @pytest.fixture()
 def workflow(tmpdir, user_params):
-    if MOCK:
-        mock_docker()
     workflow = DockerBuildWorkflow(source=None)
     workflow.source = MockSource(tmpdir)
-    workflow.builder = StubInsideBuilder().for_workflow(workflow)
     workflow.dockerfile_images = DockerfileImages(['base:latest'])
     workflow.dockerfile_images['base:latest'] = ImageName.parse('base:stubDigest')
-    workflow.builder.set_image('image')
     base_inspect = {INSPECT_CONFIG: {'Labels': BASE_IMAGE_LABELS.copy()}}
-    workflow.builder.set_inspection_data(base_inspect)
-    workflow.builder.set_parent_inspection_data('base:stubDigest', base_inspect)
-    workflow.builder.parent_images_digests = {'base:latest': {V2_LIST: 'stubDigest'}}
+    flexmock(imageutil).should_receive('base_image_inspect').and_return(base_inspect)
+    flexmock(imageutil).should_receive('get_inspect_for_image').and_return(base_inspect)
+    workflow.parent_images_digests = {'base:latest': {V2_LIST: 'stubDigest'}}
 
     return workflow
 
@@ -173,7 +164,7 @@ class TestKojiParent(object):
         assert 'state is DELETED, not COMPLETE' in str(exc_info.value)
 
     def test_base_image_not_inspected(self, workflow, koji_session):  # noqa
-        del workflow.builder.base_image_inspect[INSPECT_CONFIG]
+        flexmock(imageutil).should_receive('base_image_inspect').and_return({})
         with pytest.raises(PluginFailedException) as exc_info:
             self.run_plugin_with_args(workflow)
         assert 'KeyError' in str(exc_info.value)
@@ -197,12 +188,16 @@ class TestKojiParent(object):
 
         base_inspect = {INSPECT_CONFIG: {'Labels': BASE_IMAGE_LABELS_W_ALIASES.copy()}}
         parent_inspect = {INSPECT_CONFIG: {'Labels': BASE_IMAGE_LABELS_W_ALIASES.copy()}}
-        workflow.builder.set_inspection_data(base_inspect)
-        workflow.builder.set_parent_inspection_data(base_tag, parent_inspect)
 
         for label in remove_labels:
-            del workflow.builder._inspection_data[INSPECT_CONFIG]['Labels'][label]
-            del workflow.builder._parent_inspection_data[base_tag][INSPECT_CONFIG]['Labels'][label]
+            del base_inspect[INSPECT_CONFIG]['Labels'][label]
+            del parent_inspect[INSPECT_CONFIG]['Labels'][label]
+
+        flexmock(imageutil).should_receive('base_image_inspect').and_return(base_inspect)
+        (flexmock(imageutil)
+         .should_receive('get_inspect_for_image')
+         .with_args(base_tag)
+         .and_return(parent_inspect))
 
         if not exp_result:
             if not external:
@@ -237,10 +232,10 @@ class TestKojiParent(object):
             ImageName.parse('base'): ImageName.parse('base:{}'.format(parent_tags[2])),
         }
         media_type = get_manifest_media_type(media_version)
-        workflow.builder.parent_images_digests = {}
+        workflow.parent_images_digests = {}
         for parent in parent_images:
             dgst = parent_images[parent].tag
-            workflow.builder.parent_images_digests[parent.to_str()] = {media_type: dgst}
+            workflow.parent_images_digests[parent.to_str()] = {media_type: dgst}
         if not koji_mtype:
             media_type = get_manifest_media_type('v1')
         extra = {'image': {'index': {'digests': {media_type: 'stubDigest'}}}}
@@ -267,8 +262,11 @@ class TestKojiParent(object):
             labels = {'com.redhat.component': name, 'version': version, 'release': release}
             image_inspects[img] = {INSPECT_CONFIG: dict(Labels=labels)}
 
-            workflow.builder.set_parent_inspection_data(parent_images[ImageName.parse(img)],
-                                                        image_inspects[img])
+            (flexmock(imageutil)
+             .should_receive('get_inspect_for_image')
+             .with_args(parent_images[ImageName.parse(img)])
+             .and_return(image_inspects[img]))
+
             (koji_session.should_receive('getBuild')
                 .with_args(koji_builds[img]['nvr'])
                 .and_return(koji_builds[img]))
@@ -279,14 +277,13 @@ class TestKojiParent(object):
             dockerfile_images.append(parent.to_str())
 
         if special_base == 'scratch':
-            workflow.builder.set_image(ImageName.parse(SCRATCH_FROM))
             dockerfile_images.append('scratch')
         elif special_base == 'custom':
-            workflow.builder.set_image(ImageName.parse('koji/image-build'))
             dockerfile_images.append('koji/image-build')
         else:
-            workflow.builder.set_image(ImageName.parse('basetag'))
-            workflow.builder.set_inspection_data(image_inspects['base'])
+            (flexmock(imageutil)
+             .should_receive('base_image_inspect')
+             .and_return(image_inspects['base']))
 
         workflow.dockerfile_images = DockerfileImages(dockerfile_images)
         for parent, local in parent_images.items():
@@ -327,7 +324,7 @@ class TestKojiParent(object):
             )
 
     def test_unexpected_digest_data(self, workflow, koji_session):  # noqa
-        workflow.builder.parent_images_digests = {'base:latest': {'unexpected_type': 'stubDigest'}}
+        workflow.parent_images_digests = {'base:latest': {'unexpected_type': 'stubDigest'}}
         with pytest.raises(PluginFailedException) as exc_info:
             self.run_plugin_with_args(workflow)
         assert 'Unexpected parent image digest data' in str(exc_info.value)
@@ -384,9 +381,7 @@ class TestKojiParent(object):
         labels = {'com.redhat.component': name, 'version': version, 'release': release}
         image_inspect = {INSPECT_CONFIG: dict(Labels=labels)}
 
-        (flexmock(workflow.builder)
-         .should_receive('parent_image_inspect')
-         .and_return(image_inspect))
+        flexmock(imageutil).should_receive('get_inspect_for_image').and_return(image_inspect)
         if manifest_list:
             response = flexmock(content=json.dumps(manifest_list))
         else:
@@ -399,7 +394,7 @@ class TestKojiParent(object):
                            PARENT_IMAGES_KOJI_BUILDS: {
                                ImageName.parse(image_str): KOJI_BUILD}}
 
-        workflow.builder.parent_images_digests = {image_str+':latest': {V2_LIST: parent_tag}}
+        workflow.parent_images_digests = {image_str+':latest': {V2_LIST: parent_tag}}
         workflow.dockerfile_images = DockerfileImages([image_str])
         workflow.dockerfile_images[image_str] = ImageName.parse('{}:{}'.format(image_str,
                                                                                parent_tag))
@@ -486,7 +481,6 @@ class TestKojiParent(object):
                                  ssl_certs_dir=plugin_args.get('koji_ssl_certs_dir'))
 
         runner = PreBuildPluginsRunner(
-            workflow.builder.tasker,
             workflow,
             [{'name': KojiParentPlugin.key, 'args': plugin_args}]
         )
@@ -590,7 +584,7 @@ class TestKojiParent(object):
         labels = {'com.redhat.component': name, 'version': version, 'release': release}
 
         image_inspect = {INSPECT_CONFIG: {'Labels': labels}}
-        flexmock(workflow.builder, parent_image_inspect=image_inspect)
+        flexmock(imageutil).should_receive('get_inspect_for_image').and_return(image_inspect)
 
         if manifest_list:
             response = flexmock(content=json.dumps(manifest_list))
@@ -604,7 +598,7 @@ class TestKojiParent(object):
                            PARENT_IMAGES_KOJI_BUILDS: {
                                ImageName.parse(image_str): KOJI_BUILD}}
 
-        workflow.builder.parent_images_digests = {image_str: {V2_LIST: parent_tag}}
+        workflow.parent_images_digests = {image_str: {V2_LIST: parent_tag}}
         workflow.dockerfile_images = DockerfileImages([image_str])
         image_for_key = ImageName.parse(image_str)
         image_for_key.tag = parent_tag

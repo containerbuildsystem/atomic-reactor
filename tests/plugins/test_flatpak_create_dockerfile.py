@@ -83,7 +83,7 @@ def mock_workflow(tmpdir, container_yaml, user_params=None):
 CONFIGS = build_flatpak_test_configs()
 
 
-@responses.activate  # noqa - docker_tasker fixture
+@responses.activate  # noqa
 @pytest.mark.skipif(not MODULEMD_AVAILABLE,
                     reason='libmodulemd not available')
 @pytest.mark.parametrize('config_name,override_base_image,breakage', [
@@ -93,8 +93,8 @@ CONFIGS = build_flatpak_test_configs()
     ('app', None, 'no_modules'),
     ('app', None, 'multiple_modules'),
 ])
-def test_flatpak_create_dockerfile(tmpdir, docker_tasker, user_params,
-                                   config_name, override_base_image, breakage):
+def test_flatpak_create_dockerfile(tmpdir, user_params, config_name, override_base_image,
+                                   breakage):
     config = CONFIGS[config_name]
 
     modules = None
@@ -126,7 +126,6 @@ def test_flatpak_create_dockerfile(tmpdir, docker_tasker, user_params,
                           'source_registry': {'url': 'source_registry'}}
 
     runner = PreBuildPluginsRunner(
-        docker_tasker,
         workflow,
         [{
             'name': FlatpakCreateDockerfilePlugin.key,
@@ -156,7 +155,7 @@ def test_flatpak_create_dockerfile(tmpdir, docker_tasker, user_params,
         assert source_spec == config['source_spec']
 
 
-def test_skip_plugin(tmpdir, caplog, docker_tasker, user_params):
+def test_skip_plugin(tmpdir, caplog, user_params):
     workflow = mock_workflow(tmpdir, "", user_params={})
 
     base_image = "registry.fedoraproject.org/fedora:latest"
@@ -168,7 +167,6 @@ def test_skip_plugin(tmpdir, caplog, docker_tasker, user_params):
     workflow.conf.conf = {'version': 1, 'flatpak': {'base_image': base_image}}
 
     runner = PreBuildPluginsRunner(
-        docker_tasker,
         workflow,
         [{
             'name': FlatpakCreateDockerfilePlugin.key,

@@ -10,16 +10,11 @@ import json
 import pytest
 import requests
 import requests.exceptions
-from tests.constants import LOCALHOST_REGISTRY_HTTP, DOCKER0_REGISTRY_HTTP, MOCK, TEST_IMAGE
+from tests.constants import LOCALHOST_REGISTRY_HTTP, DOCKER0_REGISTRY_HTTP, TEST_IMAGE
 from tests.util import uuid_value
 
 from osbs.utils import ImageName
-from atomic_reactor.core import ContainerTasker
-from atomic_reactor.constants import CONTAINER_DOCKERPY_BUILD_METHOD
 from atomic_reactor.inner import DockerBuildWorkflow
-
-if MOCK:
-    from tests.docker_mock import mock_docker
 
 
 @pytest.fixture()
@@ -45,15 +40,6 @@ def is_registry_running():
     if not lo_response.ok:
         return False
     return True
-
-
-@pytest.fixture(scope="module")
-def docker_tasker():
-    if MOCK:
-        mock_docker()
-    ct = ContainerTasker(retry_times=0)
-    ct.build_method = CONTAINER_DOCKERPY_BUILD_METHOD
-    return ct
 
 
 @pytest.fixture(params=[True, False])

@@ -6,8 +6,6 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
-from flexmock import flexmock
-
 from atomic_reactor.constants import PLUGIN_BUILD_ORCHESTRATE_KEY
 from atomic_reactor.plugin import (PreBuildPluginsRunner,
                                    BuildStepPluginsRunner,
@@ -16,7 +14,7 @@ from atomic_reactor.plugin import (PreBuildPluginsRunner,
                                    ExitPluginsRunner)
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.config import Configuration
-from tests.stubs import StubSource, StubInsideBuilder
+from tests.stubs import StubSource
 
 
 class MockEnv(object):
@@ -31,7 +29,7 @@ class MockEnv(object):
     >>>           .for_plugin('prebuild', 'my_plugin')
     >>>           .set_scratch(True)
     >>>           .make_orchestrator()
-    >>>           .create_runner(docker_tasker))  # docker_tasker is a fixture
+    >>>           .create_runner())
     >>> runner.run()
     """
 
@@ -58,18 +56,14 @@ class MockEnv(object):
     def __init__(self):
         self.workflow = DockerBuildWorkflow(source=None)
         self.workflow.source = StubSource()
-        self.workflow.builder = StubInsideBuilder().for_workflow(self.workflow)
-        self.workflow.builder.tasker = flexmock()
 
         self._phase = None
         self._plugin_key = None
         self._reactor_config_map = None
 
-    def create_runner(self, docker_tasker):
+    def create_runner(self):
         """
         Create runner for current plugin (configured using for_plugin())
-
-        :param docker_tasker: docker_tasker fixture from conftest
 
         :return: PluginsRunner instance (instance of appropriate subclass based on plugin phase)
         """
@@ -77,8 +71,7 @@ class MockEnv(object):
             raise ValueError('No plugin configured (use for_plugin() to configure one)')
         runner_cls = self._runner_for_phase[self._phase]
         plugins_conf = getattr(self.workflow, self._plugins_for_phase[self._phase])
-        self.workflow.builder.tasker = docker_tasker
-        return runner_cls(docker_tasker, self.workflow, plugins_conf)
+        return runner_cls(self.workflow, plugins_conf)
 
     def for_plugin(self, phase, plugin_key, args=None):
         """
