@@ -36,8 +36,7 @@ from atomic_reactor.constants import (
     INSPECT_ROOTFS,
     INSPECT_ROOTFS_LAYERS,
     PLUGIN_BUILD_ORCHESTRATE_KEY,
-    WORKSPACE_BASE_PATH,
-    REACTOR_CONFIG_WORKSPACE,
+    REACTOR_CONFIG_FULL_PATH,
     DOCKERFILE_FILENAME,
 )
 from atomic_reactor.util import (exception_message, DockerfileImages, df_parser,
@@ -452,7 +451,7 @@ class DockerBuildWorkflow(object):
         if build_file_path.endswith(DOCKERFILE_FILENAME):
             self.set_df_path(build_file_path)
 
-        reactor_config_path = os.path.join(WORKSPACE_BASE_PATH, REACTOR_CONFIG_WORKSPACE)
+        reactor_config_path = REACTOR_CONFIG_FULL_PATH
         # openshift in configuration needs namespace, it was reading it from get_builds_json()
         # we should have it in user_params['namespace']
         self.conf = Configuration(config_path=reactor_config_path)

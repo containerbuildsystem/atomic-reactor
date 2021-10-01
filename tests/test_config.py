@@ -212,16 +212,12 @@ pull_registries:
             read_yaml(config, 'schemas/config.json')
         assert error in str(exc_info.value)
 
-    @pytest.mark.parametrize('basename', ['reactor-config.yaml', None])
-    def test_filename(self, tmpdir, basename):
-        filename = os.path.join(str(tmpdir), basename or 'config.yaml')
+    def test_filename(self, tmpdir):
+        filename = os.path.join(str(tmpdir), 'config.yaml')
         with open(filename, 'w') as fp:
             fp.write(dedent(REQUIRED_CONFIG))
 
-        if basename:
-            Configuration(config_path=str(tmpdir), basename=basename)
-        else:
-            Configuration(config_path=str(tmpdir))
+        Configuration(config_path=filename)
 
     def test_no_schema_resource(self, tmpdir, caplog):
         class FakeProvider(object):
@@ -239,7 +235,7 @@ pull_registries:
             pass
 
         with caplog.at_level(logging.ERROR), pytest.raises(Exception):
-            Configuration(config_path=str(tmpdir))
+            Configuration(config_path=filename)
 
         captured_errs = [x.message for x in caplog.records]
         assert "unable to extract JSON schema, cannot validate" in captured_errs
@@ -267,7 +263,7 @@ pull_registries:
             pass
 
         with caplog.at_level(logging.ERROR), pytest.raises(Exception):
-            Configuration(config_path=str(tmpdir))
+            Configuration(config_path=filename)
 
         captured_errs = [x.message for x in caplog.records]
         assert any("cannot validate" in x for x in captured_errs)
@@ -362,7 +358,7 @@ clusters:
             fp.write(dedent(config))
 
         with caplog.at_level(logging.DEBUG, logger='osbs'), pytest.raises(OsbsValidationException):
-            Configuration(config_path=str(tmpdir))
+            Configuration(config_path=filename)
 
         captured_errs = [x.message for x in caplog.records]
         for error in errors:
@@ -391,7 +387,7 @@ clusters:
             """))
 
         with pytest.raises(ValueError):
-            Configuration(config_path=str(tmpdir))
+            Configuration(config_path=filename)
 
     @pytest.mark.parametrize(('config', 'clusters', 'defined_platforms'), [
         # Default config
@@ -428,7 +424,7 @@ clusters:
         filename = os.path.join(str(tmpdir), 'config.yaml')
         with open(filename, 'w') as fp:
             fp.write(dedent(config))
-        conf = Configuration(config_path=str(tmpdir))
+        conf = Configuration(config_path=filename)
 
         enabled = conf.get_enabled_clusters_for_platform('platform')
         assert {(x.name, x.max_concurrent_builds) for x in enabled} == set(clusters)
@@ -462,7 +458,7 @@ odcs:
         with open(filename, 'w') as fp:
             fp.write(dedent(config))
 
-        conf = Configuration(config_path=str(tmpdir))
+        conf = Configuration(config_path=filename)
 
         odcs_config = conf.odcs_config
 
@@ -519,7 +515,7 @@ odcs:
         with open(filename, 'w') as fp:
             fp.write(dedent(config))
 
-        conf = Configuration(config_path=str(tmpdir))
+        conf = Configuration(config_path=filename)
 
         with pytest.raises(ValueError) as exc_info:
             getattr(conf, 'odcs_config')
@@ -545,7 +541,7 @@ odcs:
         with open(filename, 'w') as fp:
             fp.write(dedent(config))
 
-        conf = Configuration(config_path=str(tmpdir))
+        conf = Configuration(config_path=filename)
 
         odcs_config = conf.odcs_config
         signing_intent = odcs_config.get_signing_intent_by_keys(['R123'])
@@ -576,7 +572,7 @@ odcs:
             filename = str(tmpdir.join('config.yaml'))
             with open(filename, 'w') as fp:
                 fp.write(dedent(REACTOR_CONFIG_MAP))
-            conf = Configuration(config_path=str(tmpdir))
+            conf = Configuration(config_path=filename)
 
         real_attr = getattr(conf, method)
 
@@ -1350,7 +1346,7 @@ operator_manifests:
         filename = os.path.join(str(tmpdir), 'config.yaml')
         with open(filename, 'w') as fp:
             fp.write(dedent(config))
-        conf = Configuration(config_path=str(tmpdir))
+        conf = Configuration(config_path=filename)
 
         operator_config = conf.operator_manifests
         assert isinstance(operator_config, dict)
@@ -1419,7 +1415,7 @@ build_env_vars:
         if parent_images:
             workflow.dockerfile_images = DockerfileImages(parent_images)
 
-        conf = Configuration(config_path=str(tmpdir))
+        conf = Configuration(config_path=filename)
         conf.set_workflow_based_on_config(workflow)
 
         if dockerfile_images:
