@@ -61,7 +61,6 @@ class TestBumpRelease(object):
             labels = {}
 
         workflow = DockerBuildWorkflow(source=None)
-        setattr(workflow, 'builder', flexmock())
         workflow.source = MockSource(tmpdir, add_timestamp)
         if scratch is not None:
             workflow.user_params['scratch'] = scratch
@@ -77,7 +76,6 @@ class TestBumpRelease(object):
         flexmock(workflow, df_path=str(df))
 
         kwargs = {
-            'tasker': None,
             'workflow': workflow,
         }
 

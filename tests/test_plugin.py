@@ -13,8 +13,7 @@ from dockerfile_parse import DockerfileParser
 from flexmock import flexmock
 import pytest
 
-from atomic_reactor.inner import DockerBuildWorkflow
-from atomic_reactor.build import BuildResult
+from atomic_reactor.inner import DockerBuildWorkflow, BuildResult
 from atomic_reactor.plugin import (BuildPluginsRunner, PreBuildPluginsRunner,
                                    PostBuildPluginsRunner,
                                    PluginFailedException, PrePublishPluginsRunner,
@@ -23,9 +22,7 @@ from atomic_reactor.plugin import (BuildPluginsRunner, PreBuildPluginsRunner,
                                    BuildStepPlugin, PreBuildPlugin, ExitPlugin,
                                    PreBuildSleepPlugin, PrePublishPlugin, PostBuildPlugin)
 
-from tests.constants import DOCKERFILE_GIT, MOCK
-if MOCK:
-    from tests.docker_mock import mock_docker
+from tests.constants import DOCKERFILE_GIT
 
 TEST_IMAGE = "fedora:latest"
 SOURCE = {"provider": "git", "uri": DOCKERFILE_GIT}
@@ -56,20 +53,8 @@ class MyPreBuildPlugin(PreBuildPlugin):
 
 
 def mock_workflow(tmpdir):
-    if MOCK:
-        mock_docker()
-
     workflow = DockerBuildWorkflow(source=None)
-    setattr(workflow, 'builder', X())
     flexmock(DockerfileParser, content='df_content')
-    setattr(workflow.builder, 'get_built_image_info', flexmock())
-    flexmock(workflow.builder, get_built_image_info={'Id': 'some'})
-    setattr(workflow.builder, 'ensure_not_built', flexmock())
-    flexmock(workflow.builder, ensure_not_built=None)
-    setattr(workflow.builder, 'image_id', 'image-id')
-    setattr(workflow.builder, 'image', flexmock())
-    setattr(workflow.builder.image, 'to_str', lambda: 'image')
-
     return workflow
 
 
@@ -80,11 +65,11 @@ def mock_workflow(tmpdir):
     ExitPluginsRunner,
     BuildStepPluginsRunner,
 ])
-def test_load_plugins(docker_tasker, runner_type, tmpdir):
+def test_load_plugins(runner_type, tmpdir):
     """
     test loading plugins
     """
-    runner = runner_type(docker_tasker, mock_workflow(tmpdir), None)
+    runner = runner_type(mock_workflow(tmpdir), None)
     assert runner.plugin_classes is not None
     assert len(runner.plugin_classes) > 0
 
@@ -104,7 +89,7 @@ class X(object):
     True,
     False,
 ])
-def test_required_plugin_failure(tmpdir, docker_tasker, runner_type, required):
+def test_required_plugin_failure(tmpdir, runner_type, required):
     """
     test required option for plugins
     and check if it fails when is required
@@ -112,7 +97,7 @@ def test_required_plugin_failure(tmpdir, docker_tasker, runner_type, required):
     """
     workflow = mock_workflow(tmpdir)
     assert workflow.plugin_failed is False
-    params = (docker_tasker, workflow,
+    params = (workflow,
               [{"name": "no_such_plugin",
                "required": required}])
 
@@ -140,8 +125,8 @@ def test_required_plugin_failure(tmpdir, docker_tasker, runner_type, required):
     True,
     False,
 ])
-def test_verify_required_plugins_before_first_run(caplog, tmpdir, docker_tasker,
-                                                  runner_type, plugin_type, required):
+def test_verify_required_plugins_before_first_run(caplog, tmpdir, runner_type, plugin_type,
+                                                  required):
     """
     test plugin availability checks before running any plugins
     """
@@ -154,7 +139,7 @@ def test_verify_required_plugins_before_first_run(caplog, tmpdir, docker_tasker,
     flexmock(PluginsRunner, load_plugins=lambda x: {
                                         MyPlugin.key: MyPlugin})
     workflow = mock_workflow(tmpdir)
-    params = (docker_tasker, workflow,
+    params = (workflow,
               [{"name": MyPlugin.key, "required": False},
                {"name": "no_such_plugin", "required": required}])
     expected_log_message = "running plugin '%s'" % MyPlugin.key
@@ -171,29 +156,26 @@ def test_verify_required_plugins_before_first_run(caplog, tmpdir, docker_tasker,
         assert any(expected_log_message in log.getMessage() for log in caplog.records)
 
 
-def test_check_no_reload(caplog, tmpdir, docker_tasker):
+def test_check_no_reload(caplog, tmpdir):
     """
     test if plugins are not reloaded
     """
     workflow = mock_workflow(tmpdir)
     this_file = inspect.getfile(MyBsPlugin1)
     expected_log_message = "load file '%s'" % this_file
-    BuildStepPluginsRunner(docker_tasker,
-                           workflow,
+    BuildStepPluginsRunner(workflow,
                            [{"name": "MyBsPlugin1"}],
                            plugin_files=[this_file])
     assert any(expected_log_message in log.getMessage() for log in caplog.records)
     log_len = len(caplog.records)
-    BuildStepPluginsRunner(docker_tasker,
-                           workflow,
+    BuildStepPluginsRunner(workflow,
                            [{"name": "MyBsPlugin1"}],
                            plugin_files=[this_file])
     assert all(expected_log_message not in log.getMessage() for log in caplog.records[log_len:])
 
 @pytest.mark.parametrize('success1', [True, False])  # noqa
 @pytest.mark.parametrize('success2', [True, False])
-def test_buildstep_phase_build_plugin(caplog, tmpdir, docker_tasker,
-                                      success1, success2):
+def test_buildstep_phase_build_plugin(caplog, tmpdir, success1, success2):
     """
     plugin runner should stop after first successful plugin
     InappropriateBuildStepError exception isn't critical,
@@ -204,7 +186,7 @@ def test_buildstep_phase_build_plugin(caplog, tmpdir, docker_tasker,
     flexmock(PluginsRunner, load_plugins=lambda x: {
                                         MyBsPlugin1.key: MyBsPlugin1,
                                         MyBsPlugin2.key: MyBsPlugin2, })
-    runner = BuildStepPluginsRunner(docker_tasker, workflow,
+    runner = BuildStepPluginsRunner(workflow,
                                     [{"name": MyBsPlugin1.key},
                                      {"name": MyBsPlugin2.key}])
 
@@ -231,7 +213,7 @@ def test_buildstep_phase_build_plugin(caplog, tmpdir, docker_tasker,
 
 
 @pytest.mark.parametrize('success1', [True, False])  # noqa
-def test_buildstep_phase_build_plugin_failing_exception(tmpdir, caplog, docker_tasker, success1):
+def test_buildstep_phase_build_plugin_failing_exception(tmpdir, caplog, success1):
     """
     plugin runner should stop after first successful plugin
     Exception exception is critical,
@@ -241,7 +223,7 @@ def test_buildstep_phase_build_plugin_failing_exception(tmpdir, caplog, docker_t
     flexmock(PluginsRunner, load_plugins=lambda x: {
                                         MyBsPlugin1.key: MyBsPlugin1,
                                         MyBsPlugin2.key: MyBsPlugin2, })
-    runner = BuildStepPluginsRunner(docker_tasker, workflow,
+    runner = BuildStepPluginsRunner(workflow,
                                     [{"name": MyBsPlugin1.key},
                                      {"name": MyBsPlugin2.key}])
 
@@ -263,7 +245,7 @@ def test_buildstep_phase_build_plugin_failing_exception(tmpdir, caplog, docker_t
         assert expected_log_message in [log.getMessage() for log in caplog.records]
 
 
-def test_non_buildstep_phase_raises_InappropriateBuildStepError(caplog, tmpdir, docker_tasker):  # noqa
+def test_non_buildstep_phase_raises_InappropriateBuildStepError(caplog, tmpdir):  # noqa
     """
     tests that exception is raised if no buildstep_phase
     but raises InappropriateBuildStepError
@@ -271,22 +253,21 @@ def test_non_buildstep_phase_raises_InappropriateBuildStepError(caplog, tmpdir, 
     workflow = mock_workflow(tmpdir)
     flexmock(PluginsRunner, load_plugins=lambda x: {
                                         MyPreBuildPlugin.key: MyPreBuildPlugin})
-    runner = PreBuildPluginsRunner(docker_tasker, workflow,
+    runner = PreBuildPluginsRunner(workflow,
                                    [{"name": MyPreBuildPlugin.key}])
 
-#    flexmock(MyBsPlugin1).should_call('run').and_raise(InappropriateBuildStepError).once()
     with pytest.raises(Exception):
         runner.run()
 
 
-def test_no_appropriate_buildstep_build_plugin(caplog, tmpdir, docker_tasker):  # noqa
+def test_no_appropriate_buildstep_build_plugin(caplog, tmpdir):  # noqa
     """
     test that build fails if there isn't any
     appropriate buildstep plugin (doesn't exist)
     """
     workflow = mock_workflow(tmpdir)
     flexmock(PluginsRunner, load_plugins=lambda x: {})
-    runner = BuildStepPluginsRunner(docker_tasker, workflow,
+    runner = BuildStepPluginsRunner(workflow,
                                     [{"name": MyBsPlugin1.key},
                                      {"name": MyBsPlugin2.key}])
 
@@ -294,36 +275,23 @@ def test_no_appropriate_buildstep_build_plugin(caplog, tmpdir, docker_tasker):  
         runner.run()
 
 
-@pytest.mark.parametrize('pluginconf_method, default_method, source_method, expected', [  # noqa
-    ('orchestrator', 'docker_api',   None,           'orchestrator'),
-    ('orchestrator', 'docker_api',   'imagebuilder', 'orchestrator'),
-    ('orchestrator', 'docker_api',   'buildah_bud',      'orchestrator'),
+@pytest.mark.parametrize('pluginconf_method, expected', [  # noqa
+    ('orchestrator', 'orchestrator'),
 ])
-def test_which_buildstep_plugin_configured(
-    docker_tasker, tmpdir,
-    pluginconf_method, default_method, source_method, expected
-):
+def test_which_buildstep_plugin_configured(tmpdir, pluginconf_method, expected):
     """
     test buildstep plugin adjustments.
     if no/empty build_step specified,
     build plugin from source or default will run
     """
     workflow = mock_workflow(tmpdir)
-    setattr(workflow.builder, 'source', flexmock(
-        dockerfile_path='dockerfile-path',
-        path='path',
-        config=flexmock(image_build_method=None),
-    ))
-
-    workflow.default_image_build_method = default_method
-    workflow.builder.source.config.image_build_method = source_method
     expected = [{'name': expected, 'is_allowed_to_fail': False}]
     plugins_conf = pluginconf_method
     if pluginconf_method:
         plugins_conf = [{'name': pluginconf_method, 'is_allowed_to_fail': False}]
         expected[0]['required'] = False
 
-    runner = BuildStepPluginsRunner(docker_tasker, workflow, plugins_conf)
+    runner = BuildStepPluginsRunner(workflow, plugins_conf)
     assert runner.plugins_conf == expected
 
 
@@ -335,18 +303,16 @@ class TestBuildPluginsRunner(object):
     ])
     def test_create_instance_from_plugin(self, tmpdir, params):
         workflow = flexmock()
-        workflow.builder = flexmock()
-        workflow.builder.image_id = 'image-id'
+        workflow.image_id = 'image-id'
         workflow.source = flexmock()
         workflow.source.dockerfile_path = 'dockerfile-path'
         workflow.source.path = 'path'
-        tasker = flexmock()
 
         class MyPlugin(object):
-            def __init__(self, tasker, workflow, spam=None):
+            def __init__(self, workflow, spam=None):
                 self.spam = spam
 
-        bpr = BuildPluginsRunner(tasker, workflow, 'PreBuildPlugin', {})
+        bpr = BuildPluginsRunner(workflow, 'PreBuildPlugin', {})
         plugin = bpr.create_instance_from_plugin(MyPlugin, params)
 
         assert plugin.spam == params['spam']
@@ -357,20 +323,18 @@ class TestBuildPluginsRunner(object):
     ])
     def test_create_instance_from_plugin_with_kwargs(self, tmpdir, params):
         workflow = flexmock()
-        workflow.builder = flexmock()
-        workflow.builder.image_id = 'image-id'
+        workflow.image_id = 'image-id'
         workflow.source = flexmock()
         workflow.source.dockerfile_path = 'dockerfile-path'
         workflow.source.path = 'path'
-        tasker = flexmock()
 
         class MyPlugin(object):
-            def __init__(self, tasker, workflow, spam=None, **kwargs):
+            def __init__(self, workflow, spam=None, **kwargs):
                 self.spam = spam
                 for key, value in kwargs.items():
                     setattr(self, key, value)
 
-        bpr = BuildPluginsRunner(tasker, workflow, 'PreBuildPlugin', {})
+        bpr = BuildPluginsRunner(workflow, 'PreBuildPlugin', {})
         plugin = bpr.create_instance_from_plugin(MyPlugin, params)
 
         for key, value in params.items():
@@ -386,7 +350,6 @@ class TestPreBuildSleepPlugin(object):
          .once())
 
         kwargs = {
-            'tasker': None,
             'workflow': None,
         }
         if seconds is not None:

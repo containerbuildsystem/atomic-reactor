@@ -12,7 +12,6 @@ import json
 
 from atomic_reactor.constants import (PLUGIN_FETCH_WORKER_METADATA_KEY,
                                       PLUGIN_COMPARE_COMPONENTS_KEY)
-from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.post_compare_components import (
@@ -20,36 +19,13 @@ from atomic_reactor.plugins.post_compare_components import (
 )
 from atomic_reactor.util import DockerfileImages
 
-from tests.constants import INPUT_IMAGE, FILES
-from tests.docker_mock import mock_docker
+from tests.constants import FILES
 
 import pytest
 
 
-class MockSource(object):
-
-    def __init__(self, tmpdir):
-        tmpdir = str(tmpdir)
-        self.dockerfile_path = os.path.join(tmpdir, 'Dockerfile')
-        self.path = tmpdir
-
-    def get_dockerfile_path(self):
-        return self.dockerfile_path, self.path
-
-
-class MockInsideBuilder(object):
-
-    def __init__(self):
-        mock_docker()
-        self.tasker = DockerTasker()
-        self.image_id = 'image_id'
-        self.image = INPUT_IMAGE
-
-
 def mock_workflow(tmpdir):
     workflow = DockerBuildWorkflow(source=None)
-    setattr(workflow, 'builder', MockInsideBuilder())
-    setattr(workflow, 'source', MockSource(tmpdir))
     setattr(workflow, 'postbuild_result', {})
     workflow.dockerfile_images = DockerfileImages(['fedora:25'])
     return workflow
@@ -117,7 +93,6 @@ def test_compare_components_plugin(tmpdir, caplog, user_params,
         workflow.dockerfile_images = DockerfileImages(['scratch'])
 
     runner = PostBuildPluginsRunner(
-        None,
         workflow,
         [{
             'name': PLUGIN_COMPARE_COMPONENTS_KEY,
@@ -146,7 +121,6 @@ def test_no_components(tmpdir, user_params):
     workflow.postbuild_results[PLUGIN_FETCH_WORKER_METADATA_KEY] = worker_metadatas
 
     runner = PostBuildPluginsRunner(
-        None,
         workflow,
         [{
             'name': PLUGIN_COMPARE_COMPONENTS_KEY,
@@ -168,7 +142,6 @@ def test_bad_component_type(tmpdir, user_params):
     workflow.postbuild_results[PLUGIN_FETCH_WORKER_METADATA_KEY] = worker_metadatas
 
     runner = PostBuildPluginsRunner(
-        None,
         workflow,
         [{
             'name': PLUGIN_COMPARE_COMPONENTS_KEY,
@@ -204,7 +177,6 @@ def test_mismatch_reporting(tmpdir, caplog, user_params, mismatch):
     workflow.postbuild_results[PLUGIN_FETCH_WORKER_METADATA_KEY] = worker_metadatas
 
     runner = PostBuildPluginsRunner(
-        None,
         workflow,
         [{
             'name': PLUGIN_COMPARE_COMPONENTS_KEY,
@@ -243,7 +215,6 @@ def test_skip_plugin(tmpdir, caplog, user_params):
     workflow.user_params['scratch'] = True
 
     runner = PostBuildPluginsRunner(
-        None,
         workflow,
         [{
             'name': PLUGIN_COMPARE_COMPONENTS_KEY,

@@ -8,7 +8,6 @@ of the BSD license. See the LICENSE file for details.
 
 from atomic_reactor.constants import YUM_REPOS_DIR
 
-from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_add_yum_repo_by_url import AddYumRepoByUrlPlugin
@@ -20,10 +19,9 @@ from flexmock import flexmock
 from fnmatch import fnmatch
 import os.path
 from tests.constants import MOCK
-from tests.stubs import StubInsideBuilder, StubSource
+from tests.stubs import StubSource
 if MOCK:
     from tests.retry_mock import mock_get_retry_session
-    from tests.docker_mock import mock_docker
 
 pytestmark = pytest.mark.usefixtures('user_params')
 
@@ -31,13 +29,8 @@ repocontent = '''[repo]\n'''
 
 
 def prepare(scratch=False):
-    if MOCK:
-        mock_docker()
-    tasker = DockerTasker()
     workflow = DockerBuildWorkflow(source=None)
     workflow.source = StubSource()
-    workflow.builder = StubInsideBuilder().for_workflow(workflow)
-    workflow.builder.set_dockerfile_images([])
     workflow.dockerfile_images = DockerfileImages([])
     workflow.user_params['scratch'] = scratch
     (flexmock(requests.Response, content=repocontent)
@@ -46,13 +39,13 @@ def prepare(scratch=False):
     (flexmock(requests.Session, get=lambda *_: requests.Response()))
     mock_get_retry_session()
 
-    return tasker, workflow
+    return workflow
 
 
 @pytest.mark.parametrize('inject_proxy', [None, 'http://proxy.example.com'])
 def test_no_repourls(inject_proxy):
-    tasker, workflow = prepare()
-    runner = PreBuildPluginsRunner(tasker, workflow, [{
+    workflow = prepare()
+    runner = PreBuildPluginsRunner(workflow, [{
         'name': AddYumRepoByUrlPlugin.key,
         'args': {'repourls': [], 'inject_proxy': inject_proxy}}])
     runner.run()
@@ -62,10 +55,10 @@ def test_no_repourls(inject_proxy):
 
 @pytest.mark.parametrize('inject_proxy', [None, 'http://proxy.example.com'])
 def test_single_repourl(inject_proxy):
-    tasker, workflow = prepare()
+    workflow = prepare()
     url = 'http://example.com/example%20repo.repo'
     filename = 'example repo-a8b44.repo'
-    runner = PreBuildPluginsRunner(tasker, workflow, [{
+    runner = PreBuildPluginsRunner(workflow, [{
         'name': AddYumRepoByUrlPlugin.key,
         'args': {'repourls': [url], 'inject_proxy': inject_proxy}}])
     runner.run()
@@ -90,7 +83,7 @@ def test_single_repourl(inject_proxy):
 def test_multiple_repourls(caplog,
                            base_from_scratch, parent_images, inject_proxy,
                            repos, filenames):
-    tasker, workflow = prepare()
+    workflow = prepare()
 
     dockerfile_images = []
     if parent_images:
@@ -98,7 +91,7 @@ def test_multiple_repourls(caplog,
     if base_from_scratch:
         dockerfile_images.append('scratch')
     workflow.dockerfile_images = DockerfileImages(dockerfile_images)
-    runner = PreBuildPluginsRunner(tasker, workflow, [{
+    runner = PreBuildPluginsRunner(workflow, [{
         'name': AddYumRepoByUrlPlugin.key,
         'args': {'repourls': repos, 'inject_proxy': inject_proxy}}])
     runner.run()
@@ -122,10 +115,10 @@ def test_multiple_repourls(caplog,
 
 @pytest.mark.parametrize('inject_proxy', [None, 'http://proxy.example.com'])
 def test_single_repourl_no_suffix(inject_proxy):
-    tasker, workflow = prepare()
+    workflow = prepare()
     url = 'http://example.com/example%20repo'
     pattern = 'example repo-?????.repo'
-    runner = PreBuildPluginsRunner(tasker, workflow, [{
+    runner = PreBuildPluginsRunner(workflow, [{
         'name': AddYumRepoByUrlPlugin.key,
         'args': {'repourls': [url], 'inject_proxy': inject_proxy}}])
     runner.run()
@@ -154,8 +147,8 @@ def test_single_repourl_no_suffix(inject_proxy):
      ['myrepo-?????.repo', 'myrepo-?????.repo']),
 ))
 def test_multiple_repourls_no_suffix(inject_proxy, repos, patterns):
-    tasker, workflow = prepare()
-    runner = PreBuildPluginsRunner(tasker, workflow, [{
+    workflow = prepare()
+    runner = PreBuildPluginsRunner(workflow, [{
         'name': AddYumRepoByUrlPlugin.key,
         'args': {'repourls': repos, 'inject_proxy': inject_proxy}}])
     runner.run()
@@ -180,8 +173,8 @@ def test_invalid_repourl():
        is used
     """
     WRONG_REPO_URL = "http://example.com/nope/repo"
-    tasker, workflow = prepare()
-    runner = PreBuildPluginsRunner(tasker, workflow, [{
+    workflow = prepare()
+    runner = PreBuildPluginsRunner(workflow, [{
         'name': AddYumRepoByUrlPlugin.key,
         'args': {'repourls': [WRONG_REPO_URL], 'inject_proxy': None}}])
 
@@ -216,7 +209,7 @@ def test_invalid_repourl():
      ['http://wrong.foo.redhat.com/some/repo', 'http://wrong.bar.redhat.com/some/repo'], True),
 ))
 def test_allowed_domains(allowed_domains, repo_urls, will_raise, scratch):
-    tasker, workflow = prepare(scratch)
+    workflow = prepare(scratch)
     reactor_map = {'version': 1}
 
     if allowed_domains is not None:
@@ -224,7 +217,7 @@ def test_allowed_domains(allowed_domains, repo_urls, will_raise, scratch):
 
     workflow.conf.conf = reactor_map
 
-    runner = PreBuildPluginsRunner(tasker, workflow, [{
+    runner = PreBuildPluginsRunner(workflow, [{
         'name': AddYumRepoByUrlPlugin.key,
         'args': {'repourls': repo_urls, 'inject_proxy': None}}])
 

@@ -15,11 +15,13 @@ from textwrap import dedent
 
 import pytest
 import yaml
+from flexmock import flexmock
 
 from tests.mock_env import MockEnv
 from tests.utils.test_cachito import CACHITO_URL, CACHITO_REQUEST_ID
 
 from atomic_reactor import util
+from atomic_reactor.utils import imageutil
 from atomic_reactor.constants import INSPECT_ROOTFS, INSPECT_ROOTFS_LAYERS, PLUGIN_FETCH_MAVEN_KEY
 from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.pre_add_image_content_manifest import AddImageContentManifestPlugin
@@ -144,7 +146,7 @@ def mock_get_icm(requests_mock):
     requests_mock.register_uri('GET', PNC_ARTIFACT_URL, text=json.dumps(PNC_ARTIFACT))
 
 
-def mock_env(tmpdir, docker_tasker, platform='x86_64', base_layers=0,
+def mock_env(tmpdir, platform='x86_64', base_layers=0,
              remote_sources=REMOTE_SOURCES, r_c_m_override=None, pnc_artifacts=True,
              ):  # pylint: disable=W0102
     inspection_data = {
@@ -180,13 +182,13 @@ def mock_env(tmpdir, docker_tasker, platform='x86_64', base_layers=0,
             'prebuild', PLUGIN_FETCH_MAVEN_KEY, {'pnc_artifact_ids': [PNC_ARTIFACT['id']]}
         )
     tmpdir.join('cert').write('')
-    env.workflow.builder.set_inspection_data(inspection_data)
+    flexmock(imageutil).should_receive('base_image_inspect').and_return(inspection_data)
     env.workflow.user_params['platform'] = platform
 
     # Ensure to succeed in reading the content_sets.yml
     env.workflow.source.get_build_file_path = lambda: (str(tmpdir), str(tmpdir))
 
-    return env.create_runner(docker_tasker)
+    return env.create_runner()
 
 
 @pytest.mark.parametrize('manifest_file_exists', [True, False])
@@ -240,7 +242,7 @@ def mock_env(tmpdir, docker_tasker, platform='x86_64', base_layers=0,
             'eggs-1.0-42.json',
         ),
     ])
-def test_add_image_content_manifest(requests_mock, tmpdir, docker_tasker, caplog,
+def test_add_image_content_manifest(requests_mock, tmpdir, caplog,
                                     manifest_file_exists, content_sets, platform,
                                     df_content, expected_df, base_layers, manifest_file,
                                     ):
@@ -250,7 +252,7 @@ def test_add_image_content_manifest(requests_mock, tmpdir, docker_tasker, caplog
     dfp.content = df_content
     if manifest_file_exists:
         tmpdir.join(manifest_file).write("")
-    runner = mock_env(tmpdir, docker_tasker, platform, base_layers)
+    runner = mock_env(tmpdir, platform, base_layers)
     runner.workflow.set_df_path(dfp.dockerfile_path)
     runner.workflow.df_dir = str(tmpdir)
     if manifest_file_exists:
@@ -272,8 +274,7 @@ def test_add_image_content_manifest(requests_mock, tmpdir, docker_tasker, caplog
     assert expected_output == output
 
 
-def test_fetch_maven_artifacts_no_pnc_config(requests_mock, tmpdir, docker_tasker, caplog,
-                                             user_params):
+def test_fetch_maven_artifacts_no_pnc_config(requests_mock, tmpdir, caplog, user_params):
     mock_get_icm(requests_mock)
     dfp = util.df_parser(str(tmpdir))
     dfp.content = dedent("""\
@@ -292,7 +293,7 @@ def test_fetch_maven_artifacts_no_pnc_config(requests_mock, tmpdir, docker_taske
     }
 
     with pytest.raises(PluginFailedException):
-        runner = mock_env(tmpdir, docker_tasker, r_c_m_override=r_c_m)
+        runner = mock_env(tmpdir, r_c_m_override=r_c_m)
         runner.workflow.set_df_path(dfp.dockerfile_path)
         runner.run()
 
@@ -312,16 +313,14 @@ def test_fetch_maven_artifacts_no_pnc_config(requests_mock, tmpdir, docker_taske
             2,
             'eggs-1.0-42.json',
         )])
-def test_none_remote_source_icm_url(requests_mock, tmpdir, docker_tasker, caplog,
-                                    content_sets,
-                                    df_content, base_layers, manifest_file,
-                                    ):
+def test_none_remote_source_icm_url(requests_mock, tmpdir, caplog, content_sets, df_content,
+                                    base_layers, manifest_file):
     platform = 'x86_64'
     mock_get_icm(requests_mock)
     mock_content_sets_config(tmpdir, empty=(not content_sets))
     dfp = util.df_parser(str(tmpdir))
     dfp.content = df_content
-    runner = mock_env(tmpdir, docker_tasker, platform, base_layers, remote_sources=None)
+    runner = mock_env(tmpdir, platform, base_layers, remote_sources=None)
     runner.workflow.set_df_path(dfp.dockerfile_path)
     runner.workflow.df_dir = str(tmpdir)
     expected_output = deepcopy(ICM_MINIMAL_DICT)
@@ -349,14 +348,14 @@ def test_none_remote_source_icm_url(requests_mock, tmpdir, docker_tasker, caplog
             2,
             'eggs-1.0-42.json',
         )])
-def test_no_pnc_artifacts(requests_mock, tmpdir, docker_tasker, caplog, content_sets, df_content,
+def test_no_pnc_artifacts(requests_mock, tmpdir, caplog, content_sets, df_content,
                           base_layers, manifest_file):
     platform = 'x86_64'
     mock_get_icm(requests_mock)
     mock_content_sets_config(tmpdir, empty=(not content_sets))
     dfp = util.df_parser(str(tmpdir))
     dfp.content = df_content
-    runner = mock_env(tmpdir, docker_tasker, platform, base_layers, pnc_artifacts=False)
+    runner = mock_env(tmpdir, platform, base_layers, pnc_artifacts=False)
     runner.workflow.set_df_path(dfp.dockerfile_path)
     runner.workflow.df_dir = str(tmpdir)
     expected_output = deepcopy(ICM_DICT)

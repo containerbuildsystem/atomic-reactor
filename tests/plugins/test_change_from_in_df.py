@@ -13,8 +13,9 @@ from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_change_from_in_df import ChangeFromPlugin
 from atomic_reactor.util import df_parser, DockerfileImages
+from atomic_reactor.utils import imageutil
 from osbs.utils import ImageName
-from tests.stubs import StubInsideBuilder, StubSource
+from tests.stubs import StubSource
 from textwrap import dedent
 
 pytestmark = pytest.mark.usefixtures('user_params')
@@ -30,7 +31,6 @@ def mock_workflow(df_path=None, df_images=None):
         df_images = []
     workflow = DockerBuildWorkflow(source=None)
     workflow.source = StubSource()
-    builder = StubInsideBuilder().for_workflow(workflow)
     flexmock(workflow, df_path=df_path)
     if df_images:
         workflow.dockerfile_images = DockerfileImages(df_images)
@@ -38,15 +38,12 @@ def mock_workflow(df_path=None, df_images=None):
         workflow.dockerfile_images = DockerfileImages(['mock:base'])
         workflow.dockerfile_images['mock:base'] = ImageName.parse("mock:tag")
 
-    builder.tasker = flexmock()
-    workflow.builder = flexmock(builder)
-
     return workflow
 
 
-def run_plugin(workflow, docker_tasker):
+def run_plugin(workflow):
     result = PreBuildPluginsRunner(
-       docker_tasker, workflow,
+       workflow,
        [{
           'name': ChangeFromPlugin.key,
           'args': {},
@@ -60,7 +57,7 @@ def run_plugin(workflow, docker_tasker):
     "base:image",
     "different_registry.com/base:image",
 ])
-def test_update_base_image(tmpdir, docker_tasker, base_image):
+def test_update_base_image(tmpdir, base_image):
     df_content = dedent("""\
         FROM {}
         LABEL horses=coconuts
@@ -73,15 +70,17 @@ def test_update_base_image(tmpdir, docker_tasker, base_image):
 
     workflow = mock_workflow(df_path=dfp.dockerfile_path, df_images=dfp.parent_images)
     workflow.dockerfile_images[base_image] = local_tag
-    workflow.builder.set_parent_inspection_data(base_str, dict(Id=base_str))
-    workflow.builder.tasker.inspect_image = lambda *_: dict(Id=base_str)
+    (flexmock(imageutil)
+     .should_receive('get_inspect_for_image')
+     .with_args(local_tag)
+     .and_return(dict(Id=base_str)))
 
-    run_plugin(workflow, docker_tasker)
+    run_plugin(workflow)
     expected_df = df_content.format(base_str)
     assert dfp.content == expected_df
 
 
-def test_update_base_image_inspect_broken(tmpdir, caplog, docker_tasker):
+def test_update_base_image_inspect_broken(tmpdir, caplog):
     """exercise code branch where the base image inspect comes back without an Id"""
     df_content = "FROM base:image"
     dfp = df_parser(str(tmpdir))
@@ -90,10 +89,13 @@ def test_update_base_image_inspect_broken(tmpdir, caplog, docker_tasker):
     local_tag = ImageName.parse(image_str)
     workflow = mock_workflow(df_path=dfp.dockerfile_path, df_images=dfp.parent_images)
     workflow.dockerfile_images['base:image'] = local_tag
-    workflow.builder.set_parent_inspection_data(image_str, dict(no_id="here"))
+    (flexmock(imageutil)
+     .should_receive('get_inspect_for_image')
+     .with_args(local_tag)
+     .and_return(dict(no_id="here")))
 
     with pytest.raises(PluginFailedException) as exc:
-        run_plugin(workflow, docker_tasker)
+        run_plugin(workflow)
     assert "raised an exception: NoIdInspection" in str(exc.value)
     assert dfp.content == df_content  # nothing changed
     assert "missing in inspection" in caplog.text
@@ -221,7 +223,7 @@ def test_update_base_image_inspect_broken(tmpdir, caplog, docker_tasker):
         """),
     ),
 ])
-def test_update_parent_images(df_content, expected_df_content, tmpdir, docker_tasker):
+def test_update_parent_images(df_content, expected_df_content, tmpdir):
     """test the happy path for updating multiple parents"""
     dfp = df_parser(str(tmpdir))
     dfp.content = df_content
@@ -254,19 +256,22 @@ def test_update_parent_images(df_content, expected_df_content, tmpdir, docker_ta
         parent_in = ImageName.parse(parent)
         workflow.dockerfile_images[parent] = pimgs[parent_in]
 
-    workflow.builder.tasker.inspect_image = lambda img: dict(Id=img_ids[img])
     for image_name, image_id in img_ids.items():
-        workflow.builder.set_parent_inspection_data(image_name, dict(Id=image_id))
+        print(image_name)
+        (flexmock(imageutil)
+         .should_receive('get_inspect_for_image')
+         .with_args(ImageName.parse(image_name))
+         .and_return(dict(Id=image_id)))
 
     original_base = workflow.dockerfile_images.base_image
-    run_plugin(workflow, docker_tasker)
+    run_plugin(workflow)
     assert dfp.content == expected_df_content
     assert workflow.original_df == df_content
     if workflow.dockerfile_images.base_from_scratch:
         assert original_base == workflow.dockerfile_images.base_image
 
 
-def test_parent_images_unresolved(tmpdir, docker_tasker):
+def test_parent_images_unresolved(tmpdir):
     """test when parent_images hasn't been filled in with unique tags."""
     dfp = df_parser(str(tmpdir))
     dfp.content = dedent("""\
@@ -278,11 +283,11 @@ def test_parent_images_unresolved(tmpdir, docker_tasker):
     workflow.dockerfile_images['base_image'] = 'base_local'
 
     with pytest.raises(PluginFailedException) as exc:
-        run_plugin(workflow, docker_tasker)
+        run_plugin(workflow)
     assert "raised an exception: ParentImageUnresolved" in str(exc.value)
 
 
-def test_parent_images_missing(tmpdir, docker_tasker):
+def test_parent_images_missing(tmpdir):
     """test when parent_images has been mangled and lacks parents compared to dockerfile."""
     dfp = df_parser(str(tmpdir))
     dfp.content = dedent("""\
@@ -295,11 +300,11 @@ def test_parent_images_missing(tmpdir, docker_tasker):
     workflow.dockerfile_images['monty'] = 'monty_local'
 
     with pytest.raises(PluginFailedException) as exc:
-        run_plugin(workflow, docker_tasker)
+        run_plugin(workflow)
     assert "raised an exception: ParentImageMissing" in str(exc.value)
 
 
-def test_parent_images_mismatch_base_image(tmpdir, docker_tasker):
+def test_parent_images_mismatch_base_image(tmpdir):
     """test when base_image has been updated differently from parent_images."""
     dfp = df_parser(str(tmpdir))
     dfp.content = "FROM base:image"
@@ -307,6 +312,6 @@ def test_parent_images_mismatch_base_image(tmpdir, docker_tasker):
                              df_images=['base:image', 'parent_different:latest'])
 
     with pytest.raises(PluginFailedException) as exc:
-        run_plugin(workflow, docker_tasker)
+        run_plugin(workflow)
 
     assert "raised an exception: BaseImageMismatch" in str(exc.value)

@@ -29,11 +29,10 @@ class X(object):
     base_image = ImageName.parse('asd')
 
 
-def test_distgit_fetch_artefacts_plugin(tmpdir, docker_tasker, workflow):  # noqa
+def test_distgit_fetch_artefacts_plugin(tmpdir, workflow):  # noqa
     command = 'fedpkg sources'
     expected_command = ['fedpkg', 'sources']
 
-    workflow.builder = X()
     workflow.source = StubSource()
     workflow.source.path = str(tmpdir)
 
@@ -51,7 +50,6 @@ def test_distgit_fetch_artefacts_plugin(tmpdir, docker_tasker, workflow):  # noq
     workflow.conf.conf['sources_command'] = command
 
     runner = PreBuildPluginsRunner(
-        docker_tasker,
         workflow,
         [{
             'name': DistgitFetchArtefactsPlugin.key,
@@ -62,11 +60,10 @@ def test_distgit_fetch_artefacts_plugin(tmpdir, docker_tasker, workflow):  # noq
     assert os.getcwd() == initial_dir
 
 
-def test_distgit_fetch_artefacts_failure(tmpdir, docker_tasker, workflow):  # noqa
+def test_distgit_fetch_artefacts_failure(tmpdir, workflow):  # noqa
     command = 'fedpkg sources'
     expected_command = ['fedpkg', 'sources']
 
-    workflow.builder = X()
     workflow.source = StubSource()
     workflow.source.path = str(tmpdir)
 
@@ -81,7 +78,6 @@ def test_distgit_fetch_artefacts_failure(tmpdir, docker_tasker, workflow):  # no
     workflow.conf.conf['sources_command'] = command
 
     runner = PreBuildPluginsRunner(
-        docker_tasker,
         workflow,
         [{
             'name': DistgitFetchArtefactsPlugin.key,
@@ -93,13 +89,11 @@ def test_distgit_fetch_artefacts_failure(tmpdir, docker_tasker, workflow):  # no
     assert os.getcwd() == initial_dir
 
 
-def test_distgit_fetch_artefacts_skip(tmpdir, docker_tasker, workflow, caplog):  # noqa
-    workflow.builder = X()
+def test_distgit_fetch_artefacts_skip(tmpdir, workflow, caplog):  # noqa
     workflow.source = StubSource()
     workflow.source.path = str(tmpdir)
 
     runner = PreBuildPluginsRunner(
-        docker_tasker,
         workflow,
         [{
             'name': DistgitFetchArtefactsPlugin.key,

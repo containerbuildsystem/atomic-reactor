@@ -13,21 +13,12 @@ import yaml
 from atomic_reactor.constants import (PLUGIN_CHECK_AND_SET_PLATFORMS_KEY, REPO_CONTAINER_CONFIG,
                                       PLUGIN_BUILD_ORCHESTRATE_KEY)
 import atomic_reactor.utils.koji as koji_util
-from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
-from osbs.utils import ImageName
 from atomic_reactor.source import SourceConfig
 from atomic_reactor import util
 from flexmock import flexmock
 import pytest
-from tests.constants import MOCK
-if MOCK:
-    from tests.docker_mock import mock_docker
-
-
-class X(object):
-    pass
 
 
 KOJI_TARGET = "target"
@@ -109,22 +100,14 @@ def set_orchestrator_platforms(workflow, orchestrator_platforms):
 
 
 def prepare(tmpdir, labels=None):
-    if MOCK:
-        mock_docker()
     labels = labels or {}
-    tasker = DockerTasker()
     workflow = DockerBuildWorkflow(source=None)
     workflow.user_params['scratch'] = labels.get('scratch', False)
     workflow.user_params['isolated'] = labels.get('isolated', False)
-    setattr(workflow, 'builder', X())
     source = MockSource(tmpdir)
-
-    setattr(workflow.builder, 'image_id', "asd123")
-    setattr(workflow.builder, 'base_image', ImageName(repo='Fedora', tag='21'))
-    setattr(workflow.builder, 'source', source)
     setattr(workflow, 'source', source)
 
-    return tasker, workflow
+    return workflow
 
 
 def teardown_function(function):
@@ -154,7 +137,7 @@ def test_check_and_set_platforms(tmpdir, caplog, user_params,
                                  platforms, platform_exclude, platform_only, result):
     write_container_yaml(tmpdir, platform_exclude, platform_only)
 
-    tasker, workflow = prepare(tmpdir)
+    workflow = prepare(tmpdir)
 
     build_json = {'metadata': {'labels': {}}}
     flexmock(util).should_receive('get_build_json').and_return(build_json)
@@ -163,7 +146,7 @@ def test_check_and_set_platforms(tmpdir, caplog, user_params,
     flexmock(koji_util).should_receive('create_koji_session').and_return(session)
     set_reactor_config_map(workflow, platforms)
 
-    runner = PreBuildPluginsRunner(tasker, workflow, [{
+    runner = PreBuildPluginsRunner(workflow, [{
         'name': PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
         'args': {'koji_target': KOJI_TARGET},
     }])
@@ -207,7 +190,7 @@ def test_check_isolated_or_scratch(tmpdir, caplog, user_params,
                                    result):
     write_container_yaml(tmpdir, platform_only=platform_only)
 
-    tasker, workflow = prepare(tmpdir, labels=labels)
+    workflow = prepare(tmpdir, labels=labels)
     if orchestrator_platforms:
         set_orchestrator_platforms(workflow, orchestrator_platforms)
 
@@ -215,7 +198,7 @@ def test_check_isolated_or_scratch(tmpdir, caplog, user_params,
     flexmock(koji_util).should_receive('create_koji_session').and_return(session)
     set_reactor_config_map(workflow, platforms)
 
-    runner = PreBuildPluginsRunner(tasker, workflow, [{
+    runner = PreBuildPluginsRunner(workflow, [{
         'name': PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
         'args': {'koji_target': KOJI_TARGET},
     }])
@@ -248,7 +231,7 @@ def test_check_and_set_platforms_no_koji(tmpdir, caplog, user_params,
                                          platforms, platform_only, result):
     write_container_yaml(tmpdir, platform_only=platform_only)
 
-    tasker, workflow = prepare(tmpdir)
+    workflow = prepare(tmpdir)
 
     if platforms:
         set_orchestrator_platforms(workflow, platforms.keys())
@@ -257,7 +240,7 @@ def test_check_and_set_platforms_no_koji(tmpdir, caplog, user_params,
     flexmock(util).should_receive('get_build_json').and_return(build_json)
     set_reactor_config_map(workflow, platforms)
 
-    runner = PreBuildPluginsRunner(tasker, workflow, [{
+    runner = PreBuildPluginsRunner(workflow, [{
         'name': PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
     }])
 
@@ -285,7 +268,7 @@ def test_check_and_set_platforms_no_platforms_in_limits(tmpdir, caplog, user_par
                                                         platforms, platform_only):
     write_container_yaml(tmpdir, platform_only=platform_only)
 
-    tasker, workflow = prepare(tmpdir)
+    workflow = prepare(tmpdir)
 
     if platforms:
         set_orchestrator_platforms(workflow, platforms.keys())
@@ -294,7 +277,7 @@ def test_check_and_set_platforms_no_platforms_in_limits(tmpdir, caplog, user_par
     flexmock(util).should_receive('get_build_json').and_return(build_json)
     set_reactor_config_map(workflow, platforms)
 
-    runner = PreBuildPluginsRunner(tasker, workflow, [{
+    runner = PreBuildPluginsRunner(workflow, [{
         'name': PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
     }])
 
@@ -314,7 +297,7 @@ def test_platforms_from_cluster_config(tmpdir, user_params,
                                        platforms, platform_only, cluster_platforms, result):
     write_container_yaml(tmpdir, platform_only=platform_only)
 
-    tasker, workflow = prepare(tmpdir)
+    workflow = prepare(tmpdir)
 
     if platforms:
         set_orchestrator_platforms(workflow, platforms.split())
@@ -324,7 +307,7 @@ def test_platforms_from_cluster_config(tmpdir, user_params,
 
     set_reactor_config_map(workflow, cluster_platforms)
 
-    runner = PreBuildPluginsRunner(tasker, workflow, [{
+    runner = PreBuildPluginsRunner(workflow, [{
         'name': PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
     }])
 
@@ -350,7 +333,7 @@ def test_disabled_clusters(tmpdir, caplog, user_params, koji_platforms,
                            cluster_platforms, result, skips, fails):
     write_container_yaml(tmpdir)
 
-    tasker, workflow = prepare(tmpdir)
+    workflow = prepare(tmpdir)
 
     build_json = {'metadata': {'labels': {}}}
     flexmock(util).should_receive('get_build_json').and_return(build_json)
@@ -362,7 +345,7 @@ def test_disabled_clusters(tmpdir, caplog, user_params, koji_platforms,
     flexmock(koji_util).should_receive('create_koji_session').and_return(session)
     set_reactor_config_map(workflow, cluster_platforms)
 
-    runner = PreBuildPluginsRunner(tasker, workflow, [{
+    runner = PreBuildPluginsRunner(workflow, [{
         'name': PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
         'args': {'koji_target': KOJI_TARGET},
     }])

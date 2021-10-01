@@ -33,18 +33,6 @@ DIGEST_V1 = 'sha256:7de72140ec27a911d3f88d60335f08d6530a4af136f7beab47797a196e84
 DIGEST_V2 = 'sha256:85a7e3fb684787b86e64808c5b91d926afda9d6b35a0642a72d7a746452e71c1'
 
 
-class MockerTasker(object):
-    def __init__(self):
-        self.pulled_images = []
-
-    def pull_image(self, image, insecure):
-        self.pulled_images.append(image)
-        return image.to_str()
-
-    def inspect_image(self, image):
-        pass
-
-
 class TestVerifyImageTypes(object):
     TEST_UNIQUE_IMAGE = 'foo:unique-tag'
 
@@ -288,12 +276,11 @@ class TestVerifyImageTypes(object):
         The simplest test case, and everything works
         """
         workflow = self.workflow()
-        tasker = MockerTasker()
 
         # Set the timeout parameters so that we retry exactly once, but quickly.
         # With the get_manifest_digests() API, the 'broken_response' case isn't
         # distinguishable from no manifest yet, so we retry until timout
-        plugin = VerifyMediaTypesPlugin(tasker, workflow)
+        plugin = VerifyMediaTypesPlugin(workflow)
         results = plugin.run()
 
         assert results == sorted([MEDIA_TYPE_DOCKER_V2_SCHEMA1,
@@ -354,9 +341,8 @@ class TestVerifyImageTypes(object):
                                            platform_descriptors, group, expected_results):
         workflow = self.workflow(registry_types=registry_types,
                                  platform_descriptors=platform_descriptors, group=group)
-        tasker = MockerTasker()
 
-        plugin = VerifyMediaTypesPlugin(tasker, workflow)
+        plugin = VerifyMediaTypesPlugin(workflow)
         results = plugin.run()
 
         assert results == sorted(expected_results)
@@ -405,9 +391,8 @@ class TestVerifyImageTypes(object):
         """
         workflow = self.workflow(registries=registries,
                                  platform_descriptors=platform_descriptors, group=group)
-        tasker = MockerTasker()
 
-        plugin = VerifyMediaTypesPlugin(tasker, workflow)
+        plugin = VerifyMediaTypesPlugin(workflow)
         results = plugin.run()
         assert results == sorted(expected_results)
 
@@ -445,9 +430,8 @@ class TestVerifyImageTypes(object):
         """
         workflow = self.workflow(registries=registries, platforms=platforms,
                                  platform_descriptors=platform_descriptors, group=group)
-        tasker = MockerTasker()
 
-        plugin = VerifyMediaTypesPlugin(tasker, workflow)
+        plugin = VerifyMediaTypesPlugin(workflow)
         results = plugin.run()
 
         assert results == sorted(expected_results)
@@ -459,9 +443,8 @@ class TestVerifyImageTypes(object):
         """
         workflow = self.workflow()
         workflow.tag_conf = TagConf()
-        tasker = MockerTasker()
 
-        plugin = VerifyMediaTypesPlugin(tasker, workflow)
+        plugin = VerifyMediaTypesPlugin(workflow)
         with pytest.raises(ValueError) as exc:
             plugin.run()
         assert "no unique image set, impossible to verify media types" in str(exc.value)
@@ -472,9 +455,8 @@ class TestVerifyImageTypes(object):
         Build was unsuccessful, return an empty list
         """
         workflow = self.workflow(build_process_failed=True)
-        tasker = MockerTasker()
 
-        plugin = VerifyMediaTypesPlugin(tasker, workflow)
+        plugin = VerifyMediaTypesPlugin(workflow)
         results = plugin.run()
         assert results == []
 
@@ -484,9 +466,8 @@ class TestVerifyImageTypes(object):
         All results are garbage, so fail
         """
         workflow = self.workflow(fail="bad_results")
-        tasker = MockerTasker()
 
-        plugin = VerifyMediaTypesPlugin(tasker, workflow)
+        plugin = VerifyMediaTypesPlugin(workflow)
         expect_media_types = []
         expect_missing_types = sorted([MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
                                        MEDIA_TYPE_DOCKER_V2_SCHEMA1,
@@ -532,8 +513,7 @@ class TestVerifyImageTypes(object):
                                      MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                  ])
         workflow.prebuild_results[PLUGIN_FETCH_SOURCES_KEY] = {}
-        tasker = MockerTasker()
 
-        plugin = VerifyMediaTypesPlugin(tasker, workflow)
+        plugin = VerifyMediaTypesPlugin(workflow)
         results = plugin.run()
         assert results == [MEDIA_TYPE_DOCKER_V2_SCHEMA2]

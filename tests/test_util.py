@@ -25,17 +25,14 @@ from textwrap import dedent
 from flexmock import flexmock
 
 from collections import OrderedDict
-import docker
 import yaml
 
-from atomic_reactor.build import BuildResult
 from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA1, MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
                                       DOCKERIGNORE, RELATIVE_REPOS_PATH)
-from atomic_reactor.inner import DockerBuildWorkflow
-from atomic_reactor.util import (wait_for_command,
-                                 LazyGit, figure_out_build_file,
+from atomic_reactor.inner import DockerBuildWorkflow, BuildResult
+from atomic_reactor.util import (LazyGit, figure_out_build_file,
                                  render_yum_repo, process_substitutions,
                                  get_checksums, print_version_of_tools,
                                  get_version_of_tools,
@@ -65,27 +62,18 @@ from atomic_reactor.util import (wait_for_command,
                                  has_operator_bundle_manifest, DockerfileImages,
                                  terminal_key_paths,
                                  )
-from tests.constants import (DOCKERFILE_GIT, INPUT_IMAGE, MOCK, REACTOR_CONFIG_MAP)
+from tests.constants import (DOCKERFILE_GIT, MOCK, REACTOR_CONFIG_MAP)
 import atomic_reactor.util
+from atomic_reactor.utils import imageutil
 from atomic_reactor.constants import INSPECT_CONFIG, PLUGIN_BUILD_ORCHESTRATE_KEY
 from atomic_reactor.source import SourceConfig
 from osbs.utils import ImageName
 from osbs.exceptions import OsbsValidationException
 from tests.util import requires_internet
-from tests.stubs import StubInsideBuilder, StubSource
+from tests.stubs import StubSource
 
 if MOCK:
-    from tests.docker_mock import mock_docker
     from tests.retry_mock import mock_get_retry_session
-
-
-def test_wait_for_command():
-    if MOCK:
-        mock_docker()
-
-    d = docker.APIClient()
-    logs_gen = d.pull(INPUT_IMAGE, decode=True, stream=True)
-    assert wait_for_command(logs_gen) is not None
 
 
 class TestCommandResult(object):
@@ -1058,8 +1046,7 @@ def test_df_parser_parent_env_wf(tmpdir, workflow, caplog, env_arg):
         """)
     env_conf = {INSPECT_CONFIG: {"Env": env_arg}}
     workflow.source = StubSource()
-    workflow.builder = StubInsideBuilder()
-    workflow.builder.set_inspection_data(env_conf)
+    flexmock(imageutil).should_receive('base_image_inspect').and_return(env_conf)
     df = df_parser(str(tmpdir), workflow=workflow)
     df.content = df_content
 
@@ -1756,7 +1743,6 @@ def test_has_operator_manifest(tmpdir, workflow, labels, f_true, f_false):
     for label in labels:
         df_content += 'LABEL {}\n'.format(label)
     workflow.source = StubSource()
-    workflow.builder = StubInsideBuilder()
     cont_path = os.path.join(str(tmpdir), 'Dockerfile')
     with open(cont_path, 'w') as f:
         f.write(df_content)

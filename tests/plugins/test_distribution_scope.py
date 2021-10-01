@@ -10,6 +10,7 @@ from atomic_reactor.constants import INSPECT_CONFIG
 from atomic_reactor.plugins.pre_distribution_scope import (DistributionScopePlugin,
                                                            DisallowedDistributionScope)
 from atomic_reactor.util import DockerfileImages
+from atomic_reactor.utils import imageutil
 from flexmock import flexmock
 import logging
 import os
@@ -19,7 +20,6 @@ import pytest
 class TestDistributionScope(object):
     def instantiate_plugin(self, tmpdir, parent_labels, current_scope, base_from_scratch=False):
         workflow = flexmock()
-        setattr(workflow, 'builder', flexmock())
         filename = os.path.join(str(tmpdir), 'Dockerfile')
         with open(filename, 'wt') as df:
             df.write('FROM scratch\n')
@@ -28,20 +28,19 @@ class TestDistributionScope(object):
 
         setattr(workflow, 'df_path', filename)
 
-        setattr(workflow.builder, 'base_image_inspect', {})
         if not base_from_scratch:
-            setattr(workflow.builder, 'base_image_inspect', {
-                INSPECT_CONFIG: {
-                    'Labels': parent_labels,
-                }
-            })
+            (flexmock(imageutil)
+                .should_receive('base_image_inspect')
+                .and_return({INSPECT_CONFIG: {'Labels': parent_labels}}))
+        else:
+            flexmock(imageutil).should_receive('base_image_inspect').and_return({})
 
         dockerfile_images = DockerfileImages([])
         if base_from_scratch:
             dockerfile_images = DockerfileImages(['scratch'])
         setattr(workflow, 'dockerfile_images', dockerfile_images)
 
-        plugin = DistributionScopePlugin(None, workflow)
+        plugin = DistributionScopePlugin(workflow)
         plugin.log = logging.getLogger('plugin')
         return plugin
 

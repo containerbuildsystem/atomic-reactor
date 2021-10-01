@@ -13,9 +13,8 @@ import pytest
 from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.pre_check_user_settings import CheckUserSettingsPlugin
 from atomic_reactor.util import df_parser, DockerfileImages
-from atomic_reactor.constants import (CONTAINER_IMAGEBUILDER_BUILD_METHOD,
-                                      CONTAINER_DOCKERPY_BUILD_METHOD, REPO_CONTENT_SETS_CONFIG,
-                                      REPO_FETCH_ARTIFACTS_URL, REPO_FETCH_ARTIFACTS_KOJI)
+from atomic_reactor.constants import (REPO_CONTENT_SETS_CONFIG, REPO_FETCH_ARTIFACTS_URL,
+                                      REPO_FETCH_ARTIFACTS_KOJI)
 
 from tests.mock_env import MockEnv
 from tests.stubs import StubSource
@@ -72,16 +71,13 @@ class FakeSource(StubSource):
         return self.dockerfile_path, self.path
 
 
-def mock_env(dockerfile_path, docker_tasker,
-             labels=None, flatpak=False, dockerfile_f=mock_dockerfile,
+def mock_env(dockerfile_path, labels=None, flatpak=False, dockerfile_f=mock_dockerfile,
              isolated=None):
     """Mock test environment
 
     :param dockerfile_path: the path to the fake dockerfile to be created, not including the
         dockerfile filename.
     :type dockerfile_path: py.path.LocalPath
-    :param docker_tasker: docker_tasker fixture from conftest. Passed to ``MockEnv.create_runner``
-        directly to create a corresponding plugin runner instance.
     :param labels: an iterable labels set for testing operator bundle or appregistry build.
     :type labels: iterable[str]
     :param bool flatpak: a flag to indicate whether the test is for a flatpak build.
@@ -109,7 +105,7 @@ def mock_env(dockerfile_path, docker_tasker,
     env.workflow._df_path = str(dockerfile_path)
     env.workflow.dockerfile_images = DockerfileImages([] if flatpak else dfp.parent_images)
 
-    return env.create_runner(docker_tasker)
+    return env.create_runner()
 
 
 class TestDockerfileChecks(object):
@@ -121,9 +117,9 @@ class TestDockerfileChecks(object):
         (['version="0.1.test.label.version_with_underscore"'], False),
         (['version="0.1/.test.label.version|with|error"'], True),
     ))
-    def test_label_version_check(self, tmpdir, docker_tasker, labels, expected_fail):
+    def test_label_version_check(self, tmpdir, labels, expected_fail):
         """Dockerfile label version can't contain '/' character"""
-        runner = mock_env(tmpdir, docker_tasker, labels=labels)
+        runner = mock_env(tmpdir, labels=labels)
 
         if expected_fail:
             with pytest.raises(PluginFailedException) as e:
@@ -142,9 +138,9 @@ class TestDockerfileChecks(object):
         (['com.redhat.delivery.appregistry=true'], False),
         (['com.redhat.delivery.operator.bundle=true'], False),
     ))
-    def test_mutual_exclusivity_of_labels(self, tmpdir, docker_tasker, labels, expected_fail):
+    def test_mutual_exclusivity_of_labels(self, tmpdir, labels, expected_fail):
         """Appregistry and operator.bundle labels are mutually exclusive"""
-        runner = mock_env(tmpdir, docker_tasker, labels=labels)
+        runner = mock_env(tmpdir, labels=labels)
 
         if expected_fail:
             with pytest.raises(PluginFailedException) as e:
@@ -163,7 +159,7 @@ class TestDockerfileChecks(object):
         [True, True, [], False],
     ))
     def test_operator_bundle_from_scratch(
-        self, tmpdir, docker_tasker, from_scratch, multistage, labels, expected_fail
+        self, tmpdir, from_scratch, multistage, labels, expected_fail
     ):
         """Operator bundle can be only single stage and FROM scratch"""
         if multistage:
@@ -173,11 +169,7 @@ class TestDockerfileChecks(object):
 
         dockerfile_f = partial(dockerfile_f, from_scratch=from_scratch)
 
-        docker_tasker.build_method = CONTAINER_IMAGEBUILDER_BUILD_METHOD
-        runner = mock_env(
-            tmpdir, docker_tasker,
-            dockerfile_f=dockerfile_f, labels=labels
-        )
+        runner = mock_env(tmpdir, dockerfile_f=dockerfile_f, labels=labels)
 
         if expected_fail:
             with pytest.raises(PluginFailedException) as e:
@@ -186,39 +178,12 @@ class TestDockerfileChecks(object):
         else:
             runner.run()
 
-    def test_flatpak_skip_dockerfile_check(self, tmpdir, docker_tasker, caplog):
+    def test_flatpak_skip_dockerfile_check(self, tmpdir, caplog):
         """Flatpak builds have no user Dockerfiles, dockefile check must be skipped"""
-        runner = mock_env(tmpdir, docker_tasker, flatpak=True)
+        runner = mock_env(tmpdir, flatpak=True)
         runner.run()
 
         assert 'Skipping Dockerfile checks' in caplog.text
-
-    @pytest.mark.parametrize(('build_method', 'multistage', 'expected_fail'), [
-        (CONTAINER_IMAGEBUILDER_BUILD_METHOD, True, False),
-        (CONTAINER_IMAGEBUILDER_BUILD_METHOD, False, False),
-        (CONTAINER_DOCKERPY_BUILD_METHOD, True, True),
-        (CONTAINER_DOCKERPY_BUILD_METHOD, False, False),
-    ])
-    def test_multistage_docker_api(self, tmpdir, docker_tasker, build_method, multistage,
-                                   expected_fail):
-        """Multistage build should fail with docker_api"""
-        if multistage:
-            dockerfile_f = mock_dockerfile_multistage
-        else:
-            dockerfile_f = mock_dockerfile
-
-        docker_tasker.build_method = build_method
-        runner = mock_env(tmpdir, docker_tasker, dockerfile_f=dockerfile_f)
-        if expected_fail:
-            with pytest.raises(PluginFailedException) as e:
-                runner.run()
-            msg = "Multistage builds can't be built with docker_api," \
-                  "use 'image_build_method' in container.yaml " \
-                  "with '{}'".format(CONTAINER_IMAGEBUILDER_BUILD_METHOD)
-            assert msg in str(e.value)
-
-        else:
-            runner.run()
 
 
 def write_fetch_artifacts_url(repo_dir, make_mistake=False):
@@ -274,32 +239,32 @@ def write_content_sets_yml(repo_dir, make_mistake=False):
 class TestValidateUserConfigFiles(object):
     """Test the validate_user_config_files"""
 
-    def test_validate_the_config_files(self, docker_tasker, tmpdir):
+    def test_validate_the_config_files(self, tmpdir):
         write_fetch_artifacts_koji(tmpdir)
         write_fetch_artifacts_url(tmpdir)
         write_content_sets_yml(tmpdir)
 
-        runner = mock_env(tmpdir, docker_tasker)
+        runner = mock_env(tmpdir)
         runner.run()
 
-    def test_catch_invalid_fetch_artifacts_url(self, docker_tasker, tmpdir):
+    def test_catch_invalid_fetch_artifacts_url(self, tmpdir):
         write_fetch_artifacts_url(tmpdir, make_mistake=True)
 
-        runner = mock_env(tmpdir, docker_tasker)
+        runner = mock_env(tmpdir)
         with pytest.raises(PluginFailedException, match="'sha4096' was unexpected"):
             runner.run()
 
-    def test_catch_invalid_fetch_artifacts_koji(self, docker_tasker, tmpdir):
+    def test_catch_invalid_fetch_artifacts_koji(self, tmpdir):
         write_fetch_artifacts_koji(tmpdir, make_mistake=True)
 
-        runner = mock_env(tmpdir, docker_tasker)
+        runner = mock_env(tmpdir)
         with pytest.raises(PluginFailedException, match="'nvr' is a required property"):
             runner.run()
 
-    def test_catch_invalid_content_sets(self, docker_tasker, tmpdir):
+    def test_catch_invalid_content_sets(self, tmpdir):
         write_content_sets_yml(tmpdir, make_mistake=True)
 
-        runner = mock_env(tmpdir, docker_tasker)
+        runner = mock_env(tmpdir)
         with pytest.raises(PluginFailedException, match="validating 'pattern' has failed"):
             runner.run()
 
@@ -320,20 +285,15 @@ class TestIsolatedBuildChecks(object):
             (False, False, False, False),
         ]
     )
-    def test_isolated_from_scratch_build(
-        self, docker_tasker, tmpdir,
-        isolated, bundle, from_scratch, expected_fail,
-    ):
+    def test_isolated_from_scratch_build(self, tmpdir, isolated, bundle, from_scratch,
+                                         expected_fail):
         """Test if isolated FROM scratch builds are prohibited except
         operator bundle builds"""
         labels = ['com.redhat.delivery.operator.bundle=true'] if bundle else []
 
         dockerfile_f = partial(mock_dockerfile, from_scratch=from_scratch)
 
-        runner = mock_env(
-            tmpdir, docker_tasker,
-            dockerfile_f=dockerfile_f, labels=labels, isolated=isolated
-        )
+        runner = mock_env(tmpdir, dockerfile_f=dockerfile_f, labels=labels, isolated=isolated)
         if expected_fail:
             with pytest.raises(PluginFailedException) as exc_info:
                 runner.run()

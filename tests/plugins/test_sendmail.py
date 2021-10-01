@@ -190,7 +190,7 @@ class TestSendMailPlugin(object):
         add_koji_map_in_workflow(workflow, hub_url='/', root_url='',
                                  ssl_certs_dir='/certs')
 
-        p = SendMailPlugin(None, workflow,
+        p = SendMailPlugin(workflow,
                            smtp_host='smtp.bar.com', from_address='foo@bar.com',
                            send_on=['unknown_state', MS])
         with pytest.raises(PluginFailedException) as e:
@@ -231,7 +231,7 @@ class TestSendMailPlugin(object):
         add_koji_map_in_workflow(workflow, hub_url='/', root_url='',
                                  ssl_certs_dir='/certs')
 
-        p = SendMailPlugin(None, workflow, **kwargs)
+        p = SendMailPlugin(workflow, **kwargs)
         assert p._should_send(success, manual_canceled) == expected
 
     @pytest.mark.parametrize(('has_kerberos', 'koji_task_id',
@@ -269,7 +269,7 @@ class TestSendMailPlugin(object):
         add_koji_map_in_workflow(workflow, hub_url='/', root_url='',
                                  ssl_certs_dir='/certs')
 
-        p = SendMailPlugin(None, workflow, email_domain=email_domain)
+        p = SendMailPlugin(workflow, email_domain=email_domain)
         koji_task_owner = get_koji_task_owner(p.session, p.koji_task_id)
 
         try:
@@ -332,7 +332,7 @@ class TestSendMailPlugin(object):
         add_koji_map_in_workflow(workflow, hub_url=None, root_url='https://koji/',
                                  ssl_certs_dir='/certs')
 
-        p = SendMailPlugin(None, workflow, **kwargs)
+        p = SendMailPlugin(workflow, **kwargs)
         if expected_receivers is not None:
             assert sorted(expected_receivers) == sorted(p._get_receivers_list())
         else:
@@ -428,7 +428,7 @@ class TestSendMailPlugin(object):
                                  root_url='https://koji/',
                                  ssl_certs_dir='/certs')
 
-        p = SendMailPlugin(None, workflow, **kwargs)
+        p = SendMailPlugin(workflow, **kwargs)
 
         # Submitter is updated in _get_receivers_list
         try:
@@ -537,7 +537,7 @@ class TestSendMailPlugin(object):
         add_koji_map_in_workflow(workflow, hub_url='/', root_url='',
                                  ssl_certs_dir='/certs')
 
-        p = SendMailPlugin(None, workflow, **kwargs)
+        p = SendMailPlugin(workflow, **kwargs)
         _, _, fail_logs = p._render_mail(False, False)
         assert not fail_logs
 
@@ -598,7 +598,7 @@ class TestSendMailPlugin(object):
         add_koji_map_in_workflow(workflow, hub_url='/', root_url='',
                                  ssl_certs_dir='/certs')
 
-        p = SendMailPlugin(None, workflow, **kwargs)
+        p = SendMailPlugin(workflow, **kwargs)
 
         if not expected_receivers:
             with pytest.raises(RuntimeError):
@@ -647,7 +647,7 @@ class TestSendMailPlugin(object):
         add_koji_map_in_workflow(workflow, hub_url='/', root_url='',
                                  ssl_certs_dir='/certs')
 
-        p = SendMailPlugin(None, workflow, **kwargs)
+        p = SendMailPlugin(workflow, **kwargs)
         receivers = p._get_receivers_list()
         assert sorted(receivers) == sorted(expected_receivers)
 
@@ -724,7 +724,7 @@ class TestSendMailPlugin(object):
         add_koji_map_in_workflow(workflow, hub_url='/', root_url='',
                                  ssl_certs_dir='/certs')
 
-        p = SendMailPlugin(None, workflow, **kwargs)
+        p = SendMailPlugin(workflow, **kwargs)
         if not expected_receivers:
             with pytest.raises(RuntimeError):
                 p._get_receivers_list()
@@ -745,7 +745,7 @@ class TestSendMailPlugin(object):
         add_koji_map_in_workflow(workflow, hub_url='/', root_url='',
                                  ssl_certs_dir='/certs')
 
-        p = SendMailPlugin(None, workflow, from_address='foo@bar.com', smtp_host='smtp.spam.com')
+        p = SendMailPlugin(workflow, from_address='foo@bar.com', smtp_host='smtp.spam.com')
 
         class SMTP(object):
             def sendmail(self, from_addr, to, msg):
@@ -788,7 +788,7 @@ class TestSendMailPlugin(object):
         add_koji_map_in_workflow(workflow, hub_url='/', root_url='',
                                  ssl_certs_dir='/certs')
 
-        p = SendMailPlugin(None, workflow,
+        p = SendMailPlugin(workflow,
                            from_address='foo@bar.com', smtp_host='smtp.spam.com',
                            send_on=[])
 
@@ -833,7 +833,7 @@ class TestSendMailPlugin(object):
                      LogEntry(None, 'orchestrator line 2'),
                      LogEntry('x86_64', 'Hurray for bacon: \u2017'),
                      LogEntry('x86_64', 'line 2')]
-        p = SendMailPlugin(None, workflow,
+        p = SendMailPlugin(workflow,
                            from_address='foo@bar.com', smtp_host='smtp.spam.com',
                            send_on=[])
 
@@ -864,7 +864,7 @@ class TestSendMailPlugin(object):
         add_koji_map_in_workflow(workflow, hub_url='/', root_url='',
                                  ssl_certs_dir='/certs')
 
-        p = SendMailPlugin(None, workflow,
+        p = SendMailPlugin(workflow,
                            from_address='foo@bar.com', smtp_host='smtp.spam.com',
                            send_on=[], error_addresses=error_addresses)
 
@@ -894,7 +894,7 @@ class TestSendMailPlugin(object):
         add_koji_map_in_workflow(workflow, hub_url='/', root_url='',
                                  ssl_certs_dir='/certs')
 
-        p = SendMailPlugin(None, workflow,
+        p = SendMailPlugin(workflow,
                            from_address='foo@bar.com', smtp_host='smtp.spam.com',
                            send_on=[], error_addresses=error_addresses)
 
@@ -919,7 +919,7 @@ class TestSendMailPlugin(object):
         add_koji_map_in_workflow(workflow, hub_url='/', root_url='',
                                  ssl_certs_dir='/certs')
 
-        p = SendMailPlugin(None, workflow,
+        p = SendMailPlugin(workflow,
                            from_address='foo@bar.com', smtp_host='smtp.spam.com',
                            send_on=[MS])
 
@@ -938,7 +938,7 @@ class TestSendMailPlugin(object):
         add_koji_map_in_workflow(workflow, hub_url='/', root_url='',
                                  ssl_certs_dir='/certs')
 
-        p = SendMailPlugin(None, workflow)
+        p = SendMailPlugin(workflow)
         p.run()
         log_msg = 'no smtp configuration, skipping plugin'
         assert log_msg in caplog.text

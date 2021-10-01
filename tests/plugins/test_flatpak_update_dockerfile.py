@@ -84,13 +84,11 @@ def mock_workflow(tmpdir, container_yaml, user_params=None):
         user_params = USER_PARAMS
     workflow = DockerBuildWorkflow(source=None)
     mock_source = MockSource(tmpdir)
-    setattr(workflow, 'builder', MockBuilder())
-    workflow.builder.source = mock_source
     flexmock(workflow, source=mock_source)
 
     with open(mock_source.container_yaml_path, "w") as f:
         f.write(container_yaml)
-    workflow.builder.source.config = SourceConfig(str(tmpdir))
+    workflow.source.config = SourceConfig(str(tmpdir))
     workflow.user_params = user_params
 
     df = df_parser(str(tmpdir))
@@ -166,7 +164,7 @@ def mock_odcs_session(workflow, config):
          .and_return(compose))
 
 
-@responses.activate  # noqa - docker_tasker fixture
+@responses.activate  # noqa
 @pytest.mark.skipif(not MODULEMD_AVAILABLE,
                     reason='libmodulemd not available')
 @pytest.mark.parametrize('config_name,worker,breakage', [
@@ -176,8 +174,7 @@ def mock_odcs_session(workflow, config):
     ('runtime', False, None),
     ('runtime', False, 'branch_mismatch'),
 ])
-def test_flatpak_update_dockerfile(tmpdir, docker_tasker,
-                                   config_name, worker, breakage):
+def test_flatpak_update_dockerfile(tmpdir, config_name, worker, breakage):
     config = CONFIGS[config_name]
 
     container_yaml = config['container_yaml']
@@ -245,7 +242,6 @@ def test_flatpak_update_dockerfile(tmpdir, docker_tasker,
     workflow.conf.conf = rcm
 
     runner = PreBuildPluginsRunner(
-        docker_tasker,
         workflow,
         [{
             'name': FlatpakUpdateDockerfilePlugin.key,
@@ -304,11 +300,10 @@ def test_flatpak_update_dockerfile(tmpdir, docker_tasker,
 
 @pytest.mark.skipif(not MODULEMD_AVAILABLE,
                     reason='libmodulemd not available')
-def test_skip_plugin(tmpdir, caplog, docker_tasker):
+def test_skip_plugin(tmpdir, caplog):
     workflow = mock_workflow(tmpdir, "", user_params={})
 
     runner = PreBuildPluginsRunner(
-        docker_tasker,
         workflow,
         [{
             'name': FlatpakUpdateDockerfilePlugin.key,

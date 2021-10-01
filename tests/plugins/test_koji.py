@@ -9,18 +9,14 @@ import koji
 import os
 
 from atomic_reactor.plugins.pre_koji import KojiPlugin
-from atomic_reactor.core import DockerTasker
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.util import DockerfileImages
 from flexmock import flexmock
 from fnmatch import fnmatch
 import pytest
-from tests.constants import MOCK
-from tests.stubs import StubInsideBuilder, StubSource
+from tests.stubs import StubSource
 from tests.util import add_koji_map_in_workflow
-if MOCK:
-    from tests.docker_mock import mock_docker
 
 
 KOJI_TARGET = "target"
@@ -87,12 +83,8 @@ class MockedPathInfo(object):
 
 
 def prepare():
-    if MOCK:
-        mock_docker()
-    tasker = DockerTasker()
     workflow = DockerBuildWorkflow(source=None)
     workflow.source = StubSource()
-    workflow.builder = StubInsideBuilder().for_workflow(workflow)
 
     session = MockedClientSession(hub='', opts=None)
     workflow.koji_session = session
@@ -100,7 +92,7 @@ def prepare():
              ClientSession=session,
              PathInfo=MockedPathInfo)
 
-    return tasker, workflow
+    return workflow
 
 
 @pytest.mark.usefixtures('user_params')
@@ -156,7 +148,7 @@ class TestKoji(object):
     def test_koji_plugin(self, tmpdir, caplog, parent_images, base_from_scratch,
                          target, expect_success, root, koji_ssl_certs,
                          expected_string, expected_file, proxy):
-        tasker, workflow = prepare()
+        workflow = prepare()
         dockerfile_images = []
         if parent_images:
             dockerfile_images.append('parent_image:latest')
@@ -174,7 +166,7 @@ class TestKoji(object):
         add_koji_map_in_workflow(workflow, hub_url='', root_url=root,
                                  ssl_certs_dir=str(tmpdir) if koji_ssl_certs else None)
 
-        runner = PreBuildPluginsRunner(tasker, workflow, [{
+        runner = PreBuildPluginsRunner(workflow, [{
             'name': KojiPlugin.key,
             'args': args,
         }])
@@ -223,7 +215,7 @@ class TestKoji(object):
         (None, [], True),
     ])
     def test_skip_plugin(self, caplog, target, yum_repos, include_repo):
-        tasker, workflow = prepare()
+        workflow = prepare()
         args = {'target': target}
 
         add_koji_map_in_workflow(workflow, hub_url='', root_url='http://example.com')
@@ -231,7 +223,7 @@ class TestKoji(object):
         workflow.user_params['include_koji_repo'] = include_repo
         workflow.user_params['yum_repourls'] = yum_repos
 
-        runner = PreBuildPluginsRunner(tasker, workflow, [{
+        runner = PreBuildPluginsRunner(workflow, [{
             'name': KojiPlugin.key,
             'args': args,
         }])

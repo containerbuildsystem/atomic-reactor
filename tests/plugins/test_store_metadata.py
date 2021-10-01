@@ -20,13 +20,13 @@ from atomic_reactor.constants import (PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
                                       PLUGIN_VERIFY_MEDIA_KEY,
                                       PLUGIN_FETCH_SOURCES_KEY,
                                       PLUGIN_RESOLVE_REMOTE_SOURCE)
-from atomic_reactor.build import BuildResult
-from atomic_reactor.inner import DockerBuildWorkflow
+from atomic_reactor.inner import DockerBuildWorkflow, BuildResult
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.exit_store_metadata_in_osv3 import StoreMetadataInOSv3Plugin
 from atomic_reactor.util import LazyGit, ManifestDigest, df_parser, DockerfileImages
+from atomic_reactor.utils import imageutil
 import pytest
 from tests.constants import (LOCALHOST_REGISTRY, DOCKER0_REGISTRY, TEST_IMAGE, TEST_IMAGE_NAME,
                              INPUT_IMAGE)
@@ -37,10 +37,6 @@ DIGEST2 = "sha256:00000000000000000000000000000000000000000000000000000000000000
 DIGEST_NOT_USED = "not-used"
 
 pytestmark = pytest.mark.usefixtures('user_params')
-
-
-class X(object):
-    image_id = INPUT_IMAGE
 
 
 def prepare(docker_registries=None):
@@ -101,8 +97,7 @@ def prepare(docker_registries=None):
         r.digests["namespace/image:asd123"] = ManifestDigest(v1=DIGEST_NOT_USED,
                                                              v2=DIGEST2)
 
-    setattr(workflow, 'builder', X())
-    setattr(workflow.builder, 'base_image_inspect', {'Id': '01234567'})
+    flexmock(imageutil).should_receive('base_image_inspect').and_return({'Id': '01234567'})
     workflow.build_logs = [
         "a", "b",
     ]
@@ -214,7 +209,6 @@ CMD blabla"""
         workflow.plugins_durations[PLUGIN_KOJI_UPLOAD_PLUGIN_KEY] = 3.03
 
     runner = ExitPluginsRunner(
-        None,
         workflow,
         [{
             'name': StoreMetadataInOSv3Plugin.key,
@@ -413,7 +407,6 @@ def test_metadata_plugin_source(image_id, br_annotations, expected_br_annotation
     workflow.plugins_errors = {}
 
     runner = ExitPluginsRunner(
-        None,
         workflow,
         [{
             'name': StoreMetadataInOSv3Plugin.key,
@@ -530,7 +523,6 @@ def test_koji_filesystem_label(res):
     if 'filesystem-koji-task-id' in res:
         workflow.labels['filesystem-koji-task-id'] = res['filesystem-koji-task-id']
     runner = ExitPluginsRunner(
-        None,
         workflow,
         [{
             'name': StoreMetadataInOSv3Plugin.key,
@@ -581,7 +573,6 @@ CMD blabla"""
     }
 
     runner = ExitPluginsRunner(
-        None,
         workflow,
         [{
             'name': StoreMetadataInOSv3Plugin.key,
@@ -618,7 +609,6 @@ def test_exit_before_dockerfile_created(tmpdir):  # noqa
     workflow._df_path = None
 
     runner = ExitPluginsRunner(
-        None,
         workflow,
         [{
             'name': StoreMetadataInOSv3Plugin.key,
@@ -648,7 +638,6 @@ CMD blabla"""
     workflow.df_dir = str(tmpdir)
 
     runner = ExitPluginsRunner(
-        None,
         workflow,
         [{
             'name': StoreMetadataInOSv3Plugin.key,
@@ -670,7 +659,6 @@ def test_store_metadata_fail_update_labels(caplog):
     workflow.labels = {'some-label': 'some-value'}
 
     runner = ExitPluginsRunner(
-        None,
         workflow,
         [{
             'name': StoreMetadataInOSv3Plugin.key,
@@ -722,7 +710,6 @@ CMD blabla"""
     workflow.df_dir = str(tmpdir)
 
     runner = ExitPluginsRunner(
-        None,
         workflow,
         [{
             'name': StoreMetadataInOSv3Plugin.key,
@@ -775,7 +762,6 @@ def test_set_koji_annotations_whitelist(tmpdir, koji_conf):
     flexmock(workflow, df_path=df.dockerfile_path)
     workflow.df_dir = str(tmpdir)
     runner = ExitPluginsRunner(
-        None,
         workflow,
         [{
             'name': StoreMetadataInOSv3Plugin.key,
@@ -805,7 +791,6 @@ def test_plugin_annotations():
     workflow.annotations = {'foo': {'bar': 'baz'}, 'spam': ['eggs']}
 
     runner = ExitPluginsRunner(
-        None,
         workflow,
         [{
             'name': StoreMetadataInOSv3Plugin.key,
@@ -827,7 +812,6 @@ def test_plugin_labels():
     workflow.labels = {'foo': 1, 'bar': 'two'}
 
     runner = ExitPluginsRunner(
-        None,
         workflow,
         [{
             'name': StoreMetadataInOSv3Plugin.key,

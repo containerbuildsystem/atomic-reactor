@@ -5,30 +5,13 @@ import pytest
 
 from atomic_reactor.constants import (EXPORTED_COMPRESSED_IMAGE_NAME_TEMPLATE,
                                       IMAGE_TYPE_DOCKER_ARCHIVE)
-from atomic_reactor.core import DockerTasker
 from atomic_reactor.plugin import PostBuildPluginsRunner
 from atomic_reactor.plugins.post_compress import CompressPlugin
-from osbs.utils import ImageName
-from atomic_reactor.build import BuildResult
-
-from tests.constants import INPUT_IMAGE, MOCK
-
-if MOCK:
-    from tests.docker_mock import mock_docker
-
-
-class Y(object):
-    dockerfile_path = None
-    path = None
-
-
-class X(object):
-    image_id = INPUT_IMAGE
-    source = Y()
-    base_image = ImageName.parse('asd')
+from atomic_reactor.inner import BuildResult
 
 
 class TestCompress(object):
+    @pytest.mark.skip(reason="plugin has to fetch image differently than via docker")
     @pytest.mark.parametrize('source_build', (True, False))
     @pytest.mark.parametrize('method, load_exported_image, give_export, extension', [
         ('gzip', False, True, 'gz'),
@@ -40,11 +23,6 @@ class TestCompress(object):
     def test_compress(self, tmpdir, caplog, workflow,
                       source_build, method,
                       load_exported_image, give_export, extension):
-        if MOCK:
-            mock_docker()
-
-        tasker = DockerTasker()
-        workflow.builder = X()
         exp_img = os.path.join(str(tmpdir), 'img.tar')
 
         if source_build:
@@ -56,10 +34,8 @@ class TestCompress(object):
             tarfile.open(exp_img, mode='w').close()
             workflow.exported_image_sequence.append({'path': exp_img,
                                                      'type': IMAGE_TYPE_DOCKER_ARCHIVE})
-            tasker = None  # image provided, should not query docker
 
         runner = PostBuildPluginsRunner(
-            tasker,
             workflow,
             [{
                 'name': CompressPlugin.key,
@@ -93,15 +69,9 @@ class TestCompress(object):
             assert ", ratio: " in caplog.text
 
     def test_skip_plugin(self, caplog, workflow):
-        if MOCK:
-            mock_docker()
-
-        tasker = DockerTasker()
-        workflow.builder = X()
         workflow.user_params['scratch'] = True
 
         runner = PostBuildPluginsRunner(
-            tasker,
             workflow,
             [{
                 'name': CompressPlugin.key,

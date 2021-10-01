@@ -28,7 +28,6 @@ from atomic_reactor.constants import (PLUGIN_ADD_FILESYSTEM_KEY,
 import atomic_reactor.utils.koji as koji_util
 from tests.constants import (DOCKERFILE_GIT, DOCKERFILE_SHA1, MOCK, IMPORTED_IMAGE_ID)
 if MOCK:
-    from tests.docker_mock import mock_docker
     from tests.retry_mock import mock_get_retry_session
 
 KOJI_HUB = 'https://koji-hub.com'
@@ -178,13 +177,9 @@ def mock_workflow(tmpdir, dockerfile=DEFAULT_DOCKERFILE,
     mock_source = MockSource(tmpdir)
     df = df_parser(str(tmpdir))
     df.content = dockerfile
-    setattr(workflow, 'builder', X(df.parent_images))
     workflow.dockerfile_images = DockerfileImages(df.parent_images)
-    workflow.builder.source = mock_source
     workflow.source = mock_source
     flexmock(workflow, df_path=df.dockerfile_path)
-
-    setattr(workflow.builder, 'df_path', df.dockerfile_path)
     mock_get_retry_session()
 
     if for_orchestrator:
@@ -196,7 +191,6 @@ def mock_workflow(tmpdir, dockerfile=DEFAULT_DOCKERFILE,
 def create_plugin_instance(tmpdir, kwargs=None, scratch=False,  # noqa
                            architectures=None, koji_target=KOJI_TARGET,
                            dockerfile=DEFAULT_DOCKERFILE):
-    tasker = flexmock()
     workflow = mock_workflow(tmpdir, dockerfile=dockerfile, scratch=scratch)
 
     if architectures:
@@ -207,7 +201,7 @@ def create_plugin_instance(tmpdir, kwargs=None, scratch=False,  # noqa
 
     make_and_store_reactor_config_map(workflow, {'root_url': kwargs.get('url', '')})
 
-    return AddFilesystemPlugin(tasker, workflow, koji_target=koji_target, **kwargs)
+    return AddFilesystemPlugin(workflow, koji_target=koji_target, **kwargs)
 
 
 def make_and_store_reactor_config_map(workflow, additional_koji=None):
@@ -221,11 +215,9 @@ def make_and_store_reactor_config_map(workflow, additional_koji=None):
     workflow.conf.conf = reactor_map
 
 
+@pytest.mark.skip(reason="plugin has to be reworked as it won't be importing image anymore")
 @pytest.mark.parametrize('scratch', [True, False])
-def test_add_filesystem_plugin_generated(tmpdir, docker_tasker, scratch):
-    if MOCK:
-        mock_docker()
-
+def test_add_filesystem_plugin_generated(tmpdir, scratch):
     workflow = mock_workflow(tmpdir, scratch=scratch)
     task_id = FILESYSTEM_TASK_ID
     mock_koji_session(scratch=scratch)
@@ -234,7 +226,6 @@ def test_add_filesystem_plugin_generated(tmpdir, docker_tasker, scratch):
     make_and_store_reactor_config_map(workflow, {'root_url': '', 'auth': {}})
 
     runner = PreBuildPluginsRunner(
-        docker_tasker,
         workflow,
         [{
             'name': PLUGIN_ADD_FILESYSTEM_KEY,
@@ -257,11 +248,9 @@ def test_add_filesystem_plugin_generated(tmpdir, docker_tasker, scratch):
     assert workflow.labels['filesystem-koji-task-id'] == FILESYSTEM_TASK_ID
 
 
+@pytest.mark.skip(reason="plugin has to be reworked as it won't be importing image anymore")
 @pytest.mark.parametrize('scratch', [True, False])
-def test_add_filesystem_plugin_legacy(tmpdir, docker_tasker, scratch):
-    if MOCK:
-        mock_docker()
-
+def test_add_filesystem_plugin_legacy(tmpdir, scratch):
     workflow = mock_workflow(tmpdir, scratch=scratch)
     mock_koji_session(scratch=scratch)
     mock_image_build_file(str(tmpdir))
@@ -269,7 +258,6 @@ def test_add_filesystem_plugin_legacy(tmpdir, docker_tasker, scratch):
     make_and_store_reactor_config_map(workflow, {'root_url': '', 'auth': {}})
 
     runner = PreBuildPluginsRunner(
-        docker_tasker,
         workflow,
         [{
             'name': PLUGIN_ADD_FILESYSTEM_KEY,
@@ -344,10 +332,7 @@ def test_missing_yum_repourls(tmpdir):  # noqa
 ])
 @pytest.mark.parametrize('raise_error', [True, False])
 def test_image_task_failure(tmpdir, build_cancel, error_during_cancel,
-                            raise_error, caplog, docker_tasker):
-    if MOCK:
-        mock_docker()
-
+                            raise_error, caplog):
     task_result = 'task-result'
 
     def _mockGetTaskResult(task_id):
@@ -364,7 +349,6 @@ def test_image_task_failure(tmpdir, build_cancel, error_during_cancel,
     make_and_store_reactor_config_map(workflow, {'root_url': '', 'auth': {}})
 
     runner = PreBuildPluginsRunner(
-        docker_tasker,
         workflow,
         [{
             'name': PLUGIN_ADD_FILESYSTEM_KEY,
@@ -670,6 +654,7 @@ def test_build_filesystem_from_task_id(tmpdir, prefix, architecture, suffix):
     assert match.group(0) == pattern
 
 
+@pytest.mark.skip(reason="plugin has to be reworked as it won't be importing image anymore")
 @pytest.mark.parametrize(('parents', 'skip_plugin'), [
     (('koji/image-build',), False),
     (('non-custom-image',), True),
@@ -685,11 +670,8 @@ def test_build_filesystem_from_task_id(tmpdir, prefix, architecture, suffix):
     ('x86_64', ['x86_64', 'aarch64'], False),
     (None, None, True),
 ])
-def test_image_download(tmpdir, docker_tasker, parents, skip_plugin, architecture,
+def test_image_download(tmpdir, parents, skip_plugin, architecture,
                         architectures, download_filesystem, caplog):
-    if MOCK:
-        mock_docker()
-
     workflow = mock_workflow(tmpdir, for_orchestrator=architectures is not None)
     workflow.dockerfile_images = DockerfileImages(parents)
     if not skip_plugin:
@@ -702,7 +684,6 @@ def test_image_download(tmpdir, docker_tasker, parents, skip_plugin, architectur
     make_and_store_reactor_config_map(workflow, {'root_url': '', 'auth': {}})
 
     runner = PreBuildPluginsRunner(
-        docker_tasker,
         workflow,
         [{
             'name': PLUGIN_ADD_FILESYSTEM_KEY,

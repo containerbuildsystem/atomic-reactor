@@ -18,11 +18,9 @@ import re
 from atomic_reactor.constants import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.constants import EXPORTED_SQUASHED_IMAGE_NAME
-from atomic_reactor.core import DockerTasker
 from atomic_reactor.plugin import BuildStepPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.build_source_container import SourceContainerPlugin
 from atomic_reactor.utils import retries
-from tests.docker_mock import mock_docker
 
 
 class MockSource(object):
@@ -37,29 +35,10 @@ class MockSource(object):
         return self.dockerfile_path, self.path
 
 
-class MockInsideBuilder(object):
-
-    def __init__(self):
-        mock_docker()
-        self.tasker = DockerTasker()
-        self.base_image = None
-        self.image_id = None
-        self.image = None
-        self.df_path = None
-        self.df_dir = None
-        self.parent_images_digests = {}
-
-    def ensure_not_built(self):
-        pass
-
-
 def mock_workflow(tmpdir, sources_dir='', remote_dir='', maven_dir=''):
     workflow = DockerBuildWorkflow(source=None)
-    builder = MockInsideBuilder()
     source = MockSource(tmpdir)
-    setattr(builder, 'source', source)
     setattr(workflow, 'source', source)
-    setattr(workflow, 'builder', builder)
 
     workflow.prebuild_results[PLUGIN_FETCH_SOURCES_KEY] = {
         'image_sources_dir': os.path.join(tmpdir.strpath, sources_dir),
@@ -113,10 +92,7 @@ def test_running_build(tmpdir, caplog, user_params,
 
     workflow = mock_workflow(tmpdir, sources_dir, remote_dir, maven_dir)
 
-    mocked_tasker = flexmock(workflow.builder.tasker)
-    mocked_tasker.should_receive('wait').and_return(0)
     runner = BuildStepPluginsRunner(
-        mocked_tasker,
         workflow,
         [{
             'name': SourceContainerPlugin.key,
@@ -277,10 +253,7 @@ def test_failed_build(tmpdir, caplog, user_params):
     (flexmock(subprocess).should_receive('check_output')
      .and_raise(subprocess.CalledProcessError(1, 'cmd', output='stub stdout')))
     workflow = mock_workflow(tmpdir)
-    mocked_tasker = flexmock(workflow.builder.tasker)
-    mocked_tasker.should_receive('wait').and_return(1)
     runner = BuildStepPluginsRunner(
-        mocked_tasker,
         workflow,
         [{
             'name': SourceContainerPlugin.key,

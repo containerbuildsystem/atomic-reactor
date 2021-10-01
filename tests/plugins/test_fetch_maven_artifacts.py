@@ -460,7 +460,7 @@ def mock_pnc_downloads(contents=None, pnc_responses=None, overrides=None):
 
 
 @responses.activate  # noqa
-def test_fetch_maven_artifacts(tmpdir, docker_tasker, user_params):
+def test_fetch_maven_artifacts(tmpdir, user_params):
     mock_koji_session()
     mock_fetch_artifacts_by_nvr(tmpdir)
     mock_fetch_artifacts_by_url(tmpdir)
@@ -469,7 +469,7 @@ def test_fetch_maven_artifacts(tmpdir, docker_tasker, user_params):
     mock_url_downloads()
     mock_pnc_downloads()
 
-    results = mock_env(tmpdir).create_runner(docker_tasker).run()
+    results = mock_env(tmpdir).create_runner().run()
 
     plugin_result = results[FetchMavenArtifactsPlugin.key]
 
@@ -509,14 +509,13 @@ def test_fetch_maven_artifacts(tmpdir, docker_tasker, user_params):
     ], [ARCHIVE_JAXB_GLASSFISH_JAR, ARCHIVE_JAXB_JAVADOC_GLASSFIX_JAR, ARCHIVE_JAXB_GLASSFISH_POM]),
 ))
 @responses.activate
-def test_fetch_maven_artifacts_nvr_filtering(tmpdir, docker_tasker, user_params,
-                                             nvr_requests, expected):
+def test_fetch_maven_artifacts_nvr_filtering(tmpdir, user_params, nvr_requests, expected):
     """Test filtering of archives in a Koji build."""
     mock_koji_session()
     mock_fetch_artifacts_by_nvr(tmpdir, contents=yaml.safe_dump(nvr_requests))
     mock_nvr_downloads(archives=expected)
 
-    results = mock_env(tmpdir).create_runner(docker_tasker).run()
+    results = mock_env(tmpdir).create_runner().run()
 
     plugin_result = results[FetchMavenArtifactsPlugin.key]
 
@@ -551,7 +550,7 @@ def test_fetch_maven_artifacts_nvr_filtering(tmpdir, docker_tasker, user_params,
     ], 'glassfish.org'),
 ))
 @responses.activate
-def test_fetch_maven_artifacts_nvr_no_match(tmpdir, docker_tasker, user_params,
+def test_fetch_maven_artifacts_nvr_no_match(tmpdir, user_params,
                                             nvr_requests, error_msg):
     """Err when a requested archive is not found in Koji build."""
     mock_koji_session()
@@ -559,40 +558,40 @@ def test_fetch_maven_artifacts_nvr_no_match(tmpdir, docker_tasker, user_params,
     mock_nvr_downloads()
 
     with pytest.raises(PluginFailedException) as e:
-        mock_env(tmpdir).create_runner(docker_tasker).run()
+        mock_env(tmpdir).create_runner().run()
 
     assert 'failed to find archives' in str(e.value)
     assert error_msg in str(e.value)
 
 
 @responses.activate  # noqa
-def test_fetch_maven_artifacts_nvr_bad_checksum(tmpdir, docker_tasker, user_params):
+def test_fetch_maven_artifacts_nvr_bad_checksum(tmpdir, user_params):
     """Err when downloaded archive from Koji build has unexpected checksum."""
     mock_koji_session()
     mock_fetch_artifacts_by_nvr(tmpdir)
     mock_nvr_downloads(overrides={1269850: {'body': 'corrupted-file'}})
 
     with pytest.raises(PluginFailedException) as e:
-        mock_env(tmpdir).create_runner(docker_tasker).run()
+        mock_env(tmpdir).create_runner().run()
 
     assert 'does not match expected checksum' in str(e.value)
 
 
 @responses.activate  # noqa
-def test_fetch_maven_artifacts_nvr_bad_url(tmpdir, docker_tasker, user_params):
+def test_fetch_maven_artifacts_nvr_bad_url(tmpdir, user_params):
     """Err on download errors for artifact from Koji build."""
     mock_koji_session()
     mock_fetch_artifacts_by_nvr(tmpdir)
     mock_nvr_downloads(overrides={1269850: {'status': 404}})
 
     with pytest.raises(PluginFailedException) as e:
-        mock_env(tmpdir).create_runner(docker_tasker).run()
+        mock_env(tmpdir).create_runner().run()
 
     assert '404 Client Error' in str(e.value)
 
 
 @responses.activate  # noqa
-def test_fetch_maven_artifacts_nvr_bad_nvr(tmpdir, docker_tasker, user_params):
+def test_fetch_maven_artifacts_nvr_bad_nvr(tmpdir, user_params):
     """Err when given nvr is not a valid build in Koji."""
     mock_koji_session()
     contents = dedent("""\
@@ -602,7 +601,7 @@ def test_fetch_maven_artifacts_nvr_bad_nvr(tmpdir, docker_tasker, user_params):
     mock_nvr_downloads()
 
     with pytest.raises(PluginFailedException) as e:
-        mock_env(tmpdir).create_runner(docker_tasker).run()
+        mock_env(tmpdir).create_runner().run()
 
     assert 'Build where-is-this-build-3.0-2 not found' in str(e.value)
 
@@ -629,14 +628,14 @@ def test_fetch_maven_artifacts_nvr_bad_nvr(tmpdir, docker_tasker, user_params):
 
 ))
 @responses.activate
-def test_fetch_maven_artifacts_nvr_schema_error(tmpdir, docker_tasker, user_params, contents):
+def test_fetch_maven_artifacts_nvr_schema_error(tmpdir, user_params, contents):
     """Err on invalid format for fetch-artifacts-koji.yaml"""
     mock_koji_session()
     mock_fetch_artifacts_by_nvr(tmpdir, contents=contents)
     mock_nvr_downloads()
 
     with pytest.raises(PluginFailedException) as e:
-        mock_env(tmpdir).create_runner(docker_tasker).run()
+        mock_env(tmpdir).create_runner().run()
 
     assert 'OsbsValidationException' in str(e.value)
 
@@ -684,19 +683,19 @@ def test_fetch_maven_artifacts_nvr_schema_error(tmpdir, docker_tasker, user_para
 
 ))
 @responses.activate
-def test_fetch_maven_artifacts_pnc_schema_error(tmpdir, docker_tasker, user_params, contents):
+def test_fetch_maven_artifacts_pnc_schema_error(tmpdir, user_params, contents):
     """Err on invalid format for fetch-artifacts-pnc.yaml"""
     mock_koji_session()
     mock_fetch_artifacts_from_pnc(str(tmpdir), contents=contents)
 
     with pytest.raises(PluginFailedException) as e:
-        mock_env(tmpdir).create_runner(docker_tasker).run()
+        mock_env(tmpdir).create_runner().run()
 
     assert 'OsbsValidationException' in str(e.value)
 
 
 @responses.activate
-def test_fetch_maven_artifacts_no_pnc_config(tmpdir, docker_tasker, user_params):
+def test_fetch_maven_artifacts_no_pnc_config(tmpdir, user_params):
     r_c_m = {
         'version': 1,
         'koji': {
@@ -710,7 +709,7 @@ def test_fetch_maven_artifacts_no_pnc_config(tmpdir, docker_tasker, user_params)
         mock_koji_session()
         mock_fetch_artifacts_from_pnc(tmpdir)
         mock_pnc_downloads()
-        mock_env(tmpdir, r_c_m=r_c_m).create_runner(docker_tasker).run()
+        mock_env(tmpdir, r_c_m=r_c_m).create_runner().run()
 
     msg = 'No PNC configuration found in reactor config map'
 
@@ -722,7 +721,7 @@ def test_fetch_maven_artifacts_no_pnc_config(tmpdir, docker_tasker, user_params)
     ([REMOTE_FILE_WITH_TARGET], [REMOTE_FILE_WITH_TARGET]),
 ))
 @responses.activate
-def test_fetch_maven_artifacts_url_with_target(tmpdir, docker_tasker, user_params,
+def test_fetch_maven_artifacts_url_with_target(tmpdir, user_params,
                                                contents, expected):
     """Remote file is downloaded into specified filename."""
     mock_koji_session()
@@ -730,7 +729,7 @@ def test_fetch_maven_artifacts_url_with_target(tmpdir, docker_tasker, user_param
     mock_fetch_artifacts_by_url(tmpdir, contents=yaml.safe_dump(remote_files))
     mock_url_downloads(remote_files)
 
-    results = mock_env(tmpdir).create_runner(docker_tasker).run()
+    results = mock_env(tmpdir).create_runner().run()
     plugin_result = results[FetchMavenArtifactsPlugin.key]
 
     assert len(plugin_result['download_queue']) == len(expected)
@@ -746,27 +745,27 @@ def test_fetch_maven_artifacts_url_with_target(tmpdir, docker_tasker, user_param
 
 
 @responses.activate  # noqa
-def test_fetch_maven_artifacts_url_bad_checksum(tmpdir, docker_tasker, user_params):
+def test_fetch_maven_artifacts_url_bad_checksum(tmpdir, user_params):
     """Err when downloaded remote file has unexpected checksum."""
     mock_koji_session()
     mock_fetch_artifacts_by_url(tmpdir)
     mock_url_downloads(overrides={REMOTE_FILE_SPAM['url']: {'body': 'corrupted-file'}})
 
     with pytest.raises(PluginFailedException) as e:
-        mock_env(tmpdir).create_runner(docker_tasker).run()
+        mock_env(tmpdir).create_runner().run()
 
     assert 'does not match expected checksum' in str(e.value)
 
 
 @responses.activate  # noqa
-def test_fetch_maven_artifacts_url_bad_url(tmpdir, docker_tasker, user_params):
+def test_fetch_maven_artifacts_url_bad_url(tmpdir, user_params):
     """Err on download errors for remote file."""
     mock_koji_session()
     mock_fetch_artifacts_by_url(tmpdir)
     mock_url_downloads(overrides={REMOTE_FILE_SPAM['url']: {'status': 404}})
 
     with pytest.raises(PluginFailedException) as e:
-        mock_env(tmpdir).create_runner(docker_tasker).run()
+        mock_env(tmpdir).create_runner().run()
 
     assert '404 Client Error' in str(e.value)
 
@@ -806,14 +805,14 @@ def test_fetch_maven_artifacts_url_bad_url(tmpdir, docker_tasker, user_params):
         """),
 ))
 @responses.activate
-def test_fetch_maven_artifacts_url_schema_error(tmpdir, docker_tasker, user_params, contents):
+def test_fetch_maven_artifacts_url_schema_error(tmpdir, user_params, contents):
     """Err on invalid format for fetch-artifacts-url.yaml"""
     mock_koji_session()
     mock_fetch_artifacts_by_url(tmpdir, contents=contents)
     mock_url_downloads()
 
     with pytest.raises(PluginFailedException) as e:
-        mock_env(tmpdir).create_runner(docker_tasker).run()
+        mock_env(tmpdir).create_runner().run()
 
     assert 'OsbsValidationException' in str(e.value)
 
@@ -836,14 +835,13 @@ def test_fetch_maven_artifacts_url_schema_error(tmpdir, docker_tasker, user_para
     (['spam.com', 'bacon.bz'], True),
 ))
 @responses.activate
-def test_fetch_maven_artifacts_url_allowed_domains(tmpdir, docker_tasker, user_params,
-                                                   domains, raises):
+def test_fetch_maven_artifacts_url_allowed_domains(tmpdir, user_params, domains, raises):
     """Validate URL domain is allowed when fetching remote file."""
     mock_koji_session()
     mock_fetch_artifacts_by_url(tmpdir)
     mock_url_downloads()
 
-    runner = mock_env(tmpdir, domains_override=domains).create_runner(docker_tasker)
+    runner = mock_env(tmpdir, domains_override=domains).create_runner()
 
     if raises:
         with pytest.raises(PluginFailedException) as e:
@@ -859,7 +857,7 @@ def test_fetch_maven_artifacts_url_allowed_domains(tmpdir, docker_tasker, user_p
 
 
 @responses.activate  # noqa
-def test_fetch_maven_artifacts_commented_out_files(tmpdir, docker_tasker, user_params):
+def test_fetch_maven_artifacts_commented_out_files(tmpdir, user_params):
     mock_koji_session()
     contents = dedent("""\
         # This file
@@ -873,7 +871,7 @@ def test_fetch_maven_artifacts_commented_out_files(tmpdir, docker_tasker, user_p
     mock_nvr_downloads()
     mock_url_downloads()
 
-    results = mock_env(tmpdir).create_runner(docker_tasker).run()
+    results = mock_env(tmpdir).create_runner().run()
     plugin_result = results[FetchMavenArtifactsPlugin.key]
 
     assert len(plugin_result['download_queue']) == 0

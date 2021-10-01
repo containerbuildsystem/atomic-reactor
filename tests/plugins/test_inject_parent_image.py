@@ -13,16 +13,12 @@ from atomic_reactor.plugins.pre_inject_parent_image import InjectParentImage
 from atomic_reactor.plugins.exit_remove_built_image import GarbageCollectionPlugin
 from atomic_reactor.util import DockerfileImages
 from flexmock import flexmock
-from tests.constants import MOCK
 from tests.util import add_koji_map_in_workflow
-from tests.stubs import StubInsideBuilder, StubSource
+from tests.stubs import StubSource
 from osbs.utils import graceful_chain_del
 
 import copy
 import pytest
-
-if MOCK:
-    from tests.docker_mock import mock_docker
 
 
 KOJI_HUB = 'http://koji.com/hub'
@@ -53,11 +49,8 @@ USE_DEFAULT_KOJI_BUILD_INFO = object()
 
 @pytest.fixture()
 def workflow(workflow):
-    if MOCK:
-        mock_docker()
     workflow.dockerfile_images = DockerfileImages(['source_registry.com/fedora:26'])
     workflow.source = StubSource()
-    workflow.builder = StubInsideBuilder().for_workflow(workflow)
 
     return workflow
 
@@ -233,7 +226,6 @@ class TestKojiParent(object):
                                  ssl_certs_dir=plugin_args.get('koji_ssl_certs_dir'))
 
         runner = PreBuildPluginsRunner(
-            workflow.builder.tasker,
             workflow,
             [{'name': InjectParentImage.key, 'args': plugin_args}]
         )

@@ -119,7 +119,7 @@ class TestDownloadRemoteSource(object):
          [CACHITO_ENV_VARIABLES2, CACHITO_ENV_VARIABLES1], True],
     ))
     def test_download_remote_source(
-        self, tmpdir, docker_tasker, user_params, insecure, archive_dir_exists,
+        self, tmpdir, user_params, insecure, archive_dir_exists,
         has_configuration, configuration_type, configuration_content, remote_sources,
         env_variables, multiple_remote_sources
     ):
@@ -172,8 +172,7 @@ class TestDownloadRemoteSource(object):
                     body=json.dumps(config_data)
                     )
 
-        plugin = DownloadRemoteSourcePlugin(docker_tasker, workflow,
-                                            remote_sources=remote_sources_copy)
+        plugin = DownloadRemoteSourcePlugin(workflow, remote_sources=remote_sources_copy)
         if archive_dir_exists:
             for remote in remote_sources_copy:
                 if multiple_remote_sources:

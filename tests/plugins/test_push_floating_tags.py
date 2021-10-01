@@ -13,20 +13,13 @@ import responses
 from tempfile import mkdtemp
 import os
 
-from tests.constants import MOCK, DOCKER0_REGISTRY
-from tests.stubs import StubInsideBuilder
-
-from atomic_reactor.core import DockerTasker
-from atomic_reactor.build import BuildResult
+from tests.constants import DOCKER0_REGISTRY
+from atomic_reactor.inner import BuildResult
 from atomic_reactor.plugin import ExitPluginsRunner
 from atomic_reactor.util import registry_hostname, ManifestDigest, sha256sum
 from osbs.utils import ImageName
 from atomic_reactor.plugins.exit_push_floating_tags import PushFloatingTagsPlugin
 from atomic_reactor.constants import PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_BUILD_ORCHESTRATE_KEY
-
-
-if MOCK:
-    from tests.docker_mock import mock_docker
 
 
 def to_bytes(value):
@@ -163,18 +156,6 @@ def mock_registries(registries, config, primary_images=None, manifest_results=No
 
 def mock_environment(tmpdir, workflow, primary_images=None, floating_images=None,
                      manifest_results=None, annotations=None):
-    if MOCK:
-        mock_docker()
-    tasker = DockerTasker()
-    base_image_id = '123456parent-id'
-    setattr(workflow, '_base_image_inspect', {'Id': base_image_id})
-    setattr(workflow, 'builder', StubInsideBuilder())
-    setattr(workflow.builder, 'image_id', '123456imageid')
-    setattr(workflow.builder, 'base_image', ImageName(repo='Fedora', tag='22'))
-    setattr(workflow.builder, 'source', StubInsideBuilder())
-    setattr(workflow.builder, 'built_image_info', {'ParentId': base_image_id})
-    setattr(workflow.builder.source, 'dockerfile_path', None)
-    setattr(workflow.builder.source, 'path', None)
     if primary_images:
         for image in primary_images:
             if '-' in ImageName.parse(image).tag:
@@ -189,7 +170,7 @@ def mock_environment(tmpdir, workflow, primary_images=None, floating_images=None
     if manifest_results:
         workflow.postbuild_results[PLUGIN_GROUP_MANIFESTS_KEY] = manifest_results
 
-    return tasker, workflow
+    return workflow
 
 
 REGISTRY_V2 = 'registry_v2.example.com'
@@ -410,9 +391,6 @@ NOGROUP_OCI_RESULTS = {
 def test_floating_tags_push(tmpdir, workflow, test_name, registries, manifest_results,
                             schema_version, floating_tags, workers, expected_exception,
                             caplog):
-    if MOCK:
-        mock_docker()
-
     primary_images = ['namespace/httpd:2.4', 'namespace/httpd:primary']
 
     goarch = {
@@ -454,10 +432,10 @@ def test_floating_tags_push(tmpdir, workflow, test_name, registries, manifest_re
                                                      primary_images=primary_images,
                                                      manifest_results=manifest_results,
                                                      schema_version=schema_version)
-    tasker, workflow = mock_environment(tmpdir, workflow, primary_images=primary_images,
-                                        floating_images=floating_tags,
-                                        manifest_results=manifest_results,
-                                        annotations=annotations)
+    workflow = mock_environment(tmpdir, workflow, primary_images=primary_images,
+                                floating_images=floating_tags,
+                                manifest_results=manifest_results,
+                                annotations=annotations)
 
     if workers:
         workflow.buildstep_plugins_conf = [{'name': PLUGIN_BUILD_ORCHESTRATE_KEY}]
@@ -491,7 +469,7 @@ def test_floating_tags_push(tmpdir, workflow, test_name, registries, manifest_re
            'platform_descriptors': platform_descriptors_list}
     workflow.conf.conf = rcm
 
-    runner = ExitPluginsRunner(tasker, workflow, plugins_conf)
+    runner = ExitPluginsRunner(workflow, plugins_conf)
     results = runner.run()
     plugin_result = results[PushFloatingTagsPlugin.key]
 
