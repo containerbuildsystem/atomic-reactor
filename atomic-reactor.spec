@@ -103,6 +103,7 @@ cp -a docs/manpage/atomic-reactor.1 %{buildroot}%{_mandir}/man1/
 %{python3_sitelib}/atomic_reactor/cli
 %{python3_sitelib}/atomic_reactor/plugins
 %{python3_sitelib}/atomic_reactor/schemas
+%{python3_sitelib}/atomic_reactor/tasks
 %{python3_sitelib}/atomic_reactor/utils
 %{python3_sitelib}/atomic_reactor/__pycache__/*.py*
 %{python3_sitelib}/atomic_reactor-*.egg-info
