@@ -20,14 +20,13 @@ class PushFloatingTagsPlugin(ExitPlugin):
     key = PLUGIN_PUSH_FLOATING_TAGS_KEY
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow):
+    def __init__(self, workflow):
         """
         constructor
 
-        :param tasker: DockerTasker instance
         :param workflow: DockerBuildWorkflow instance
         """
-        super(PushFloatingTagsPlugin, self).__init__(tasker, workflow)
+        super(PushFloatingTagsPlugin, self).__init__(workflow)
         self.manifest_util = ManifestUtil(workflow, None, self.log)
 
     def add_floating_tags(self, session, manifest_list_data, floating_images):

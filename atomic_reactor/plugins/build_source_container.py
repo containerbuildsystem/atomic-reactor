@@ -10,7 +10,7 @@ import shutil
 import subprocess
 import tempfile
 
-from atomic_reactor.build import BuildResult
+from atomic_reactor.inner import BuildResult
 from atomic_reactor.constants import (PLUGIN_SOURCE_CONTAINER_KEY, EXPORTED_SQUASHED_IMAGE_NAME,
                                       IMAGE_TYPE_DOCKER_ARCHIVE, PLUGIN_FETCH_SOURCES_KEY)
 from atomic_reactor.plugin import BuildStepPlugin

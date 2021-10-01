@@ -18,21 +18,21 @@ from atomic_reactor.constants import (PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
 from atomic_reactor.config import get_openshift_session
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.util import get_build_json
+from atomic_reactor.utils import imageutil
 
 
 class StoreMetadataInOSv3Plugin(ExitPlugin):
     key = "store_metadata_in_osv3"
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow):
+    def __init__(self, workflow):
         """
         constructor
 
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         """
         # call parent constructor
-        super(StoreMetadataInOSv3Plugin, self).__init__(tasker, workflow)
+        super(StoreMetadataInOSv3Plugin, self).__init__(workflow)
         self.source_build = PLUGIN_FETCH_SOURCES_KEY in self.workflow.prebuild_results
 
     def get_result(self, result):
@@ -223,7 +223,8 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
                     not self.workflow.dockerfile_images.base_from_scratch):
                 base_image_name = base_image
                 try:
-                    base_image_id = self.workflow.builder.base_image_inspect.get('Id', "")
+                    # OSBS2 TBD
+                    base_image_id = imageutil.base_image_inspect().get('Id', "")
                 except KeyError:
                     base_image_id = ""
             else:
@@ -256,7 +257,8 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
             annotations['commit_id'] = commit_id
             annotations['base-image-id'] = base_image_id
             annotations['base-image-name'] = base_image_name
-            annotations['image-id'] = self.workflow.builder.image_id or ''
+            # OSBS2 TBD
+            annotations['image-id'] = self.workflow.image_id or ''
             annotations['parent_images'] = json.dumps(parent_images_strings)
 
         media_types = []

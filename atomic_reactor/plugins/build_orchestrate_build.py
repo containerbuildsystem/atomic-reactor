@@ -18,7 +18,7 @@ import datetime as dt
 import copy
 import platform
 
-from atomic_reactor.build import BuildResult
+from atomic_reactor.inner import BuildResult
 from atomic_reactor.plugin import BuildStepPlugin
 from atomic_reactor.util import (df_parser, get_build_json, get_manifest_list,
                                  get_platforms)
@@ -239,7 +239,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
 
     key = PLUGIN_BUILD_ORCHESTRATE_KEY
 
-    def __init__(self, tasker, workflow, build_kwargs, platforms=None,
+    def __init__(self, workflow, build_kwargs, platforms=None,
                  worker_build_image=None, config_kwargs=None,
                  find_cluster_retry_delay=FIND_CLUSTER_RETRY_DELAY,
                  failure_retry_delay=FAILURE_RETRY_DELAY,
@@ -247,7 +247,6 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         """
         constructor
 
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param build_kwargs: dict, keyword arguments for starting worker builds
         :param platforms: list<str>, platforms to build
@@ -260,7 +259,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         :param max_cluster_fails: the maximum number of times a cluster can fail before being
                                   ignored
         """
-        super(OrchestrateBuildPlugin, self).__init__(tasker, workflow)
+        super(OrchestrateBuildPlugin, self).__init__(workflow)
         self.platforms = get_platforms(self.workflow)
 
         self.build_kwargs = build_kwargs
@@ -328,7 +327,8 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         self.config_kwargs['sources_command'] = self.workflow.conf.sources_command
 
     def adjust_build_kwargs(self):
-        self.build_kwargs['parent_images_digests'] = self.workflow.builder.parent_images_digests
+        # OSBS2 TBD
+        self.build_kwargs['parent_images_digests'] = self.workflow.parent_images_digests
         # All platforms should generate the same operator manifests. We can use any of them
         if self.platforms:
             self.build_kwargs['operator_manifests_extract_platform'] = list(self.platforms)[0]

@@ -39,15 +39,9 @@ class ResolveComposesPlugin(PreBuildPlugin):
     key = PLUGIN_RESOLVE_COMPOSES_KEY
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow,
-                 koji_target=None,
-                 signing_intent=None,
-                 compose_ids=tuple(),
-                 repourls=None,
-                 minimum_time_to_expire=MINIMUM_TIME_TO_EXPIRE,
-                 ):
+    def __init__(self, workflow, koji_target=None, signing_intent=None, compose_ids=tuple(),
+                 repourls=None, minimum_time_to_expire=MINIMUM_TIME_TO_EXPIRE):
         """
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param koji_target: str, koji target contains build tag to be used
                             when requesting compose from "tag"
@@ -57,7 +51,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
         :param minimum_time_to_expire: int, used in deciding when to extend compose's time
                                        to expire in seconds
         """
-        super(ResolveComposesPlugin, self).__init__(tasker, workflow)
+        super(ResolveComposesPlugin, self).__init__(workflow)
 
         if signing_intent and compose_ids:
             raise ValueError('signing_intent and compose_ids cannot be used at the same time')

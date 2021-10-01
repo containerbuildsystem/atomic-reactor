@@ -14,6 +14,7 @@ from atomic_reactor.constants import EXPORTED_SQUASHED_IMAGE_NAME, IMAGE_TYPE_DO
 from atomic_reactor.plugin import PrePublishPlugin
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.util import get_exported_image_metadata, is_flatpak_build
+from atomic_reactor.utils import imageutil
 from docker_squash.squash import Squash
 
 __all__ = ('PrePublishSquashPlugin', )
@@ -54,10 +55,9 @@ class PrePublishSquashPlugin(PrePublishPlugin):
     # Fail the build in case of squashing error
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, tag=None, from_base=True, from_layer=None,
+    def __init__(self, workflow, tag=None, from_base=True, from_layer=None,
                  dont_load=False, save_archive=True):
         """
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param from_base: bool, squash from base-image layer, on by default
         :param from_layer: layer from we will squash - if specified, takes precedence over from_base
@@ -67,17 +67,17 @@ class PrePublishSquashPlugin(PrePublishPlugin):
         :param save_archive: if `True` (default), squashed image is saved in an archive on the
             disk under the image.tar name; if `False`, archive is not generated
         """
-        super(PrePublishSquashPlugin, self).__init__(tasker, workflow)
-        self.image = self.workflow.builder.image_id
-        self.tag = tag or str(self.workflow.builder.image)
+        super(PrePublishSquashPlugin, self).__init__(workflow)
+        self.image = self.workflow.image_id
+        self.tag = tag or str(self.workflow.image)
         self.from_layer = from_layer
         if from_base and from_layer is None:
             if not self.workflow.dockerfile_images.base_from_scratch:
                 try:
-                    base_image_id = self.workflow.builder.base_image_inspect['Id']
+                    # OSBS2 TBD
+                    base_image_id = imageutil.base_image_inspect()['Id']
                 except KeyError:
-                    self.log.error("Missing Id in inspection: '%s'",
-                                   self.workflow.builder.base_image_inspect)
+                    self.log.error("Missing Id in inspection: '%s'", imageutil.base_image_inspect())
                     raise
                 self.log.info("will squash from base-image: '%s'", base_image_id)
                 self.from_layer = base_image_id
@@ -113,7 +113,7 @@ class PrePublishSquashPlugin(PrePublishPlugin):
             new_id = 'sha256:{}'.format(new_id)
 
         if not self.dont_load:
-            self.workflow.builder.image_id = new_id
+            self.workflow.image_id = new_id
 
         if self.save_archive:
             metadata.update(get_exported_image_metadata(output_path, IMAGE_TYPE_DOCKER_ARCHIVE))

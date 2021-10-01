@@ -36,13 +36,12 @@ class InjectParentImage(PreBuildPlugin):
     key = PLUGIN_INJECT_PARENT_IMAGE_KEY
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, koji_parent_build=None):
+    def __init__(self, workflow, koji_parent_build=None):
         """
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param koji_parent_build: str, either Koji build ID or Koji build NVR
         """
-        super(InjectParentImage, self).__init__(tasker, workflow)
+        super(InjectParentImage, self).__init__(workflow)
 
         self.koji_session = get_koji_session(self.workflow.conf)
         try:

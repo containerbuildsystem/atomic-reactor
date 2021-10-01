@@ -34,12 +34,11 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
 
     DOWNLOAD_DIR = 'artifacts'
 
-    def __init__(self, tasker, workflow):
+    def __init__(self, workflow):
         """
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         """
-        super(FetchMavenArtifactsPlugin, self).__init__(tasker, workflow)
+        super(FetchMavenArtifactsPlugin, self).__init__(workflow)
 
         self.path_info = self.workflow.conf.koji_path_info
 

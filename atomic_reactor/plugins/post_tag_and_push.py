@@ -40,16 +40,15 @@ class TagAndPushPlugin(PostBuildPlugin):
     key = "tag_and_push"
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, koji_target=None):
+    def __init__(self, workflow, koji_target=None):
         """
         constructor
 
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param koji_target: str, used only for sourcecontainers
         """
         # call parent constructor
-        super(TagAndPushPlugin, self).__init__(tasker, workflow)
+        super(TagAndPushPlugin, self).__init__(workflow)
 
         self.registries = self.workflow.conf.registries
         self.group = self.workflow.conf.group_manifests
@@ -178,9 +177,13 @@ class TagAndPushPlugin(PostBuildPlugin):
                         self.push_with_skopeo(registry_image, insecure, docker_push_secret,
                                               source_docker_archive)
                     else:
-                        self.tasker.tag_and_push_image(self.workflow.builder.image_id,
-                                                       registry_image, insecure=insecure,
-                                                       force=True, dockercfg=docker_push_secret)
+                        # OSBS2 TBD either use store manifest from ManifestUtil
+                        # or tag_imag from utils.image
+                        # we won't need pushing
+                        # self.tasker.tag_and_push_image(self.workflow.image_id,
+                        #                                registry_image, insecure=insecure,
+                        #                                force=True, dockercfg=docker_push_secret)
+                        pass
 
                     if source_docker_archive:
                         manifests_dict = get_all_manifests(registry_image, registry, insecure,

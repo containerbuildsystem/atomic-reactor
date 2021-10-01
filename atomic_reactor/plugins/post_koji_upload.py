@@ -68,12 +68,11 @@ class KojiUploadPlugin(PostBuildPlugin):
     key = PLUGIN_KOJI_UPLOAD_PLUGIN_KEY
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, koji_upload_dir, blocksize=None,
+    def __init__(self, workflow, koji_upload_dir, blocksize=None,
                  platform='x86_64', report_multiple_digests=False):
         """
         constructor
 
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param koji_upload_dir: str, path to use when uploading to hub
         :param blocksize: int, blocksize to use for uploading files
@@ -81,7 +80,7 @@ class KojiUploadPlugin(PostBuildPlugin):
         :param report_multiple_digests: bool, whether to report both schema 1
             and schema 2 digests
         """
-        super(KojiUploadPlugin, self).__init__(tasker, workflow)
+        super(KojiUploadPlugin, self).__init__(workflow)
 
         self.blocksize = blocksize
         self.koji_upload_dir = koji_upload_dir
@@ -156,8 +155,7 @@ class KojiUploadPlugin(PostBuildPlugin):
 
         metadata_version = 0
 
-        buildroot = get_buildroot(build_id=self.build_id, tasker=self.tasker,
-                                  osbs=self.osbs, rpms=True)
+        buildroot = get_buildroot(build_id=self.build_id, osbs=self.osbs, rpms=True)
         output_files, _ = get_output(workflow=self.workflow, buildroot_id=buildroot['id'],
                                      pullspec=self.pullspec_image, platform=self.platform,
                                      source_build=False, logs=self.get_logs())

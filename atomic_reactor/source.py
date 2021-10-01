@@ -22,7 +22,7 @@ except ImportError:
     from urllib.parse import urlparse
 
 from atomic_reactor import util
-from atomic_reactor.constants import CONTAINER_BUILD_METHODS, REPO_CONTAINER_CONFIG
+from atomic_reactor.constants import REPO_CONTAINER_CONFIG
 from atomic_reactor.util import read_yaml_from_file_path
 
 logger = logging.getLogger(__name__)
@@ -56,16 +56,11 @@ class SourceConfig(object):
         self.flatpak = self.data.get('flatpak')
         self.compose = self.data.get('compose')
         self.go = self.data.get('go') or {}
-        self.image_build_method = meth = self.data.get('image_build_method')
         self.inherit = self.compose.get('inherit', False) if self.compose else False
         if self.compose:
             # removing inherit from compose so it can be evaluated as a bool in order
             # to decide whether any ODCS composes will be created
             self.compose.pop('inherit', None)
-        assert meth is None or meth in CONTAINER_BUILD_METHODS, (
-           "unknown build method '{}' specified in {}; also, schema validated it."
-           .format(meth, REPO_CONTAINER_CONFIG)
-        )
         self.remote_source = self.data.get('remote_source')
         self.remote_sources = self.data.get('remote_sources')
         self.operator_manifests = self.data.get('operator_manifests')

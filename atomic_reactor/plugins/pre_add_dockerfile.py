@@ -47,12 +47,11 @@ from osbs.utils import Labels
 class AddDockerfilePlugin(PreBuildPlugin):
     key = "add_dockerfile"
 
-    def __init__(self, tasker, workflow, nvr=None, destdir=IMAGE_BUILD_INFO_DIR,
+    def __init__(self, workflow, nvr=None, destdir=IMAGE_BUILD_INFO_DIR,
                  use_final_dockerfile=False):
         """
         constructor
 
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param nvr: name-version-release, will be appended to Dockerfile-.
                     If not specified, try to get it from Name, Version, Release labels.
@@ -63,7 +62,7 @@ class AddDockerfilePlugin(PreBuildPlugin):
                                      was executed
         """
         # call parent constructor
-        super(AddDockerfilePlugin, self).__init__(tasker, workflow)
+        super(AddDockerfilePlugin, self).__init__(workflow)
 
         self.use_final_dockerfile = use_final_dockerfile
 

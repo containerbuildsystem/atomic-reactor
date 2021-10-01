@@ -15,6 +15,7 @@ from atomic_reactor.util import (
     base_image_is_custom, get_manifest_media_type, is_scratch_build,
     get_platforms, RegistrySession, RegistryClient
 )
+from atomic_reactor.utils import imageutil
 from copy import copy
 from osbs.utils import Labels
 
@@ -50,15 +51,14 @@ class KojiParentPlugin(PreBuildPlugin):
     key = PLUGIN_KOJI_PARENT_KEY
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, poll_interval=DEFAULT_POLL_INTERVAL,
+    def __init__(self, workflow, poll_interval=DEFAULT_POLL_INTERVAL,
                  poll_timeout=DEFAULT_POLL_TIMEOUT):
         """
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param poll_interval: int, seconds between polling for Koji build
         :param poll_timeout: int, max amount of seconds to wait for Koji build
         """
-        super(KojiParentPlugin, self).__init__(tasker, workflow)
+        super(KojiParentPlugin, self).__init__(workflow)
 
         self.koji_session = get_koji_session(self.workflow.conf)
 
@@ -83,7 +83,8 @@ class KojiParentPlugin(PreBuildPlugin):
                 self.workflow.dockerfile_images.custom_base_image):
             self._base_image_nvr = self.detect_parent_image_nvr(
                 self.workflow.dockerfile_images.base_image,
-                inspect_data=self.workflow.builder.base_image_inspect,
+                # OSBS2 TBD
+                inspect_data=imageutil.base_image_inspect(),
             )
 
         manifest_mismatches = []
@@ -135,7 +136,8 @@ class KojiParentPlugin(PreBuildPlugin):
         image_str = image.to_str()
         v2_list_type = get_manifest_media_type('v2_list')
         v2_type = get_manifest_media_type('v2')
-        image_digest_data = self.workflow.builder.parent_images_digests[image_str]
+        # OSBS2 TBD
+        image_digest_data = self.workflow.parent_images_digests[image_str]
         if v2_list_type in image_digest_data:
             media_type = v2_list_type
         elif v2_type in image_digest_data:
@@ -251,7 +253,8 @@ class KojiParentPlugin(PreBuildPlugin):
         """
 
         if inspect_data is None:
-            inspect_data = self.workflow.builder.parent_image_inspect(image_name)
+            # OSBS2 TBD
+            inspect_data = imageutil.get_inspect_for_image(image_name)
         labels = Labels(inspect_data[INSPECT_CONFIG].get('Labels', {}))
 
         label_names = [Labels.LABEL_TYPE_COMPONENT, Labels.LABEL_TYPE_VERSION,

@@ -20,7 +20,7 @@ from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import (get_build_json, get_platforms, base_image_is_custom,
                                  get_checksums, get_manifest_media_type,
                                  RegistrySession, RegistryClient)
-from atomic_reactor.core import RetryGeneratorException
+from atomic_reactor.utils import imageutil
 from io import BytesIO
 from requests.exceptions import HTTPError, RetryError, Timeout
 from osbs.utils import ImageName
@@ -30,19 +30,18 @@ class PullBaseImagePlugin(PreBuildPlugin):
     key = "pull_base_image"
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, check_platforms=False, inspect_only=False,
+    def __init__(self, workflow, check_platforms=False, inspect_only=False,
                  parent_images_digests=None):
         """
         constructor
 
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param check_platforms: validate parent images provide all platforms expected for the build
         :param inspect_only: bool, if set to True, base images will not be pulled
         :param parent_images_digests: dict, parent images manifest digests
         """
         # call parent constructor
-        super(PullBaseImagePlugin, self).__init__(tasker, workflow)
+        super(PullBaseImagePlugin, self).__init__(workflow)
 
         self.check_platforms = check_platforms
         self.inspect_only = inspect_only
@@ -54,7 +53,8 @@ class PullBaseImagePlugin(PreBuildPlugin):
         self.allowed_registries.append(self.source_registry_docker_uri)
 
         if parent_images_digests:
-            metadata = self.workflow.builder.parent_images_digests
+            # OSBS2 TBD
+            metadata = self.workflow.parent_images_digests
             metadata.update(parent_images_digests)
 
         self.manifest_list_cache = {}
@@ -104,17 +104,11 @@ class PullBaseImagePlugin(PreBuildPlugin):
         if digest_fetching_exceptions:
             raise RuntimeError('Error when extracting parent images manifest digests: {}'
                                .format(digest_fetching_exceptions))
-        self.workflow.builder.parents_pulled = not self.inspect_only
-
-        # generate configuration in builder for inspecting images
-        self.workflow.builder.pull_registries = \
-            {reg: {'insecure': reg_cli.insecure, 'dockercfg_path': reg_cli.dockercfg_path}
-             for reg, reg_cli in self.registry_clients.items()}
 
     def _get_image_with_digest(self, image):
         image_str = image.to_str()
         try:
-            image_metadata = self.workflow.builder.parent_images_digests[image_str]
+            image_metadata = self.workflow.parent_images_digests[image_str]
         except KeyError:
             return None
 
@@ -159,7 +153,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
             image.tag = self.workflow.dockerfile_images.base_image_key.tag
             image_str = image.to_str()
 
-        self.workflow.builder.parent_images_digests[image_str] = parent_digests
+        self.workflow.parent_images_digests[image_str] = parent_digests
 
     def _resolve_base_image(self, build_json):
         """If this is an auto-rebuild, adjust the base image to use the triggering build"""
@@ -195,16 +189,18 @@ class PullBaseImagePlugin(PreBuildPlugin):
     def _pull_and_tag_image(self, image, build_json, nonce):
         """Docker pull the image and tag it uniquely for use by this build"""
         image = image.copy()
-        reg_client = self._get_registry_client(image.registry)
+#        reg_client = self._get_registry_client(image.registry)
         for _ in range(20):
             # retry until pull and tag is successful or definitively fails.
             # should never require 20 retries but there's a race condition at work.
             # just in case something goes wildly wrong, limit to 20 so it terminates.
             try:
-                self.tasker.pull_image(image, insecure=reg_client.insecure,
-                                       dockercfg_path=reg_client.dockercfg_path)
+                # remove pulling
+                # OSBS2 TBD
+                # self.tasker.pull_image(image, insecure=reg_client.insecure,
+                #                        dockercfg_path=reg_client.dockercfg_path)
                 self.workflow.pulled_base_images.add(image.to_str())
-            except RetryGeneratorException:
+            except Exception:
                 self.log.error('failed to pull image: %s', image)
                 raise
 
@@ -218,7 +214,8 @@ class PullBaseImagePlugin(PreBuildPlugin):
 
             try:
                 self.log.info("tagging pulled image")
-                response = self.tasker.tag_image(image, new_image)
+                # OSBS2 TBD
+                response = imageutil.tag_image(image, new_image)
                 self.workflow.pulled_base_images.add(response)
                 self.log.debug("image '%s' is available as '%s'", image, new_image)
                 return new_image

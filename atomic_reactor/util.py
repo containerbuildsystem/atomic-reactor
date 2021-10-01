@@ -47,6 +47,7 @@ from atomic_reactor.constants import (DOCKERFILE_FILENAME, REPO_CONTAINER_CONFIG
                                       USER_CONFIG_FILES, REPO_FETCH_ARTIFACTS_KOJI)
 
 from atomic_reactor.auth import HTTPRegistryAuth
+from atomic_reactor.utils import imageutil
 
 from dockerfile_parse import DockerfileParser
 
@@ -389,14 +390,6 @@ def get_checksums(filename, algorithms):
         checksums[sum_name] = hash_obj.hexdigest()
         logger.debug('%s: %s', sum_name, checksums[sum_name])
     return checksums
-
-
-def get_docker_architecture(tasker):
-    docker_version = tasker.get_version()
-    host_arch = docker_version['Arch']
-    if host_arch == 'amd64':
-        host_arch = 'x86_64'
-    return (host_arch, docker_version['Version'])
 
 
 def get_exported_image_metadata(path, image_type):
@@ -1240,7 +1233,8 @@ def df_parser(df_path, workflow=None, cache_content=False, env_replace=True, par
         # the workflow for the parent_env
 
         try:
-            parent_config = workflow.builder.base_image_inspect[INSPECT_CONFIG]
+            # OSBS2 TBD
+            parent_config = imageutil.base_image_inspect()[INSPECT_CONFIG]
         except (AttributeError, TypeError, KeyError):
             logger.debug("base image unable to be inspected")
         else:

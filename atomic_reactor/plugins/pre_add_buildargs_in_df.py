@@ -16,12 +16,11 @@ class AddBuildargsPlugin(PreBuildPlugin):
     key = 'add_buildargs_in_dockerfile'
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow):
+    def __init__(self, workflow):
         """
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         """
-        super(AddBuildargsPlugin, self).__init__(tasker, workflow)
+        super(AddBuildargsPlugin, self).__init__(workflow)
 
     def run(self):
         """

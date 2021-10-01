@@ -78,21 +78,13 @@ class SendMailPlugin(ExitPlugin):
         MANUAL_CANCELED,
     }
 
-    def __init__(self, tasker, workflow,
-                 smtp_host=None, from_address=None,
-                 send_on=(MANUAL_SUCCESS, MANUAL_FAIL),
-                 url=None,
-                 error_addresses=(),
-                 additional_addresses=(),
-                 email_domain=None,
-                 to_koji_submitter=False,
-                 to_koji_pkgowner=False,
-                 use_auth=None,
-                 verify_ssl=None):
+    def __init__(self, workflow, smtp_host=None, from_address=None,
+                 send_on=(MANUAL_SUCCESS, MANUAL_FAIL), url=None, error_addresses=(),
+                 additional_addresses=(), email_domain=None, to_koji_submitter=False,
+                 to_koji_pkgowner=False, use_auth=None, verify_ssl=None):
         """
         constructor
 
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param send_on: list of str, list of build states when a notification should be sent
             see 'allowed_states' constant and rules in '_should_send' function
@@ -107,7 +99,7 @@ class SendMailPlugin(ExitPlugin):
         :param to_koji_submitter: bool, send a message to the koji submitter
         :param to_koji_pkgowner: bool, send messages to koji package owners
         """
-        super(SendMailPlugin, self).__init__(tasker, workflow)
+        super(SendMailPlugin, self).__init__(workflow)
         self.submitter = self.DEFAULT_SUBMITTER
         self.send_on = set(send_on)
 

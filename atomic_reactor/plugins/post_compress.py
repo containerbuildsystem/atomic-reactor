@@ -19,6 +19,7 @@ from atomic_reactor.constants import (EXPORTED_COMPRESSED_IMAGE_NAME_TEMPLATE,
                                       IMAGE_TYPE_DOCKER_ARCHIVE)
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.util import get_exported_image_metadata, human_size, is_scratch_build
+from atomic_reactor.utils import imageutil
 
 
 class CompressPlugin(PostBuildPlugin):
@@ -39,14 +40,13 @@ class CompressPlugin(PostBuildPlugin):
     key = 'compress'
     is_allowed_to_fail = False
 
-    def __init__(self, tasker, workflow, load_exported_image=False, method='gzip'):
+    def __init__(self, workflow, load_exported_image=False, method='gzip'):
         """
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param load_exported_image: bool, when running squash plugin with `dont_load=True`,
                                     you may load the exported tar with this switch
         """
-        super(CompressPlugin, self).__init__(tasker, workflow)
+        super(CompressPlugin, self).__init__(workflow)
         self.load_exported_image = load_exported_image
         self.method = method
         self.uncompressed_size = 0
@@ -96,7 +96,8 @@ class CompressPlugin(PostBuildPlugin):
             image = self.workflow.image
             image_type = IMAGE_TYPE_DOCKER_ARCHIVE
             self.log.info('fetching image %s from docker', image)
-            with self.tasker.get_image(image) as image_stream:
+            # OSBS2 TBD
+            with imageutil.get_image(image) as image_stream:
                 outfile = self._compress_image_stream(image_stream)
         metadata = get_exported_image_metadata(outfile, image_type)
 

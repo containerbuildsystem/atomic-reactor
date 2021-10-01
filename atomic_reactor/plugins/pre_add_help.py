@@ -38,16 +38,15 @@ class AddHelpPlugin(PreBuildPlugin):
     NO_HELP_FILE_FOUND = 1
     HELP_GENERATED = 2
 
-    def __init__(self, tasker, workflow, help_file=DEFAULT_HELP_FILENAME):
+    def __init__(self, workflow, help_file=DEFAULT_HELP_FILENAME):
         """
         constructor
 
-        :param tasker: ContainerTasker instance
         :param workflow: DockerBuildWorkflow instance
         :param help_file: filename of the markdown help file
         """
         # call parent constructor
-        super(AddHelpPlugin, self).__init__(tasker, workflow)
+        super(AddHelpPlugin, self).__init__(workflow)
         self.help_file = help_file
 
     def run(self):

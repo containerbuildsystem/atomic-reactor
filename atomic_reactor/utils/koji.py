@@ -13,6 +13,7 @@ import logging
 import os
 import tempfile
 import time
+import platform
 
 import koji
 import koji_cli.lib
@@ -26,9 +27,9 @@ from atomic_reactor.constants import (DEFAULT_DOWNLOAD_BLOCK_SIZE, PROG,
                                       PLUGIN_GENERATE_MAVEN_METADATA_KEY,
                                       KOJI_MAX_RETRIES,
                                       KOJI_RETRY_INTERVAL, KOJI_OFFLINE_RETRY_INTERVAL)
-from atomic_reactor.util import (get_version_of_tools, get_docker_architecture,
-                                 Output, get_image_upload_filename,
+from atomic_reactor.util import (get_version_of_tools, Output, get_image_upload_filename,
                                  get_checksums, get_manifest_media_type)
+from atomic_reactor.utils import imageutil
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.utils.rpm import get_rpm_list, parse_rpm_output
 
@@ -296,22 +297,28 @@ def get_koji_module_build(session, module_spec):
     return build, rpm_list
 
 
-def get_buildroot(build_id, tasker, osbs, rpms):
+def get_buildroot(build_id, osbs, rpms):
     """
     Build the buildroot entry of the metadata.
     :param build_id: str, ocp build_id
-    :param tasker: ContainerTasker instance
     :param osbs: OSBS instance
     :param rpms: bool, get rpms for components metadata
     :return: dict, partial metadata
     """
-    docker_info = tasker.get_info()
-    host_arch, docker_version = get_docker_architecture(tasker)
+    # OSBS2 TBD
+    # docker_info = tasker.get_info()
+    podman_info = None  # podman info
+    # OSBS2 TBD
+    host_arch = platform.processor()
+    # podman/buildah version
+    podman_version = None
 
     buildroot = {
         'id': 1,
         'host': {
-            'os': docker_info['OperatingSystem'],
+            # OSBS2 TBD
+            # 'os': docker_info['OperatingSystem'],
+            'os': podman_info,
             'arch': host_arch,
         },
         'content_generator': {
@@ -329,8 +336,8 @@ def get_buildroot(build_id, tasker, osbs, rpms):
             }
             for tool in get_version_of_tools()] + [
             {
-                'name': 'docker',
-                'version': docker_version,
+                'name': 'podman',
+                'version': podman_version,
             },
         ],
         'extra': {
@@ -474,10 +481,12 @@ def get_output(workflow, buildroot_id, pullspec, platform, source_build=False, l
                         for metadata in logs]
 
         # Parent of squashed built image is base image
-        image_id = workflow.builder.image_id
+        # OSBS2 TBD
+        image_id = workflow.image_id
         parent_id = None
         if not workflow.dockerfile_images.base_from_scratch:
-            parent_id = workflow.builder.base_image_inspect['Id']
+            # OSBS2 TBD
+            parent_id = imageutil.base_image_inspect()['Id']
 
         layer_sizes = workflow.layer_sizes
 
