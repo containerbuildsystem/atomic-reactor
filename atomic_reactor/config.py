@@ -8,7 +8,7 @@ of the BSD license. See the LICENSE file for details.
 
 from copy import deepcopy
 from atomic_reactor.utils.cachito import CachitoAPI
-from atomic_reactor.constants import REACTOR_CONFIG_BASE_NAME, REACTOR_CONFIG_ENV_NAME
+from atomic_reactor.constants import REACTOR_CONFIG_ENV_NAME
 from atomic_reactor.util import (read_yaml, read_yaml_from_file_path, DefaultKeyDict)
 from osbs.utils import RegistryURI
 
@@ -238,11 +238,7 @@ class Configuration(object):
     """
     DEFAULT_CONFIG = {ReactorConfigKeys.VERSION_KEY: 1}
 
-    def __init__(self, config_path=None, basename=REACTOR_CONFIG_BASE_NAME,
-                 env_name=REACTOR_CONFIG_ENV_NAME, raw_config=None):
-        reactor_config_path = None
-        if config_path and basename:
-            reactor_config_path = os.path.join(config_path, basename)
+    def __init__(self, config_path=None, env_name=REACTOR_CONFIG_ENV_NAME, raw_config=None):
         self.conf = deepcopy(self.DEFAULT_CONFIG)
         reactor_config_from_env = os.environ.get(env_name, None)
 
@@ -254,9 +250,9 @@ class Configuration(object):
             logger.info("reading config from %s env variable", env_name)
             self.conf = read_yaml(reactor_config_from_env, 'schemas/config.json')
 
-        elif reactor_config_path and os.path.exists(reactor_config_path):
-            logger.info("reading config from %s", reactor_config_path)
-            self.conf = read_yaml_from_file_path(reactor_config_path, 'schemas/config.json')
+        elif config_path and os.path.exists(config_path):
+            logger.info("reading config from %s", config_path)
+            self.conf = read_yaml_from_file_path(config_path, 'schemas/config.json')
 
         else:
             logger.info("using default config: %s", self.DEFAULT_CONFIG)
