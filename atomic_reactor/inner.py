@@ -19,7 +19,6 @@ import time
 import re
 from textwrap import dedent
 
-from atomic_reactor.build import InsideBuilder
 from atomic_reactor.plugin import (
     BuildCanceledException,
     BuildStepPluginsRunner,
@@ -31,7 +30,6 @@ from atomic_reactor.plugin import (
 )
 from atomic_reactor.source import get_source_instance_for, DummySource
 from atomic_reactor.constants import (
-    CONTAINER_DEFAULT_BUILD_METHOD,
     DOCKER_STORAGE_TRANSPORT_NAME,
     INSPECT_ROOTFS,
     INSPECT_ROOTFS_LAYERS,
@@ -40,9 +38,9 @@ from atomic_reactor.constants import (
     DOCKERFILE_FILENAME,
 )
 from atomic_reactor.util import (exception_message, DockerfileImages, df_parser,
-                                 base_image_is_custom)
-from atomic_reactor.build import BuildResult
+                                 base_image_is_custom, print_version_of_tools)
 from atomic_reactor.config import Configuration
+from atomic_reactor.utils import imageutil
 # from atomic_reactor import get_logging_encoding
 from osbs.utils import ImageName
 
@@ -88,6 +86,84 @@ class BuildResultsJSONDecoder(json.JSONDecoder):
         results.base_plugins_output = d.get('base_plugins_output', None)
         results.built_img_plugins_output = d.get('built_img_plugins_output', None)
         return results
+
+
+class BuildResult(object):
+
+    REMOTE_IMAGE = object()
+
+    def __init__(self, logs=None, fail_reason=None, image_id=None,
+                 annotations=None, labels=None, skip_layer_squash=False,
+                 source_docker_archive=None):
+        """
+        :param logs: iterable of log lines (without newlines)
+        :param fail_reason: str, description of failure or None if successful
+        :param image_id: str, ID of built container image
+        :param annotations: dict, data captured during build step which
+                            should be annotated to OpenShift build
+        :param labels: dict, data captured during build step which
+                       should be set as labels on OpenShift build
+        :param skip_layer_squash: boolean, direct post-build plugins not
+                                  to squash image layers for this build
+        :param source_docker_archive: str, path to docker image archive
+        """
+        assert fail_reason is None or bool(fail_reason), \
+            "If fail_reason provided, can't be falsy"
+        # must provide one, not both
+        assert not (fail_reason and image_id), \
+            "Either fail_reason or image_id should be provided, not both"
+        assert not (fail_reason and source_docker_archive), \
+            "Either fail_reason or source_docker_archive should be provided, not both"
+        assert not (image_id and source_docker_archive), \
+            "Either image_id or source_docker_archive should be provided, not both"
+        self._logs = logs or []
+        self._fail_reason = fail_reason
+        self._image_id = image_id
+        self._annotations = annotations
+        self._labels = labels
+        self._skip_layer_squash = skip_layer_squash
+        self._source_docker_archive = source_docker_archive
+
+    @classmethod
+    def make_remote_image_result(cls, annotations=None, labels=None):
+        """Instantiate BuildResult for image not built locally."""
+        return cls(
+            image_id=cls.REMOTE_IMAGE, annotations=annotations, labels=labels
+        )
+
+    @property
+    def logs(self):
+        return self._logs
+
+    @property
+    def fail_reason(self):
+        return self._fail_reason
+
+    def is_failed(self):
+        return self._fail_reason is not None
+
+    @property
+    def image_id(self):
+        return self._image_id
+
+    @property
+    def annotations(self):
+        return self._annotations
+
+    @property
+    def labels(self):
+        return self._labels
+
+    @property
+    def skip_layer_squash(self):
+        return self._skip_layer_squash
+
+    @property
+    def source_docker_archive(self):
+        return self._source_docker_archive
+
+    def is_image_available(self):
+        return self._image_id and self._image_id is not self.REMOTE_IMAGE
 
 
 class TagConf(object):
@@ -381,10 +457,8 @@ class DockerBuildWorkflow(object):
 
         self.kwargs = kwargs
 
-        self.builder = None
         self.built_image_inspect = None
         self.layer_sizes = []
-        self.default_image_build_method = CONTAINER_DEFAULT_BUILD_METHOD
         self.storage_transport = DOCKER_STORAGE_TRANSPORT_NAME
 
         # list of images pulled during the build, to be deleted after the build
@@ -444,6 +518,10 @@ class DockerBuildWorkflow(object):
         self.original_df = None
         self.buildargs = {}  # --buildargs for container build
         self.dockerfile_images = DockerfileImages([])
+        # OSBS2 TBD
+        self.image_id = None
+        # OSBS2 TBD
+        self.parent_images_digests = {}
 
         # If the Dockerfile will be entirely generated from the container.yaml
         # (in the Flatpak case, say), then a plugin needs to create the Dockerfile
@@ -570,21 +648,19 @@ class DockerBuildWorkflow(object):
 
         :return: BuildResult
         """
+        print_version_of_tools()
+
         exception_being_handled = False
-        self.builder = InsideBuilder(self.source, self.image)
         # Make sure exit_runner is defined for finally block
         exit_runner = None
         try:
             self.fs_watcher.start()
             signal.signal(signal.SIGTERM, self.throw_canceled_build_exception)
-            prebuild_runner = PreBuildPluginsRunner(self.builder.tasker, self,
-                                                    self.prebuild_plugins_conf,
+            prebuild_runner = PreBuildPluginsRunner(self, self.prebuild_plugins_conf,
                                                     plugin_files=self.plugin_files)
-            prepublish_runner = PrePublishPluginsRunner(self.builder.tasker, self,
-                                                        self.prepublish_plugins_conf,
+            prepublish_runner = PrePublishPluginsRunner(self, self.prepublish_plugins_conf,
                                                         plugin_files=self.plugin_files)
-            postbuild_runner = PostBuildPluginsRunner(self.builder.tasker, self,
-                                                      self.postbuild_plugins_conf,
+            postbuild_runner = PostBuildPluginsRunner(self, self.postbuild_plugins_conf,
                                                       plugin_files=self.plugin_files)
             # time to run pre-build plugins, so they can access cloned repo
             logger.info("running pre-build plugins")
@@ -596,8 +672,7 @@ class DockerBuildWorkflow(object):
 
             # we are delaying initialization, because prebuild plugin reactor_config
             # might change build method
-            buildstep_runner = BuildStepPluginsRunner(self.builder.tasker, self,
-                                                      self.buildstep_plugins_conf,
+            buildstep_runner = BuildStepPluginsRunner(self, self.buildstep_plugins_conf,
                                                       plugin_files=self.plugin_files)
 
             logger.info("running buildstep plugins")
@@ -607,13 +682,11 @@ class DockerBuildWorkflow(object):
                 if self.build_result.is_failed():
                     raise PluginFailedException(self.build_result.fail_reason)
             except PluginFailedException as ex:
-                self.builder.is_built = False
                 logger.error('buildstep plugin failed: %s', ex)
                 raise
 
-            self.builder.is_built = True
             if self.build_result.is_image_available():
-                self.builder.image_id = self.build_result.image_id
+                self.image_id = self.build_result.image_id
 
             # run prepublish plugins
             try:
@@ -623,8 +696,10 @@ class DockerBuildWorkflow(object):
                 raise
 
             if self.build_result.is_image_available():
-                self.built_image_inspect = self.builder.inspect_built_image()
-                history = self.builder.tasker.get_image_history(self.builder.image_id)
+                # OSBS2 TBD
+                self.built_image_inspect = imageutil.inspect_built_image()
+                # OSBS2 TBD
+                history = imageutil.get_image_history(self.image_id)
                 diff_ids = self.built_image_inspect[INSPECT_ROOTFS][INSPECT_ROOTFS_LAYERS]
 
                 # diff_ids is ordered oldest first
@@ -648,8 +723,7 @@ class DockerBuildWorkflow(object):
             # We need to make sure all exit plugins are executed
             signal.signal(signal.SIGTERM, lambda *args: None)
 
-            exit_runner = ExitPluginsRunner(self.builder.tasker, self,
-                                            self.exit_plugins_conf,
+            exit_runner = ExitPluginsRunner(self, self.exit_plugins_conf,
                                             keep_going=True,
                                             plugin_files=self.plugin_files)
             try:
