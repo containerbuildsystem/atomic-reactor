@@ -15,7 +15,7 @@ import docker
 from dockerfile_parse import DockerfileParser
 from textwrap import dedent
 
-from atomic_reactor.build import InsideBuilder, BuildResult
+from atomic_reactor.build import InsideBuilder
 from atomic_reactor.plugin import (PreBuildPlugin, PrePublishPlugin, PostBuildPlugin, ExitPlugin,
                                    PluginFailedException,
                                    BuildStepPlugin, InappropriateBuildStepError)
@@ -29,7 +29,7 @@ import signal
 
 from atomic_reactor.inner import (BuildResults, BuildResultsEncoder,
                                   BuildResultsJSONDecoder, DockerBuildWorkflow,
-                                  FSWatcher, PushConf, DockerRegistry)
+                                  FSWatcher, PushConf, DockerRegistry, BuildResult)
 from atomic_reactor.constants import (INSPECT_ROOTFS,
                                       INSPECT_ROOTFS_LAYERS,
                                       PLUGIN_BUILD_ORCHESTRATE_KEY)
@@ -1399,3 +1399,39 @@ class TestPushConf(object):
         assert not push_conf.has_some_docker_registry
         assert len(push_conf.docker_registries) == 0
         assert push_conf.all_registries == push_conf.docker_registries
+
+def test_build_result():
+    with pytest.raises(AssertionError):
+        BuildResult(fail_reason='it happens', image_id='spam')
+
+    with pytest.raises(AssertionError):
+        BuildResult(fail_reason='', image_id='spam')
+
+    with pytest.raises(AssertionError):
+        BuildResult(fail_reason='it happens', source_docker_archive='/somewhere')
+
+    with pytest.raises(AssertionError):
+        BuildResult(image_id='spam', source_docker_archive='/somewhere')
+
+    with pytest.raises(AssertionError):
+        BuildResult(image_id='spam', fail_reason='it happens', source_docker_archive='/somewhere')
+
+    assert BuildResult(fail_reason='it happens').is_failed()
+    assert not BuildResult(image_id='spam').is_failed()
+
+    assert BuildResult(image_id='spam', logs=list('logs')).logs == list('logs')
+
+    assert BuildResult(fail_reason='it happens').fail_reason == 'it happens'
+    assert BuildResult(image_id='spam').image_id == 'spam'
+
+    assert BuildResult(image_id='spam', annotations={'ham': 'mah'}).annotations == {'ham': 'mah'}
+
+    assert BuildResult(image_id='spam', labels={'ham': 'mah'}).labels == {'ham': 'mah'}
+
+    assert BuildResult(source_docker_archive='/somewhere').source_docker_archive == '/somewhere'
+
+    assert BuildResult(image_id='spam').is_image_available()
+    assert not BuildResult(fail_reason='it happens').is_image_available()
+    assert not BuildResult.make_remote_image_result().is_image_available()
+
+    assert not BuildResult.make_remote_image_result().is_failed()
