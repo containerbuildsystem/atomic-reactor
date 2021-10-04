@@ -13,7 +13,7 @@ from tempfile import NamedTemporaryFile
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.constants import PLUGIN_KOJI_UPLOAD_PLUGIN_KEY
 from atomic_reactor.config import get_koji_session, get_openshift_session
-from atomic_reactor.util import (get_build_json, is_scratch_build)
+from atomic_reactor.util import get_build_json, is_scratch_build, map_to_user_params
 from atomic_reactor.utils.koji import get_buildroot, get_output, get_output_metadata
 from osbs.exceptions import OsbsException
 from osbs.utils import ImageName
@@ -68,8 +68,9 @@ class KojiUploadPlugin(PostBuildPlugin):
     key = PLUGIN_KOJI_UPLOAD_PLUGIN_KEY
     is_allowed_to_fail = False
 
-    def __init__(self, workflow, koji_upload_dir, blocksize=None,
-                 platform='x86_64', report_multiple_digests=False):
+    args_from_user_params = map_to_user_params("koji_upload_dir", "platform")
+
+    def __init__(self, workflow, koji_upload_dir, blocksize=None, platform='x86_64'):
         """
         constructor
 
@@ -77,14 +78,11 @@ class KojiUploadPlugin(PostBuildPlugin):
         :param koji_upload_dir: str, path to use when uploading to hub
         :param blocksize: int, blocksize to use for uploading files
         :param platform: str, platform name for this build
-        :param report_multiple_digests: bool, whether to report both schema 1
-            and schema 2 digests
         """
         super(KojiUploadPlugin, self).__init__(workflow)
 
         self.blocksize = blocksize
         self.koji_upload_dir = koji_upload_dir
-        self.report_multiple_digests = report_multiple_digests
 
         self.osbs = get_openshift_session(self.workflow.conf,
                                           self.workflow.user_params.get('namespace'))

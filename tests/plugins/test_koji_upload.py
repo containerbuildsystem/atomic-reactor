@@ -300,7 +300,7 @@ def os_env(monkeypatch):
 
 def create_runner(workflow, ssl_certs=False, principal=None,
                   keytab=None, blocksize=None, target=None,
-                  platform=None, multiple=None):
+                  platform=None):
     args = {
         'koji_upload_dir': KOJI_UPLOAD_DIR,
     }
@@ -318,9 +318,6 @@ def create_runner(workflow, ssl_certs=False, principal=None,
 
     if platform is not None:
         args['platform'] = platform
-
-    if multiple is not None:
-        args['report_multiple_digests'] = multiple
 
     workflow.conf.conf = full_conf
     add_koji_map_in_workflow(workflow, hub_url='', root_url='/',
@@ -947,35 +944,12 @@ class TestKojiUpload(object):
         if not is_scratch:
             assert images[0].endswith(platform + ".tar.xz")
 
-    @pytest.mark.parametrize('multiple', [False, True])
-    def test_koji_upload_multiple_digests(self, tmpdir, os_env, multiple):
+    def test_koji_upload_available_references(self, tmpdir, os_env):
         server = MockedOSBS()
         session = MockedClientSession('')
         workflow = mock_environment(tmpdir, session=session, name='name', version='1.0',
                                     release='1')
-        runner = create_runner(workflow, platform='x86_64', multiple=multiple)
-        runner.run()
-
-        data_list = list(server.configmap.values())
-        if data_list:
-            data = data_list[0]
-        else:
-            raise RuntimeError("no configmap found")
-
-        outputs = data['metadata.json']['output']
-        output = [op for op in outputs if op['type'] == 'docker-image'][0]
-        repositories = output['extra']['docker']['repositories']
-        pullspecs = [pullspec for pullspec in repositories
-                     if '@' in pullspec]
-        assert len(pullspecs) == 1
-
-    @pytest.mark.parametrize('multiple', [False, True])
-    def test_koji_upload_available_references(self, tmpdir, os_env, multiple):
-        server = MockedOSBS()
-        session = MockedClientSession('')
-        workflow = mock_environment(tmpdir, session=session, name='name', version='1.0',
-                                    release='1')
-        runner = create_runner(workflow, platform='x86_64', multiple=multiple)
+        runner = create_runner(workflow, platform='x86_64')
         runner.run()
 
         data_list = list(server.configmap.values())
