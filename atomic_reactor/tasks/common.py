@@ -10,6 +10,7 @@ import abc
 from dataclasses import dataclass, fields
 from typing import Dict, Any, ClassVar
 
+from atomic_reactor import source
 from atomic_reactor import util
 
 
@@ -26,6 +27,25 @@ class TaskParams:
 
     # Note: do not give any attributes in this class default values, that would make dataclass
     #   inheritance difficult. If they should have defaults, define them in the CLI parser.
+
+    @property
+    def source(self) -> source.Source:
+        """Source for the input files the task will operate on (e.g. a git repo)."""
+        if "git_uri" not in self.user_params:
+            raise ValueError(
+                f"{self.__class__.__name__} instance has no source (no git_uri in user params)"
+            )
+
+        return source.GitSource(
+            provider="git",
+            uri=self.user_params["git_uri"],
+            provider_params={
+                "git_commit": self.user_params.get("git_ref"),
+                "git_commit_depth": self.user_params.get("git_commit_depth"),
+                "git_branch": self.user_params.get("git_branch"),
+            },
+            workdir=self.build_dir,
+        )
 
     @classmethod
     def from_cli_args(cls, args: dict):

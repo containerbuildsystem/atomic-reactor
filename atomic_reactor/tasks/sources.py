@@ -9,6 +9,7 @@ of the BSD license. See the LICENSE file for details.
 from dataclasses import dataclass
 from typing import ClassVar
 
+from atomic_reactor import source
 from atomic_reactor.tasks import common
 from atomic_reactor.tasks import plugin_based
 
@@ -19,6 +20,11 @@ class SourceBuildTaskParams(common.TaskParams):
 
     # Validate with the source containers schema instead
     user_params_schema: ClassVar[str] = "schemas/source_containers_user_params.json"
+
+    @property
+    def source(self) -> source.Source:
+        """Return a dummy source for a source container build."""
+        return source.DummySource(None, None, workdir=self.build_dir)
 
 
 class SourceBuildTask(plugin_based.PluginBasedTask):
