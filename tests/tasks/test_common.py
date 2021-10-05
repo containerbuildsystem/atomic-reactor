@@ -12,6 +12,7 @@ from typing import Optional, ClassVar
 import flexmock
 import pytest
 
+from atomic_reactor import source
 from atomic_reactor import util
 from atomic_reactor.tasks import common
 
@@ -26,6 +27,8 @@ USER_PARAMS_FILE = "user_params.json"
 USER_PARAMS = {"a": "b"}
 
 TASK_ARGS_WITH_USER_PARAMS = {**TASK_ARGS, "user_params": USER_PARAMS_STR}
+
+GIT_URI = "git://example.org/namespace/repo"
 
 
 class TestTaskParams:
@@ -95,3 +98,47 @@ class TestTaskParams:
         self.check_attrs(params)
         assert params.a == 1
         assert params.b is None
+
+    @pytest.mark.parametrize(
+        "user_params, expect_provider_params",
+        [
+            (
+                {"git_uri": GIT_URI},
+                {"git_commit": None, "git_commit_depth": None, "git_branch": None},
+            ),
+            (
+                {
+                    "git_uri": GIT_URI,
+                    "git_ref": "abcdef",
+                    "git_commit_depth": 1,
+                    "git_branch": "main",
+                },
+                {"git_commit": "abcdef", "git_commit_depth": 1, "git_branch": "main"},
+            ),
+        ]
+    )
+    def test_source_property(self, user_params, expect_provider_params):
+        params = common.TaskParams(
+            build_dir="/build",
+            context_dir="/context",
+            config_file="config.yaml",
+            user_params=user_params,
+        )
+        src = params.source
+
+        assert isinstance(src, source.GitSource)
+        assert src.uri == GIT_URI
+        assert src.provider_params == expect_provider_params
+        assert src.workdir == "/build"
+
+    def test_source_property_no_git_uri(self):
+        params = common.TaskParams(
+            build_dir="/build",
+            context_dir="/context",
+            config_file="config.yaml",
+            user_params={},
+        )
+
+        expect_err = r"TaskParams instance has no source \(no git_uri in user params\)"
+        with pytest.raises(ValueError, match=expect_err):
+            _ = params.source
