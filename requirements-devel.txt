@@ -2,4 +2,3 @@
 -r tests/requirements.txt
 pyflakes
 pep8
-git+https://github.com/containerbuildsystem/osbs-client
