@@ -51,8 +51,6 @@ class MockEnv(object):
         'exit': 'exit_results',
     }
 
-    _plugins_for_phase = {phase: phase + '_plugins_conf' for phase in _plugin_phases}
-
     def __init__(self):
         self.workflow = DockerBuildWorkflow(source=None)
         self.workflow.source = StubSource()
@@ -70,7 +68,7 @@ class MockEnv(object):
         if self._phase is None:
             raise ValueError('No plugin configured (use for_plugin() to configure one)')
         runner_cls = self._runner_for_phase[self._phase]
-        plugins_conf = getattr(self.workflow, self._plugins_for_phase[self._phase])
+        plugins_conf = getattr(self.workflow.plugins, self._phase)
         return runner_cls(self.workflow, plugins_conf)
 
     def for_plugin(self, phase, plugin_key, args=None):
@@ -89,8 +87,8 @@ class MockEnv(object):
         self._phase = phase
         self._plugin_key = plugin_key
 
-        plugins_conf = [self._make_plugin_conf(plugin_key, args)]
-        setattr(self.workflow, self._plugins_for_phase[phase], plugins_conf)
+        plugins = getattr(self.workflow.plugins, phase)
+        plugins.append(self._make_plugin_conf(plugin_key, args))
 
         return self
 
@@ -114,11 +112,11 @@ class MockEnv(object):
 
         :param orchestrator_args: dict, optional orchestrate_build plugin arguments
         """
-        if self.workflow.buildstep_plugins_conf:
+        if self.workflow.plugins.buildstep:
             raise ValueError("Buildstep plugin already configured, cannot make orchestrator")
-        self.workflow.buildstep_plugins_conf = [
+        self.workflow.plugins.buildstep.append(
             self._make_plugin_conf(PLUGIN_BUILD_ORCHESTRATE_KEY, orchestrator_args)
-        ]
+        )
         return self
 
     def set_plugin_result(self, phase, plugin_key, result):
@@ -198,7 +196,7 @@ class MockEnv(object):
 
     def _get_plugin(self, phase, plugin_key):
         self._validate_phase(phase)
-        plugins = getattr(self.workflow, self._plugins_for_phase[phase]) or []
+        plugins = getattr(self.workflow.plugins, phase)
         for plugin in plugins:
             if plugin['name'] == plugin_key:
                 return plugin
