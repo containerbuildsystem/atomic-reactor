@@ -6,7 +6,6 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
-import json
 from flexmock import flexmock
 from textwrap import dedent
 
@@ -278,11 +277,9 @@ def test_tags_enclosed(tmpdir, name, organization, expected):
         ),
     ],
 )
-def test_tag_suffixes_from_user_params(
-    user_params, is_orchestrator, expect_suffixes, monkeypatch, tmpdir
-):
-    monkeypatch.setenv("USER_PARAMS", json.dumps(user_params))
+def test_tag_suffixes_from_user_params(user_params, is_orchestrator, expect_suffixes, tmpdir):
     workflow = mock_workflow(tmpdir)
+    workflow.user_params = user_params
 
     plugin = TagFromConfigPlugin(workflow)
     flexmock(plugin).should_receive("is_in_orchestrator").and_return(is_orchestrator)

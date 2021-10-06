@@ -16,22 +16,20 @@ from copy import deepcopy
 
 from atomic_reactor.constants import (
     PLUGIN_KOJI_PARENT_KEY,
-    PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
     BASE_IMAGE_KOJI_BUILD
 )
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.source import SourceConfig
 from atomic_reactor.utils.odcs import ODCSClient, construct_compose_url
-from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
+from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.build_orchestrate_build import (WORKSPACE_KEY_OVERRIDE_KWARGS,
                                                             OrchestrateBuildPlugin)
 from atomic_reactor.plugins.pre_resolve_composes import (ResolveComposesPlugin,
                                                          ODCS_DATETIME_FORMAT, UNPUBLISHED_REPOS)
 
 import yaml
-from atomic_reactor.util import DockerfileImages
 from datetime import datetime, timedelta
 from flexmock import flexmock
+from tests.mock_env import MockEnv
 from tests.util import add_koji_map_in_workflow
 from textwrap import dedent
 
@@ -79,27 +77,24 @@ SIGNING_INTENTS = {
 DEFAULT_SIGNING_INTENT = 'release'
 
 
-@pytest.fixture()
-def workflow(tmpdir, user_params):
-    buildstep_plugin = [{
-        'name': OrchestrateBuildPlugin.key,
-        'args': {
-            'platforms': ODCS_COMPOSE_DEFAULT_ARCH_LIST
-        },
-    }]
-    workflow = DockerBuildWorkflow(
-        source=None,
-        buildstep_plugins=buildstep_plugin,
+@pytest.fixture
+def mocked_env(tmpdir, user_params):
+    env = (
+        MockEnv()
+        .for_plugin("prebuild", ResolveComposesPlugin.key)
+        .set_orchestrator_platforms(ODCS_COMPOSE_DEFAULT_ARCH_LIST)
+        .set_dockerfile_images(["Fedora:22"])
+        .set_check_platforms_result(set(ODCS_COMPOSE_DEFAULT_ARCH_LIST))
+        .set_reactor_config(make_reactor_config(tmpdir))
     )
-    workflow.dockerfile_images = DockerfileImages(['Fedora:22'])
-    workflow.source = MockSource(tmpdir)
-    workflow._tmpdir = tmpdir
-    workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(
-                                                                    ODCS_COMPOSE_DEFAULT_ARCH_LIST)
-    mock_reactor_config(workflow, tmpdir)
+
+    env.workflow.source = MockSource(tmpdir)
     mock_repo_config(tmpdir)
-    workflow._koji_session = mock_koji_session()
-    return workflow
+
+    # These are used for further mocking and are not normally part of MockEnv
+    env._tmpdir = tmpdir
+    env._koji_session = mock_koji_session()
+    return env
 
 
 class MockSource(object):
@@ -117,7 +112,7 @@ class MockSource(object):
         return self._config
 
 
-def mock_reactor_config(workflow, tmpdir, data=None, default_si=DEFAULT_SIGNING_INTENT):
+def make_reactor_config(tmpdir, data=None, default_si=DEFAULT_SIGNING_INTENT):
     if data is None:
         data = dedent("""\
             version: 1
@@ -141,7 +136,7 @@ def mock_reactor_config(workflow, tmpdir, data=None, default_si=DEFAULT_SIGNING_
 
     tmpdir.join('cert').write('')
     config = yaml.safe_load(data)
-    workflow.conf.conf = config
+    return config
 
 
 def mock_repo_config(tmpdir, data=None, signing_intent=None):
@@ -219,12 +214,9 @@ def mock_koji_session():
     return koji_session
 
 
-def mock_koji_parent(workflow,
+def mock_koji_parent(mocked_env,
                      scratch=False, isolated=False, parent_repo=None, parent_compose_ids=None):
-    if scratch:
-        workflow.user_params['scratch'] = True
-    elif isolated:
-        workflow.user_params['isolated'] = True
+    mocked_env.set_scratch(scratch).set_isolated(isolated)
 
     parent_build_info = {
         'id': 1234,
@@ -238,9 +230,9 @@ def mock_koji_parent(workflow,
     if not parent_compose_ids:
         parent_build_info['extra']['image'].pop('odcs')
 
-    workflow.prebuild_results[PLUGIN_KOJI_PARENT_KEY] = {
-        BASE_IMAGE_KOJI_BUILD: parent_build_info,
-    }
+    mocked_env.set_plugin_result(
+        "prebuild", PLUGIN_KOJI_PARENT_KEY, {BASE_IMAGE_KOJI_BUILD: parent_build_info}
+    )
 
 
 class TestResolveComposes(object):
@@ -248,16 +240,16 @@ class TestResolveComposes(object):
     def teardown_method(self, method):
         sys.modules.pop('pre_resolve_composes', None)
 
-    def test_request_compose(self, workflow):
+    def test_request_compose(self, mocked_env):
         mock_odcs_client_start_compose()
         mock_odcs_client_wait_for_compose()
-        self.run_plugin_with_args(workflow)
+        self.run_plugin_with_args(mocked_env)
 
     @pytest.mark.parametrize('arches', (
         ['ppc64le', 'x86_64'],
         ['x86_64'],
     ))
-    def test_request_compose_for_multiarch_tag(self, workflow, arches):
+    def test_request_compose_for_multiarch_tag(self, mocked_env, arches):
         (flexmock(ODCSClient)
             .should_receive('start_compose')
             .with_args(
@@ -269,8 +261,8 @@ class TestResolveComposes(object):
             .once()
             .and_return(ODCS_COMPOSE))
         mock_odcs_client_wait_for_compose()
-        workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = arches
-        self.run_plugin_with_args(workflow)
+        mocked_env.set_check_platforms_result(arches)
+        self.run_plugin_with_args(mocked_env)
 
     @pytest.mark.parametrize(('parent_compose', 'parent_repourls', 'repo_provided'), [
         (True, True, False),
@@ -309,10 +301,11 @@ class TestResolveComposes(object):
         (False, False, True, False, False, False),
         (False, False, False, False, False, False),
     ])
-    def test_inherit_parents(self, workflow, parent_compose, parent_repourls,
+    def test_inherit_parents(self, mocked_env, parent_compose, parent_repourls,
                              repo_provided, inherit_parent, scratch, isolated, allow_inherit,
                              compose_defined, ids, caplog):
         arches = ['ppc64le', 'x86_64']
+        workflow = mocked_env.workflow
         if inherit_parent and compose_defined:
             repo_config = dedent("""\
                 compose:
@@ -322,19 +315,19 @@ class TestResolveComposes(object):
                     - eggs
                     inherit: true
                 """)
-            mock_repo_config(workflow._tmpdir, repo_config)
+            mock_repo_config(mocked_env._tmpdir, repo_config)
         elif inherit_parent:
             repo_config = dedent("""\
                 compose:
                     inherit: true
                 """)
-            mock_repo_config(workflow._tmpdir, repo_config)
+            mock_repo_config(mocked_env._tmpdir, repo_config)
         elif not compose_defined:
-            workflow._tmpdir.join('container.yaml').write("")
+            mocked_env._tmpdir.join('container.yaml').write("")
 
         parent_compose_ids = [10, 11]
         parent_repo = "http://example.com/parent.repo"
-        mock_koji_parent(workflow,
+        mock_koji_parent(mocked_env,
                          parent_compose_ids=parent_compose_ids if parent_compose else None,
                          parent_repo=parent_repo if parent_repourls else None,
                          scratch=scratch, isolated=isolated)
@@ -401,7 +394,7 @@ class TestResolveComposes(object):
                     .and_return(compose))
                 expected_yum_repourls.append(compose['result_repofile'])
 
-        workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = arches
+        mocked_env.set_check_platforms_result(arches)
 
         plugin_args = {}
         if repo_provided:
@@ -409,7 +402,7 @@ class TestResolveComposes(object):
         if ids:
             plugin_args['compose_ids'] = compose_ids
 
-        self.run_plugin_with_args(workflow, plugin_args, check_for_default_id=False)
+        self.run_plugin_with_args(mocked_env, plugin_args, check_for_default_id=False)
 
         archspecific_repuruls = self.get_override_yum_repourls(workflow)
         nonearch_repourls = self.get_override_yum_repourls(workflow, arch=None)
@@ -438,7 +431,7 @@ class TestResolveComposes(object):
         ['ppc64le', 'x86_64'],
         ['x86_64'],
     ))
-    def test_request_compose_for_modules(self, workflow, arches):
+    def test_request_compose_for_modules(self, mocked_env, arches):
         repo_config = dedent("""\
             compose:
                 modules:
@@ -446,7 +439,7 @@ class TestResolveComposes(object):
                 - bacon:stable
                 - eggs:stable/profile
             """)
-        mock_repo_config(workflow._tmpdir, repo_config)
+        mock_repo_config(mocked_env._tmpdir, repo_config)
 
         (flexmock(ODCSClient)
             .should_receive('start_compose')
@@ -460,8 +453,8 @@ class TestResolveComposes(object):
 
         mock_odcs_client_wait_for_compose()
 
-        workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = arches
-        self.run_plugin_with_args(workflow)
+        mocked_env.set_check_platforms_result(arches)
+        self.run_plugin_with_args(mocked_env)
 
     @pytest.mark.parametrize('multilib', (True, False))
     @pytest.mark.parametrize('is_true', (True, False))
@@ -469,7 +462,7 @@ class TestResolveComposes(object):
         ['ppc64le', 'x86_64'],
         ['x86_64'],
     ))
-    def test_request_compose_for_modular_tags(self, workflow, multilib, is_true, arches):
+    def test_request_compose_for_modular_tags(self, mocked_env, multilib, is_true, arches):
         repo_config = {'compose': {'modular_koji_tags': ['earliest', 'latest']}}
         if is_true:
             repo_config['compose']['modular_koji_tags'] = True
@@ -477,7 +470,7 @@ class TestResolveComposes(object):
             repo_config['compose']['multilib_arches'] = arches
             repo_config['compose']['multilib_method'] = ["all"]
 
-        mock_repo_config(workflow._tmpdir, yaml.safe_dump(repo_config))
+        mock_repo_config(mocked_env._tmpdir, yaml.safe_dump(repo_config))
 
         use_kwargs = {'source_type': 'tag',
                       'source': 'test-tag',
@@ -501,26 +494,26 @@ class TestResolveComposes(object):
 
         mock_odcs_client_wait_for_compose()
 
-        workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = arches
-        self.run_plugin_with_args(workflow)
+        mocked_env.set_check_platforms_result(arches)
+        self.run_plugin_with_args(mocked_env)
 
-    def test_request_compose_for_modular_tags_auto_without_tag(self, workflow):
+    def test_request_compose_for_modular_tags_auto_without_tag(self, mocked_env):
         repo_config = dedent("""\
             compose:
                 modular_koji_tags: true
             """)
-        mock_repo_config(workflow._tmpdir, repo_config)
+        mock_repo_config(mocked_env._tmpdir, repo_config)
 
         (flexmock(ODCSClient)
             .should_receive('start_compose')
             .never())
-        workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = 'x86_64'
+        mocked_env.set_check_platforms_result('x86_64')
 
         with pytest.raises(PluginFailedException) as exc:
-            self.run_plugin_with_args(workflow, with_target=False)
+            self.run_plugin_with_args(mocked_env, with_target=False)
         assert "koji_tag is required when modular_koji_tags is True" in str(exc.value)
 
-    def test_request_compose_packages_modules_modular_tags(self, workflow):
+    def test_request_compose_packages_modules_modular_tags(self, mocked_env):
         repo_config = dedent("""\
             compose:
                 packages:
@@ -536,7 +529,7 @@ class TestResolveComposes(object):
                 module_resolve_tags:
                 - special
             """)
-        mock_repo_config(workflow._tmpdir, repo_config)
+        mock_repo_config(mocked_env._tmpdir, repo_config)
 
         (flexmock(ODCSClient)
             .should_receive('start_compose')
@@ -565,10 +558,10 @@ class TestResolveComposes(object):
 
         mock_odcs_client_wait_for_compose()
 
-        self.run_plugin_with_args(workflow)
+        self.run_plugin_with_args(mocked_env)
 
     @pytest.mark.parametrize('is_true', (True, False))
-    def test_request_compose_packages_for_module_resolve_tags(self, workflow, is_true):
+    def test_request_compose_packages_for_module_resolve_tags(self, mocked_env, is_true):
         repo_config = yaml.safe_load(dedent("""\
             compose:
                 modules:
@@ -584,7 +577,7 @@ class TestResolveComposes(object):
             repo_config['compose']['module_resolve_tags'] = ['special']
             expected_modular_koji_tags = ['special']
 
-        mock_repo_config(workflow._tmpdir, yaml.safe_dump(repo_config))
+        mock_repo_config(mocked_env._tmpdir, yaml.safe_dump(repo_config))
 
         (flexmock(ODCSClient)
             .should_receive('start_compose')
@@ -597,9 +590,9 @@ class TestResolveComposes(object):
 
         mock_odcs_client_wait_for_compose()
 
-        self.run_plugin_with_args(workflow)
+        self.run_plugin_with_args(mocked_env)
 
-    def test_request_compose_for_module_resolve_tags_auto_without_tag(self, workflow):
+    def test_request_compose_for_module_resolve_tags_auto_without_tag(self, mocked_env):
         repo_config = dedent("""\
             compose:
                 modules:
@@ -609,19 +602,19 @@ class TestResolveComposes(object):
             compose:
                 module_resolve_tags: true
             """)
-        mock_repo_config(workflow._tmpdir, repo_config)
+        mock_repo_config(mocked_env._tmpdir, repo_config)
 
         (flexmock(ODCSClient)
             .should_receive('start_compose')
             .never())
-        workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = 'x86_64'
+        mocked_env.set_check_platforms_result('x86_64')
 
         with pytest.raises(PluginFailedException) as exc:
-            self.run_plugin_with_args(workflow, with_target=False)
+            self.run_plugin_with_args(mocked_env, with_target=False)
         assert "koji_tag is required when module_resolve_tags is True" in str(exc.value)
 
     @pytest.mark.parametrize(('with_modules'), (True, False))
-    def test_request_compose_empty_packages(self, workflow, with_modules):
+    def test_request_compose_empty_packages(self, mocked_env, with_modules):
         repo_config = dedent("""\
             compose:
                 packages:
@@ -635,7 +628,7 @@ class TestResolveComposes(object):
                     - bacon:stable
                     - eggs:stable
                 """)
-        mock_repo_config(workflow._tmpdir, repo_config)
+        mock_repo_config(mocked_env._tmpdir, repo_config)
 
         (flexmock(ODCSClient)
             .should_receive('start_compose')
@@ -655,7 +648,7 @@ class TestResolveComposes(object):
 
         mock_odcs_client_wait_for_compose()
 
-        self.run_plugin_with_args(workflow)
+        self.run_plugin_with_args(mocked_env)
 
     @pytest.mark.parametrize(('compose_arches', 'pulp_arches', 'multilib_arches',
                               'request_multilib'), [
@@ -680,7 +673,7 @@ class TestResolveComposes(object):
         (["runtime", "devel"], ['devel', 'runtime']),
         (None, []),
     ])
-    def test_multilib(self, workflow, compose_arches, pulp_arches, multilib_arches,
+    def test_multilib(self, mocked_env, compose_arches, pulp_arches, multilib_arches,
                       request_multilib, multilib_method, method_results):
         base_repos = ['spam', 'bacon', 'eggs']
 
@@ -691,7 +684,7 @@ class TestResolveComposes(object):
                 pulp_repos.append('{repo}-{arch}-rpms'.format(repo=repo, arch=arch))
             content_dict[arch] = pulp_repos
 
-        mock_content_sets_config(workflow._tmpdir, yaml.safe_dump(content_dict))
+        mock_content_sets_config(mocked_env._tmpdir, yaml.safe_dump(content_dict))
 
         repo_config = {
             'compose': {
@@ -705,17 +698,14 @@ class TestResolveComposes(object):
         if pulp_arches:
             repo_config['compose']['pulp_repos'] = True
 
-        mock_repo_config(workflow._tmpdir, yaml.safe_dump(repo_config))
-        if compose_arches:
-            workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(compose_arches)
-        else:
-            del workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
+        mock_repo_config(mocked_env._tmpdir, yaml.safe_dump(repo_config))
+        mocked_env.set_check_platforms_result(set(compose_arches))
 
-        workflow.conf.conf['koji'] = {'hub_url': KOJI_HUB, 'root_url': '', 'auth': {}}
+        mocked_env.reactor_config.conf['koji'] = {'hub_url': KOJI_HUB, 'root_url': '', 'auth': {}}
 
         # just confirm that render_requests is returning valid data, without the overhead of
         # mocking the compose results
-        plugin = ResolveComposesPlugin(workflow, koji_target=KOJI_TARGET_NAME)
+        plugin = ResolveComposesPlugin(mocked_env.workflow, koji_target=KOJI_TARGET_NAME)
         plugin.read_configs()
         plugin.adjust_compose_config()
         composed_arches = set()
@@ -761,7 +751,7 @@ class TestResolveComposes(object):
         ({UNPUBLISHED_REPOS: False}, []),
         ({UNPUBLISHED_REPOS: True}, [UNPUBLISHED_REPOS])
     ])
-    def test_request_pulp_and_multiarch(self, workflow, pulp_arches, arches, signing_intent,
+    def test_request_pulp_and_multiarch(self, mocked_env, pulp_arches, arches, signing_intent,
                                         expected_intent, flags, expected_flags):
         content_set = ''
         pulp_composes = {}
@@ -807,7 +797,7 @@ class TestResolveComposes(object):
                 .with_args(pulp_id)
                 .and_return(pulp_composes[arch]).once())
 
-        mock_content_sets_config(workflow._tmpdir, content_set)
+        mock_content_sets_config(mocked_env._tmpdir, content_set)
 
         repo_config = dedent("""\
             compose:
@@ -820,11 +810,8 @@ class TestResolveComposes(object):
             """.format(signing_intent))
         for flag in flags:
             repo_config += ("    {0}: {1}\n".format(flag, flags[flag]))
-        mock_repo_config(workflow._tmpdir, repo_config)
-        if arches:
-            workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(arches)
-        else:
-            del workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
+        mock_repo_config(mocked_env._tmpdir, repo_config)
+        mocked_env.set_check_platforms_result(arches)
         tag_compose = deepcopy(ODCS_COMPOSE)
 
         sig_keys = SIGNING_INTENTS[signing_intent]
@@ -849,11 +836,11 @@ class TestResolveComposes(object):
             .with_args(ODCS_COMPOSE_ID)
             .and_return(tag_compose).once())
 
-        plugin_result = self.run_plugin_with_args(workflow, platforms=arches, is_pulp=pulp_arches)
+        plugin_result = self.run_plugin_with_args(mocked_env, platforms=arches, is_pulp=pulp_arches)
 
         assert plugin_result['signing_intent'] == expected_intent
 
-    def test_invalid_flag(self, workflow):
+    def test_invalid_flag(self, mocked_env):
         expect_error = "at top level: validating 'anyOf' has failed"
         arches = ['x86_64']
         repo_config = dedent("""\
@@ -866,14 +853,14 @@ class TestResolveComposes(object):
                 signing_intent: unsigned
                 some_invalid_flag: true
             """)
-        mock_repo_config(workflow._tmpdir, repo_config)
-        workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(arches)
+        mock_repo_config(mocked_env._tmpdir, repo_config)
+        mocked_env.set_check_platforms_result(set(arches))
         with pytest.raises(PluginFailedException) as exc:
-            self.run_plugin_with_args(workflow, platforms=arches, is_pulp=False)
+            self.run_plugin_with_args(mocked_env, platforms=arches, is_pulp=False)
         assert expect_error in str(exc.value)
 
-    def test_request_compose_for_pulp_no_content_sets(self, workflow):
-        mock_content_sets_config(workflow._tmpdir, '')
+    def test_request_compose_for_pulp_no_content_sets(self, mocked_env):
+        mock_content_sets_config(mocked_env._tmpdir, '')
 
         repo_config = dedent("""\
             compose:
@@ -883,16 +870,16 @@ class TestResolveComposes(object):
                 - bacon
                 - eggs
             """)
-        mock_repo_config(workflow._tmpdir, repo_config)
+        mock_repo_config(mocked_env._tmpdir, repo_config)
 
         mock_odcs_client_start_compose()
         mock_odcs_client_wait_for_compose()
 
-        self.run_plugin_with_args(workflow)
+        self.run_plugin_with_args(mocked_env)
 
-    def test_signing_intent_and_compose_ids_mutex(self, workflow):
+    def test_signing_intent_and_compose_ids_mutex(self, mocked_env):
         plugin_args = {'compose_ids': [1, 2], 'signing_intent': 'unsigned'}
-        self.run_plugin_with_args(workflow, plugin_args,
+        self.run_plugin_with_args(mocked_env, plugin_args,
                                   expect_error='cannot be used at the same time')
 
     @pytest.mark.parametrize(('plugin_args', 'expected_kwargs'), (
@@ -917,27 +904,28 @@ class TestResolveComposes(object):
             {'insecure': False, 'timeout': None}
         ),
     ))
-    def test_odcs_session_creation(self, tmpdir, workflow, plugin_args, expected_kwargs):
+    def test_odcs_session_creation(self, tmpdir, mocked_env, plugin_args, expected_kwargs):
         plug_args = deepcopy(plugin_args)
         exp_kwargs = deepcopy(expected_kwargs)
-        mock_reactor_config(workflow, tmpdir)
+        mocked_env.set_reactor_config(make_reactor_config(tmpdir))
 
         if plug_args.get('odcs_openidc_secret_path') is True:
-            workflow._tmpdir.join('token').write('the-token')
-            plug_args['odcs_openidc_secret_path'] = str(workflow._tmpdir)
+            mocked_env._tmpdir.join('token').write('the-token')
+            plug_args['odcs_openidc_secret_path'] = str(mocked_env._tmpdir)
 
         if plug_args.get('odcs_ssl_secret_path') is True:
-            workflow._tmpdir.join('cert').write('the-cert')
-            plug_args['odcs_ssl_secret_path'] = str(workflow._tmpdir)
-            exp_kwargs['cert'] = str(workflow._tmpdir.join('cert'))
+            mocked_env._tmpdir.join('cert').write('the-cert')
+            plug_args['odcs_ssl_secret_path'] = str(mocked_env._tmpdir)
+            exp_kwargs['cert'] = str(mocked_env._tmpdir.join('cert'))
 
         exp_kwargs['insecure'] = False
         if 'token' in exp_kwargs:
-            workflow.conf.conf['odcs']['auth'].pop('ssl_certs_dir')
-            workflow.conf.conf['odcs']['auth']['openidc_dir'] = str(workflow._tmpdir)
+            mocked_env.reactor_config.conf['odcs']['auth'].pop('ssl_certs_dir')
+            mocked_env.reactor_config.conf['odcs']['auth']['openidc_dir'] = str(mocked_env._tmpdir)
         else:
-            exp_kwargs['cert'] = os.path.join(workflow.conf.conf['odcs']['auth']['ssl_certs_dir'],
-                                              'cert')
+            exp_kwargs['cert'] = os.path.join(
+                mocked_env.reactor_config.conf['odcs']['auth']['ssl_certs_dir'], 'cert'
+            )
 
         mock_odcs_client_start_compose()
         mock_odcs_client_wait_for_compose()
@@ -946,7 +934,7 @@ class TestResolveComposes(object):
             .should_receive('__init__')
             .with_args(ODCS_URL, **exp_kwargs))
 
-        self.run_plugin_with_args(workflow, plug_args)
+        self.run_plugin_with_args(mocked_env, plug_args)
 
     @pytest.mark.parametrize(('plugin_args', 'ssl_login'), (
         ({
@@ -959,8 +947,8 @@ class TestResolveComposes(object):
             'koji_hub': KOJI_BUILD_ID,
         }, False),
     ))
-    def test_koji_session_creation(self, workflow, plugin_args, ssl_login):
-        koji_session = workflow._koji_session
+    def test_koji_session_creation(self, mocked_env, plugin_args, ssl_login):
+        koji_session = mocked_env._koji_session
 
         (flexmock(koji_session)
             .should_receive('ssl_login')
@@ -976,7 +964,7 @@ class TestResolveComposes(object):
         mock_odcs_client_start_compose()
         mock_odcs_client_wait_for_compose()
 
-        self.run_plugin_with_args(workflow, plugin_args)
+        self.run_plugin_with_args(mocked_env, plugin_args)
 
     @pytest.mark.parametrize(('default_si', 'config_si', 'arg_si', 'parent_si', 'expected_si',
                               'overridden'), (
@@ -1014,11 +1002,13 @@ class TestResolveComposes(object):
 
     ))
     @pytest.mark.parametrize('use_compose_id', (False, True))
-    def test_adjust_signing_intent(self, tmpdir, workflow, default_si, config_si, arg_si,
+    def test_adjust_signing_intent(self, tmpdir, mocked_env, default_si, config_si, arg_si,
                                    parent_si, expected_si, overridden, use_compose_id):
 
-        mock_reactor_config(workflow, tmpdir, default_si=default_si)
-        mock_repo_config(workflow._tmpdir, signing_intent=config_si)
+        mocked_env.set_reactor_config(
+            make_reactor_config(tmpdir, default_si=default_si)
+        )
+        mock_repo_config(mocked_env._tmpdir, signing_intent=config_si)
 
         sigkeys = SIGNING_INTENTS[expected_si]
         odcs_compose = ODCS_COMPOSE.copy()
@@ -1058,9 +1048,9 @@ class TestResolveComposes(object):
         if parent_si:
             parent_build_info['extra']['image'] = {'odcs': {'signing_intent': parent_si}}
 
-        workflow.prebuild_results[PLUGIN_KOJI_PARENT_KEY] = {
-            BASE_IMAGE_KOJI_BUILD: parent_build_info,
-        }
+        mocked_env.set_plugin_result(
+            "prebuild", PLUGIN_KOJI_PARENT_KEY, {BASE_IMAGE_KOJI_BUILD: parent_build_info}
+        )
 
         plugin_args = {}
         if arg_si:
@@ -1068,7 +1058,7 @@ class TestResolveComposes(object):
         if arg_compose_ids:
             plugin_args['compose_ids'] = arg_compose_ids
 
-        plugin_result = self.run_plugin_with_args(workflow, plugin_args)
+        plugin_result = self.run_plugin_with_args(mocked_env, plugin_args)
         expected_result = {
             'signing_intent': expected_si,
             'signing_intent_overridden': overridden,
@@ -1082,7 +1072,7 @@ class TestResolveComposes(object):
         (('release', 'release'), 'release'),
         (('unsigned', 'release'), 'unsigned'),
     ))
-    def test_signing_intent_multiple_composes(self, workflow, composes_intent, expected_intent):
+    def test_signing_intent_multiple_composes(self, mocked_env, composes_intent, expected_intent):
         composes = []
 
         for compose_id, signing_intent in enumerate(composes_intent):
@@ -1103,7 +1093,7 @@ class TestResolveComposes(object):
             .never())
 
         plugin_args = {'compose_ids': [item['id'] for item in composes]}
-        plugin_result = self.run_plugin_with_args(workflow, plugin_args)
+        plugin_result = self.run_plugin_with_args(mocked_env, plugin_args)
 
         assert plugin_result['signing_intent'] == expected_intent
         assert plugin_result['composes'] == composes
@@ -1119,26 +1109,26 @@ class TestResolveComposes(object):
                 pulp_repos: true
             """), 'Nothing to compose'),
     ))
-    def test_invalid_compose_request(self, workflow, config, error_message):
-        mock_repo_config(workflow._tmpdir, config)
-        self.run_plugin_with_args(workflow, expect_error=error_message)
+    def test_invalid_compose_request(self, mocked_env, config, error_message):
+        mock_repo_config(mocked_env._tmpdir, config)
+        self.run_plugin_with_args(mocked_env, expect_error=error_message)
 
-    def test_empty_compose_request(self, caplog, workflow):
+    def test_empty_compose_request(self, caplog, mocked_env):
         config = dedent("""\
             compose:
             """)
-        mock_repo_config(workflow._tmpdir, config)
-        self.run_plugin_with_args(workflow)
+        mock_repo_config(mocked_env._tmpdir, config)
+        self.run_plugin_with_args(mocked_env)
         msg = 'Aborting plugin execution: "compose" config not set and compose_ids not given'
         assert msg in (x.message for x in caplog.records)
 
-    def test_only_pulp_repos(self, workflow):
-        mock_repo_config(workflow._tmpdir,
+    def test_only_pulp_repos(self, mocked_env):
+        mock_repo_config(mocked_env._tmpdir,
                          dedent("""\
                              compose:
                                  pulp_repos: true
                              """))
-        mock_content_sets_config(workflow._tmpdir)
+        mock_content_sets_config(mocked_env._tmpdir)
 
         (flexmock(ODCSClient)
             .should_receive('start_compose')
@@ -1152,7 +1142,7 @@ class TestResolveComposes(object):
 
         mock_odcs_client_wait_for_compose()
 
-        self.run_plugin_with_args(workflow)
+        self.run_plugin_with_args(mocked_env)
 
     @pytest.mark.parametrize(('content_sets', 'build_only_content_sets'), (
         (True, True),
@@ -1160,14 +1150,14 @@ class TestResolveComposes(object):
         (False, True),
         (False, False),
     ))
-    def test_only_content_sets(self, workflow, content_sets, build_only_content_sets):
+    def test_only_content_sets(self, mocked_env, content_sets, build_only_content_sets):
         main_cs_list = ['pulp-spam-rpms', 'pulp-bacon-rpms', 'pulp-eggs-rpms',
                         'pulp-bar-rpms__Server__x86_64']
         build_only_cs_list = ['dev-spam-rpms', 'dev-bacon-rpms', 'dev-eggs-rpms', 'pulp-spam-rpms']
 
         if content_sets:
             cs_json = {'x86_64': main_cs_list}
-            workflow._tmpdir.join('content_sets.yml').write(yaml.safe_dump(cs_json))
+            mocked_env._tmpdir.join('content_sets.yml').write(yaml.safe_dump(cs_json))
 
         container_json = {'compose': {'pulp_repos': True}}
         if build_only_content_sets:
@@ -1175,7 +1165,7 @@ class TestResolveComposes(object):
         else:
             container_json['compose']['build_only_content_sets'] = None
 
-        workflow._tmpdir.join('container.yaml').write(yaml.safe_dump(container_json))
+        mocked_env._tmpdir.join('container.yaml').write(yaml.safe_dump(container_json))
 
         all_cs = []
         if content_sets:
@@ -1196,13 +1186,13 @@ class TestResolveComposes(object):
                 .once()
                 .and_return(ODCS_COMPOSE))
             mock_odcs_client_wait_for_compose()
-            self.run_plugin_with_args(workflow)
+            self.run_plugin_with_args(mocked_env)
         else:
             (flexmock(ODCSClient)
                 .should_receive('start_compose')
                 .never())
 
-            self.run_plugin_with_args(workflow, expect_error='Nothing to compose')
+            self.run_plugin_with_args(mocked_env, expect_error='Nothing to compose')
 
     @pytest.mark.parametrize(('state_name', 'time_to_expire_delta', 'expect_renew'), (
         ('removed', timedelta(), True),
@@ -1219,7 +1209,7 @@ class TestResolveComposes(object):
         ('KEY1 KEY2', 'KEY3'),
         ('', 'KEY3'),
     ))
-    def test_renew_compose(self, workflow, state_name, time_to_expire_delta, expect_renew,
+    def test_renew_compose(self, mocked_env, state_name, time_to_expire_delta, expect_renew,
                            sigkeys, depkeys, tmpdir, caplog):
         old_odcs_compose = ODCS_COMPOSE.copy()
         time_to_expire = (ODCS_COMPOSE_TIME_TO_EXPIRE -
@@ -1282,9 +1272,9 @@ class TestResolveComposes(object):
                 root_url: ''
                 auth: {{}}
             """.format(sigkeys.replace(' ', ','), depkeys.replace(' ', ','), ODCS_URL, tmpdir))
-        mock_reactor_config(workflow, tmpdir, data=data)
+        mocked_env.set_reactor_config(make_reactor_config(tmpdir, data=data))
 
-        plugin_result = self.run_plugin_with_args(workflow, plugin_args)
+        plugin_result = self.run_plugin_with_args(mocked_env, plugin_args)
 
         if expect_renew:
             assert plugin_result['composes'] == [new_odcs_compose]
@@ -1296,13 +1286,13 @@ class TestResolveComposes(object):
             assert plugin_result['composes'] == [old_odcs_compose]
             assert 'Updating signing keys' not in caplog.text
 
-    def test_inject_yum_repos_from_new_compose(self, workflow):
+    def test_inject_yum_repos_from_new_compose(self, mocked_env):
         mock_odcs_client_start_compose()
         mock_odcs_client_wait_for_compose()
-        self.run_plugin_with_args(workflow)
-        assert self.get_override_yum_repourls(workflow) == [ODCS_COMPOSE_REPOFILE]
+        self.run_plugin_with_args(mocked_env)
+        assert self.get_override_yum_repourls(mocked_env.workflow) == [ODCS_COMPOSE_REPOFILE]
 
-    def test_inject_yum_repos_from_existing_composes(self, workflow):
+    def test_inject_yum_repos_from_existing_composes(self, mocked_env):
         compose_ids = []
         expected_yum_repourls = []
 
@@ -1325,38 +1315,38 @@ class TestResolveComposes(object):
             .never())
 
         plugin_args = {'compose_ids': compose_ids}
-        self.run_plugin_with_args(workflow, plugin_args)
+        self.run_plugin_with_args(mocked_env, plugin_args)
 
-        assert self.get_override_yum_repourls(workflow) == expected_yum_repourls
+        assert self.get_override_yum_repourls(mocked_env.workflow) == expected_yum_repourls
 
-    def test_abort_when_odcs_config_missing(self, tmpdir, caplog, workflow):
+    def test_abort_when_odcs_config_missing(self, tmpdir, caplog, mocked_env):
         # Clear out default reactor config
-        mock_reactor_config(workflow, tmpdir, data='version: 1')
+        mocked_env.set_reactor_config(make_reactor_config(tmpdir, data='version: 1'))
         with caplog.at_level(logging.INFO):
-            self.run_plugin_with_args(workflow)
+            self.run_plugin_with_args(mocked_env)
 
         msg = 'Aborting plugin execution: ODCS config not found'
         assert msg in (x.message for x in caplog.records)
 
-    def test_abort_when_compose_config_missing(self, caplog, workflow):
+    def test_abort_when_compose_config_missing(self, caplog, mocked_env):
         # Clear out default git repo config
-        mock_repo_config(workflow._tmpdir, '')
+        mock_repo_config(mocked_env._tmpdir, '')
         # Ensure no compose_ids are passed to plugin
         plugin_args = {'compose_ids': tuple()}
         with caplog.at_level(logging.INFO):
-            self.run_plugin_with_args(workflow, plugin_args)
+            self.run_plugin_with_args(mocked_env, plugin_args)
 
         msg = 'Aborting plugin execution: "compose" config not set and compose_ids not given'
         assert msg in (x.message for x in caplog.records)
 
-    def test_invalid_koji_build_target(self, workflow):
+    def test_invalid_koji_build_target(self, mocked_env):
         plugin_args = {
             'koji_target': 'spam',
         }
         expect_error = 'No matching build target found'
-        self.run_plugin_with_args(workflow, plugin_args, expect_error=expect_error)
+        self.run_plugin_with_args(mocked_env, plugin_args, expect_error=expect_error)
 
-    def run_plugin_with_args(self, workflow, plugin_args=None,
+    def run_plugin_with_args(self, mocked_env, plugin_args=None,
                              expect_error=None,
                              platforms=None, is_pulp=None,
                              check_for_default_id=True, with_target=True):
@@ -1366,6 +1356,7 @@ class TestResolveComposes(object):
             plugin_args.setdefault('koji_target', KOJI_TARGET_NAME)
         plugin_args.setdefault('koji_hub', KOJI_HUB)
 
+        workflow = mocked_env.workflow
         add_koji_map_in_workflow(workflow, root_url='',
                                  hub_url=plugin_args.get('koji_hub'),
                                  ssl_certs_dir=plugin_args.get('koji_ssl_certs_dir'))
@@ -1374,12 +1365,7 @@ class TestResolveComposes(object):
         if 'koji_ssl_certs_dir' in plugin_args:
             del(plugin_args['koji_ssl_certs_dir'])
 
-        runner = PreBuildPluginsRunner(
-            workflow,
-            [
-                {'name': ResolveComposesPlugin.key, 'args': plugin_args},
-            ]
-        )
+        runner = mocked_env.set_plugin_args(plugin_args).create_runner()
 
         if expect_error:
             with pytest.raises(PluginFailedException) as exc_info:
@@ -1435,12 +1421,12 @@ class TestResolveComposes(object):
             r"(validating 'additionalProperties' has failed))")
          ),
     ])
-    def test_content_sets_validation(self, workflow,
+    def test_content_sets_validation(self, mocked_env,
                                      content_sets_content, expect_error):
         mock_odcs_client_start_compose()
         mock_odcs_client_wait_for_compose()
-        mock_content_sets_config(workflow._tmpdir, content_sets_content)
-        self.run_plugin_with_args(workflow, expect_error=expect_error)
+        mock_content_sets_config(mocked_env._tmpdir, content_sets_content)
+        self.run_plugin_with_args(mocked_env, expect_error=expect_error)
 
     @pytest.mark.parametrize('parent_repourls,modules,packages,content_sets,expect_include_repo', [
         (True, True, False, None, None),
@@ -1453,10 +1439,10 @@ class TestResolveComposes(object):
         (False, False, False, 'x86_64: ["spam-rpms"]', None),
         (True, True, True, 'x86_64: ["spam-rpms"]', None),
     ])
-    def test_include_koji_repo(self, workflow, parent_repourls, modules,
+    def test_include_koji_repo(self, mocked_env, parent_repourls, modules,
                                packages, content_sets, expect_include_repo):
 
-        mock_koji_parent(workflow, parent_repo="http://example.com/parent.repo")
+        mock_koji_parent(mocked_env, parent_repo="http://example.com/parent.repo")
 
         repo_config = {
             'compose': {
@@ -1472,9 +1458,9 @@ class TestResolveComposes(object):
         if content_sets is not None:
             repo_config['compose']['pulp_repos'] = True
 
-        mock_repo_config(workflow._tmpdir, yaml.safe_dump(repo_config))
+        mock_repo_config(mocked_env._tmpdir, yaml.safe_dump(repo_config))
         if content_sets:
-            mock_content_sets_config(workflow._tmpdir, content_sets)
+            mock_content_sets_config(mocked_env._tmpdir, content_sets)
 
         compose_module_id = 80
         compose_package_id = 90
@@ -1513,8 +1499,9 @@ class TestResolveComposes(object):
                 .with_args(compose_pulp_id)
                 .and_return(custom_pulp_compose))
 
-        self.run_plugin_with_args(workflow)
+        self.run_plugin_with_args(mocked_env)
 
+        workflow = mocked_env.workflow
         assert self.get_override_yum_repourls(workflow) is not None
         include_koji_repo = (workflow.plugin_workspace
                              .get(OrchestrateBuildPlugin.key, {})
@@ -1531,24 +1518,24 @@ class TestResolveComposes(object):
                 .get('yum_repourls'))
 
     def test_skip_adjust_composes_for_inheritance_if_image_is_based_on_scratch(
-            self, workflow, caplog):
-        plugin = ResolveComposesPlugin(workflow)
-        workflow.dockerfile_images = DockerfileImages(['scratch'])
+            self, mocked_env, caplog):
+        plugin = ResolveComposesPlugin(mocked_env.workflow)
+        mocked_env.set_dockerfile_images(["scratch"])
         plugin.adjust_for_inherit()
         assert ('This is a base image based on scratch. '
                 'Skipping adjusting composes for inheritance.' in caplog.text)
 
     def test_skip_adjust_signing_intent_from_parent_if_image_is_based_on_scratch(
-            self, workflow, caplog):
-        plugin = ResolveComposesPlugin(workflow)
-        workflow.dockerfile_images = DockerfileImages(['scratch'])
+            self, mocked_env, caplog):
+        plugin = ResolveComposesPlugin(mocked_env.workflow)
+        mocked_env.set_dockerfile_images(["scratch"])
         plugin.adjust_signing_intent_from_parent()
         assert ('This is a base image based on scratch. '
                 'Signing intent will not be adjusted for it.' in caplog.text)
 
     @responses.activate
     def test_canceling_compose_when_timeout_of_waiting_for_the_compose(
-        self, workflow, tmpdir
+        self, mocked_env, tmpdir
     ):
         # Fake data for an existing compose requested from ODCS.
         # No need to start a new one.
@@ -1571,7 +1558,7 @@ class TestResolveComposes(object):
         responses.add(responses.DELETE, url=compose_url)
 
         with pytest.raises(PluginFailedException) as exc:
-            self.run_plugin_with_args(workflow, plugin_args=plugin_args)
+            self.run_plugin_with_args(mocked_env, plugin_args=plugin_args)
 
         msg = 'Timeout of waiting for compose {}'.format(ODCS_COMPOSE_ID)
         assert msg in str(exc.value)

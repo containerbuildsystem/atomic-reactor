@@ -14,12 +14,12 @@ from tempfile import mkdtemp
 import os
 
 from tests.constants import DOCKER0_REGISTRY
+from tests.mock_env import MockEnv
 from atomic_reactor.inner import BuildResult
-from atomic_reactor.plugin import ExitPluginsRunner
 from atomic_reactor.util import registry_hostname, ManifestDigest, sha256sum
 from osbs.utils import ImageName
 from atomic_reactor.plugins.exit_push_floating_tags import PushFloatingTagsPlugin
-from atomic_reactor.constants import PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_BUILD_ORCHESTRATE_KEY
+from atomic_reactor.constants import PLUGIN_GROUP_MANIFESTS_KEY
 
 
 def to_bytes(value):
@@ -154,8 +154,13 @@ def mock_registries(registries, config, primary_images=None, manifest_results=No
     }
 
 
-def mock_environment(tmpdir, workflow, primary_images=None, floating_images=None,
+def mock_environment(primary_images=None, floating_images=None,
                      manifest_results=None, annotations=None):
+    env = MockEnv().for_plugin("exit", PushFloatingTagsPlugin.key)
+    env.set_plugin_result("postbuild", PLUGIN_GROUP_MANIFESTS_KEY, manifest_results)
+
+    workflow = env.workflow
+
     if primary_images:
         for image in primary_images:
             if '-' in ImageName.parse(image).tag:
@@ -166,11 +171,8 @@ def mock_environment(tmpdir, workflow, primary_images=None, floating_images=None
         workflow.tag_conf.add_floating_images(floating_images)
 
     workflow.build_result = BuildResult(image_id='123456', annotations=annotations or {})
-    workflow.postbuild_results = {}
-    if manifest_results:
-        workflow.postbuild_results[PLUGIN_GROUP_MANIFESTS_KEY] = manifest_results
 
-    return workflow
+    return env
 
 
 REGISTRY_V2 = 'registry_v2.example.com'
@@ -388,7 +390,7 @@ NOGROUP_OCI_RESULTS = {
      'No manifest digest available, skipping push_floating_tags'),
 ])
 @responses.activate  # noqa
-def test_floating_tags_push(tmpdir, workflow, test_name, registries, manifest_results,
+def test_floating_tags_push(tmpdir, test_name, registries, manifest_results,
                             schema_version, floating_tags, workers, expected_exception,
                             caplog):
     primary_images = ['namespace/httpd:2.4', 'namespace/httpd:primary']
@@ -418,27 +420,23 @@ def test_floating_tags_push(tmpdir, workflow, test_name, registries, manifest_re
         k: v for k, v in all_registry_conf.items() if k in registries
     }
 
-    for registry, opts in registry_conf.items():
-        kwargs = {}
-        if 'insecure' in opts:
-            kwargs['insecure'] = opts['insecure']
-        workflow.push_conf.add_docker_registry(registry, **kwargs)
-
-    plugins_conf = [{
-        'name': PushFloatingTagsPlugin.key,
-    }]
-
     mocked_registries, annotations = mock_registries(registry_conf, workers,
                                                      primary_images=primary_images,
                                                      manifest_results=manifest_results,
                                                      schema_version=schema_version)
-    workflow = mock_environment(tmpdir, workflow, primary_images=primary_images,
-                                floating_images=floating_tags,
-                                manifest_results=manifest_results,
-                                annotations=annotations)
+    env = mock_environment(primary_images=primary_images,
+                           floating_images=floating_tags,
+                           manifest_results=manifest_results,
+                           annotations=annotations)
+
+    for registry, opts in registry_conf.items():
+        kwargs = {}
+        if 'insecure' in opts:
+            kwargs['insecure'] = opts['insecure']
+        env.workflow.push_conf.add_docker_registry(registry, **kwargs)
 
     if workers:
-        workflow.buildstep_plugins_conf = [{'name': PLUGIN_BUILD_ORCHESTRATE_KEY}]
+        env.make_orchestrator()
 
     registries_list = []
 
@@ -467,9 +465,9 @@ def test_floating_tags_push(tmpdir, workflow, test_name, registries, manifest_re
 
     rcm = {'version': 1, 'registries': registries_list,
            'platform_descriptors': platform_descriptors_list}
-    workflow.conf.conf = rcm
+    env.set_reactor_config(rcm)
 
-    runner = ExitPluginsRunner(workflow, plugins_conf)
+    runner = env.create_runner()
     results = runner.run()
     plugin_result = results[PushFloatingTagsPlugin.key]
 
@@ -489,7 +487,7 @@ def test_floating_tags_push(tmpdir, workflow, test_name, registries, manifest_re
         assert isinstance(plugin_result, dict)
         # Check that plugin returns correct list of repos
         actual_repos = sorted(plugin_result.keys())
-        expected_repos = sorted({x.get_repo() for x in workflow.tag_conf.images})
+        expected_repos = sorted({x.get_repo() for x in env.workflow.tag_conf.images})
         assert expected_repos == actual_repos
     else:
         assert not plugin_result

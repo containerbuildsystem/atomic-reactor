@@ -10,15 +10,15 @@ import os
 import sys
 import yaml
 
-from atomic_reactor.constants import (PLUGIN_CHECK_AND_SET_PLATFORMS_KEY, REPO_CONTAINER_CONFIG,
-                                      PLUGIN_BUILD_ORCHESTRATE_KEY)
+from atomic_reactor.constants import PLUGIN_CHECK_AND_SET_PLATFORMS_KEY, REPO_CONTAINER_CONFIG
 import atomic_reactor.utils.koji as koji_util
-from atomic_reactor.inner import DockerBuildWorkflow
-from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.source import SourceConfig
 from atomic_reactor import util
+
 from flexmock import flexmock
 import pytest
+
+from tests.mock_env import MockEnv
 
 
 KOJI_TARGET = "target"
@@ -66,16 +66,15 @@ class MockSource(object):
         return self._config
 
 
-def set_reactor_config_map(workflow, platforms):
+def make_reactor_config_map(platforms):
     clusters = {}
     if platforms:
         for platform, enabled in platforms.items():
             clusters[platform] = [{'enabled': enabled, 'max_concurrent_builds': 1,
                                    'name': platform}]
-        workflow.conf.conf = {'version': 1, 'koji': {'auth': {}, 'hub_url': 'test'},
-                              'clusters': clusters}
+        return {'version': 1, 'koji': {'auth': {}, 'hub_url': 'test'}, 'clusters': clusters}
     else:
-        workflow.conf.conf = {'version': 1, 'koji': {'auth': {}, 'hub_url': 'test'}}
+        return {'version': 1, 'koji': {'auth': {}, 'hub_url': 'test'}}
 
 
 def write_container_yaml(tmpdir, platform_exclude='', platform_only=''):
@@ -94,20 +93,16 @@ def write_container_yaml(tmpdir, platform_exclude='', platform_only=''):
         f.flush()
 
 
-def set_orchestrator_platforms(workflow, orchestrator_platforms):
-    workflow.buildstep_plugins_conf = [{'name': PLUGIN_BUILD_ORCHESTRATE_KEY}]
-    workflow.user_params['platforms'] = orchestrator_platforms
-
-
-def prepare(tmpdir, labels=None):
+def mock_env(tmpdir, labels=None):
     labels = labels or {}
-    workflow = DockerBuildWorkflow(source=None)
-    workflow.user_params['scratch'] = labels.get('scratch', False)
-    workflow.user_params['isolated'] = labels.get('isolated', False)
-    source = MockSource(tmpdir)
-    setattr(workflow, 'source', source)
-
-    return workflow
+    env = (
+        MockEnv()
+        .for_plugin('prebuild', PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
+        .set_scratch(labels.get('scratch', False))
+        .set_isolated(labels.get('isolated', False))
+    )
+    env.workflow.source = MockSource(tmpdir)
+    return env
 
 
 def teardown_function(function):
@@ -137,19 +132,18 @@ def test_check_and_set_platforms(tmpdir, caplog, user_params,
                                  platforms, platform_exclude, platform_only, result):
     write_container_yaml(tmpdir, platform_exclude, platform_only)
 
-    workflow = prepare(tmpdir)
+    env = mock_env(tmpdir)
 
     build_json = {'metadata': {'labels': {}}}
     flexmock(util).should_receive('get_build_json').and_return(build_json)
 
     session = mock_session(platforms)
     flexmock(koji_util).should_receive('create_koji_session').and_return(session)
-    set_reactor_config_map(workflow, platforms)
 
-    runner = PreBuildPluginsRunner(workflow, [{
-        'name': PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
-        'args': {'koji_target': KOJI_TARGET},
-    }])
+    env.set_reactor_config(make_reactor_config_map(platforms))
+    env.set_plugin_args({'koji_target': KOJI_TARGET})
+
+    runner = env.create_runner()
 
     plugin_result = runner.run()
     if platforms:
@@ -190,18 +184,17 @@ def test_check_isolated_or_scratch(tmpdir, caplog, user_params,
                                    result):
     write_container_yaml(tmpdir, platform_only=platform_only)
 
-    workflow = prepare(tmpdir, labels=labels)
+    env = mock_env(tmpdir, labels=labels)
     if orchestrator_platforms:
-        set_orchestrator_platforms(workflow, orchestrator_platforms)
+        env.set_orchestrator_platforms(platforms=orchestrator_platforms)
 
     session = mock_session(platforms)
     flexmock(koji_util).should_receive('create_koji_session').and_return(session)
-    set_reactor_config_map(workflow, platforms)
 
-    runner = PreBuildPluginsRunner(workflow, [{
-        'name': PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
-        'args': {'koji_target': KOJI_TARGET},
-    }])
+    env.set_reactor_config(make_reactor_config_map(platforms))
+    env.set_plugin_args({'koji_target': KOJI_TARGET})
+
+    runner = env.create_runner()
 
     plugin_result = runner.run()
     if platforms:
@@ -231,18 +224,17 @@ def test_check_and_set_platforms_no_koji(tmpdir, caplog, user_params,
                                          platforms, platform_only, result):
     write_container_yaml(tmpdir, platform_only=platform_only)
 
-    workflow = prepare(tmpdir)
+    env = mock_env(tmpdir)
 
     if platforms:
-        set_orchestrator_platforms(workflow, platforms.keys())
+        env.set_orchestrator_platforms(platforms.keys())
 
     build_json = {'metadata': {'labels': {}}}
     flexmock(util).should_receive('get_build_json').and_return(build_json)
-    set_reactor_config_map(workflow, platforms)
 
-    runner = PreBuildPluginsRunner(workflow, [{
-        'name': PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
-    }])
+    env.set_reactor_config(make_reactor_config_map(platforms))
+
+    runner = env.create_runner()
 
     if platforms:
         plugin_result = runner.run()
@@ -268,18 +260,16 @@ def test_check_and_set_platforms_no_platforms_in_limits(tmpdir, caplog, user_par
                                                         platforms, platform_only):
     write_container_yaml(tmpdir, platform_only=platform_only)
 
-    workflow = prepare(tmpdir)
+    env = mock_env(tmpdir)
 
     if platforms:
-        set_orchestrator_platforms(workflow, platforms.keys())
+        env.set_orchestrator_platforms(platforms.keys())
 
     build_json = {'metadata': {'labels': {}}}
     flexmock(util).should_receive('get_build_json').and_return(build_json)
-    set_reactor_config_map(workflow, platforms)
+    env.set_reactor_config(make_reactor_config_map(platforms))
 
-    runner = PreBuildPluginsRunner(workflow, [{
-        'name': PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
-    }])
+    runner = env.create_runner()
 
     with pytest.raises(Exception) as e:
         runner.run()
@@ -297,19 +287,17 @@ def test_platforms_from_cluster_config(tmpdir, user_params,
                                        platforms, platform_only, cluster_platforms, result):
     write_container_yaml(tmpdir, platform_only=platform_only)
 
-    workflow = prepare(tmpdir)
+    env = mock_env(tmpdir)
 
     if platforms:
-        set_orchestrator_platforms(workflow, platforms.split())
+        env.set_orchestrator_platforms(platforms.split())
 
     build_json = {'metadata': {'labels': {}}}
     flexmock(util).should_receive('get_build_json').and_return(build_json)
 
-    set_reactor_config_map(workflow, cluster_platforms)
+    env.set_reactor_config(make_reactor_config_map(cluster_platforms))
 
-    runner = PreBuildPluginsRunner(workflow, [{
-        'name': PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
-    }])
+    runner = env.create_runner()
 
     plugin_result = runner.run()
     if platforms:
@@ -333,7 +321,7 @@ def test_disabled_clusters(tmpdir, caplog, user_params, koji_platforms,
                            cluster_platforms, result, skips, fails):
     write_container_yaml(tmpdir)
 
-    workflow = prepare(tmpdir)
+    env = mock_env(tmpdir)
 
     build_json = {'metadata': {'labels': {}}}
     flexmock(util).should_receive('get_build_json').and_return(build_json)
@@ -343,12 +331,11 @@ def test_disabled_clusters(tmpdir, caplog, user_params, koji_platforms,
         new_koji_platforms = {k: True for k in koji_platforms}
     session = mock_session(new_koji_platforms)
     flexmock(koji_util).should_receive('create_koji_session').and_return(session)
-    set_reactor_config_map(workflow, cluster_platforms)
 
-    runner = PreBuildPluginsRunner(workflow, [{
-        'name': PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
-        'args': {'koji_target': KOJI_TARGET},
-    }])
+    env.set_reactor_config(make_reactor_config_map(cluster_platforms))
+    env.set_plugin_args({'koji_target': KOJI_TARGET})
+
+    runner = env.create_runner()
 
     if fails:
         with pytest.raises(Exception) as e:
