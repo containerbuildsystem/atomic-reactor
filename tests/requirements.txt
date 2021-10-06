@@ -9,3 +9,4 @@ pytest-html
 flake8
 koji
 requests-mock
+git+https://github.com/containerbuildsystem/osbs-client
