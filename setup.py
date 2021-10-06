@@ -7,10 +7,7 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
-import re
-
 from setuptools import setup, find_packages
-
 
 DESCRIPTION = "Python library with command line interface for building docker images."
 HOMEPAGE = "https://github.com/containerbuildsystem/atomic-reactor"
@@ -25,18 +22,6 @@ data_files = {
     ],
 }
 
-
-def _get_requirements(path):
-    try:
-        with open(path) as f:
-            packages = f.read().splitlines()
-    except (IOError, OSError) as ex:
-        raise RuntimeError("Can't open file with requirements: %s", ex)
-    packages = (p.strip() for p in packages if not re.match(r'^\s*#', p))
-    packages = list(filter(None, packages))
-    return packages
-
-
 setup(
     name='atomic-reactor',
     version='4.0.dev0',
@@ -49,7 +34,19 @@ setup(
         'console_scripts': ['atomic-reactor=atomic_reactor.cli.main:run'],
     },
     packages=find_packages(exclude=["*.tests", "*.tests.*", "tests.*", "tests"]),
-    install_requires=_get_requirements('requirements.txt'),
+    install_requires=[
+        'backoff',
+        'docker < 4.3.0',
+        'docker-squash>=1.0.7',
+        'dockerfile-parse>=0.0.13',
+        'flatpak-module-tools >= 0.11,<0.13;python_version<"3.9"',
+        'flatpak-module-tools >= 0.11;python_version>="3.9"',
+        'jsonschema',
+        'PyYAML',
+        'ruamel.yaml',
+        'osbs-client >= 1.0.0',
+        'requests',
+    ],
     python_requires='>=3.8, <4',
     package_data={'atomic_reactor': ['schemas/*.json']},
     data_files=data_files.items(),

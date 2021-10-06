@@ -1,0 +1,13 @@
+backoff
+docker < 4.3.0
+docker-squash>=1.0.7
+dockerfile-parse>=0.0.13
+flatpak-module-tools >= 0.11,<0.13;python_version<"3.9"
+flatpak-module-tools >= 0.11;python_version>="3.9"
+jsonschema
+PyYAML
+ruamel.yaml
+git+https://github.com/containerbuildsystem/osbs-client@be934592d8c2a90c186bdab619a1dffb71cf62c1#egg=osbs-client
+# cannot build cryptography with rust for version >= 3.5
+cryptography < 3.5
+requests

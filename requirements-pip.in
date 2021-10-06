@@ -1,0 +1,3 @@
+# we need to add pip here so that cachito can provide it and
+# we can upgrade to latest pip in UBI 8 and avoid install issues
+pip
