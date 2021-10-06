@@ -11,13 +11,13 @@ Script for building docker image. This is expected to run inside container.
 
 import json
 import logging
-import tempfile
 import signal
 import threading
 import os
 import time
 import re
 from textwrap import dedent
+from typing import List
 
 from atomic_reactor.plugin import (
     BuildCanceledException,
@@ -28,7 +28,6 @@ from atomic_reactor.plugin import (
     PreBuildPluginsRunner,
     PrePublishPluginsRunner,
 )
-from atomic_reactor.source import get_source_instance_for, DummySource
 from atomic_reactor.constants import (
     DOCKER_STORAGE_TRANSPORT_NAME,
     INSPECT_ROOTFS,
@@ -40,6 +39,8 @@ from atomic_reactor.constants import (
 from atomic_reactor.util import (exception_message, DockerfileImages, df_parser,
                                  base_image_is_custom, print_version_of_tools)
 from atomic_reactor.config import Configuration
+from atomic_reactor.source import Source, DummySource
+from atomic_reactor.tasks import PluginsDef
 from atomic_reactor.utils import imageutil
 # from atomic_reactor import get_logging_encoding
 from osbs.utils import ImageName
@@ -413,33 +414,34 @@ class DockerBuildWorkflow(object):
     6. push it to registries
     """
 
-    def __init__(self, source=None, prebuild_plugins=None, prepublish_plugins=None,
-                 postbuild_plugins=None, exit_plugins=None, plugin_files=None,
-                 openshift_build_selflink=None, client_version=None,
-                 buildstep_plugins=None, **kwargs):
-        """
-        :param source: dict, where/how to get source code to put in image
-        :param prebuild_plugins: list of dicts, arguments for pre-build plugins
-        :param prepublish_plugins: list of dicts, arguments for test-build plugins
-        :param postbuild_plugins: list of dicts, arguments for post-build plugins
-        :param exit_plugins: list of dicts, arguments for exit plugins
-        :param plugin_files: list of str, load plugins also from these files
-        :param openshift_build_selflink: str, link to openshift build (if we're actually running
-            on openshift) without the actual hostname/IP address
-        :param client_version: str, osbs-client version used to render build json
-        :param buildstep_plugins: list of dicts, arguments for build-step plugins
-        """
-        tmp_dir = tempfile.mkdtemp()
-        if source is None:
-            self.source = DummySource(None, None, workdir=tmp_dir)
-        else:
-            self.source = get_source_instance_for(source, workdir=tmp_dir)
+    # The only reason this is here is to have something that unit tests can monkeypatch
+    _default_user_params = {}
 
-        self.prebuild_plugins_conf = prebuild_plugins
-        self.buildstep_plugins_conf = buildstep_plugins
-        self.prepublish_plugins_conf = prepublish_plugins
-        self.postbuild_plugins_conf = postbuild_plugins
-        self.exit_plugins_conf = exit_plugins
+    def __init__(
+        self,
+        source: Source = None,
+        plugins: PluginsDef = None,
+        user_params: dict = None,
+        reactor_config_path: str = REACTOR_CONFIG_FULL_PATH,
+        plugin_files: List[str] = None,
+        openshift_build_selflink: str = None,
+        client_version: str = None,
+        **kwargs,
+    ):
+        """
+        :param source: where/how to get source code to put in image
+        :param plugins: the plugins to be executed in this workflow
+        :param user_params: user (and other) params that control various aspects of the build
+        :param reactor_config_path: path to atomic-reactor configuration file
+        :param plugin_files: load plugins also from these files
+        :param openshift_build_selflink: link to openshift build (if we're actually running
+            on openshift) without the actual hostname/IP address
+        :param client_version: osbs-client version used to render build json
+        """
+        self.source = source or DummySource(None, None)
+        self.plugins = plugins or PluginsDef()
+        self.user_params = user_params or self._default_user_params.copy()
+
         self.prebuild_results = {}
         self.buildstep_result = {}
         self.postbuild_results = {}
@@ -497,8 +499,6 @@ class DockerBuildWorkflow(object):
         self.koji_source_source_url = None
         self.koji_source_manifest = None
 
-        self.user_params = json.loads(os.environ['USER_PARAMS'])
-
         # Plugins can store info here using the @annotation, @annotation_map,
         # @label and @label_map decorators from atomic_reactor.metadata
         self.annotations = {}
@@ -529,7 +529,6 @@ class DockerBuildWorkflow(object):
         if build_file_path.endswith(DOCKERFILE_FILENAME):
             self.set_df_path(build_file_path)
 
-        reactor_config_path = REACTOR_CONFIG_FULL_PATH
         # openshift in configuration needs namespace, it was reading it from get_builds_json()
         # we should have it in user_params['namespace']
         self.conf = Configuration(config_path=reactor_config_path)
@@ -608,7 +607,7 @@ class DockerBuildWorkflow(object):
         :return: orchestrate_build plugin configuration dict
         :raises: ValueError if the orchestrate_build plugin is not present
         """
-        for plugin in self.buildstep_plugins_conf or []:
+        for plugin in self.plugins.buildstep:
             if plugin['name'] == PLUGIN_BUILD_ORCHESTRATE_KEY:
                 return plugin
         # Not an orchestrator build
@@ -642,7 +641,7 @@ class DockerBuildWorkflow(object):
         self.build_canceled = True
         raise BuildCanceledException("Build was canceled")
 
-    def build_docker_image(self):
+    def build_docker_image(self) -> BuildResult:
         """
         build docker image
 
@@ -656,11 +655,11 @@ class DockerBuildWorkflow(object):
         try:
             self.fs_watcher.start()
             signal.signal(signal.SIGTERM, self.throw_canceled_build_exception)
-            prebuild_runner = PreBuildPluginsRunner(self, self.prebuild_plugins_conf,
+            prebuild_runner = PreBuildPluginsRunner(self, self.plugins.prebuild,
                                                     plugin_files=self.plugin_files)
-            prepublish_runner = PrePublishPluginsRunner(self, self.prepublish_plugins_conf,
+            prepublish_runner = PrePublishPluginsRunner(self, self.plugins.prepublish,
                                                         plugin_files=self.plugin_files)
-            postbuild_runner = PostBuildPluginsRunner(self, self.postbuild_plugins_conf,
+            postbuild_runner = PostBuildPluginsRunner(self, self.plugins.postbuild,
                                                       plugin_files=self.plugin_files)
             # time to run pre-build plugins, so they can access cloned repo
             logger.info("running pre-build plugins")
@@ -672,7 +671,7 @@ class DockerBuildWorkflow(object):
 
             # we are delaying initialization, because prebuild plugin reactor_config
             # might change build method
-            buildstep_runner = BuildStepPluginsRunner(self, self.buildstep_plugins_conf,
+            buildstep_runner = BuildStepPluginsRunner(self, self.plugins.buildstep,
                                                       plugin_files=self.plugin_files)
 
             logger.info("running buildstep plugins")
@@ -723,7 +722,7 @@ class DockerBuildWorkflow(object):
             # We need to make sure all exit plugins are executed
             signal.signal(signal.SIGTERM, lambda *args: None)
 
-            exit_runner = ExitPluginsRunner(self, self.exit_plugins_conf,
+            exit_runner = ExitPluginsRunner(self, self.plugins.exit,
                                             keep_going=True,
                                             plugin_files=self.plugin_files)
             try:

@@ -30,8 +30,10 @@ from atomic_reactor.inner import (BuildResults, BuildResultsEncoder,
 from atomic_reactor.constants import (INSPECT_ROOTFS,
                                       INSPECT_ROOTFS_LAYERS,
                                       PLUGIN_BUILD_ORCHESTRATE_KEY)
+from atomic_reactor.source import PathSource
 from atomic_reactor.util import DockerfileImages, df_parser
 from atomic_reactor.utils import imageutil
+from atomic_reactor.tasks.plugin_based import PluginsDef
 
 
 BUILD_RESULTS_ATTRS = ['build_logs',
@@ -261,29 +263,17 @@ def test_workflow_base_images():
     watch_buildstep = Watcher()
     watch_post = Watcher()
     watch_exit = Watcher()
-    workflow = DockerBuildWorkflow(source=None,
-                                   prebuild_plugins=[{'name': 'pre_watched',
-                                                      'args': {
-                                                          'watcher': watch_pre
-                                                      }}],
-                                   buildstep_plugins=[{'name': 'buildstep_watched',
-                                                       'args': {
-                                                           'watcher': watch_buildstep
-                                                       }}],
-
-                                   prepublish_plugins=[{'name': 'prepub_watched',
-                                                        'args': {
-                                                            'watcher': watch_prepub,
-                                                        }}],
-                                   postbuild_plugins=[{'name': 'post_watched',
-                                                       'args': {
-                                                           'watcher': watch_post
-                                                       }}],
-                                   exit_plugins=[{'name': 'exit_watched',
-                                                  'args': {
-                                                      'watcher': watch_exit
-                                                  }}],
-                                   plugin_files=[this_file])
+    workflow = DockerBuildWorkflow(
+        source=None,
+        plugins=PluginsDef(
+            prebuild=[{'name': 'pre_watched', 'args': {'watcher': watch_pre}}],
+            buildstep=[{'name': 'buildstep_watched', 'args': {'watcher': watch_buildstep}}],
+            prepublish=[{'name': 'prepub_watched', 'args': {'watcher': watch_prepub}}],
+            postbuild=[{'name': 'post_watched', 'args': {'watcher': watch_post}}],
+            exit=[{'name': 'exit_watched', 'args': {'watcher': watch_exit}}],
+        ),
+        plugin_files=[this_file],
+    )
 
     workflow.build_docker_image()
 
@@ -308,32 +298,19 @@ def test_workflow_compat(caplog):
 
     caplog.clear()
 
-    workflow = DockerBuildWorkflow(source=None,
-                                   postbuild_plugins=[{'name': 'store_logs_to_file',
-                                                       'args': {
-                                                           'watcher': watch_exit
-                                                       }}],
-
-                                   buildstep_plugins=[{'name': 'buildstep_watched',
-                                                       'args': {
-                                                           'watcher': watch_buildstep
-                                                       }}],
-                                   plugin_files=[this_file])
+    workflow = DockerBuildWorkflow(
+        source=None,
+        plugins=PluginsDef(
+            postbuild=[{'name': 'store_logs_to_file', 'args': {'watcher': watch_exit}}],
+            buildstep=[{'name': 'buildstep_watched', 'args': {'watcher': watch_buildstep}}],
+        ),
+        plugin_files=[this_file],
+    )
 
     workflow.build_docker_image()
     assert watch_exit.was_called()
     for record in caplog.records:
         assert record.levelno != logging.ERROR
-
-
-def test_set_user_params():
-    user_params = {'git_uri': 'test_uri', 'git_ref': 'test_ref', 'git_breanch': 'test_branch'}
-    os.environ['USER_PARAMS'] = json.dumps(user_params)
-
-    workflow = DockerBuildWorkflow(source=None)
-
-    for k, v in user_params.items():
-        assert workflow.user_params[k] == v
 
 
 class Pre(PreBuildPlugin):
@@ -381,211 +358,122 @@ class Exit(ExitPlugin):
 
 @pytest.mark.parametrize(('plugins', 'should_fail', 'should_log'), [
     # No 'args' key, prebuild
-    ({'prebuild_plugins': [{'name': 'pre'},
-                           {'name': 'pre_watched',
-                            'args': {
-                                'watcher': Watcher(),
-                            }
-                            }],
-      'buildstep_plugins': [{'name': 'buildstep_watched',
-                             'args': {
-                                 'watcher': Watcher(),
-                             }}]},
+    ({'prebuild': [{'name': 'pre'}, {'name': 'pre_watched', 'args': {'watcher': Watcher()}}],
+      'buildstep': [{'name': 'buildstep_watched', 'args': {'watcher': Watcher()}}]},
      False,  # not fatal
      False,  # no error logged
      ),
 
     # No 'args' key, buildstep
-    ({'buildstep_plugins': [{'name': 'buildstep'},
-                            {'name': 'buildstep_watched',
-                             'args': {
-                                 'watcher': Watcher(),
-                             }
-                             }]},
+    ({'buildstep': [
+        {'name': 'buildstep'}, {'name': 'buildstep_watched', 'args': {'watcher': Watcher()}}
+    ]},
      False,  # not fatal
      False,  # no error logged
      ),
 
     # No 'args' key, postbuild
-    ({'postbuild_plugins': [{'name': 'post'},
-                            {'name': 'post_watched',
-                             'args': {
-                                 'watcher': Watcher(),
-                             }
-                             }],
-      'buildstep_plugins': [{'name': 'buildstep_watched',
-                             'args': {
-                                 'watcher': Watcher(),
-                             }}]},
+    ({'postbuild': [{'name': 'post'}, {'name': 'post_watched', 'args': {'watcher': Watcher()}}],
+      'buildstep': [{'name': 'buildstep_watched', 'args': {'watcher': Watcher()}}]},
      False,  # not fatal,
      False,  # no error logged
      ),
 
     # No 'args' key, prepub
-    ({'prepublish_plugins': [{'name': 'prepub'},
-                             {'name': 'prepub_watched',
-                              'args': {
-                                  'watcher': Watcher(),
-                              }
-                              }],
-      'buildstep_plugins': [{'name': 'buildstep_watched',
-                             'args': {
-                                 'watcher': Watcher(),
-                             }}]},
+    ({'prepublish': [
+        {'name': 'prepub'}, {'name': 'prepub_watched', 'args': {'watcher': Watcher()}}],
+      'buildstep': [{'name': 'buildstep_watched', 'args': {'watcher': Watcher()}}]},
      False,  # not fatal,
      False,  # no error logged
      ),
 
     # No 'args' key, exit
-    ({'exit_plugins': [{'name': 'exit'},
-                       {'name': 'exit_watched',
-                        'args': {
-                            'watcher': Watcher(),
-                        }
-                        }],
-      'buildstep_plugins': [{'name': 'buildstep_watched',
-                             'args': {
-                                 'watcher': Watcher(),
-                             }}]},
+    ({'exit': [{'name': 'exit'}, {'name': 'exit_watched', 'args': {'watcher': Watcher()}}],
+      'buildstep': [{'name': 'buildstep_watched', 'args': {'watcher': Watcher()}}]},
      False,  # not fatal
      False,  # no error logged
      ),
 
     # No such plugin, prebuild
-    ({'prebuild_plugins': [{'name': 'no plugin',
-                            'args': {}},
-                           {'name': 'pre_watched',
-                            'args': {
-                                'watcher': Watcher(),
-                            }
-                            }]},
+    ({'prebuild': [
+        {'name': 'no plugin', 'args': {}},
+        {'name': 'pre_watched', 'args': {'watcher': Watcher()}}]},
      True,  # is fatal
      True,  # logs error
      ),
 
     # No such plugin, buildstep
-    ({'buildstep_plugins': [{'name': 'no plugin',
-                             'args': {}},
-                            {'name': 'buildstep_watched',
-                             'args': {
-                                 'watcher': Watcher(),
-                             }}]},
+    ({'buildstep': [
+        {'name': 'no plugin', 'args': {}},
+        {'name': 'buildstep_watched', 'args': {'watcher': Watcher()}}]},
      False,  # is fatal
      False,  # logs error
      ),
 
     # No such plugin, postbuild
-    ({'postbuild_plugins': [{'name': 'no plugin',
-                             'args': {}},
-                            {'name': 'post_watched',
-                             'args': {
-                                 'watcher': Watcher(),
-                             }
-                             }]},
+    ({'postbuild': [
+        {'name': 'no plugin', 'args': {}},
+        {'name': 'post_watched', 'args': {'watcher': Watcher()}}]},
      True,  # is fatal
      True,  # logs error
      ),
 
     # No such plugin, prepub
-    ({'prepublish_plugins': [{'name': 'no plugin',
-                              'args': {}},
-                             {'name': 'prepub_watched',
-                              'args': {
-                                  'watcher': Watcher(),
-                              }
-                              }]},
+    ({'prepublish': [
+        {'name': 'no plugin', 'args': {}},
+        {'name': 'prepub_watched', 'args': {'watcher': Watcher()}}]},
      True,  # is fatal
      True,  # logs error
      ),
 
     # No such plugin, exit
-    ({'exit_plugins': [{'name': 'no plugin',
-                        'args': {}},
-                       {'name': 'exit_watched',
-                        'args': {
-                            'watcher': Watcher(),
-                        }
-                        }]},
+    ({'exit': [
+        {'name': 'no plugin', 'args': {}},
+        {'name': 'exit_watched', 'args': {'watcher': Watcher()}}]},
      True,  # is fatal
      True,   # logs error
      ),
 
     # No such plugin, prebuild, not required
-    ({'prebuild_plugins': [{'name': 'no plugin',
-                            'args': {},
-                            'required': False},
-                           {'name': 'pre_watched',
-                            'args': {
-                                'watcher': Watcher(),
-                            }
-                            }],
-      'buildstep_plugins': [{'name': 'buildstep_watched',
-                             'args': {
-                                 'watcher': Watcher(),
-                             }}]},
+    ({'prebuild': [
+        {'name': 'no plugin', 'args': {}, 'required': False},
+        {'name': 'pre_watched', 'args': {'watcher': Watcher()}}],
+      'buildstep': [{'name': 'buildstep_watched', 'args': {'watcher': Watcher()}}]},
      False,  # not fatal
      False,  # does not log error
      ),
 
     # No such plugin, buildstep, not required
-    ({'buildstep_plugins': [{'name': 'no plugin',
-                             'args': {},
-                             'required': False},
-                            {'name': 'buildstep_watched',
-                             'args': {
-                                 'watcher': Watcher(),
-                             }}]},
+    ({'buildstep': [
+        {'name': 'no plugin', 'args': {}, 'required': False},
+        {'name': 'buildstep_watched', 'args': {'watcher': Watcher()}}]},
      False,  # not fatal
      False,  # does not log error
      ),
 
     # No such plugin, postbuild, not required
-    ({'postbuild_plugins': [{'name': 'no plugin',
-                             'args': {},
-                             'required': False},
-                            {'name': 'post_watched',
-                             'args': {
-                                 'watcher': Watcher(),
-                             }
-                             }],
-      'buildstep_plugins': [{'name': 'buildstep_watched',
-                             'args': {
-                                 'watcher': Watcher(),
-                             }}]},
+    ({'postbuild': [
+        {'name': 'no plugin', 'args': {}, 'required': False},
+        {'name': 'post_watched', 'args': {'watcher': Watcher()}}],
+      'buildstep': [{'name': 'buildstep_watched', 'args': {'watcher': Watcher()}}]},
      False,  # not fatal
      False,  # does not log error
      ),
 
     # No such plugin, prepub, not required
-    ({'prepublish_plugins': [{'name': 'no plugin',
-                              'args': {},
-                              'required': False},
-                             {'name': 'prepub_watched',
-                              'args': {
-                                  'watcher': Watcher(),
-                              }
-                              }],
-      'buildstep_plugins': [{'name': 'buildstep_watched',
-                             'args': {
-                                 'watcher': Watcher(),
-                             }}]},
+    ({'prepublish': [
+        {'name': 'no plugin', 'args': {}, 'required': False},
+        {'name': 'prepub_watched', 'args': {'watcher': Watcher()}}],
+      'buildstep': [{'name': 'buildstep_watched', 'args': {'watcher': Watcher()}}]},
      False,  # not fatal
      False,  # does not log error
      ),
 
     # No such plugin, exit, not required
-    ({'exit_plugins': [{'name': 'no plugin',
-                        'args': {},
-                        'required': False},
-                       {'name': 'exit_watched',
-                        'args': {
-                            'watcher': Watcher(),
-                        }
-                        }],
-      'buildstep_plugins': [{'name': 'buildstep_watched',
-                             'args': {
-                                 'watcher': Watcher(),
-                             }}]},
+    ({'exit': [
+        {'name': 'no plugin', 'args': {}, 'required': False},
+        {'name': 'exit_watched', 'args': {'watcher': Watcher()}}],
+      'buildstep': [{'name': 'buildstep_watched', 'args': {'watcher': Watcher()}}]},
      False,  # not fatal
      False,  # does not log error
      ),
@@ -601,7 +489,7 @@ def test_plugin_errors(plugins, should_fail, should_log, caplog):
     caplog.clear()
     workflow = DockerBuildWorkflow(source=None,
                                    plugin_files=[this_file],
-                                   **plugins)
+                                   plugins=PluginsDef(**plugins))
 
     # Find the 'watcher' parameter
     watchers = [conf.get('args', {}).get('watcher')
@@ -652,49 +540,30 @@ def test_workflow_plugin_error(fail_at):
     watch_buildstep = Watcher()
     watch_post = Watcher()
     watch_exit = Watcher()
-    prebuild_plugins = [{'name': 'pre_watched',
-                         'args': {
-                             'watcher': watch_pre,
-                         }}]
-    buildstep_plugins = [{'name': 'buildstep_watched',
-                          'args': {
-                              'watcher': watch_buildstep,
-                          }}]
-    prepublish_plugins = [{'name': 'prepub_watched',
-                           'args': {
-                               'watcher': watch_prepub,
-                           }}]
-    postbuild_plugins = [{'name': 'post_watched',
-                          'args': {
-                              'watcher': watch_post
-                          }}]
-    exit_plugins = [{'name': 'exit_watched',
-                     'args': {
-                         'watcher': watch_exit
-                     }}]
+    plugins = PluginsDef(
+        prebuild=[{'name': 'pre_watched', 'args': {'watcher': watch_pre}}],
+        buildstep=[{'name': 'buildstep_watched', 'args': {'watcher': watch_buildstep}}],
+        prepublish=[{'name': 'prepub_watched', 'args': {'watcher': watch_prepub}}],
+        postbuild=[{'name': 'post_watched', 'args': {'watcher': watch_post}}],
+        exit=[{'name': 'exit_watched', 'args': {'watcher': watch_exit}}],
+    )
 
     # Insert a failing plugin into one of the build phases
     if fail_at == 'pre_raises':
-        prebuild_plugins.insert(0, {'name': fail_at, 'args': {}})
+        plugins.prepublish.insert(0, {'name': fail_at, 'args': {}})
     elif fail_at == 'buildstep_raises':
-        buildstep_plugins.insert(0, {'name': fail_at, 'args': {}})
+        plugins.buildstep.insert(0, {'name': fail_at, 'args': {}})
     elif fail_at == 'prepub_raises':
-        prepublish_plugins.insert(0, {'name': fail_at, 'args': {}})
+        plugins.prepublish.insert(0, {'name': fail_at, 'args': {}})
     elif fail_at == 'post_raises':
-        postbuild_plugins.insert(0, {'name': fail_at, 'args': {}})
+        plugins.postbuild.insert(0, {'name': fail_at, 'args': {}})
     elif fail_at == 'exit_raises' or fail_at == 'exit_raises_allowed':
-        exit_plugins.insert(0, {'name': fail_at, 'args': {}})
+        plugins.exit.insert(0, {'name': fail_at, 'args': {}})
     else:
         # Typo in the parameter list?
         assert False
 
-    workflow = DockerBuildWorkflow(source=None,
-                                   prebuild_plugins=prebuild_plugins,
-                                   buildstep_plugins=buildstep_plugins,
-                                   prepublish_plugins=prepublish_plugins,
-                                   postbuild_plugins=postbuild_plugins,
-                                   exit_plugins=exit_plugins,
-                                   plugin_files=[this_file])
+    workflow = DockerBuildWorkflow(source=None, plugins=plugins, plugin_files=[this_file])
 
     # Most failures cause the build process to abort. Unless, it's
     # an exit plugin that's explicitly allowed to fail.
@@ -746,28 +615,17 @@ def test_workflow_docker_build_error():
     watch_post = Watcher()
     watch_exit = Watcher()
 
-    workflow = DockerBuildWorkflow(source=None,
-                                   prebuild_plugins=[{'name': 'pre_watched',
-                                                      'args': {
-                                                          'watcher': watch_pre
-                                                      }}],
-                                   buildstep_plugins=[{'name': 'buildstep_watched',
-                                                       'args': {
-                                                           'watcher': watch_buildstep,
-                                                       }}],
-                                   prepublish_plugins=[{'name': 'prepub_watched',
-                                                        'args': {
-                                                            'watcher': watch_prepub,
-                                                        }}],
-                                   postbuild_plugins=[{'name': 'post_watched',
-                                                       'args': {
-                                                           'watcher': watch_post
-                                                       }}],
-                                   exit_plugins=[{'name': 'exit_watched',
-                                                  'args': {
-                                                      'watcher': watch_exit
-                                                  }}],
-                                   plugin_files=[this_file])
+    workflow = DockerBuildWorkflow(
+        source=None,
+        plugins=PluginsDef(
+            prebuild=[{'name': 'pre_watched', 'args': {'watcher': watch_pre}}],
+            buildstep=[{'name': 'buildstep_watched', 'args': {'watcher': watch_buildstep}}],
+            prepublish=[{'name': 'prepub_watched', 'args': {'watcher': watch_prepub}}],
+            postbuild=[{'name': 'post_watched', 'args': {'watcher': watch_post}}],
+            exit=[{'name': 'exit_watched', 'args': {'watcher': watch_exit}}],
+        ),
+        plugin_files=[this_file],
+    )
 
     with pytest.raises(Exception):
         workflow.build_docker_image()
@@ -820,33 +678,27 @@ def test_workflow_docker_build_error_reports(steps_to_fail, step_reported):
     watch_post = construct_watcher('post')
     watch_exit = construct_watcher('exit')
 
-    workflow = DockerBuildWorkflow(source=None,
-                                   prebuild_plugins=[{'name': 'pre_watched',
-                                                      'is_allowed_to_fail': False,
-                                                      'args': {
-                                                          'watcher': watch_pre
-                                                      }}],
-                                   buildstep_plugins=[{'name': 'buildstep_watched',
-                                                       'is_allowed_to_fail': False,
-                                                       'args': {
-                                                           'watcher': watch_buildstep,
-                                                       }}],
-                                   prepublish_plugins=[{'name': 'prepub_watched',
-                                                        'is_allowed_to_fail': False,
-                                                        'args': {
-                                                            'watcher': watch_prepub,
-                                                        }}],
-                                   postbuild_plugins=[{'name': 'post_watched',
-                                                       'is_allowed_to_fail': False,
-                                                       'args': {
-                                                           'watcher': watch_post
-                                                       }}],
-                                   exit_plugins=[{'name': 'exit_watched',
-                                                  'is_allowed_to_fail': False,
-                                                  'args': {
-                                                      'watcher': watch_exit
-                                                  }}],
-                                   plugin_files=[this_file])
+    workflow = DockerBuildWorkflow(
+        source=None,
+        plugins=PluginsDef(
+            prebuild=[{'name': 'pre_watched',
+                       'is_allowed_to_fail': False,
+                       'args': {'watcher': watch_pre}}],
+            buildstep=[{'name': 'buildstep_watched',
+                        'is_allowed_to_fail': False,
+                        'args': {'watcher': watch_buildstep}}],
+            prepublish=[{'name': 'prepub_watched',
+                         'is_allowed_to_fail': False,
+                         'args': {'watcher': watch_prepub}}],
+            postbuild=[{'name': 'post_watched',
+                        'is_allowed_to_fail': False,
+                        'args': {'watcher': watch_post}}],
+            exit=[{'name': 'exit_watched',
+                   'is_allowed_to_fail': False,
+                   'args': {'watcher': watch_exit}}],
+        ),
+        plugin_files=[this_file],
+    )
 
     with pytest.raises(Exception) as exc:
         workflow.build_docker_image()
@@ -868,16 +720,14 @@ def test_source_not_removed_for_exit_plugins():
     this_file = inspect.getfile(PreRaises)
     watch_exit = Watcher()
     watch_buildstep = Watcher()
-    workflow = DockerBuildWorkflow(source=None,
-                                   exit_plugins=[{'name': 'uses_source',
-                                                  'args': {
-                                                      'watcher': watch_exit,
-                                                  }}],
-                                   buildstep_plugins=[{'name': 'buildstep_watched',
-                                                       'args': {
-                                                           'watcher': watch_buildstep,
-                                                       }}],
-                                   plugin_files=[this_file])
+    workflow = DockerBuildWorkflow(
+        source=None,
+        plugins=PluginsDef(
+            exit=[{'name': 'uses_source', 'args': {'watcher': watch_exit}}],
+            buildstep=[{'name': 'buildstep_watched', 'args': {'watcher': watch_buildstep}}],
+        ),
+        plugin_files=[this_file],
+    )
 
     workflow.build_docker_image()
 
@@ -1003,19 +853,15 @@ def test_workflow_plugin_results(buildstep_plugin, buildstep_raises):
     mock_inspect()
     this_file = inspect.getfile(PreRaises)
 
-    prebuild_plugins = [{'name': 'pre_build_value'}]
-    buildstep_plugins = [{'name': buildstep_plugin}]
-    postbuild_plugins = [{'name': 'post_build_value'}]
-    prepublish_plugins = [{'name': 'pre_publish_value'}]
-    exit_plugins = [{'name': 'exit_value'}]
+    plugins = PluginsDef(
+        prebuild=[{'name': 'pre_build_value'}],
+        buildstep=[{'name': buildstep_plugin}],
+        postbuild=[{'name': 'post_build_value'}],
+        prepublish=[{'name': 'pre_publish_value'}],
+        exit=[{'name': 'exit_value'}],
+    )
 
-    workflow = DockerBuildWorkflow(source=None,
-                                   prebuild_plugins=prebuild_plugins,
-                                   buildstep_plugins=buildstep_plugins,
-                                   prepublish_plugins=prepublish_plugins,
-                                   postbuild_plugins=postbuild_plugins,
-                                   exit_plugins=exit_plugins,
-                                   plugin_files=[this_file])
+    workflow = DockerBuildWorkflow(source=None, plugins=plugins, plugin_files=[this_file])
 
     if buildstep_raises:
         with pytest.raises(PluginFailedException):
@@ -1055,28 +901,17 @@ def test_cancel_build(fail_at, caplog):
 
     caplog.clear()
 
-    workflow = DockerBuildWorkflow(source=None,
-                                   prebuild_plugins=[{'name': 'pre_watched',
-                                                      'args': {
-                                                          'watcher': watch_pre
-                                                      }}],
-                                   prepublish_plugins=[{'name': 'prepub_watched',
-                                                        'args': {
-                                                            'watcher': watch_prepub,
-                                                        }}],
-                                   buildstep_plugins=[{'name': 'buildstep_watched',
-                                                       'args': {
-                                                           'watcher': watch_buildstep
-                                                       }}],
-                                   postbuild_plugins=[{'name': 'post_watched',
-                                                       'args': {
-                                                           'watcher': watch_post
-                                                       }}],
-                                   exit_plugins=[{'name': 'exit_watched',
-                                                  'args': {
-                                                      'watcher': watch_exit
-                                                  }}],
-                                   plugin_files=[this_file])
+    workflow = DockerBuildWorkflow(
+        source=None,
+        plugins=PluginsDef(
+            prebuild=[{'name': 'pre_watched', 'args': {'watcher': watch_pre}}],
+            prepublish=[{'name': 'prepub_watched', 'args': {'watcher': watch_prepub}}],
+            buildstep=[{'name': 'buildstep_watched', 'args': {'watcher': watch_buildstep}}],
+            postbuild=[{'name': 'post_watched', 'args': {'watcher': watch_post}}],
+            exit=[{'name': 'exit_watched', 'args': {'watcher': watch_exit}}],
+        ),
+        plugin_files=[this_file],
+    )
     # BaseException repr does not include trailing comma in Python >= 3.7
     # we look for a partial match in log strings for Python < 3.7 compatibility
     expected_entry = (
@@ -1128,13 +963,11 @@ def test_show_version(has_version, caplog):
 
     caplog.clear()
 
+    plugins = PluginsDef(
+        buildstep=[{'name': 'buildstep_watched', 'args': {'watcher': watch_buildstep}}],
+    )
     params = {
-        'prebuild_plugins': [],
-        'buildstep_plugins': [{'name': 'buildstep_watched',
-                               'args': {'watcher': watch_buildstep}}],
-        'prepublish_plugins': [],
-        'postbuild_plugins': [],
-        'exit_plugins': [],
+        'plugins': plugins,
         'plugin_files': [this_file],
     }
     if has_version:
@@ -1156,16 +989,14 @@ def test_layer_sizes():
     this_file = inspect.getfile(PreRaises)
     watch_exit = Watcher()
     watch_buildstep = Watcher()
-    workflow = DockerBuildWorkflow(source=None,
-                                   exit_plugins=[{'name': 'uses_source',
-                                                  'args': {
-                                                      'watcher': watch_exit,
-                                                  }}],
-                                   buildstep_plugins=[{'name': 'buildstep_watched',
-                                                       'args': {
-                                                           'watcher': watch_buildstep,
-                                                       }}],
-                                   plugin_files=[this_file])
+    workflow = DockerBuildWorkflow(
+        source=None,
+        plugins=PluginsDef(
+            exit=[{'name': 'uses_source', 'args': {'watcher': watch_exit}}],
+            buildstep=[{'name': 'buildstep_watched', 'args': {'watcher': watch_buildstep}}],
+        ),
+        plugin_files=[this_file],
+    )
 
     workflow.build_docker_image()
 
@@ -1180,7 +1011,6 @@ def test_layer_sizes():
 
 
 @pytest.mark.parametrize('buildstep_plugins, is_orchestrator', [
-    (None, False),
     ([], False),
     ([{'name': 'some_name'}], False),
     ([{'name': PLUGIN_BUILD_ORCHESTRATE_KEY}], True),
@@ -1190,7 +1020,7 @@ def test_layer_sizes():
 ])
 def test_workflow_is_orchestrator_build(buildstep_plugins, is_orchestrator):
     workflow = DockerBuildWorkflow(source=None,
-                                   buildstep_plugins=buildstep_plugins)
+                                   plugins=PluginsDef(buildstep=buildstep_plugins))
     assert workflow.is_orchestrator_build() == is_orchestrator
 
 
@@ -1218,17 +1048,18 @@ def test_no_base_image(tmpdir):
 
 
 def test_different_custom_base_images(tmpdir):
-    source = {'provider': 'path', 'uri': 'file://' + DOCKERFILE_MULTISTAGE_CUSTOM_BAD_PATH,
-              'workdir': str(tmpdir)}
+    source = PathSource(
+        "path", f"file://{DOCKERFILE_MULTISTAGE_CUSTOM_BAD_PATH}", workdir=str(tmpdir)
+    )
     with pytest.raises(NotImplementedError) as exc:
         DockerBuildWorkflow(source=source)
     message = "multiple different custom base images aren't allowed in Dockerfile"
     assert message in str(exc.value)
 
 
-def test_copy_from_is_blocked(tmpdir):
+def test_copy_from_unkown_stage(tmpdir):
     """test when user has specified COPY --from=image (instead of builder)"""
-    source = {'provider': 'path', 'uri': 'file://' + str(tmpdir), 'workdir': str(tmpdir)}
+    source = PathSource("path", f"file://{tmpdir}", workdir=str(tmpdir))
 
     dfp = df_parser(str(tmpdir))
     dfp.content = dedent("""\
@@ -1241,6 +1072,11 @@ def test_copy_from_is_blocked(tmpdir):
         DockerBuildWorkflow(source=source)
     assert "FROM notvikings AS source" in str(exc_info.value)
 
+
+def test_copy_from_invalid_index(tmpdir):
+    source = PathSource("path", f"file://{tmpdir}", workdir=str(tmpdir))
+
+    dfp = df_parser(str(tmpdir))
     dfp.content = dedent("""\
         FROM monty as vikings
         # using an index we haven't seen should break:

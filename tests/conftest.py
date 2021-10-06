@@ -6,7 +6,6 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
-import json
 import pytest
 import requests
 import requests.exceptions
@@ -55,10 +54,10 @@ def inspect_only(request):
 @pytest.fixture
 def user_params(monkeypatch):
     """
-    Setting default image_tag in the env var USER_PARAMS. Any tests requiring
-    to create an instance of :class:`DockerBuildWorkflow` requires this fixture.
+    Setting default image_tag in the user params. Any tests requiring to create an instance
+    of :class:`DockerBuildWorkflow` requires this fixture.
     """
-    monkeypatch.setenv('USER_PARAMS', json.dumps({'image_tag': TEST_IMAGE}))
+    monkeypatch.setattr(DockerBuildWorkflow, "_default_user_params", {"image_tag": TEST_IMAGE})
 
 
 @pytest.fixture
