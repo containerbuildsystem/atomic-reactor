@@ -426,7 +426,6 @@ class DockerBuildWorkflow(object):
         plugin_files: List[str] = None,
         openshift_build_selflink: str = None,
         client_version: str = None,
-        **kwargs,
     ):
         """
         :param source: where/how to get source code to put in image
@@ -456,8 +455,6 @@ class DockerBuildWorkflow(object):
         self.plugin_failed = False
         self.plugin_files = plugin_files
         self.fs_watcher = FSWatcher()
-
-        self.kwargs = kwargs
 
         self.built_image_inspect = None
         self.layer_sizes = []
@@ -506,9 +503,6 @@ class DockerBuildWorkflow(object):
 
         if client_version:
             logger.debug("build json was built by osbs-client %s", client_version)
-
-        if kwargs:
-            logger.warning("unprocessed keyword arguments: %s", kwargs)
 
         # get info about base image from dockerfile
         build_file_path, build_file_dir = self.source.get_build_file_path()
