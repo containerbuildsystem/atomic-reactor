@@ -14,19 +14,18 @@ import pytest
 import atomic_reactor
 import atomic_reactor.util
 
-from atomic_reactor.constants import (PLUGIN_BUILD_ORCHESTRATE_KEY,
-                                      PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
+from atomic_reactor.constants import (PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
                                       SCRATCH_FROM)
-from atomic_reactor.inner import DockerBuildWorkflow
-from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
-from atomic_reactor.util import get_checksums, DockerfileImages
+from atomic_reactor.plugin import PluginFailedException
+from atomic_reactor.util import get_checksums
 from atomic_reactor.utils import imageutil
 from atomic_reactor.plugins.pre_pull_base_image import PullBaseImagePlugin
 from osbs.utils import ImageName
 from io import BytesIO
 from requests.exceptions import HTTPError, RetryError, Timeout
 from tests.constants import (LOCALHOST_REGISTRY, IMAGE_RAISE_RETRYGENERATOREXCEPTION)
+from tests.mock_env import MockEnv
 
 
 BASE_IMAGE = "busybox:latest"
@@ -64,6 +63,10 @@ def teardown_function(function):
     sys.modules.pop('pre_pull_base_image', None)
 
 
+def mock_env():
+    return MockEnv().for_plugin("prebuild", PullBaseImagePlugin.key)
+
+
 @pytest.mark.skip(reason="plugin needs rework to not pull and local tag images")
 @pytest.mark.parametrize('add_another_parent', [True, False])
 @pytest.mark.parametrize(('special_image', 'change_base'), [
@@ -77,20 +80,17 @@ def test_pull_base_image_special(add_another_parent, special_image, change_base,
             'name': UNIQUE_ID,
         },
     }))
-    monkeypatch.setenv('USER_PARAMS', json.dumps({'image_tag': special_image}))
 
-    buildstep_plugin = [{
-        'name': PLUGIN_BUILD_ORCHESTRATE_KEY,
-        'args': {'platforms': ['x86_64']},
-    }]
-    workflow = DockerBuildWorkflow(
-        source=None,
-        buildstep_plugins=buildstep_plugin,
+    env = (
+        mock_env()
+        .set_user_params(image_tag=special_image)
+        .set_orchestrator_platforms(["x86_64"])
     )
+
     dockerfile_images = [special_image]
     if add_another_parent:
         dockerfile_images.insert(0, BASE_IMAGE_W_REGISTRY_SHA)
-    workflow.dockerfile_images = DockerfileImages(dockerfile_images)
+    env.set_dockerfile_images(dockerfile_images)
 
     expected = []
     if special_image == SCRATCH_FROM:
@@ -109,18 +109,12 @@ def test_pull_base_image_special(add_another_parent, special_image, change_base,
 
     rcm = {'version': 1, 'source_registry': {'url': LOCALHOST_REGISTRY, 'insecure': True},
            'registries_organization': None}
-    workflow.conf.conf = rcm
+    env.set_reactor_config(rcm)
 
-    runner = PreBuildPluginsRunner(
-        workflow,
-        [{
-            'name': PullBaseImagePlugin.key,
-            'args': {}
-        }]
-    )
+    runner = env.create_runner()
 
     runner.run()
-    dockerfile_images = workflow.dockerfile_images
+    dockerfile_images = env.workflow.dockerfile_images
     if change_base:
         assert dockerfile_images.base_image.to_str().startswith(UNIQUE_ID)
     else:
@@ -130,7 +124,7 @@ def test_pull_base_image_special(add_another_parent, special_image, change_base,
             assert dockerfile_images.base_image.to_str().startswith(special_image)
     for image in expected:
         # assert tasker.image_exists(image)
-        assert image in workflow.pulled_base_images
+        assert image in env.workflow.pulled_base_images
 
     # for image in workflow.pulled_base_images:
     #     assert tasker.image_exists(image)
@@ -191,14 +185,7 @@ def test_pull_base_image_plugin(user_params, parent_registry, df_base, expected,
                                 check_platforms=False, parent_images=None, organization=None,
                                 parent_images_digests=None, expected_digests=None,
                                 pull_registries=None):
-    buildstep_plugin = [{
-        'name': PLUGIN_BUILD_ORCHESTRATE_KEY,
-        'args': {'platforms': ['x86_64']},
-    }]
-    workflow = DockerBuildWorkflow(
-        source=None,
-        buildstep_plugins=buildstep_plugin,
-    )
+    env = mock_env().set_orchestrator_platforms(["x86_64"])
 
     if parent_images:
         dockerfile_images = parent_images
@@ -207,7 +194,7 @@ def test_pull_base_image_plugin(user_params, parent_registry, df_base, expected,
         if add_base.registry is None:
             add_base.registry = parent_registry
         dockerfile_images = [add_base.to_str()]
-    workflow.dockerfile_images = DockerfileImages(dockerfile_images)
+    env.set_dockerfile_images(dockerfile_images)
 
     expected = set(expected)
     if parent_images:
@@ -227,21 +214,20 @@ def test_pull_base_image_plugin(user_params, parent_registry, df_base, expected,
     if pull_registries:
         reactor_config['pull_registries'] = pull_registries
 
-    workflow.conf.conf = reactor_config
+    env.set_reactor_config(reactor_config)
 
+    workflow = env.workflow
     if workflow_callback:
         workflow = workflow_callback(workflow)
 
-    runner = PreBuildPluginsRunner(
-        workflow,
-        [{
-            'name': PullBaseImagePlugin.key,
-            'args': {'check_platforms': check_platforms,
-                     'inspect_only': inspect_only,
-                     'parent_images_digests': parent_images_digests,
-                     }
-        }]
+    env.set_plugin_args(
+        {
+            'check_platforms': check_platforms,
+            'inspect_only': inspect_only,
+            'parent_images_digests': parent_images_digests,
+        }
     )
+    runner = env.create_runner()
 
     if parent_registry is None:
         with pytest.raises(PluginFailedException):
@@ -427,10 +413,11 @@ def test_pull_base_change_override(monkeypatch, inspect_only, user_params):  # n
     (docker.errors.NotFound, 25, False),
     (RuntimeError, 1, False),
 ])
-def test_retry_pull_base_image(workflow, exc, failures, should_succeed):
+def test_retry_pull_base_image(exc, failures, should_succeed):
     source_registry = 'registry.example.com'
     base_image = '/'.join([source_registry, 'parent-image'])
-    workflow.dockerfile_images = DockerfileImages([base_image])
+
+    env = mock_env().set_dockerfile_images([base_image])
 
     class MockResponse(object):
         content = ''
@@ -441,16 +428,11 @@ def test_retry_pull_base_image(workflow, exc, failures, should_succeed):
 
     expectation.and_return('foo')
 
-    workflow.conf.conf = {'version': 1, 'source_registry': {'url': source_registry,
-                                                            'insecure': True}}
-
-    runner = PreBuildPluginsRunner(
-        workflow,
-        [{
-            'name': PullBaseImagePlugin.key,
-            'args': {},
-        }],
+    env.set_reactor_config(
+        {'version': 1, 'source_registry': {'url': source_registry, 'insecure': True}}
     )
+
+    runner = env.create_runner()
 
     if should_succeed:
         runner.run()
@@ -460,21 +442,17 @@ def test_retry_pull_base_image(workflow, exc, failures, should_succeed):
 
 
 @pytest.mark.skip(reason="plugin needs rework to not pull and local tag images")
-def test_pull_raises_retry_error(workflow, caplog):
+def test_pull_raises_retry_error(caplog):
     image_name = ImageName.parse(IMAGE_RAISE_RETRYGENERATOREXCEPTION)
     base_image_str = "{}/{}:{}".format(SOURCE_REGISTRY, image_name.repo, 'some')
     source_registry = image_name.registry
-    workflow.dockerfile_images = DockerfileImages([base_image_str])
-    workflow.conf.conf = {'version': 1, 'source_registry': {'url': source_registry,
-                                                            'insecure': True}}
 
-    runner = PreBuildPluginsRunner(
-        workflow,
-        [{
-            'name': PullBaseImagePlugin.key,
-            'args': {},
-        }],
+    env = mock_env().set_dockerfile_images([base_image_str])
+    env.set_reactor_config(
+        {'version': 1, 'source_registry': {'url': source_registry, 'insecure': True}}
     )
+
+    runner = env.create_runner()
 
     with pytest.raises(Exception):
         runner.run()
@@ -509,7 +487,7 @@ class TestValidateBaseImage(object):
         def workflow_callback(workflow):
             self.prepare(workflow, mock_get_manifest_list=True)
             del workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
-            del workflow.buildstep_plugins_conf[0]
+            del workflow.plugins.buildstep[0]
             return workflow
 
         log_message = 'expected platforms are unknown'
@@ -794,7 +772,7 @@ class TestValidateBaseImage(object):
 
                 # platform validation will fail if manifest is missing
                 # setting only one platform to skip platform validation and test negative case
-                workflow.buildstep_plugins_conf[0]['args']['platforms'] = ['x86_64']
+                workflow.plugins.buildstep[0]['args']['platforms'] = ['x86_64']
                 workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = {'x86_64'}
 
             test_vals['workflow'] = workflow
@@ -867,14 +845,17 @@ class TestValidateBaseImage(object):
 
     def prepare(self, workflow, mock_get_manifest_list=False):
         # Setup expected platforms
-        workflow.buildstep_plugins_conf[0]['args']['platforms'] = ['x86_64', 'ppc64le']
-        workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = {'x86_64', 'ppc64le'}
-
-        # Setup platform descriptors
-        workflow.conf.conf = {'version': 1,
-                              'source_registry': {'url': SOURCE_REGISTRY, 'insecure': True},
-                              'platform_descriptors': [{'platform': 'x86_64',
-                                                        'architecture': 'amd64'}]}
+        env = (
+            MockEnv(workflow)
+            .set_orchestrator_platforms(['x86_64', 'ppc64le'])
+            .set_check_platforms_result({'x86_64', 'ppc64le'})
+            .set_reactor_config(
+                {'version': 1,
+                 'source_registry': {'url': SOURCE_REGISTRY, 'insecure': True},
+                 'platform_descriptors': [{'platform': 'x86_64',
+                                           'architecture': 'amd64'}]}
+            )
+        )
 
         if mock_get_manifest_list:
             # Setup multi-arch manifest list
@@ -889,4 +870,4 @@ class TestValidateBaseImage(object):
              .and_return(flexmock(json=lambda: manifest_list,
                                   content=json.dumps(manifest_list).encode('utf-8'))))
 
-        return workflow
+        return env.workflow

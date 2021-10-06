@@ -31,7 +31,7 @@ from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA1, MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
                                       DOCKERIGNORE, RELATIVE_REPOS_PATH)
-from atomic_reactor.inner import DockerBuildWorkflow, BuildResult
+from atomic_reactor.inner import BuildResult
 from atomic_reactor.util import (LazyGit, figure_out_build_file,
                                  render_yum_repo, process_substitutions,
                                  get_checksums, print_version_of_tools,
@@ -66,10 +66,11 @@ from atomic_reactor.util import (LazyGit, figure_out_build_file,
 from tests.constants import (DOCKERFILE_GIT, MOCK, REACTOR_CONFIG_MAP)
 import atomic_reactor.util
 from atomic_reactor.utils import imageutil
-from atomic_reactor.constants import INSPECT_CONFIG, PLUGIN_BUILD_ORCHESTRATE_KEY
+from atomic_reactor.constants import INSPECT_CONFIG
 from atomic_reactor.source import SourceConfig
 from osbs.utils import ImageName
 from osbs.exceptions import OsbsValidationException
+from tests.mock_env import MockEnv
 from tests.util import requires_internet
 from tests.stubs import StubSource
 
@@ -987,17 +988,15 @@ def test_is_flatpak_build(workflow, extra_user_params, flatpak, user_params):
 
 
 @pytest.mark.parametrize("is_orchestrator", [True, False])
-def test_get_orchestrator_platforms(is_orchestrator, user_params):
-    workflow = DockerBuildWorkflow(source=None)
+def test_get_orchestrator_platforms(is_orchestrator):
+    env = MockEnv().set_user_params(platforms=["x86_64", "ppc64le"])
     if is_orchestrator:
-        workflow.buildstep_plugins_conf = [{"name": PLUGIN_BUILD_ORCHESTRATE_KEY}]
-
-    workflow.user_params["platforms"] = ["x86_64", "ppc64le"]
+        env.make_orchestrator()
 
     if is_orchestrator:
-        assert get_orchestrator_platforms(workflow) == ["x86_64", "ppc64le"]
+        assert get_orchestrator_platforms(env.workflow) == ["x86_64", "ppc64le"]
     else:
-        assert get_orchestrator_platforms(workflow) is None
+        assert get_orchestrator_platforms(env.workflow) is None
 
 
 def test_df_parser(tmpdir):
