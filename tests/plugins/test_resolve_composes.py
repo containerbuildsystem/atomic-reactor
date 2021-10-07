@@ -560,6 +560,8 @@ class TestResolveComposes(object):
                 modular_koji_tags:
                 - earliest
                 - latest
+                module_resolve_tags:
+                - special
             """)
         mock_repo_config(workflow._tmpdir, repo_config)
 
@@ -584,12 +586,66 @@ class TestResolveComposes(object):
             .with_args(source_type='module',
                        source='spam:stable bacon:stable eggs:stable',
                        sigkeys=['R123'],
+                       modular_koji_tags=['special'],
                        arches=['x86_64'])
             .and_return(ODCS_COMPOSE))
 
         mock_odcs_client_wait_for_compose()
 
         self.run_plugin_with_args(workflow)
+
+    @pytest.mark.parametrize('is_true', (True, False))
+    def test_request_compose_packages_for_module_resolve_tags(self, workflow, is_true):
+        repo_config = yaml.safe_load(dedent("""\
+            compose:
+                modules:
+                - spam:stable
+                - bacon:stable
+                - eggs:stable
+            """))
+
+        if is_true:
+            repo_config['compose']['module_resolve_tags'] = True
+            expected_modular_koji_tags = ['test-tag']
+        else:
+            repo_config['compose']['module_resolve_tags'] = ['special']
+            expected_modular_koji_tags = ['special']
+
+        mock_repo_config(workflow._tmpdir, yaml.safe_dump(repo_config))
+
+        (flexmock(ODCSClient)
+            .should_receive('start_compose')
+            .with_args(source_type='module',
+                       source='spam:stable bacon:stable eggs:stable',
+                       sigkeys=['R123'],
+                       modular_koji_tags=expected_modular_koji_tags,
+                       arches=['x86_64'])
+            .and_return(ODCS_COMPOSE))
+
+        mock_odcs_client_wait_for_compose()
+
+        self.run_plugin_with_args(workflow)
+
+    def test_request_compose_for_module_resolve_tags_auto_without_tag(self, workflow):
+        repo_config = dedent("""\
+            compose:
+                modules:
+                - spam:stable
+                - bacon:stable
+                - eggs:stable
+            compose:
+                module_resolve_tags: true
+            """)
+        mock_repo_config(workflow._tmpdir, repo_config)
+
+        (flexmock(ODCSClient)
+            .should_receive('start_compose')
+            .never())
+        workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = 'x86_64'
+
+        with pytest.raises(PluginFailedException) as exc:
+            self.run_plugin_with_args(workflow, with_target=False)
+        assert "koji_tag is required when module_resolve_tags is True" in str(exc.value)
 
     @pytest.mark.parametrize(('with_modules'), (True, False))
     def test_request_compose_empty_packages(self, workflow, with_modules):
