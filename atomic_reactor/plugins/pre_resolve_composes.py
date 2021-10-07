@@ -433,6 +433,7 @@ class ComposeConfig(object):
         self.multilib_arches = []
         self.multilib_method = None
         self.modular_tags = data.get('modular_koji_tags')
+        self.resolve_tags = data.get('module_resolve_tags')
         self.koji_tag = koji_tag
 
         if self.modular_tags is True:
@@ -528,6 +529,8 @@ class ComposeConfig(object):
             'source': ' '.join(noprofile_modules),
             'sigkeys': self.signing_intent['keys'],
         }
+        if self.resolve_tags:
+            request['modular_koji_tags'] = self.resolve_tags
         if self.arches:
             request['arches'] = self.arches
         return request
