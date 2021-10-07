@@ -35,7 +35,7 @@ def test_parse_args_version(capsys):
         parser.parse_args(["--version"])
 
     stdout = capsys.readouterr().out
-    assert re.match(r"^\d+\.\d+\.\d+$", stdout.strip())
+    assert re.match(r"^\d+\.\d+\.(dev)?\d+$", stdout.strip())
 
 
 @pytest.mark.parametrize(

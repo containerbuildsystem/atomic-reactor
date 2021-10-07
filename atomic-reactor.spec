@@ -6,7 +6,7 @@
 %global ar_subpackages_obsolete 1.6.50
 
 Name:           %{project}
-Version:        3.7.0
+Version:        4.0.dev0
 Release:        1%{?dist}
 
 Summary:        Improved builder for Docker images
