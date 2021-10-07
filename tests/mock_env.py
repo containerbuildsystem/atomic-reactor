@@ -6,7 +6,10 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
-from atomic_reactor.constants import PLUGIN_BUILD_ORCHESTRATE_KEY
+from typing import Iterable, List, Union
+
+from atomic_reactor.constants import (PLUGIN_BUILD_ORCHESTRATE_KEY,
+                                      PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
 from atomic_reactor.plugin import (PreBuildPluginsRunner,
                                    BuildStepPluginsRunner,
                                    PostBuildPluginsRunner,
@@ -14,6 +17,7 @@ from atomic_reactor.plugin import (PreBuildPluginsRunner,
                                    ExitPluginsRunner)
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.config import Configuration
+from atomic_reactor.util import DockerfileImages
 from tests.stubs import StubSource
 
 
@@ -51,8 +55,8 @@ class MockEnv(object):
         'exit': 'exit_results',
     }
 
-    def __init__(self):
-        self.workflow = DockerBuildWorkflow(source=None)
+    def __init__(self, workflow=None):
+        self.workflow = workflow or DockerBuildWorkflow()
         self.workflow.source = StubSource()
 
         self._phase = None
@@ -88,6 +92,8 @@ class MockEnv(object):
         self._plugin_key = plugin_key
 
         plugins = getattr(self.workflow.plugins, phase)
+        if plugins:
+            raise ValueError(f"This environment already has {phase} plugins: {plugins}")
         plugins.append(self._make_plugin_conf(plugin_key, args))
 
         return self
@@ -96,15 +102,26 @@ class MockEnv(object):
         """
         Set "scratch" user param to specified value
         """
-        self.workflow.user_params['scratch'] = scratch
-        return self
+        return self.set_user_params(scratch=scratch)
 
     def set_isolated(self, isolated):
         """
         Set "isolated" user param to specified value
         """
-        self.workflow.user_params['isolated'] = isolated
+        return self.set_user_params(isolated=isolated)
+
+    def set_user_params(self, **params):
+        """Set user params from keyword arguments."""
+        self.workflow.user_params.update(params)
         return self
+
+    def set_orchestrator_platforms(self, platforms: Iterable[str]):
+        """Set orchestrator platforms and make sure this is an orchestrator environment."""
+        try:
+            self._get_plugin('buildstep', PLUGIN_BUILD_ORCHESTRATE_KEY)
+        except ValueError:
+            self.make_orchestrator()
+        return self.set_user_params(platforms=list(platforms))
 
     def make_orchestrator(self, orchestrator_args=None):
         """
@@ -118,6 +135,10 @@ class MockEnv(object):
             self._make_plugin_conf(PLUGIN_BUILD_ORCHESTRATE_KEY, orchestrator_args)
         )
         return self
+
+    def set_check_platforms_result(self, result):
+        """Set result of the check_and_set_platforms plugin."""
+        return self.set_plugin_result("prebuild", PLUGIN_CHECK_AND_SET_PLATFORMS_KEY, result)
 
     def set_plugin_result(self, phase, plugin_key, result):
         """
@@ -182,6 +203,13 @@ class MockEnv(object):
             self.workflow.conf = config
 
         return self._reactor_config_map
+
+    def set_dockerfile_images(self, images: Union[DockerfileImages, List[str]]):
+        """Set dockerfile images in the workflow."""
+        if not isinstance(images, DockerfileImages):
+            images = DockerfileImages(images)
+        self.workflow.dockerfile_images = images
+        return self
 
     def _validate_phase(self, phase):
         if phase not in self._plugin_phases:
