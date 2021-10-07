@@ -1,0 +1,40 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: source-container-0-1  # dot is not allowed in the name
+spec:
+  params:
+    - name: OSBS_IMAGE
+      description: The location of the OSBS builder image (FQDN pullspec)
+      type: string
+    - name: USER_PARAMS
+      type: string
+      description: User parameters in JSON format
+
+  workspaces:
+    - name: ws-build-dir
+    - name: ws-context-dir
+    - name: ws-registries-secret
+    - name: ws-koji-secret
+    - name: ws-reactor-config-map
+
+  tasks:
+    - name: build-source-container
+      taskRef:
+        name: build-source-container-0-1
+      workspaces:
+      - name: ws-build-dir
+        workspace: ws-build-dir
+      - name: ws-context-dir
+        workspace: ws-context-dir
+      - name: ws-registries-secret
+        workspace: ws-registries-secret
+      - name: ws-koji-secret
+        workspace: ws-koji-secret
+      - name: ws-reactor-config-map
+        workspace: ws-reactor-config-map
+      params:
+        - name: OSBS_IMAGE
+          value: "$(params.OSBS_IMAGE)"
+        - name: USER_PARAMS
+          value: "$(params.USER_PARAMS)"
