@@ -97,7 +97,8 @@ class ODCSClient(object):
                         not empty and no mulitlib_method value is provided.
         :param modular_koji_tags: list<str>, the koji tags which are tagged to builds from the
                         modular Koji Content Generator.  Builds with matching tags will be
-                        included in the compose.
+                        included in the compose. For source_type "module" compose, these tags
+                        are used to resolve partially specified modules.
 
         :return: dict, status of compose being created by request.
         """
