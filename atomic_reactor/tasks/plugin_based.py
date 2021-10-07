@@ -18,7 +18,7 @@ class PluginsDef:
     """Defines the plugins to be executed by a task."""
 
     prebuild: List[dict] = field(default_factory=list)
-    build: List[dict] = field(default_factory=list)
+    buildstep: List[dict] = field(default_factory=list)
     prepublish: List[dict] = field(default_factory=list)
     postbuild: List[dict] = field(default_factory=list)
     exit: List[dict] = field(default_factory=list)
@@ -27,7 +27,7 @@ class PluginsDef:
         """Validate the plugin definition right after the instance is created."""
         to_validate = {
             "prebuild_plugins": self.prebuild,
-            "buildstep_plugins": self.build,
+            "buildstep_plugins": self.buildstep,
             "prepublish_plugins": self.prepublish,
             "postbuild_plugins": self.postbuild,
             "exit_plugins": self.exit,

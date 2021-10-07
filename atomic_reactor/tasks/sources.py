@@ -35,7 +35,7 @@ class SourceBuildTask(plugin_based.PluginBasedTask):
             {"name": "fetch_sources"},
             {"name": "bump_release"},
         ],
-        build=[
+        buildstep=[
             {"name": "source_container"},
         ],
         postbuild=[

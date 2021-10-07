@@ -17,9 +17,9 @@ class TestPluginsDef:
     """Tests for the PluginsDef class."""
 
     def test_create_valid(self):
-        plugins = plugin_based.PluginsDef(build=[{"name": "some_plugin"}])
+        plugins = plugin_based.PluginsDef(buildstep=[{"name": "some_plugin"}])
         assert plugins.prebuild == []
-        assert plugins.build == [{"name": "some_plugin"}]
+        assert plugins.buildstep == [{"name": "some_plugin"}]
         assert plugins.prepublish == []
         assert plugins.postbuild == []
         assert plugins.exit == []
