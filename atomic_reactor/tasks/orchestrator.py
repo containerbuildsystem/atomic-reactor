@@ -37,7 +37,7 @@ class OrchestratorTask(plugin_based.PluginBasedTask):
             {"name": "resolve_remote_source"},
             {"name": "pin_operator_digest"},
         ],
-        build=[
+        buildstep=[
             {"name": "orchestrate_build"},
         ],
         postbuild=[
