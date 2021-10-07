@@ -405,12 +405,18 @@ class ComposeConfig(object):
         self.multilib_arches = []
         self.multilib_method = None
         self.modular_tags = data.get('modular_koji_tags')
+        self.module_resolve_tags = data.get('module_resolve_tags')
         self.koji_tag = koji_tag
 
         if self.modular_tags is True:
             if not self.koji_tag:
                 raise ValueError('koji_tag is required when modular_koji_tags is True')
             self.modular_tags = [self.koji_tag]
+
+        if self.module_resolve_tags is True:
+            if not self.koji_tag:
+                raise ValueError('koji_tag is required when module_resolve_tags is True')
+            self.module_resolve_tags = [self.koji_tag]
 
         if data.get('pulp_repos'):
             for arch in pulp_data or {}:
@@ -500,6 +506,10 @@ class ComposeConfig(object):
             'source': ' '.join(noprofile_modules),
             'sigkeys': self.signing_intent['keys'],
         }
+        if self.module_resolve_tags:
+            # For ODCS, modular_koji_tags has a different meaning for source_type=module
+            # and for other source types. We use different keys for the two types.
+            request['modular_koji_tags'] = self.module_resolve_tags
         if self.arches:
             request['arches'] = self.arches
         return request
