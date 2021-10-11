@@ -424,7 +424,6 @@ class DockerBuildWorkflow(object):
         user_params: dict = None,
         reactor_config_path: str = REACTOR_CONFIG_FULL_PATH,
         plugin_files: List[str] = None,
-        openshift_build_selflink: str = None,
         client_version: str = None,
     ):
         """
@@ -433,8 +432,6 @@ class DockerBuildWorkflow(object):
         :param user_params: user (and other) params that control various aspects of the build
         :param reactor_config_path: path to atomic-reactor configuration file
         :param plugin_files: load plugins also from these files
-        :param openshift_build_selflink: link to openshift build (if we're actually running
-            on openshift) without the actual hostname/IP address
         :param client_version: osbs-client version used to render build json
         """
         self.source = source or DummySource(None, None)
@@ -477,8 +474,6 @@ class DockerBuildWorkflow(object):
         # mapping of downloaded files; DON'T PUT ANYTHING BIG HERE!
         # "path/to/file" -> "content"
         self.files = {}
-
-        self.openshift_build_selflink = openshift_build_selflink
 
         # List of RPMs that go into the final result, as per utils.rpm.parse_rpm_output
         self.image_components = None
