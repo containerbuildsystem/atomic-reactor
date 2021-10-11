@@ -318,7 +318,6 @@ class TestSendMailPlugin(object):
 
         workflow = DockerBuildWorkflow(source=None)
         workflow.exit_results[KojiImportPlugin.key] = MOCK_KOJI_BUILD_ID
-        workflow.openshift_build_selflink = '/builds/blablabla'
 
         smtp_map = {
             'from_address': 'foo@bar.com',
@@ -404,7 +403,6 @@ class TestSendMailPlugin(object):
                                                        vcs_ref=git_source_ref))
 
         workflow.build_canceled = manual_cancel
-        workflow.openshift_build_selflink = '/builds/blablabla'
 
         if has_store_metadata_results:
             if annotations:
@@ -484,7 +482,7 @@ class TestSendMailPlugin(object):
             exp_body[-4] += SendMailPlugin.DEFAULT_SUBMITTER
 
         if koji_integration:
-            exp_body.insert(-2, "Logs: https://something.com/builds/blablabla/log")
+            exp_body.insert(-2, "Logs: <not available>")
 
         assert subject == exp_subject
         assert body == '\n'.join(exp_body)

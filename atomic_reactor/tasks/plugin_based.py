@@ -32,7 +32,6 @@ class PluginBasedTask(common.Task):
             plugins=self.plugins_def,
             user_params=self._params.user_params,
             reactor_config_path=self._params.config_file,
-            # OSBS2 TBD: openshift_build_selflink=?
         )
 
         try:

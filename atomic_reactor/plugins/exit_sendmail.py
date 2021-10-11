@@ -14,10 +14,6 @@ from email import encoders
 import smtplib
 import socket
 import json
-try:
-    from urlparse import urljoin
-except ImportError:
-    from urllib.parse import urljoin
 
 from atomic_reactor.plugin import ExitPlugin, PluginFailedException
 from atomic_reactor.plugins.exit_koji_import import KojiImportPlugin
@@ -222,7 +218,7 @@ class SendMailPlugin(ExitPlugin):
             'image_name': image_name,
             'endstate': endstate,
             'user': self.submitter,
-            'logs': url,
+            'logs': url or "<not available>",
             'task_id': self.koji_task_id
         }
 
@@ -325,11 +321,7 @@ class SendMailPlugin(ExitPlugin):
                 self.log.exception("Failed to fetch logs from koji")
         else:
             self.log.info("Logs URL: no koji task")
-
-        # openshift build log URL, if possible (direct osbs-client builds)
-        if not url and self.url and self.workflow.openshift_build_selflink:
-            self.log.info("Logs URL: using openshift log path")
-            url = urljoin(self.url, self.workflow.openshift_build_selflink + '/log')
+            # OSBS2 TBD: where can users find logs if there is no Koji task?
 
         return url
 
