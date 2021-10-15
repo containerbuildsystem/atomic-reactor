@@ -88,6 +88,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
         try:
             self.read_configs()
         except SkipResolveComposesPlugin as abort_exc:
+            # OSBS2 TBD: `override_build_kwarg` is imported from build_orchestrate_build
             override_build_kwarg(self.workflow, 'yum_repourls', self.repourls, None)
             self.log.info('Aborting plugin execution: %s', abort_exc)
             return
@@ -354,10 +355,12 @@ class ResolveComposesPlugin(PreBuildPlugin):
                 repos.extend(noarch_repos)
 
         for arch, repofiles in repos_by_arch.items():
+            # OSBS2 TBD: `override_build_kwarg` is imported from build_orchestrate_build
             override_build_kwarg(self.workflow, 'yum_repourls', repofiles, arch)
 
         # Only set the None override if there are no other repos
         if not repos_by_arch:
+            # OSBS2 TBD: `override_build_kwarg` is imported from build_orchestrate_build
             override_build_kwarg(self.workflow, 'yum_repourls', noarch_repos, None)
 
         # If we don't think the set of packages available from the user-supplied repourls,
@@ -365,9 +368,11 @@ class ResolveComposesPlugin(PreBuildPlugin):
         # kwarg so that the so that the 'yum_repourls' kwarg that we just set doesn't
         # result in the 'koji' plugin being omitted.
         if not self.has_complete_repos:
+            # OSBS2 TBD: `override_build_kwarg` is imported from build_orchestrate_build
             override_build_kwarg(self.workflow, 'include_koji_repo', True)
 
         # So that plugins like flatpak_update_dockerfile can get information about the composes
+        # OSBS2 TBD: `override_build_kwarg` is imported from build_orchestrate_build
         override_build_kwarg(self.workflow, 'compose_ids', self.all_compose_ids)
 
     def make_result(self):

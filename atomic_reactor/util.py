@@ -453,14 +453,6 @@ def print_version_of_tools():
         logger.info("%s-%s at %s", tool["name"], tool["version"], tool["path"])
 
 
-def get_build_json():
-    try:
-        return json.loads(os.environ["BUILD"])
-    except KeyError:
-        logger.error("No $BUILD env variable. Probably not running in build container")
-        raise
-
-
 def is_scratch_build(workflow):
     return workflow.user_params.get('scratch', False)
 

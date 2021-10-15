@@ -18,7 +18,7 @@ from atomic_reactor.config import get_koji_session, get_cachito_session
 from atomic_reactor.utils.koji import get_koji_task_owner
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
-from atomic_reactor.util import get_build_json, is_scratch_build, map_to_user_params
+from atomic_reactor.util import is_scratch_build, map_to_user_params
 
 
 class ResolveRemoteSourcePlugin(PreBuildPlugin):
@@ -156,6 +156,7 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
                     raise RuntimeError(f'Unknown kind {kind} got from Cachito.')
 
             remote_source['build_args'] = build_args
+        # OSBS2 TBD: `override_build_kwarg` is imported from build_orchestrate_build
         override_build_kwarg(self.workflow, 'remote_sources', remote_sources)
 
     def source_request_to_json(self, source_request):
@@ -179,14 +180,7 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
     def get_koji_user(self):
         unknown_user = self.workflow.conf.cachito.get('unknown_user', 'unknown_user')
         try:
-            metadata = get_build_json()['metadata']
-        except KeyError:
-            msg = 'Unable to get koji user: No build metadata'
-            self.log.warning(msg)
-            return unknown_user
-
-        try:
-            koji_task_id = int(metadata.get('labels').get('koji-task-id'))
+            koji_task_id = int(self.workflow.user_params.get('koji_task_id'))
         except (ValueError, TypeError, AttributeError):
             msg = 'Unable to get koji user: Invalid Koji task ID'
             self.log.warning(msg)

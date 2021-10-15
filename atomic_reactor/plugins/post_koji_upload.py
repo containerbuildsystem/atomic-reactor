@@ -13,7 +13,7 @@ from tempfile import NamedTemporaryFile
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.constants import PLUGIN_KOJI_UPLOAD_PLUGIN_KEY
 from atomic_reactor.config import get_koji_session, get_openshift_session
-from atomic_reactor.util import get_build_json, is_scratch_build, map_to_user_params
+from atomic_reactor.util import is_scratch_build, map_to_user_params
 from atomic_reactor.utils.koji import get_buildroot, get_output, get_output_metadata
 from osbs.exceptions import OsbsException
 from osbs.utils import ImageName
@@ -132,10 +132,9 @@ class KojiUploadPlugin(PostBuildPlugin):
         :return: tuple, the metadata and the list of Output instances
         """
         try:
-            metadata = get_build_json()["metadata"]
-            self.build_id = metadata["name"]
+            self.build_id = self.workflow.user_params['pipeline_run_name']
         except KeyError:
-            self.log.error("No build metadata")
+            self.log.error("No pipeline_run_name found")
             raise
 
         for image in self.workflow.tag_conf.unique_images:
@@ -212,7 +211,7 @@ class KojiUploadPlugin(PostBuildPlugin):
                     if output.file:
                         output.file.close()
 
-        md_fragment = "{}-md".format(get_build_json()['metadata']['name'])
+        md_fragment = '{}-md'.format(self.workflow.user_params['pipeline_run_name'])
         md_fragment_key = 'metadata.json'
         cm_data = {md_fragment_key: koji_metadata}
         annotations = {

@@ -17,7 +17,6 @@ from atomic_reactor.constants import (PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
                                       SCRATCH_FROM)
 from atomic_reactor.config import get_openshift_session
 from atomic_reactor.plugin import ExitPlugin
-from atomic_reactor.util import get_build_json
 from atomic_reactor.utils import imageutil
 
 
@@ -201,13 +200,11 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
         annotations.update({'remote_sources': json.dumps(remote_sources_annotations)})
 
     def run(self):
-        metadata = get_build_json().get("metadata", {})
-
         try:
-            build_id = metadata["name"]
+            build_id = self.workflow.user_params['pipeline_run_name']
         except KeyError:
-            self.log.error("malformed build json")
-            return
+            self.log.error("No pipeline_run_name found")
+            raise
         self.log.info("build id = %s", build_id)
         osbs = get_openshift_session(self.workflow.conf,
                                      self.workflow.user_params.get('namespace'))

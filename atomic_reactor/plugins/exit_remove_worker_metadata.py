@@ -40,7 +40,7 @@ class RemoveWorkerMetadataPlugin(ExitPlugin):
                 cm_key, _ = get_platform_config(platform, build_annotations)
             except BadConfigMapError:
                 continue
-
+            # OSBS2 TBD: `get_worker_build_info` is imported from build_orchestrate_build
             build_info = get_worker_build_info(self.workflow, platform)
             osbs = build_info.osbs
 

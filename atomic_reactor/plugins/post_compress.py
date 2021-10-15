@@ -107,7 +107,7 @@ class CompressPlugin(PostBuildPlugin):
             self.log.debug('uncompressed: %s, compressed: %s, ratio: %.2f %% saved',
                            human_size(metadata['uncompressed_size']),
                            human_size(metadata['size']),
-                           100*savings)
+                           100 * savings)
 
         self.workflow.exported_image_sequence.append(metadata)
         self.log.info('compressed image is available as %s', outfile)
