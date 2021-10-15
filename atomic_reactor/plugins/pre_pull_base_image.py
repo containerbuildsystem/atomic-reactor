@@ -17,7 +17,7 @@ this build so that it isn't removed by other builds doing clean-up.
 import docker
 
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.util import (get_build_json, get_platforms, base_image_is_custom,
+from atomic_reactor.util import (get_platforms, base_image_is_custom,
                                  get_checksums, get_manifest_media_type,
                                  RegistrySession, RegistryClient, map_to_user_params)
 from atomic_reactor.utils import imageutil
@@ -69,7 +69,6 @@ class PullBaseImagePlugin(PreBuildPlugin):
         """
         self.manifest_list_cache.clear()
 
-        build_json = get_build_json()
         digest_fetching_exceptions = []
         for nonce, parent in enumerate(self.workflow.dockerfile_images.keys()):
             if base_image_is_custom(parent.to_str()):
@@ -80,7 +79,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
             # base_image_key is an ImageName, so compare parent as an ImageName also
             if image == self.workflow.dockerfile_images.base_image_key:
                 use_original_tag = True
-                image = self._resolve_base_image(build_json)
+                image = self._resolve_base_image()
 
             self._ensure_image_registry(image)
 
@@ -100,7 +99,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
                 image = image_with_digest
 
             if not self.inspect_only:
-                image = self._pull_and_tag_image(image, build_json, str(nonce))
+                image = self._pull_and_tag_image(image, str(nonce))
             self.workflow.dockerfile_images[parent] = image
 
         if digest_fetching_exceptions:
@@ -157,20 +156,9 @@ class PullBaseImagePlugin(PreBuildPlugin):
 
         self.workflow.parent_images_digests[image_str] = parent_digests
 
-    def _resolve_base_image(self, build_json):
-        """If this is an auto-rebuild, adjust the base image to use the triggering build"""
-        spec = build_json.get("spec")
-        try:
-            image_id = spec['triggeredBy'][0]['imageChangeBuild']['imageID']
-        except (TypeError, KeyError, IndexError):
-            # build not marked for auto-rebuilds; use regular base image
-            base_image = self.workflow.dockerfile_images.base_image
-            self.log.info("using %s as base image.", base_image)
-        else:
-            # build has auto-rebuilds enabled
-            self.log.info("using %s from build spec[triggeredBy] as base image.", image_id)
-            base_image = ImageName.parse(image_id)  # any exceptions will propagate
-
+    def _resolve_base_image(self):
+        base_image = self.workflow.dockerfile_images.base_image
+        self.log.info("using %s as base image.", base_image)
         return base_image
 
     def _ensure_image_registry(self, image):
@@ -188,7 +176,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
             raise RuntimeError("Shouldn't happen, images should have already "
                                "registry set in dockerfile_images")
 
-    def _pull_and_tag_image(self, image, build_json, nonce):
+    def _pull_and_tag_image(self, image, nonce):
         """Docker pull the image and tag it uniquely for use by this build"""
         image = image.copy()
 #        reg_client = self._get_registry_client(image.registry)
@@ -210,8 +198,8 @@ class PullBaseImagePlugin(PreBuildPlugin):
             # if another build with the same parent image is finishing up
             # and removing images it pulled.
 
-            # Use the OpenShift build name as the unique ID
-            unique_id = build_json['metadata']['name']
+            # Use the Pipeline run name as the unique ID
+            unique_id = self.workflow.user_params['pipeline_run_name']
             new_image = ImageName(repo=unique_id, tag=nonce)
 
             try:

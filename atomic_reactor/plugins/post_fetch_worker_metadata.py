@@ -27,7 +27,7 @@ class FetchWorkerMetadataPlugin(PostBuildPlugin):
         """
         # retrieve all the workspace data
         cm_key, cm_frag_key = get_platform_config(platform, build_annotations)
-
+        # OSBS2 TBD: `get_worker_build_info` is imported from build_orchestrate_build
         build_info = get_worker_build_info(self.workflow, platform)
         osbs = build_info.osbs
         try:

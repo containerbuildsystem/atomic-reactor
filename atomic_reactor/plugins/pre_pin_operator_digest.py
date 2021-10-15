@@ -564,6 +564,7 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
             for repl in replacement_pullspecs
             if repl['replaced']
         }
+        # OSBS2 TBD: `override_build_kwarg` is imported from build_orchestrate_build
         override_build_kwarg(self.workflow, "operator_bundle_replacement_pullspecs", arg)
 
 

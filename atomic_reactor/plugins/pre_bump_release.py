@@ -14,7 +14,7 @@ from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.constants import (PLUGIN_BUMP_RELEASE_KEY, PROG, KOJI_RESERVE_MAX_RETRIES,
                                       KOJI_RESERVE_RETRY_DELAY)
 from atomic_reactor.config import get_koji_session
-from atomic_reactor.util import get_build_json, is_scratch_build, map_to_user_params
+from atomic_reactor.util import is_scratch_build, map_to_user_params
 from koji import GenericError
 import koji
 
@@ -73,8 +73,7 @@ class BumpReleasePlugin(PreBuildPlugin):
         """
         if is_scratch_build(self.workflow):
             # no need to append for scratch build
-            metadata = get_build_json().get("metadata", {})
-            next_release = metadata.get("name", "1")
+            next_release = self.workflow.user_params.get('pipeline_run_name')
         elif self.append:
             next_release = self.get_next_release_append(component, version, release)
         else:
@@ -183,7 +182,7 @@ class BumpReleasePlugin(PreBuildPlugin):
                     else:
                         base_rel, base_suffix = release.rsplit('.', 1)
                         release = self.get_next_release_append(component, version, base_rel,
-                                                               base_suffix=int(base_suffix)+1)
+                                                               base_suffix=int(base_suffix) + 1)
                 else:
                     self.log.error("CGInitBuild failed, reached maximum number of retries %s",
                                    KOJI_RESERVE_MAX_RETRIES)

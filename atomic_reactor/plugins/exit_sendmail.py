@@ -19,7 +19,7 @@ from atomic_reactor.plugin import ExitPlugin, PluginFailedException
 from atomic_reactor.plugins.exit_koji_import import KojiImportPlugin
 from atomic_reactor.plugins.exit_store_metadata_in_osv3 import StoreMetadataInOSv3Plugin
 from atomic_reactor.utils.koji import get_koji_task_owner
-from atomic_reactor.util import get_build_json, df_parser
+from atomic_reactor.util import df_parser
 from atomic_reactor.constants import PLUGIN_SENDMAIL_KEY
 from atomic_reactor.config import get_koji_session, get_smtp_session
 from osbs.utils import Labels, ImageName
@@ -111,25 +111,15 @@ class SendMailPlugin(ExitPlugin):
 
         self.koji_task_id = None
         try:
-            metadata = get_build_json().get("metadata", {})
-            koji_task_id = metadata['labels'].get('koji-task-id')
+            koji_task_id = self.workflow.user_params.get('koji_task_id')
         except Exception:
             self.log.info("Failed to fetch koji task ID")
         else:
             if koji_task_id:
-                self.koji_task_id = int(koji_task_id)
+                self.koji_task_id = koji_task_id
                 self.log.info("Koji task ID: %s", self.koji_task_id)
             else:
                 self.log.info("No koji task")
-
-        try:
-            metadata = get_build_json().get("metadata", {})
-            self.original_koji_task_id = int(metadata['labels']['original-koji-task-id'])
-        except Exception:
-            self.log.info("Failed to fetch original koji task ID")
-            self.original_koji_task_id = None
-        else:
-            self.log.info("original Koji task ID: %s", self.original_koji_task_id)
 
         self.koji_build_id = self.workflow.exit_results.get(KojiImportPlugin.key)
         if not self.koji_build_id:
@@ -286,8 +276,7 @@ class SendMailPlugin(ExitPlugin):
                 return '@'.join([obj['name'], self.email_domain])
 
     def _get_koji_submitter(self):
-        koji_task_owner = get_koji_task_owner(self.session,
-                                              self.original_koji_task_id or self.koji_task_id)
+        koji_task_owner = get_koji_task_owner(self.session, self.koji_task_id)
         koji_task_owner_email = self._get_email_from_koji_obj(koji_task_owner)
         self.submitter = koji_task_owner_email
         return koji_task_owner_email
