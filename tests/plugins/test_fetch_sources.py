@@ -25,7 +25,6 @@ from atomic_reactor.constants import (PNC_SYSTEM_USER, REMOTE_SOURCE_TARBALL_FIL
 from flexmock import flexmock
 
 from atomic_reactor import constants
-from atomic_reactor import util
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_fetch_sources import FetchSourcesPlugin
@@ -180,8 +179,6 @@ def mock_workflow(tmpdir, for_orchestrator=False, config_map=None,
 
 def mock_env(tmpdir, scratch=False, orchestrator=False, koji_build_id=None,
              koji_build_nvr=None, config_map=None, default_si=DEFAULT_SIGNING_INTENT):
-    build_json = {'metadata': {'labels': {'scratch': scratch}}}
-    flexmock(util).should_receive('get_build_json').and_return(build_json)
     workflow = mock_workflow(tmpdir, for_orchestrator=orchestrator, config_map=config_map,
                              default_si=default_si)
     plugin_conf = [{'name': FetchSourcesPlugin.key}]

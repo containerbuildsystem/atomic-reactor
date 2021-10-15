@@ -6,10 +6,8 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
-import os
 import json
 from datetime import datetime, timedelta
-from copy import deepcopy
 from textwrap import dedent
 
 from flexmock import flexmock
@@ -48,15 +46,7 @@ def prepare(docker_registries=None):
 
     def update_labels_on_build(build_id, labels):
         pass
-    new_environ = deepcopy(os.environ)
-    new_environ["BUILD"] = dedent('''\
-        {
-          "metadata": {
-            "name": "asd",
-            "namespace": "namespace"
-          }
-        }
-        ''')
+
     flexmock(OSBS, update_annotations_on_build=update_annotations_on_build)
     flexmock(OSBS, update_labels_on_build=update_labels_on_build)
     config_kwargs = {
@@ -71,11 +61,9 @@ def prepare(docker_registries=None):
      .should_call("__init__")
      .with_args(**config_kwargs))
 
-    flexmock(os)
-    os.should_receive("environ").and_return(new_environ)  # pylint: disable=no-member
-
     workflow = DockerBuildWorkflow(source=None)
     workflow.user_params['namespace'] = 'namespace'
+    workflow.user_params['pipeline_run_name'] = 'store_metadata_test'
 
     openshift_map = {
         'url': 'http://example.com/',
@@ -541,7 +529,7 @@ def test_koji_filesystem_label(res):
         assert 'filesystem-koji-task-id' not in labels
 
 
-def test_metadata_plugin_rpmqa_failure(tmpdir):  # noqa
+def test_metadata_plugin_rpmqa_failure(tmpdir):
     initial_timestamp = datetime.now()
     workflow = prepare()
     df_content = """
@@ -602,7 +590,7 @@ CMD blabla"""
     assert "all_rpm_packages" in plugins_metadata["durations"]
 
 
-def test_exit_before_dockerfile_created(tmpdir):  # noqa
+def test_exit_before_dockerfile_created(tmpdir):
     workflow = prepare()
     workflow.exit_results = {}
     workflow.df_dir = str(tmpdir)
@@ -625,7 +613,7 @@ def test_exit_before_dockerfile_created(tmpdir):  # noqa
     assert annotations["dockerfile"] == ""
 
 
-def test_store_metadata_fail_update_annotations(tmpdir, caplog):  # noqa
+def test_store_metadata_fail_update_annotations(tmpdir, caplog):
     workflow = prepare()
     workflow.exit_results = {}
     df_content = """

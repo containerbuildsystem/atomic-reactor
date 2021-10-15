@@ -13,7 +13,6 @@ import yaml
 from atomic_reactor.constants import PLUGIN_CHECK_AND_SET_PLATFORMS_KEY, REPO_CONTAINER_CONFIG
 import atomic_reactor.utils.koji as koji_util
 from atomic_reactor.source import SourceConfig
-from atomic_reactor import util
 
 from flexmock import flexmock
 import pytest
@@ -134,9 +133,6 @@ def test_check_and_set_platforms(tmpdir, caplog, user_params,
 
     env = mock_env(tmpdir)
 
-    build_json = {'metadata': {'labels': {}}}
-    flexmock(util).should_receive('get_build_json').and_return(build_json)
-
     session = mock_session(platforms)
     flexmock(koji_util).should_receive('create_koji_session').and_return(session)
 
@@ -229,9 +225,6 @@ def test_check_and_set_platforms_no_koji(tmpdir, caplog, user_params,
     if platforms:
         env.set_orchestrator_platforms(platforms.keys())
 
-    build_json = {'metadata': {'labels': {}}}
-    flexmock(util).should_receive('get_build_json').and_return(build_json)
-
     env.set_reactor_config(make_reactor_config_map(platforms))
 
     runner = env.create_runner()
@@ -265,8 +258,6 @@ def test_check_and_set_platforms_no_platforms_in_limits(tmpdir, caplog, user_par
     if platforms:
         env.set_orchestrator_platforms(platforms.keys())
 
-    build_json = {'metadata': {'labels': {}}}
-    flexmock(util).should_receive('get_build_json').and_return(build_json)
     env.set_reactor_config(make_reactor_config_map(platforms))
 
     runner = env.create_runner()
@@ -291,9 +282,6 @@ def test_platforms_from_cluster_config(tmpdir, user_params,
 
     if platforms:
         env.set_orchestrator_platforms(platforms.split())
-
-    build_json = {'metadata': {'labels': {}}}
-    flexmock(util).should_receive('get_build_json').and_return(build_json)
 
     env.set_reactor_config(make_reactor_config_map(cluster_platforms))
 
@@ -322,9 +310,6 @@ def test_disabled_clusters(tmpdir, caplog, user_params, koji_platforms,
     write_container_yaml(tmpdir)
 
     env = mock_env(tmpdir)
-
-    build_json = {'metadata': {'labels': {}}}
-    flexmock(util).should_receive('get_build_json').and_return(build_json)
 
     new_koji_platforms = None
     if koji_platforms:

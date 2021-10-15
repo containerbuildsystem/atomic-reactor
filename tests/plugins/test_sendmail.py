@@ -24,7 +24,6 @@ MC = SendMailPlugin.MANUAL_CANCELED
 
 MOCK_EMAIL_DOMAIN = "domain.com"
 MOCK_KOJI_TASK_ID = 12345
-MOCK_KOJI_ORIGINAL_TASK_ID = 54321
 MOCK_KOJI_MISSING_TASK_ID = -12345
 MOCK_KOJI_BUILD_ID = 98765
 MOCK_KOJI_PACKAGE_ID = 123
@@ -34,12 +33,9 @@ MOCK_KOJI_OWNER_NAME = "foo"
 MOCK_KOJI_OWNER_EMAIL = "foo@bar.com"
 MOCK_KOJI_OWNER_GENERATED = "@".join([MOCK_KOJI_OWNER_NAME, MOCK_EMAIL_DOMAIN])
 MOCK_KOJI_SUBMITTER_ID = 123456
-MOCK_KOJI_ORIGINAL_SUBMITTER_ID = 654321
 MOCK_KOJI_MISSING_SUBMITTER_ID = -123456
 MOCK_KOJI_SUBMITTER_NAME = "baz"
-MOCK_KOJI_ORIGINAL_SUBMITTER_NAME = "original"
 MOCK_KOJI_SUBMITTER_EMAIL = "baz@bar.com"
-MOCK_KOJI_ORIGINAL_SUBMITTER_EMAIL = "original@original.com"
 MOCK_KOJI_SUBMITTER_GENERATED = "@".join([MOCK_KOJI_SUBMITTER_NAME, MOCK_EMAIL_DOMAIN])
 MOCK_ADDITIONAL_EMAIL = "spam@bar.com"
 MOCK_NAME_LABEL = 'foo/bar_in_df'
@@ -99,12 +95,6 @@ class MockedClientSession(object):
                 return {"krb_principal": "",
                         "name": MOCK_KOJI_SUBMITTER_NAME}
 
-        elif user_id == MOCK_KOJI_ORIGINAL_SUBMITTER_ID:
-            if self.has_kerberos:
-                return {"krb_principal": MOCK_KOJI_ORIGINAL_SUBMITTER_EMAIL}
-            else:
-                return {"krb_principal": "",
-                        "name": MOCK_KOJI_ORIGINAL_SUBMITTER_NAME}
         elif user_id == MOCK_KOJI_MISSING_SUBMITTER_ID:
             return {}
         else:
@@ -112,12 +102,9 @@ class MockedClientSession(object):
 
     def getTaskInfo(self, task_id):
         assert (task_id == MOCK_KOJI_TASK_ID
-                or task_id == MOCK_KOJI_ORIGINAL_TASK_ID
                 or task_id == MOCK_KOJI_MISSING_TASK_ID)
         if task_id == MOCK_KOJI_TASK_ID:
             return {"owner": MOCK_KOJI_SUBMITTER_ID}
-        elif task_id == MOCK_KOJI_ORIGINAL_TASK_ID:
-            return {"owner": MOCK_KOJI_ORIGINAL_SUBMITTER_ID}
         elif task_id == MOCK_KOJI_MISSING_TASK_ID:
             return {"owner": MOCK_KOJI_MISSING_SUBMITTER_ID}
 
@@ -178,7 +165,7 @@ def test_valid_address(address, valid):
 
 
 class TestSendMailPlugin(object):
-    def test_fails_with_unknown_states(self):  # noqa
+    def test_fails_with_unknown_states(self):
         smtp_map = {
             'from_address': 'foo@bar.com',
             'host': 'smtp.spam.com',
@@ -197,7 +184,7 @@ class TestSendMailPlugin(object):
             p.run()
         assert str(e.value) == 'Unknown state(s) "unknown_state" for sendmail plugin'
 
-    @pytest.mark.parametrize('success, manual_canceled, send_on, expected', [  # noqa
+    @pytest.mark.parametrize('success, manual_canceled, send_on, expected', [
         # make sure that right combinations only succeed for the specific state
         (True, False, [MS], True),
         (False, True, [MS], False),
@@ -234,24 +221,15 @@ class TestSendMailPlugin(object):
         p = SendMailPlugin(workflow, **kwargs)
         assert p._should_send(success, manual_canceled) == expected
 
-    @pytest.mark.parametrize(('has_kerberos', 'koji_task_id',
+    @pytest.mark.parametrize(('has_kerberos',
                               'email_domain', 'expected_email'), [
-        (True, MOCK_KOJI_TASK_ID, None, "baz@bar.com"),
-        (False, MOCK_KOJI_TASK_ID, 'example.com', "baz@example.com"),
-        (False, MOCK_KOJI_TASK_ID, None, ""),
-        (False, MOCK_KOJI_MISSING_TASK_ID, 'example.com', ""),
+        (True, None, "baz@bar.com"),
+        (False, 'example.com', "baz@example.com"),
+        (False, None, ""),
+        (False, 'example.com', ""),
     ])
-    def test_get_email_from_koji_obj(self, monkeypatch, has_kerberos,
-                                     koji_task_id, email_domain, expected_email):
-        monkeypatch.setenv("BUILD", json.dumps({
-            'metadata': {
-                'labels': {
-                    'koji-task-id': koji_task_id,
-                },
-                'name': {},
-            }
-        }))
-
+    def test_get_email_from_koji_obj(self, has_kerberos,
+                                     email_domain, expected_email):
         session = MockedClientSession('', has_kerberos=has_kerberos)
         flexmock(koji, ClientSession=lambda hub, opts: session)
 
@@ -295,16 +273,7 @@ class TestSendMailPlugin(object):
         (['not/me@example.com', '', 'me@example.com', 'us@example.com'],
          ['me@example.com', 'us@example.com']),
     ])
-    def test_get_receiver_list(self, monkeypatch, additional_addresses, expected_receivers):
-        monkeypatch.setenv("BUILD", json.dumps({
-            'metadata': {
-                'labels': {
-                    'koji-task-id': MOCK_KOJI_TASK_ID,
-                },
-                'name': {},
-            }
-        }))
-
+    def test_get_receiver_list(self, additional_addresses, expected_receivers):
         session = MockedClientSession('', has_kerberos=True)
         pathinfo = MockedPathInfo('https://koji')
 
@@ -354,23 +323,13 @@ class TestSendMailPlugin(object):
         (True, False),
         (False, False),
     ])
-    def test_render_mail(self, monkeypatch, tmpdir,
+    def test_render_mail(self, tmpdir,
                          manual_cancel, to_koji_submitter,
                          koji_integration, success, has_store_metadata_results,
                          annotations, has_repositories, expect_error):
         git_source_url = 'git_source_url'
         git_source_ref = '123423431234123'
         VcsInfo = namedtuple('VcsInfo', ['vcs_type', 'vcs_url', 'vcs_ref'])
-
-        monkeypatch.setenv("BUILD", json.dumps({
-            'metadata': {
-                'labels': {
-                    'koji-task-id': MOCK_KOJI_TASK_ID,
-                },
-                'name': {},
-            }
-        }))
-
         session = MockedClientSession('', has_kerberos=True)
         pathinfo = MockedPathInfo('https://koji')
         (flexmock(pathinfo)
@@ -394,6 +353,7 @@ class TestSendMailPlugin(object):
 
         workflow = DockerBuildWorkflow(source=None)
         workflow.exit_results[KojiImportPlugin.key] = MOCK_KOJI_BUILD_ID
+        workflow.user_params['koji_task_id'] = MOCK_KOJI_TASK_ID
         with open(os.path.join(str(tmpdir), 'Dockerfile'), 'wt') as df:
             df.write(MOCK_DOCKERFILE)
             flexmock(workflow, df_path=df.name)
@@ -491,18 +451,9 @@ class TestSendMailPlugin(object):
         TypeError,
         OsbsException, 'unable to get build logs from OSBS',
     ])
-    def test_failed_logs(self, tmpdir, monkeypatch, error_type):  # noqa
+    def test_failed_logs(self, tmpdir, error_type):
         # just test a random combination of the method inputs and hope it's ok for other
         #   combinations
-        monkeypatch.setenv("BUILD", json.dumps({
-            'metadata': {
-                'labels': {
-                    'koji-task-id': MOCK_KOJI_TASK_ID,
-                },
-                'name': {},
-            }
-        }))
-
         session = MockedClientSession('', has_kerberos=True)
         pathinfo = MockedPathInfo('https://koji')
 
@@ -540,33 +491,19 @@ class TestSendMailPlugin(object):
         assert not fail_logs
 
     @pytest.mark.parametrize(('has_addit_address', 'to_koji_submitter',
-                              'has_original_task', 'to_koji_pkgowner', 'expected_receivers'), [  # noqa
-            (True, True, True, True,
-                [MOCK_ADDITIONAL_EMAIL, MOCK_KOJI_OWNER_EMAIL, MOCK_KOJI_ORIGINAL_SUBMITTER_EMAIL]),
-            (True, True, False, True,
+                              'to_koji_pkgowner', 'expected_receivers'), [
+            (True, True, True,
                 [MOCK_ADDITIONAL_EMAIL, MOCK_KOJI_OWNER_EMAIL, MOCK_KOJI_SUBMITTER_EMAIL]),
-            (False, True, True, True, [MOCK_KOJI_OWNER_EMAIL, MOCK_KOJI_ORIGINAL_SUBMITTER_EMAIL]),
-            (False, True, False, True, [MOCK_KOJI_OWNER_EMAIL, MOCK_KOJI_SUBMITTER_EMAIL]),
-            (False, True, True, False, [MOCK_KOJI_ORIGINAL_SUBMITTER_EMAIL]),
-            (False, True, False, False, [MOCK_KOJI_SUBMITTER_EMAIL]),
-            (False, False, False, True, [MOCK_KOJI_OWNER_EMAIL]),
-            (True, False, False, False, [MOCK_ADDITIONAL_EMAIL]),
-            (False, False, False, False, []),
+            (True, True, False, [MOCK_ADDITIONAL_EMAIL, MOCK_KOJI_SUBMITTER_EMAIL]),
+            (True, False, True, [MOCK_ADDITIONAL_EMAIL, MOCK_KOJI_OWNER_EMAIL]),
+            (True, False, False, [MOCK_ADDITIONAL_EMAIL]),
+            (False, True, True, [MOCK_KOJI_OWNER_EMAIL, MOCK_KOJI_SUBMITTER_EMAIL]),
+            (False, True, False, [MOCK_KOJI_SUBMITTER_EMAIL]),
+            (False, False, True, [MOCK_KOJI_OWNER_EMAIL]),
+            (False, False, False, []),
         ])
-    def test_recepients_from_koji(self, monkeypatch, has_addit_address, to_koji_submitter,
-                                  has_original_task, to_koji_pkgowner, expected_receivers):
-        meta_json = {
-            'metadata': {
-                'labels': {
-                    'koji-task-id': MOCK_KOJI_TASK_ID,
-                },
-                'name': {},
-            }
-        }
-        if has_original_task:
-            meta_json['metadata']['labels']['original-koji-task-id'] = MOCK_KOJI_ORIGINAL_TASK_ID
-        monkeypatch.setenv("BUILD", json.dumps(meta_json))
-
+    def test_recepients_from_koji(self, has_addit_address, to_koji_submitter,
+                                  to_koji_pkgowner, expected_receivers):
         session = MockedClientSession('', has_kerberos=True)
         flexmock(koji, ClientSession=lambda hub, opts: session, PathInfo=MockedPathInfo)
 
@@ -591,6 +528,7 @@ class TestSendMailPlugin(object):
 
         workflow = DockerBuildWorkflow(source=None)
         workflow.exit_results[KojiImportPlugin.key] = MOCK_KOJI_BUILD_ID
+        workflow.user_params['koji_task_id'] = MOCK_KOJI_TASK_ID
         rcm = {'version': 1, 'smtp': smtp_map, 'openshift': {'url': 'https://something.com'}}
         workflow.conf = Configuration(raw_config=rcm)
         add_koji_map_in_workflow(workflow, hub_url='/', root_url='',
@@ -608,16 +546,7 @@ class TestSendMailPlugin(object):
     @pytest.mark.parametrize('has_kerberos, expected_receivers', [
         (True, [MOCK_KOJI_OWNER_EMAIL, MOCK_KOJI_SUBMITTER_EMAIL]),
         (False, [MOCK_KOJI_OWNER_GENERATED, MOCK_KOJI_SUBMITTER_GENERATED])])
-    def test_generated_email(self, monkeypatch, has_kerberos, expected_receivers):
-        monkeypatch.setenv("BUILD", json.dumps({
-            'metadata': {
-                'labels': {
-                    'koji-task-id': MOCK_KOJI_TASK_ID,
-                },
-                'name': {},
-            }
-        }))
-
+    def test_generated_email(self, has_kerberos, expected_receivers):
         session = MockedClientSession('', has_kerberos=has_kerberos)
         flexmock(koji, ClientSession=lambda hub, opts: session, PathInfo=MockedPathInfo)
 
@@ -640,6 +569,7 @@ class TestSendMailPlugin(object):
 
         workflow = DockerBuildWorkflow(source=None)
         workflow.exit_results[KojiImportPlugin.key] = MOCK_KOJI_BUILD_ID
+        workflow.user_params['koji_task_id'] = MOCK_KOJI_TASK_ID
         rcm = {'version': 1, 'smtp': smtp_map, 'openshift': {'url': 'https://something.com'}}
         workflow.conf = Configuration(raw_config=rcm)
         add_koji_map_in_workflow(workflow, hub_url='/', root_url='',
@@ -661,25 +591,11 @@ class TestSendMailPlugin(object):
         ('owner', [MOCK_KOJI_SUBMITTER_EMAIL]),
         ('empty_owner', [MOCK_KOJI_SUBMITTER_EMAIL]),
         ('empty_email_domain', [])])
-    def test_koji_recepients_exception(self, monkeypatch, exception_location, expected_receivers):
+    def test_koji_recepients_exception(self, exception_location, expected_receivers):
         if exception_location == 'empty_owner':
             koji_build_id = None
         else:
             koji_build_id = MOCK_KOJI_BUILD_ID
-
-        if exception_location == 'empty_submitter':
-            koji_task_id = None
-        else:
-            koji_task_id = MOCK_KOJI_TASK_ID
-
-        monkeypatch.setenv("BUILD", json.dumps({
-            'metadata': {
-                'labels': {
-                    'koji-task-id': koji_task_id,
-                },
-                'name': {},
-            }
-        }))
 
         has_kerberos = exception_location != 'empty_email_domain'
         session = MockedClientSession('', has_kerberos=has_kerberos)
@@ -717,6 +633,10 @@ class TestSendMailPlugin(object):
 
         workflow = DockerBuildWorkflow(source=None)
         workflow.exit_results[KojiImportPlugin.key] = koji_build_id
+        if exception_location == 'empty_submitter':
+            workflow.user_params['koji_task_id'] = None
+        else:
+            workflow.user_params['koji_task_id'] = MOCK_KOJI_TASK_ID
         rcm = {'version': 1, 'smtp': smtp_map, 'openshift': {'url': 'https://something.com'}}
         workflow.conf = Configuration(raw_config=rcm)
         add_koji_map_in_workflow(workflow, hub_url='/', root_url='',
@@ -767,7 +687,7 @@ class TestSendMailPlugin(object):
         else:
             p._send_mail(['spam@spam.com'], 'subject', 'body')
 
-    def test_run_ok(self, tmpdir):  # noqa
+    def test_run_ok(self, tmpdir):
         receivers = ['foo@bar.com', 'x@y.com']
 
         workflow = DockerBuildWorkflow(source=None)
@@ -798,22 +718,13 @@ class TestSendMailPlugin(object):
 
         p.run()
 
-    def test_run_ok_and_send(self, monkeypatch):  # noqa
+    def test_run_ok_and_send(self):
         class SMTP(object):
             def sendmail(self, from_addr, to, msg):
                 pass
 
             def quit(self):
                 pass
-
-        monkeypatch.setenv("BUILD", json.dumps({
-            'metadata': {
-                'labels': {
-                    'koji-task-id': MOCK_KOJI_TASK_ID,
-                },
-                'name': {},
-            }
-        }))
 
         workflow = DockerBuildWorkflow(source=None)
 
@@ -847,7 +758,7 @@ class TestSendMailPlugin(object):
         flexmock(smtplib).should_receive('SMTP').and_return(smtp_inst)
         p.run()
 
-    def test_run_fails_to_obtain_receivers(self):  # noqa
+    def test_run_fails_to_obtain_receivers(self):
         error_addresses = ['error@address.com']
         workflow = DockerBuildWorkflow(source=None)
         mock_store_metadata_results(workflow)
@@ -876,7 +787,7 @@ class TestSendMailPlugin(object):
 
         p.run()
 
-    def test_run_invalid_receivers(self, caplog):  # noqa
+    def test_run_invalid_receivers(self, caplog):
         error_addresses = ['error@address.com']
         workflow = DockerBuildWorkflow(source=None)
 
@@ -905,7 +816,7 @@ class TestSendMailPlugin(object):
         p.run()
         assert 'no valid addresses in requested addresses. Doing nothing' in caplog.text
 
-    def test_run_does_nothing_if_conditions_not_met(self):  # noqa
+    def test_run_does_nothing_if_conditions_not_met(self):
         workflow = DockerBuildWorkflow(source=None)
 
         smtp_map = {
@@ -928,7 +839,7 @@ class TestSendMailPlugin(object):
 
         p.run()
 
-    def test_skip_plugin(self, caplog):  # noqa
+    def test_skip_plugin(self, caplog):
         workflow = DockerBuildWorkflow(source=None)
 
         rcm = {'version': 1, 'openshift': {'url': 'https://something.com'}}

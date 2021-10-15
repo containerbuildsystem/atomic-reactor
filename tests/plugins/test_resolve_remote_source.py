@@ -15,7 +15,6 @@ import koji
 import yaml
 
 import atomic_reactor.utils.koji as koji_util
-from atomic_reactor import util
 from atomic_reactor.utils.cachito import CachitoAPI
 from atomic_reactor.constants import (
     PLUGIN_BUILD_ORCHESTRATE_KEY,
@@ -203,30 +202,6 @@ SECOND_CACHITO_ENV_VARS_JSON = {
 }
 
 
-@pytest.fixture
-def workflow(tmpdir, user_params):
-    workflow = DockerBuildWorkflow(source=None)
-
-    # Stash the tmpdir in workflow so it can be used later
-    workflow._tmpdir = tmpdir
-
-    class MockSource(StubSource):
-
-        def __init__(self, workdir):
-            super(MockSource, self).__init__()
-            self.workdir = workdir
-
-    workflow.source = MockSource(str(tmpdir))
-    workflow.buildstep_plugins_conf = [{'name': PLUGIN_BUILD_ORCHESTRATE_KEY}]
-
-    mock_repo_config(workflow)
-    mock_reactor_config(workflow)
-    mock_build_json()
-    mock_koji()
-
-    return workflow
-
-
 def mock_reactor_config(workflow, data=None):
     if data is None:
         data = dedent("""\
@@ -246,10 +221,11 @@ def mock_reactor_config(workflow, data=None):
     workflow.conf.conf = config
 
 
-def mock_build_json(build_json=None):
-    if build_json is None:
-        build_json = {'metadata': {'labels': {'koji-task-id': str(KOJI_TASK_ID)}}}
-    flexmock(util).should_receive('get_build_json').and_return(build_json)
+def mock_user_params(workflow, user_params):
+    if not workflow.user_params:
+        workflow.user_params = user_params
+    else:
+        workflow.user_params.update(user_params)
 
 
 def mock_repo_config(workflow, data=None):
@@ -265,6 +241,30 @@ def mock_repo_config(workflow, data=None):
     # The repo config is read when SourceConfig is initialized. Force
     # reloading here to make usage easier.
     workflow.source.config = SourceConfig(str(workflow._tmpdir))
+
+
+@pytest.fixture
+def workflow(tmpdir, user_params):
+    workflow = DockerBuildWorkflow(source=None)
+
+    # Stash the tmpdir in workflow so it can be used later
+    workflow._tmpdir = tmpdir
+
+    class MockSource(StubSource):
+
+        def __init__(self, workdir):
+            super(MockSource, self).__init__()
+            self.workdir = workdir
+
+    workflow.source = MockSource(str(tmpdir))
+    workflow.buildstep_plugins_conf = [{'name': PLUGIN_BUILD_ORCHESTRATE_KEY}]
+    workflow.user_params = {'koji_task_id': KOJI_TASK_ID}
+
+    mock_repo_config(workflow)
+    mock_reactor_config(workflow)
+    mock_koji()
+
+    return workflow
 
 
 def mock_cachito_api_multiple_remote_sources(workflow, user=KOJI_TASK_OWNER):
@@ -461,8 +461,6 @@ def teardown_function(*args):
 ])
 def test_resolve_remote_source(workflow, scratch, dr_strs, dependency_replacements,
                                env_vars_json, expected_build_args):
-    build_json = {'metadata': {'labels': {'koji-task-id': str(KOJI_TASK_ID)}}}
-    mock_build_json(build_json=build_json)
     mock_cachito_api(workflow,
                      dependency_replacements=dependency_replacements,
                      env_vars_json=env_vars_json)
@@ -521,8 +519,7 @@ def test_fail_build_if_unknown_kind(workflow, env_vars_json):
     run_plugin_with_args(workflow, expect_error=r'.*Unknown kind new got from Cachito')
 
 
-@pytest.mark.parametrize('build_json', ({}, {'metadata': {}}))
-def test_no_koji_user(workflow, build_json, caplog):
+def test_no_koji_user(workflow, caplog):
     reactor_config = dedent("""\
         version: 1
         cachito:
@@ -535,11 +532,9 @@ def test_no_koji_user(workflow, build_json, caplog):
             auth: {{}}
         """.format(CACHITO_URL, workflow._tmpdir))
     mock_reactor_config(workflow, reactor_config)
-    mock_build_json(build_json=build_json)
     mock_cachito_api(workflow, user='unknown_user')
-    log_msg = 'No build metadata'
-    if build_json:
-        log_msg = 'Invalid Koji task ID'
+    workflow.user_params['koji_task_id'] = 'x'
+    log_msg = 'Invalid Koji task ID'
 
     expected_plugin_results = [
         {
@@ -619,16 +614,12 @@ def test_ignore_when_missing_remote_source_config(workflow):
     assert result is None
 
 
-@pytest.mark.parametrize(('build_json', 'log_entry'), (
-    ({}, 'No build metadata'),
-    ({'metadata': None}, 'Invalid Koji task ID'),
-    ({'metadata': {}}, 'Invalid Koji task ID'),
-    ({'metadata': {'labels': {}}}, 'Invalid Koji task ID'),
-    ({'metadata': {'labels': {'koji-task-id': None}}}, 'Invalid Koji task ID'),
-    ({'metadata': {'labels': {'koji-task-id': 'not-an-int'}}}, 'Invalid Koji task ID'),
+@pytest.mark.parametrize(('task_id', 'log_entry'), (
+    (None, 'Invalid Koji task ID'),
+    ('not-an-int', 'Invalid Koji task ID'),
 ))
-def test_bad_build_metadata(workflow, build_json, log_entry, caplog):
-    mock_build_json(build_json=build_json)
+def test_bad_build_metadata(workflow, task_id, log_entry, caplog):
+    workflow.user_params['koji_task_id'] = task_id
     mock_cachito_api(workflow, user='unknown_user')
 
     expected_plugin_results = [
@@ -701,8 +692,6 @@ def test_allow_multiple_remote_sources(workflow, allow_multiple_remote_sources):
                     auth: {{}}
                 allow_multiple_remote_sources: {}
                 """.format(CACHITO_URL, workflow._tmpdir, allow_multiple_remote_sources))
-    build_json = {'metadata': {'labels': {'koji-task-id': str(KOJI_TASK_ID)}}}
-    mock_build_json(build_json=build_json)
     mock_repo_config(workflow, data=container_yaml_config)
     mock_reactor_config(workflow, reactor_config)
     mock_cachito_api_multiple_remote_sources(workflow)
