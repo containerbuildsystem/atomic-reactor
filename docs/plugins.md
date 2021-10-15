@@ -141,12 +141,6 @@ containing the Dockerfile.
   - Status: Not yet enabled (multi-cluster)
   - Parse, validate, and make available to other plugins the atomic-reactor
     configuration file
-- **is_autorebuild**
-  - Status: Not yet enabled (chain rebuilds)
-  - Several plugins have specific duties to perform only in the case of
-    automated rebuilds. This plugin figures out whether this OpenShift Build is
-    an explicit build requested by a developer (via Koji), or whether it is a
-    build triggered by a change in the parent layer
 - **add_filesystem**
   - Status: Enabled
   - If FROM value is "koji/image-build", an image-build koji task is initiated

@@ -15,7 +15,6 @@ which is used within build container. To wit:
     "provider": "git"
   },
   "image": "my-test-image",
-  "openshift_build_selflink": "/apis/build.openshift.io/v1/namespaces/default/builds/build-20150826112654-1",
   "prebuild_plugins": [
     {
       "args": {
@@ -66,8 +65,6 @@ which is used within build container. To wit:
 - image: String, tag for built image
 - target_registries: List of strings, optional, registries where built image
   should be pushed
-- openshift_build_selflink: String, optional; link to the build that is being
-  done (without the actual hostname/IP address)
 - prebuild_plugins: List of dicts, optional
   - List of plugins which are executed prior to build; order **matters**! First
     plugin pulls base image from the given registry (optional). The second
