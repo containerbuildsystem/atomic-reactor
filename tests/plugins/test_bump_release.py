@@ -8,8 +8,6 @@ of the BSD license. See the LICENSE file for details.
 
 import koji
 import os
-from copy import deepcopy
-from textwrap import dedent
 
 from atomic_reactor.plugins.pre_bump_release import BumpReleasePlugin
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
@@ -292,12 +290,6 @@ class TestBumpRelease(object):
          'expected': '22.fc25', 'expected_refund': '20.fc25', 'scratch': False},
          None, False),
 
-        ({'build_name': False, 'expected': '1', 'expected_refund': '1', 'scratch': True},
-         None, False),
-
-        ({'build_name': False, 'expected': '1', 'expected_refund': '1', 'scratch': True},
-         None, True),
-
         ({'build_name': True, 'expected': 'scratch-123456', 'expected_refund': 'scratch-123456',
           'scratch': True},
          None, False),
@@ -390,22 +382,8 @@ class TestBumpRelease(object):
                               certs=True, reserve_build=reserve_build,
                               append=append, scratch=next_release['scratch'])
 
-        new_environ = deepcopy(os.environ)
-        new_environ["BUILD"] = dedent('''\
-            {
-              "metadata": {}
-            }
-            ''')
         if next_release['scratch'] and next_release['build_name']:
-            new_environ["BUILD"] = dedent('''\
-                {
-                  "metadata": {
-                    "name": "scratch-123456"
-                  }
-                }
-                ''')
-        flexmock(os)
-        os.should_receive("environ").and_return(new_environ)  # pylint: disable=no-member
+            plugin.workflow.user_params['pipeline_run_name'] = "scratch-123456"
 
         if init_fails and reserve_build and not next_release['scratch']:
             with pytest.raises(RuntimeError) as exc:
@@ -500,17 +478,6 @@ class TestBumpRelease(object):
         plugin = self.prepare(tmpdir, labels=labels,
                               certs=True, reserve_build=True,
                               append=False)
-
-        new_environ = deepcopy(os.environ)
-        new_environ["BUILD"] = dedent('''\
-            {
-              "metadata": {
-              "labels": {}
-              }
-            }
-            ''')
-        flexmock(os)
-        os.should_receive("environ").and_return(new_environ)  # pylint: disable=no-member
 
         plugin.run()
 

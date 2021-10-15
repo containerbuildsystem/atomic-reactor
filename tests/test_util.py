@@ -40,7 +40,7 @@ from atomic_reactor.util import (LazyGit, figure_out_build_file,
                                  registry_hostname, Dockercfg, RegistrySession,
                                  get_manifest_digests, ManifestDigest,
                                  get_manifest_list, get_all_manifests,
-                                 get_inspect_for_image, get_manifest, get_build_json,
+                                 get_inspect_for_image, get_manifest,
                                  is_scratch_build, is_isolated_build, is_flatpak_build,
                                  df_parser, base_image_is_custom,
                                  are_plugins_in_order, LabelFormatter,
@@ -929,20 +929,6 @@ def test_manifest_digest(v1, v2, v2_list, oci, oci_index, default):
 def test_get_manifest_media_version_unknown():
     with pytest.raises(RuntimeError):
         assert get_manifest_media_version(ManifestDigest())
-
-
-@pytest.mark.parametrize('environ,expected', [
-    ({'BUILD': '{"foo": "bar"}'}, {'foo': 'bar'}),
-    ({}, False),
-])
-def test_get_build_json(environ, expected):
-    flexmock(os, environ=environ)
-
-    if expected:
-        assert get_build_json() == {'foo': 'bar'}
-    else:
-        with pytest.raises(KeyError):
-            get_build_json()
 
 
 @pytest.mark.parametrize('extra_user_params,scratch', [

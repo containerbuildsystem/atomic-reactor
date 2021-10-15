@@ -50,15 +50,6 @@ class MockSource(object):
     path = None
 
 
-@pytest.fixture(autouse=True)
-def set_build_json(monkeypatch):
-    monkeypatch.setenv("BUILD", json.dumps({
-        'metadata': {
-            'name': UNIQUE_ID,
-        },
-    }))
-
-
 def teardown_function(function):
     sys.modules.pop('pre_pull_base_image', None)
 
@@ -74,13 +65,7 @@ def mock_env():
     (SCRATCH_FROM, False),
     (BASE_IMAGE_W_REGISTRY, True)
 ])
-def test_pull_base_image_special(add_another_parent, special_image, change_base, monkeypatch):
-    monkeypatch.setenv("BUILD", json.dumps({
-        'metadata': {
-            'name': UNIQUE_ID,
-        },
-    }))
-
+def test_pull_base_image_special(add_another_parent, special_image, change_base):
     env = (
         mock_env()
         .set_user_params(image_tag=special_image)
@@ -110,7 +95,7 @@ def test_pull_base_image_special(add_another_parent, special_image, change_base,
     rcm = {'version': 1, 'source_registry': {'url': LOCALHOST_REGISTRY, 'insecure': True},
            'registries_organization': None}
     env.set_reactor_config(rcm)
-
+    env.set_user_params(pipeline_run_name=UNIQUE_ID)
     runner = env.create_runner()
 
     runner.run()
@@ -228,6 +213,7 @@ def test_pull_base_image_plugin(user_params, parent_registry, df_base, expected,
         }
     )
     runner = env.create_runner()
+    env.set_user_params(pipeline_run_name=UNIQUE_ID)
 
     if parent_registry is None:
         with pytest.raises(PluginFailedException):
@@ -263,7 +249,7 @@ def test_pull_base_image_plugin(user_params, parent_registry, df_base, expected,
 
 
 @pytest.mark.skip(reason="plugin needs rework to not pull and local tag images")
-@pytest.mark.parametrize('builder_registry', [  # noqa
+@pytest.mark.parametrize('builder_registry', [
     None,
     'pull_registry1.example.com',
     'pull_registry2.example.com'])
@@ -320,7 +306,7 @@ def test_pull_parent_images(builder_registry, organization, inspect_only, user_p
         pull_registries=pull_registries)
 
 
-def test_pull_base_wrong_registry(inspect_only, user_params):  # noqa
+def test_pull_base_wrong_registry(inspect_only, user_params):
     source_registry = 'different.registry:5000'
     base_image_str = 'some.registry:8888/base:image'
     with pytest.raises(PluginFailedException) as exc:
@@ -357,7 +343,7 @@ def test_pull_parent_wrong_registry(inspect_only, user_params):  # noqa: F811
     assert log_msg2 in str(exc.value)
 
 
-def test_image_without_registry(inspect_only, user_params):  # noqa
+def test_image_without_registry(inspect_only, user_params):
     source_registry = 'source.registry:5000'
     base_image_str = 'builder:image'
     parent_images = [base_image_str]
@@ -375,7 +361,7 @@ def test_image_without_registry(inspect_only, user_params):  # noqa
     assert exc_msg in str(exc.value)
 
 
-def test_pull_base_base_parse(inspect_only, user_params):  # noqa
+def test_pull_base_base_parse(inspect_only, user_params):
     flexmock(ImageName).should_receive('parse').and_raise(AttributeError)
     with pytest.raises(AttributeError):
         test_pull_base_image_plugin(
@@ -386,21 +372,19 @@ def test_pull_base_base_parse(inspect_only, user_params):  # noqa
 
 
 @pytest.mark.skip(reason="plugin needs rework to not pull and local tag images")
-def test_pull_base_change_override(monkeypatch, inspect_only, user_params):  # noqa
-    monkeypatch.setenv("BUILD", json.dumps({
-        'metadata': {
-            'name': UNIQUE_ID,
-        },
-        'spec': {
-            'triggeredBy': [
-                {
-                    'imageChangeBuild': {
-                        'imageID': '/'.join([LOCALHOST_REGISTRY, BASE_IMAGE])
-                    }
-                },
-            ]
-        },
-    }))
+def test_pull_base_change_override(monkeypatch, inspect_only, user_params):
+    # OSBS2 TBD: Examine for removal (is this an autorebuild thing?)
+    # monkeypatch.setenv("BUILD", json.dumps({
+    #     'spec': {
+    #         'triggeredBy': [
+    #             {
+    #                 'imageChangeBuild': {
+    #                     'imageID': '/'.join([LOCALHOST_REGISTRY, BASE_IMAGE])
+    #                 }
+    #             },
+    #         ]
+    #     },
+    # }))
     test_pull_base_image_plugin(
         user_params,
         LOCALHOST_REGISTRY, 'invalid-image',
@@ -433,6 +417,7 @@ def test_retry_pull_base_image(exc, failures, should_succeed):
     )
 
     runner = env.create_runner()
+    env.set_user_params(pipeline_run_name=UNIQUE_ID)
 
     if should_succeed:
         runner.run()
@@ -453,6 +438,7 @@ def test_pull_raises_retry_error(caplog):
     )
 
     runner = env.create_runner()
+    env.set_user_params(pipeline_run_name=UNIQUE_ID)
 
     with pytest.raises(Exception):
         runner.run()
