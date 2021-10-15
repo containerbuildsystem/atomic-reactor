@@ -474,7 +474,6 @@ This class defines a workflow for building images
 - files
 - image
 - kwargs
-- openshift_build_selflink
 - plugin_failed
 - plugin_files
 - plugin_workspace
@@ -501,7 +500,6 @@ __init__(self, source, image,
          postbuild_plugins=None,
          exit_plugins=None,
          plugin_files=None,
-         openshift_build_selflink=None,
          kwargs)
 ```
 
@@ -514,8 +512,6 @@ __init__(self, source, image,
     :param prepublish_plugins: dict, arguments for test-build plugins
     :param postbuild_plugins: dict, arguments for post-build plugins
     :param plugin_files: list of str, load plugins also from these files
-    :param openshift_build_selflink: str, link to openshift build (if we're actually
-            running on openshift) without the actual hostname/IP address
 ```
 
 ```python
