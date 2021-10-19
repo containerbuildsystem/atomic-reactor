@@ -24,7 +24,7 @@ spec:
     - name: build-source-container-image
       image: $(params.OSBS_IMAGE)
       script: >
-        atomic-reactor task
+        atomic-reactor -v task
         --user-params="$(params.USER_PARAMS)"
         --build-dir=$(workspaces.ws-build-dir.path)
         --context-dir=$(workspaces.ws-context-dir.path)
