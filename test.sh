@@ -74,6 +74,9 @@ function setup_osbs() {
     $RUN sh -c "RPM_PY_SYS=true ${PIP_INST[*]} rpm-py-installer"
   fi
 
+  # Pip install packages for atomic-reactor
+  $RUN "${PIP_INST[@]}" -r requirements.txt
+
   # Setuptools install atomic-reactor from source
   $RUN $PYTHON setup.py install
 
