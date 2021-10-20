@@ -10,17 +10,12 @@
       "items": {"type": "string"}
     },
     "base_image": {"type": "string"},
-    "build_from": {"type": "string"},
-    "build_image": {"type": "string"},
-    "build_imagestream": {"type": "string"},
     "build_json_dir": {"type": "string"},
-    "build_type": {"enum": ["orchestrator", "worker"]},
     "component": {"type": "string"},
     "compose_ids": {
       "type": "array",
       "items": {"type": "integer"}
     },
-    "customize_conf": {"type": "string"},
     "filesystem_koji_task_id": {"type": "integer"},
     "flatpak": {"type": "boolean"},
     "git_branch": {"type": "string"},
@@ -64,25 +59,21 @@
     },
     "operator_csv_modifications_url": {"type": "string"},
     "operator_manifests_extract_platform": {"type": "string"},
-    "orchestrator_deadline": {"type": "integer"},
     "platform": {"type": "string"},
     "platforms": {
       "type": "array",
       "items": {"type": "string"}
     },
     "reactor_config_map": {"type": "string"},
-    "reactor_config_override": {"type": "object"},
     "release": {"type": "string"},
     "scratch": {"type": "boolean"},
     "signing_intent": {"type": "string"},
     "tags_from_yaml": {"type": "boolean"},
-    "trigger_imagestreamtag": {"type": "string"},
     "user": {"type": "string"},
-    "worker_deadline": {"type": "integer"},
     "yum_repourls": {
       "type": "array",
       "items": {"type": "string"}
     }
   },
-  "required": ["build_json_dir", "build_type", "git_ref", "git_uri", "user"]
+  "required": ["build_json_dir", "git_ref", "git_uri", "user"]
 }
