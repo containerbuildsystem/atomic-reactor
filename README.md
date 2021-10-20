@@ -109,24 +109,6 @@ folder [images][]). It's the first argument:
 
 And finally, you need to name the image: `buildroot`.
 
-### Installation from RPM
-
-```bash
-atomic-reactor create-build-image --reactor-tarball-path \
-    /usr/share/atomic-reactor/atomic-reactor.tar.gz \
-    /usr/share/atomic-reactor/images/dockerhost-builder buildroot-fedora
-```
-
-Section above contains detailed description. Let's make this short.
-
-1. `--reactor-tarball-path` — Atomic Reactor needs to install itself into build
-   image: this is how you specify where Atomic Reactor gets its own sources
-   (when installed via RPM, Atomic Reactor provides itself packaged as tarball
-   at `/usr/share/atomic-reactor/atomic-reactor.tar.gz`)
-1. First argument is path to **dockerfile** — dockerfiles for both methods are
-   available at `/usr/share/atomic-reactor/images/`, just pick one
-1. Finally, second argument names the build image
-
 #### Getting Atomic Reactor from distribution
 
 Or you can build the image using docker and install Atomic Reactor directly from
@@ -185,7 +167,6 @@ method with build image for **privileged** method, then it won't work.
 - [Plugin development](https://github.com/containerbuildsystem/atomic-reactor/blob/master/docs/plugin_development.md)
 - [API](https://github.com/containerbuildsystem/atomic-reactor/blob/master/docs/api.md)
 - [Build JSON](https://github.com/containerbuildsystem/atomic-reactor/blob/master/docs/build_json.md)
-- [Building Atomic Reactor](https://github.com/containerbuildsystem/atomic-reactor/blob/master/docs/releasing.md)
 
 [coveralls status badge]: https://coveralls.io/repos/containerbuildsystem/atomic-reactor/badge.svg?branch=master
 [coveralls status link]: https://coveralls.io/r/containerbuildsystem/atomic-reactor?branch=master
