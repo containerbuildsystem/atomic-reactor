@@ -11,3 +11,4 @@ git+https://github.com/containerbuildsystem/osbs-client@be934592d8c2a90c186bdab6
 # cannot build cryptography with rust for version >= 3.5
 cryptography < 3.5
 requests
+koji
