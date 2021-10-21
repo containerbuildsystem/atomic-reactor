@@ -475,20 +475,6 @@ class TestKojiUpload(object):
         runner = create_runner(workflow)
         runner.run()
 
-    def test_koji_upload_rpm_components(self, tmpdir, _user_params):
-        session = MockedClientSession('')
-        osbs = MockedOSBS()
-        workflow = mock_environment(tmpdir, session=session, name='ns/name', version='1.0',
-                                    release='1')
-        runner = create_runner(workflow)
-        runner.run()
-        data = get_metadata(workflow, osbs)
-        buildroots = data['buildroots']
-        for buildroot in buildroots:
-            assert any(c['name'] == 'name1' for c in buildroot['components'])
-            assert any(c['version'] == '01234567' for c in buildroot['components'])
-            assert any(c['arch'] == 'noarch' for c in buildroot['components'])
-
     @staticmethod
     def check_components(components):
         assert isinstance(components, list)
@@ -526,9 +512,6 @@ class TestKojiUpload(object):
             'host',
             'content_generator',
             'container',
-            'tools',
-            'components',
-            'extra',
         }
 
         host = buildroot['host']
@@ -554,44 +537,9 @@ class TestKojiUpload(object):
         assert isinstance(container, dict)
         assert set(container.keys()) == {'type', 'arch'}
 
-        assert container['type'] == 'docker'
+        assert container['type'] == 'none'
         assert container['arch']
         assert is_string_type(container['arch'])
-
-        assert isinstance(buildroot['tools'], list)
-        assert len(buildroot['tools']) > 0
-        for tool in buildroot['tools']:
-            assert isinstance(tool, dict)
-            assert set(tool.keys()) == {'name', 'version'}
-
-            assert tool['name']
-            assert is_string_type(tool['name'])
-#            assert tool['version']
-#            assert is_string_type(tool['version'])
-
-        self.check_components(buildroot['components'])
-
-        extra = buildroot['extra']
-        assert isinstance(extra, dict)
-        assert set(extra.keys()) == {'osbs'}
-
-        assert 'osbs' in extra
-        osbs = extra['osbs']
-        assert isinstance(osbs, dict)
-        assert set(osbs.keys()) == {'build_id', 'builder_image_id', 'koji'}
-
-        assert is_string_type(osbs['build_id'])
-        assert is_string_type(osbs['builder_image_id'])
-
-        koji = osbs['koji']
-        assert isinstance(koji, dict)
-        assert set(koji.keys()) == {'build_name', 'builder_image_id'}
-        assert is_string_type(koji['build_name'])
-        builder_image_id = koji['builder_image_id']
-        assert isinstance(builder_image_id, dict)
-        assert isinstance(builder_image_id, dict)
-        for key in builder_image_id:
-            assert is_string_type(builder_image_id[key])
 
     def validate_output(self, output, has_config,
                         base_from_scratch=False):
@@ -782,7 +730,6 @@ class TestKojiUpload(object):
         name = 'ns/name'
         version = '1.0'
         release = '1'
-        expected_build_name = 'ns/name:1.0-1'
 
         workflow = mock_environment(tmpdir, session=session, name=name, component=component,
                                     version=version, release=release, has_config=has_config)
@@ -807,7 +754,6 @@ class TestKojiUpload(object):
 
         for buildroot in buildroots:
             self.validate_buildroot(buildroot)
-            assert buildroot['extra']['osbs']['koji']['build_name'] == expected_build_name
 
             # Unique within buildroots in this metadata
             assert len([b for b in buildroots
