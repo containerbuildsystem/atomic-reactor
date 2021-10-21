@@ -66,6 +66,38 @@ alias atomic-reactor="python ${REACTOR_PATH}/atomic-reactor/cli/main.py"
 sudo dnf install koji
 ```
 
+### Adding Dependencies
+
+To add more Python dependencies, add them to the following files:
+
+- [setup.py](setup.py)
+- [requirements.in](requirements.in)
+- [tests/requirements.in](tests/requirements.in) for test dependencies
+- [requirements-devel.in](requirements-devel.in) for dependencies that are
+  required during development
+
+If you're wondering why you need to add dependencies to both files (setup.py
+and one of the requirements files), see [install_requires vs requirements
+files](https://packaging.python.org/discussions/install-requires-vs-requirements/).
+
+To be able to build atomic-reactor with Cachito, we also need to keep the
+build requirements
+updated. Please follow [Cachito pip build dependencies](https://github.com/release-engineering/cachito/blob/master/docs/pip.md#build-dependencies)
+for updating build requirements. Please note that the resulting requirements
+will need to be pinned to older versions before moving to the next step to
+avoid installation issues with newer
+dependency versions.
+
+Afterwards, pip-compile the dependencies via `make pip-compile` (you may need to
+run `make venv` first, unless the venv already exists).
+
+Additionally, if any of the newly added dependencies in the generated
+`requirements*.txt` files need to be compiled from C code, please install any
+missing C libraries in the Dockerfile(s) as well as the test.sh script
+
+- [Dockerfile](Dockerfile)
+- [test.sh](test.sh)
+
 ## Usage
 
 If you would like to build your images within build containers, you need to
