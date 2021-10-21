@@ -2,7 +2,7 @@
   "buildroots": [
     {
       "container": {
-        "type": "docker",
+        "type": "none",
         "arch": "ppc64le"
       },
       "content_generator": {
@@ -13,90 +13,6 @@
         "os": "Red Hat Enterprise Linux Server 7.3 (Maipo)",
         "arch": "ppc64le"
       },
-      "components": [
-        {
-          "name": "python-ethtool",
-          "sigmd5": "af8ee0374e8160dc19b2598da2b22162",
-          "arch": "ppc64le",
-          "epoch": null,
-          "version": "0.8",
-          "signature": "199e2f91fd431d51",
-          "release": "5.el7",
-          "type": "rpm"
-        },
-        {
-          "name": "python-kitchen",
-          "sigmd5": "25c2edc551a562b6d0f53444b439a895",
-          "arch": "noarch",
-          "epoch": null,
-          "version": "1.1.1",
-          "signature": "199e2f91fd431d51",
-          "release": "5.el7",
-          "type": "rpm"
-        },
-        {
-          "name": "rootfiles",
-          "sigmd5": "44409ce44e76605dacfa2aaece2daf31",
-          "arch": "noarch",
-          "epoch": null,
-          "version": "8.1",
-          "signature": "199e2f91fd431d51",
-          "release": "11.el7",
-          "type": "rpm"
-        },
-        {
-          "name": "bash",
-          "sigmd5": "f972a9919443a8f08420c99d8ad44b9d",
-          "arch": "ppc64le",
-          "epoch": null,
-          "version": "4.2.46",
-          "signature": "199e2f91fd431d51",
-          "release": "28.el7",
-          "type": "rpm"
-        },
-        {
-          "name": "perl-URI",
-          "sigmd5": "4bf2ed4cb63b3c2fbbf77664460d292b",
-          "arch": "noarch",
-          "epoch": 4,
-          "version": "1.71",
-          "signature": null,
-          "release": "1.el7eng",
-          "type": "rpm"
-        },
-        {
-          "name": "perl-HTTP-Date",
-          "sigmd5": "13f25441e44fb9f67a62144ac51772a6",
-          "arch": "noarch",
-          "epoch": null,
-          "version": "6.02",
-          "signature": "199e2f91fd431d51",
-          "release": "8.el7",
-          "type": "rpm"
-        }
-      ],
-      "tools": [
-        {
-          "version": "1.10.6",
-          "name": "docker-py"
-        },
-        {
-          "version": "1.0.5",
-          "name": "docker_squash"
-        },
-        {
-          "version": "1.6.24.1",
-          "name": "atomic_reactor"
-        },
-        {
-          "version": "0.40.1",
-          "name": "osbs-client"
-        },
-        {
-          "version": "1.12.6",
-          "name": "docker"
-        }
-      ],
       "id": 1
     }
   ],

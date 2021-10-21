@@ -394,15 +394,8 @@ def mock_environment(tmpdir, session=None, name=None,
             'buildroots': [
                 {
                     'container': {
-                        'type': 'docker',
+                        'type': 'none',
                         'arch': 'x86_64'
-                    },
-                    'extra': {
-                        'osbs': {
-                            'build_id': '12345',
-                            'builder_image_id': '67890',
-                            'koji': {'build_name': 'myproject/hello-world:unique-tag'}
-                        }
                     },
                     'content_generator': {
                         'version': '1.6.23',
@@ -412,34 +405,6 @@ def mock_environment(tmpdir, session=None, name=None,
                         'os': 'Red Hat Enterprise Linux Server 7.3 (Maipo)',
                         'arch': 'x86_64'
                     },
-                    'components': [
-                        {
-                            'name': 'perl-Net-LibIDN',
-                            'sigmd5': '1dba38d073ea8f3e6c99cfe32785c81e',
-                            'arch': 'x86_64',
-                            'epoch': None,
-                            'version': '0.12',
-                            'signature': '199e2f91fd431d51',
-                            'release': '15.el7',
-                            'type': 'rpm'
-                        },
-                        {
-                            'name': 'tzdata',
-                            'sigmd5': '2255a5807ca7e4d7274995db18e52bea',
-                            'arch': 'noarch',
-                            'epoch': None,
-                            'version': '2017b',
-                            'signature': '199e2f91fd431d51',
-                            'release': '1.el7',
-                            'type': 'rpm'
-                        },
-                    ],
-                    'tools': [
-                        {
-                            'version': '1.12.6',
-                            'name': 'docker'
-                        }
-                    ],
                     'id': 1
                 }
             ],
@@ -918,9 +883,6 @@ class TestKojiImport(object):
             'host',
             'content_generator',
             'container',
-            'tools',
-            'components',
-            'extra',
         }
 
         host = buildroot['host']
@@ -946,37 +908,9 @@ class TestKojiImport(object):
         assert isinstance(container, dict)
         assert set(container.keys()) == {'type', 'arch'}
 
-        assert container['type'] == 'docker'
+        assert container['type'] == 'none'
         assert container['arch']
         assert is_string_type(container['arch'])
-
-        assert isinstance(buildroot['tools'], list)
-        assert len(buildroot['tools']) > 0
-        for tool in buildroot['tools']:
-            assert isinstance(tool, dict)
-            assert set(tool.keys()) == {'name', 'version'}
-
-            assert tool['name']
-            assert is_string_type(tool['name'])
-#            assert tool['version']
-#            assert is_string_type(tool['version'])
-
-        if not source:
-            self.check_components(buildroot['components'])
-        else:
-            assert buildroot['components'] == []
-
-        extra = buildroot['extra']
-        assert isinstance(extra, dict)
-        assert set(extra.keys()) == {'osbs'}
-
-        assert 'osbs' in extra
-        osbs = extra['osbs']
-        assert isinstance(osbs, dict)
-        assert set(osbs.keys()) == {'build_id', 'builder_image_id', 'koji'}
-
-        assert is_string_type(osbs['build_id'])
-        assert is_string_type(osbs['builder_image_id'])
 
     def validate_output(self, output, has_config, source=False):
         assert isinstance(output, dict)

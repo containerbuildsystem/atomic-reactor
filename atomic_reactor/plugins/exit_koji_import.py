@@ -750,21 +750,8 @@ class KojiImportSourceContainerPlugin(KojiImportBase):
         """
         buildroots = []
 
-        buildroot = koji_get_buildroot(build_id=self.build_id, osbs=self.osbs, rpms=False)
+        buildroot = koji_get_buildroot()
         buildroot['id'] = '{}-{}'.format(buildroot['container']['arch'], buildroot['id'])
-
-        registry = self.workflow.push_conf.docker_registries[0]
-        build_name = get_unique_images(self.workflow)[0].to_str()
-
-        manifest_digest = registry.digests[build_name]
-        digest_version = get_manifest_media_version(manifest_digest)
-        media_type = get_manifest_media_type(digest_version)
-
-        buildroot['extra']['osbs']['koji'] = {
-            'build_name': build_name,
-            'builder_image_id': {media_type: manifest_digest.default}
-        }
-
         buildroots.append(buildroot)
         return buildroots
 

@@ -27,11 +27,10 @@ from atomic_reactor.constants import (DEFAULT_DOWNLOAD_BLOCK_SIZE, PROG,
                                       PLUGIN_GENERATE_MAVEN_METADATA_KEY,
                                       KOJI_MAX_RETRIES,
                                       KOJI_RETRY_INTERVAL, KOJI_OFFLINE_RETRY_INTERVAL)
-from atomic_reactor.util import (get_version_of_tools, Output, get_image_upload_filename,
+from atomic_reactor.util import (Output, get_image_upload_filename,
                                  get_checksums, get_manifest_media_type)
 from atomic_reactor.utils import imageutil
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
-from atomic_reactor.utils.rpm import get_rpm_list, parse_rpm_output
 
 logger = logging.getLogger(__name__)
 
@@ -297,12 +296,9 @@ def get_koji_module_build(session, module_spec):
     return build, rpm_list
 
 
-def get_buildroot(build_id, osbs, rpms):
+def get_buildroot():
     """
     Build the buildroot entry of the metadata.
-    :param build_id: str, ocp build_id
-    :param osbs: OSBS instance
-    :param rpms: bool, get rpms for components metadata
     :return: dict, partial metadata
     """
     # OSBS2 TBD
@@ -310,8 +306,6 @@ def get_buildroot(build_id, osbs, rpms):
     podman_info = None  # podman info
     # OSBS2 TBD
     host_arch = platform.processor()
-    # podman/buildah version
-    podman_version = None
 
     buildroot = {
         'id': 1,
@@ -326,30 +320,10 @@ def get_buildroot(build_id, osbs, rpms):
             'version': atomic_reactor_version,
         },
         'container': {
-            'type': 'docker',
+            'type': 'none',
             'arch': os.uname()[4],
         },
-        'tools': [
-            {
-                'name': tool['name'],
-                'version': tool['version'],
-            }
-            for tool in get_version_of_tools()] + [
-            {
-                'name': 'podman',
-                'version': podman_version,
-            },
-        ],
-        'extra': {
-            'osbs': {
-                'build_id': build_id,
-                'builder_image_id': get_builder_image_id(build_id, osbs),
-            }
-        },
-        'components': [],
     }
-    if rpms:
-        buildroot['components'] = get_rpms()
 
     return buildroot
 
@@ -583,36 +557,6 @@ def get_output_metadata(path, filename):
                 'checksum_type': 'md5'}
 
     return metadata
-
-
-def get_rpms():
-    """
-    Build a list of installed RPMs in the format required for the
-    metadata.
-    """
-    tags = [
-        'NAME',
-        'VERSION',
-        'RELEASE',
-        'ARCH',
-        'EPOCH',
-        'SIGMD5',
-        'SIGPGP:pgpsig',
-        'SIGGPG:pgpsig',
-        'DSAHEADER:pgpsig',
-        'RSAHEADER:pgpsig',
-    ]
-
-    output = get_rpm_list(tags)
-
-    return parse_rpm_output(output, tags)
-
-
-def get_builder_image_id(build_id, osbs):
-    """
-    Retrieve the docker ID of the buildroot image we are in from the environment.
-    """
-    return os.environ.get('OPENSHIFT_CUSTOM_BUILD_BASE_IMAGE', '')
 
 
 def select_digest(digests):
