@@ -208,6 +208,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
             if not value:
                 raise ValueError('{} cannot be empty'.format(option))
             if option == 'arches':
+                # pylint: disable=no-member
                 value = [arch for arch in value.split(',') if arch]
             elif option == 'name':
                 image_name = value

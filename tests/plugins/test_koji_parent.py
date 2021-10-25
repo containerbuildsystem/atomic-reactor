@@ -233,9 +233,8 @@ class TestKojiParent(object):
         }
         media_type = get_manifest_media_type(media_version)
         workflow.parent_images_digests = {}
-        for parent in parent_images:
-            dgst = parent_images[parent].tag
-            workflow.parent_images_digests[parent.to_str()] = {media_type: dgst}
+        for name, image in parent_images.items():
+            workflow.parent_images_digests[name.to_str()] = {media_type: image.tag}
         if not koji_mtype:
             media_type = get_manifest_media_type('v1')
         extra = {'image': {'index': {'digests': {media_type: 'stubDigest'}}}}

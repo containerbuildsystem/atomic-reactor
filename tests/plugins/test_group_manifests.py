@@ -470,10 +470,10 @@ def test_group_manifests(tmpdir, schema_version, test_name, group, foreign_layer
         registries_list.append(new_reg)
 
     platform_descriptors_list = []
-    for platform in goarch:
+    for platform, arch in goarch.items():
         new_plat = {
             'platform': platform,
-            'architecture': goarch[platform],
+            'architecture': arch,
         }
         platform_descriptors_list.append(new_plat)
 
