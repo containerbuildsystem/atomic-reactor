@@ -35,6 +35,8 @@ import pytest
 import time
 import platform
 
+pytest.skip("OSBS2 TBD", allow_module_level=True)
+
 
 MANIFEST_LIST = {
     'manifests': [
