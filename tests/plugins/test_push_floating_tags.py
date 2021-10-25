@@ -456,10 +456,10 @@ def test_floating_tags_push(tmpdir, test_name, registries, manifest_results,
         registries_list.append(new_reg)
 
     platform_descriptors_list = []
-    for platform in goarch:
+    for platform, arch in goarch.items():
         new_plat = {
             'platform': platform,
-            'architecture': goarch[platform],
+            'architecture': arch,
         }
         platform_descriptors_list.append(new_plat)
 
