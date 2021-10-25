@@ -370,7 +370,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
 
     def _get_openshift_session(self, kwargs):
         conf = Configuration(**kwargs)
-        return OSBS(conf, conf)
+        return OSBS(conf)
 
     def get_cluster_info(self, cluster, platform):
         kwargs = deepcopy(self.config_kwargs)
