@@ -112,7 +112,7 @@ def get_openshift_session(config, namespace):
         config_kwargs['use_auth'] = config.openshift['auth'].get('enable', False)
 
     osbs_conf = Configuration(**config_kwargs)
-    return OSBS(osbs_conf, osbs_conf)
+    return OSBS(osbs_conf)
 
 
 class ClusterConfig(object):
