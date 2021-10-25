@@ -20,7 +20,7 @@ import platform
 
 from atomic_reactor.inner import BuildResult
 from atomic_reactor.plugin import BuildStepPlugin
-from atomic_reactor.util import (df_parser, get_build_json, get_manifest_list,
+from atomic_reactor.util import (df_parser, get_manifest_list,
                                  get_platforms, map_to_user_params)
 from atomic_reactor.utils.koji import generate_koji_upload_dir
 from atomic_reactor.constants import (PLUGIN_ADD_FILESYSTEM_KEY, PLUGIN_BUILD_ORCHESTRATE_KEY)
@@ -39,6 +39,14 @@ WORKSPACE_KEY_OVERRIDE_KWARGS = 'override_kwargs'
 FIND_CLUSTER_RETRY_DELAY = 15.0
 FAILURE_RETRY_DELAY = 10.0
 MAX_CLUSTER_FAILS = 20
+
+
+def get_build_json():
+    """
+    FOR MOCKING ONLY
+    This only exists to allow OSBS2 unit tests to pass
+    """
+    return {}
 
 
 def get_worker_build_info(workflow, platform):
