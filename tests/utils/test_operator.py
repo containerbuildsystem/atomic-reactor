@@ -883,8 +883,11 @@ class TestOperatorCSV(object):
         if should_fail:
             with pytest.raises(RuntimeError) as exc_info:
                 csv.set_related_images()
-            msg = ("original.yaml - Found conflicts when setting relatedImages:\n"
-                   "foo annotation: {} X foo annotation: {}".format(p2, p1))
+            msg = ("original.yaml - Conflicts found when setting relatedImages. "
+                   "All images should be identical for named references.\n"
+                   "The following images were found for the named reference \"foo\":\n"
+                   "annotation: {}\n"
+                   "annotation: {}".format(p2, p1))
             assert str(exc_info.value) == msg
         else:
             csv.set_related_images()
@@ -894,22 +897,31 @@ class TestOperatorCSV(object):
             # conflict in original relatedImages
             [{"name": "foo", "image": "foo"}, {"name": "foo", "image": "bar"}],
             [],
-            ("{path} - Found conflicts when setting relatedImages:\n"
-             "relatedImage foo: foo X relatedImage foo: bar")
+            ("{path} - Conflicts found when setting relatedImages. "
+             "All images should be identical for named references.\n"
+             "The following images were found for the named reference \"foo\":\n"
+             "relatedImage: foo\n"
+             "relatedImage: bar")
         ),
         (
             # conflict in new relatedImages
             [],
             [{"name": "foo", "image": "foo"}, {"name": "foo", "image": "bar"}],
-            ("{path} - Found conflicts when setting relatedImages:\n"
-             "container foo: foo X container foo: bar")
+            ("{path} - Conflicts found when setting relatedImages. "
+             "All images should be identical for named references.\n"
+             "The following images were found for the named reference \"foo\":\n"
+             "container: foo\n"
+             "container: bar")
         ),
         (
             # conflict between original and new relatedImages
             [{"name": "foo", "image": "foo"}],
             [{"name": "foo", "image": "bar"}],
-            ("{path} - Found conflicts when setting relatedImages:\n"
-             "relatedImage foo: foo X container foo: bar")
+            ("{path} - Conflicts found when setting relatedImages. "
+             "All images should be identical for named references.\n"
+             "The following images were found for the named reference \"foo\":\n"
+             "relatedImage: foo\n"
+             "container: bar")
         ),
         (
             # duplicate in original relatedImages, no conflict
@@ -934,10 +946,13 @@ class TestOperatorCSV(object):
             [{"name": "foo", "image": "foo"}, {"name": "foo", "image": "bar"}],
             [{"name": "foo", "image": "baz"}, {"name": "foo", "image": "spam"}],
             # all messages should be (first found pullspec X conflicting pullspec)
-            ("{path} - Found conflicts when setting relatedImages:\n"
-             "relatedImage foo: foo X relatedImage foo: bar\n"
-             "relatedImage foo: foo X container foo: baz\n"
-             "relatedImage foo: foo X container foo: spam")
+            ("{path} - Conflicts found when setting relatedImages. "
+             "All images should be identical for named references.\n"
+             "The following images were found for the named reference \"foo\":\n"
+             "relatedImage: foo\n"
+             "relatedImage: bar\n"
+             "container: baz\n"
+             "container: spam")
         )
     ])
     def test_set_related_images_conflicts(self, related_images, containers, err_msg):

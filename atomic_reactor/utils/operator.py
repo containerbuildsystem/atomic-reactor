@@ -439,6 +439,14 @@ class NamedPullspec(object):
     def description(self):
         raise NotImplementedError
 
+    @property
+    def pullspec_type(self):
+        raise NotImplementedError
+
+    @property
+    def pullspec_reference(self):
+        return self.name
+
     def as_yaml_object(self):
         """
         Convert pullspec to a {"name": <name>, "image": <image>} object
@@ -450,20 +458,32 @@ class NamedPullspec(object):
 
 class Container(NamedPullspec):
     @property
+    def pullspec_type(self):
+        return "container"
+
+    @property
     def description(self):
-        return "container {}".format(self.name)
+        return "{} {}".format(self.pullspec_type, self.name)
 
 
 class InitContainer(NamedPullspec):
     @property
+    def pullspec_type(self):
+        return "initContainer"
+
+    @property
     def description(self):
-        return "initContainer {}".format(self.name)
+        return "{} {}".format(self.pullspec_type, self.name)
 
 
 class RelatedImage(NamedPullspec):
     @property
+    def pullspec_type(self):
+        return "relatedImage"
+
+    @property
     def description(self):
-        return "relatedImage {}".format(self.name)
+        return "{} {}".format(self.pullspec_type, self.name)
 
 
 class RelatedImageEnv(NamedPullspec):
@@ -475,8 +495,12 @@ class RelatedImageEnv(NamedPullspec):
         return self.data["name"][len("RELATED_IMAGE_"):].lower()
 
     @property
+    def pullspec_type(self):
+        return "var"
+
+    @property
     def description(self):
-        return "{} var".format(self.data["name"])
+        return "{} {}".format(self.data["name"], self.pullspec_type)
 
 
 class Annotation(NamedPullspec):
@@ -517,8 +541,16 @@ class Annotation(NamedPullspec):
         return "{}-{}-annotation".format(image.repo, tag)
 
     @property
+    def pullspec_type(self):
+        return "annotation"
+
+    @property
+    def pullspec_reference(self):
+        return self._image_key
+
+    @property
     def description(self):
-        return "{} annotation".format(self._image_key)
+        return "{} {}".format(self._image_key, self.pullspec_type)
 
     def in_key(self, image_key, start=None, end=None):
         self._image_key = image_key
@@ -635,7 +667,7 @@ class OperatorCSV(object):
             return
 
         by_name = OrderedDict()
-        conflicts = []
+        conflicts_map = {}
 
         for new in named_pullspecs:
             # Keep track only of the first instance with a given name.
@@ -644,13 +676,19 @@ class OperatorCSV(object):
             old = by_name.setdefault(new.name, new)
             # Check for potential conflict (same name, different image)
             if new.image != old.image:
-                msg = ("{old.description}: {old.image} X {new.description}: {new.image}"
-                       .format(old=old, new=new))
-                conflicts.append(msg)
+                conflicts_map.setdefault(old, []).append(new)
 
-        if conflicts:
-            raise RuntimeError("{} - Found conflicts when setting relatedImages:\n{}"
-                               .format(self.path, "\n".join(conflicts)))
+        if conflicts_map:
+            error_message = (f"{self.path} - Conflicts found when setting relatedImages. "
+                             "All images should be identical for named references.\n")
+            for old_image, new_images in conflicts_map.items():
+                error_message += "The following images were found for the named "
+                error_message += f"reference \"{old_image.pullspec_reference}\":\n"
+                error_message += f"{old_image.pullspec_type}: {old_image.image}\n"
+                error_message += "\n".join(
+                    [f"{image.pullspec_type}: {image.image}" for image in new_images]
+                    )
+            raise RuntimeError(error_message)
 
         related_images = (self.data.setdefault("spec", CommentedMap())
                                    .setdefault("relatedImages", CommentedSeq()))
