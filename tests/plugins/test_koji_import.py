@@ -13,7 +13,6 @@ import os
 import yaml
 from textwrap import dedent
 
-from osbs.build.build_response import BuildResponse
 from atomic_reactor.plugins.post_fetch_worker_metadata import FetchWorkerMetadataPlugin
 from atomic_reactor.plugins.build_orchestrate_build import (OrchestrateBuildPlugin,
                                                             WORKSPACE_KEY_UPLOAD_DIR,
@@ -26,7 +25,8 @@ from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
 from atomic_reactor.inner import DockerBuildWorkflow, TagConf, PushConf, BuildResult
 from atomic_reactor.util import (ManifestDigest, DockerfileImages,
-                                 get_manifest_media_version, get_manifest_media_type)
+                                 get_manifest_media_version, get_manifest_media_type,
+                                 graceful_chain_get)
 from atomic_reactor.utils import imageutil
 from atomic_reactor.source import GitSource, PathSource
 from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI_TAR,
@@ -208,13 +208,21 @@ def is_string_type(obj):
     return isinstance(obj, str)
 
 
+class MockResponse(object):
+    def __init__(self, build_json=None):
+        self.json = build_json
+
+    def get_annotations(self):
+        return graceful_chain_get(self.json, "metadata", "annotations")
+
+
 class BuildInfo(object):
     def __init__(self, help_file=None, help_valid=True, media_types=None, digests=None):
-        annotations = {}
+        self.annotations = {}
         if media_types:
-            annotations['media-types'] = json.dumps(media_types)
+            self.annotations['media-types'] = json.dumps(media_types)
         if help_valid:
-            annotations['help_file'] = json.dumps(help_file)
+            self.annotations['help_file'] = json.dumps(help_file)
         if digests:
             digest_annotation = []
             for digest_item in digests:
@@ -223,9 +231,9 @@ class BuildInfo(object):
                     "digest": digest_item.default,
                 }
                 digest_annotation.append(digest_annotation_item)
-            annotations['digests'] = json.dumps(digest_annotation)
+            self.annotations['digests'] = json.dumps(digest_annotation)
 
-        self.build = BuildResponse({'metadata': {'annotations': annotations}})
+        self.build = MockResponse({'metadata': {'annotations': self.annotations}})
 
 
 def mock_reactor_config(workflow, allow_multiple_remote_sources=False):
@@ -312,13 +320,9 @@ def mock_environment(tmpdir, session=None, name=None,
         logs.append(LogEntry('x86_64', 'Hurray for bacon: \u2017'))
         logs.append(LogEntry('x86_64', 'line 2'))
     (flexmock(OSBS)
-        .should_receive('get_orchestrator_build_logs')
+        .should_receive('get_build_logs')
         .with_args(BUILD_ID)
         .and_return(logs))
-    (flexmock(OSBS)
-        .should_receive('get_pod_for_build')
-        .with_args(BUILD_ID)
-        .and_return(MockedPodResponse()))
     setattr(workflow, 'source', source)
     setattr(workflow.source, 'lg', X())
     setattr(workflow.source.lg, 'commit_id', '123456')
@@ -866,8 +870,7 @@ class TestKojiImport(object):
             runner.run()
 
     @pytest.mark.parametrize('fail_method', [
-        'get_orchestrator_build_logs',
-        'get_pod_for_build',
+        'get_build_logs',
     ])
     def test_koji_import_osbs_fail(self, tmpdir, _user_params, fail_method):
         workflow = mock_environment(tmpdir, name='name', version='1.0', release='1')

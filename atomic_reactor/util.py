@@ -1440,7 +1440,7 @@ class OSBSLogs(object):
 
         # Collect logs from server
         try:
-            logs = osbs.get_orchestrator_build_logs(build_id)
+            logs = osbs.get_build_logs(build_id)
         except OsbsException as ex:
             self.log.error("unable to get build logs: %s", ex)
             return output
