@@ -16,11 +16,12 @@ cffi==1.15.0
     # via cryptography
 charset-normalizer==2.0.7
     # via requests
-coverage[toml]==6.0.2
+coverage[toml]==6.1.1
     # via pytest-cov
 cryptography==3.4.8
     # via
     #   -r requirements.in
+    #   pyspnego
     #   requests-kerberos
 decorator==5.1.0
     # via gssapi
@@ -41,7 +42,9 @@ flatpak-module-tools==0.12 ; python_version < "3.9"
 flexmock==0.10.10
     # via -r tests/requirements.in
 gssapi==1.7.2
-    # via requests-gssapi
+    # via
+    #   pyspnego
+    #   requests-gssapi
 idna==3.3
     # via requests
 iniconfig==1.1.1
@@ -52,11 +55,13 @@ jsonschema==4.1.2
     #   osbs-client
 koji==1.26.1
     # via -r requirements.in
+krb5==0.2.0
+    # via pyspnego
 mccabe==0.6.1
     # via flake8
 osbs-client @ git+https://github.com/containerbuildsystem/osbs-client@be934592d8c2a90c186bdab619a1dffb71cf62c1
     # via -r requirements.in
-packaging==21.0
+packaging==21.2
     # via pytest
 pep8==1.7.1
     # via -r requirements-devel.in
@@ -64,6 +69,8 @@ pluggy==1.0.0
     # via pytest
 py==1.10.0
     # via pytest
+pycairo==1.20.1
+    # via pygobject
 pycodestyle==2.8.0
     # via flake8
 pycparser==2.20
@@ -72,14 +79,16 @@ pyflakes==2.4.0
     # via
     #   -r requirements-devel.in
     #   flake8
-pykerberos==1.2.1
-    # via requests-kerberos
-pyparsing==3.0.1
+pygobject==3.42.0
+    # via -r requirements.in
+pyparsing==2.4.7
     # via packaging
 pypng==0.0.21
     # via -r tests/requirements.in
 pyrsistent==0.18.0
     # via jsonschema
+pyspnego[kerberos]==0.3.1
+    # via requests-kerberos
 pytest==6.2.5
     # via
     #   -r tests/requirements.in
@@ -112,13 +121,13 @@ requests==2.26.0
     #   responses
 requests-gssapi==1.2.3
     # via koji
-requests-kerberos==0.12.0
+requests-kerberos==0.13.0
     # via osbs-client
 requests-mock==1.9.3
     # via -r tests/requirements.in
 responses==0.10.7
     # via -r tests/requirements.in
-ruamel.yaml==0.17.16
+ruamel.yaml==0.17.17
     # via -r requirements.in
 ruamel.yaml.clib==0.2.6
     # via ruamel.yaml

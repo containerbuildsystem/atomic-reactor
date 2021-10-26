@@ -17,6 +17,7 @@ charset-normalizer==2.0.7
 cryptography==3.4.8
     # via
     #   -r requirements.in
+    #   pyspnego
     #   requests-kerberos
 decorator==5.1.0
     # via gssapi
@@ -33,7 +34,9 @@ dockerfile-parse==1.2.0
 flatpak-module-tools==0.12 ; python_version < "3.9"
     # via -r requirements.in
 gssapi==1.7.2
-    # via requests-gssapi
+    # via
+    #   pyspnego
+    #   requests-gssapi
 idna==3.3
     # via requests
 jsonschema==4.1.2
@@ -42,14 +45,20 @@ jsonschema==4.1.2
     #   osbs-client
 koji==1.26.1
     # via -r requirements.in
+krb5==0.2.0
+    # via pyspnego
 osbs-client @ git+https://github.com/containerbuildsystem/osbs-client@be934592d8c2a90c186bdab619a1dffb71cf62c1
     # via -r requirements.in
+pycairo==1.20.1
+    # via pygobject
 pycparser==2.20
     # via cffi
-pykerberos==1.2.1
-    # via requests-kerberos
+pygobject==3.42.0
+    # via -r requirements.in
 pyrsistent==0.18.0
     # via jsonschema
+pyspnego[kerberos]==0.3.1
+    # via requests-kerberos
 python-dateutil==2.8.2
     # via
     #   koji
@@ -68,9 +77,9 @@ requests==2.26.0
     #   requests-kerberos
 requests-gssapi==1.2.3
     # via koji
-requests-kerberos==0.12.0
+requests-kerberos==0.13.0
     # via osbs-client
-ruamel.yaml==0.17.16
+ruamel.yaml==0.17.17
     # via -r requirements.in
 ruamel.yaml.clib==0.2.6
     # via ruamel.yaml
