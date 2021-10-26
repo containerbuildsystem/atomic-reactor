@@ -1914,3 +1914,29 @@ def map_to_user_params(*args_to_params: str) -> Callable[[dict], dict]:
         return args
 
     return get_args
+
+
+def graceful_chain_get(d, *args):
+    if not d:
+        return None
+    t = deepcopy(d)
+    for arg in args:
+        try:
+            t = t[arg]
+        except (IndexError, KeyError):
+            return None
+    return t
+
+
+def graceful_chain_del(d, *args):
+    if not d:
+        return
+    for arg in args[:-1]:
+        try:
+            d = d[arg]
+        except (IndexError, KeyError):
+            return
+    try:
+        del d[args[-1]]
+    except (IndexError, KeyError):
+        pass
