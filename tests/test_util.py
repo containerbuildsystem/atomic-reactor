@@ -1217,7 +1217,7 @@ LogEntry = namedtuple('LogEntry', ['platform', 'line'])
 
 def test_osbs_logs_get_log_files(tmpdir):
     class OSBS(object):
-        def get_orchestrator_build_logs(self, build_id):
+        def get_build_logs(self, build_id):
             logs = [LogEntry(None, 'orchestrator'),
                     LogEntry('x86_64', 'Hurray for bacon: \u2017'),
                     LogEntry('x86_64', 'line 2')]

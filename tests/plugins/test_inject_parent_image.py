@@ -11,11 +11,10 @@ import koji
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_inject_parent_image import InjectParentImage
 from atomic_reactor.plugins.exit_remove_built_image import GarbageCollectionPlugin
-from atomic_reactor.util import DockerfileImages
+from atomic_reactor.util import DockerfileImages, graceful_chain_del
 from flexmock import flexmock
 from tests.util import add_koji_map_in_workflow
 from tests.stubs import StubSource
-from osbs.utils import graceful_chain_del
 
 import copy
 import pytest

@@ -62,10 +62,6 @@ class MockedOSBS(OSBS):
             .with_args(BUILD_ID)
             .and_return(logs))
         (flexmock(OSBS)
-            .should_receive('get_pod_for_build')
-            .with_args(BUILD_ID)
-            .and_return(MockedPodResponse()))
-        (flexmock(OSBS)
             .should_receive('create_config_map')
             .with_args(BUILD_ID+'-md', dict)
             .replace_with(self.create_config_map))
@@ -469,7 +465,6 @@ class TestKojiUpload(object):
 
     @pytest.mark.parametrize('fail_method', [
         'get_build_logs',
-        'get_pod_for_build',
     ])
     def test_koji_upload_osbs_fail(self, tmpdir, fail_method, _user_params):
         workflow = mock_environment(tmpdir, name='name', version='1.0', release='1')

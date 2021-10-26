@@ -28,7 +28,6 @@ from atomic_reactor.config import get_openshift_session
 from osbs.api import OSBS
 from osbs.exceptions import OsbsException
 from osbs.conf import Configuration
-from osbs.constants import BUILD_FINISHED_STATES
 from osbs.utils import Labels, ImageName
 
 
@@ -371,8 +370,9 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
             self.build_kwargs['operator_manifests_extract_platform'] = list(self.platforms)[0]
 
     def get_current_builds(self, osbs):
+        finished_states = ["failed", "complete", "error", "cancelled"]
         field_selector = ','.join(['status!={status}'.format(status=status.capitalize())
-                                   for status in BUILD_FINISHED_STATES])
+                                   for status in finished_states])
         with osbs.retries_disabled():
             return len(osbs.list_builds(field_selector=field_selector))
 

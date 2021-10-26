@@ -15,7 +15,6 @@ from atomic_reactor.utils.koji import get_koji_task_owner
 from atomic_reactor.config import Configuration
 from atomic_reactor.inner import DockerBuildWorkflow
 from tests.util import add_koji_map_in_workflow
-from osbs.api import OSBS
 from osbs.exceptions import OsbsException
 from smtplib import SMTPException
 
@@ -336,12 +335,6 @@ class TestSendMailPlugin(object):
             .should_receive('work')
             .and_raise(RuntimeError, "xyz"))
 
-        fake_logs = [LogEntry(None, 'orchestrator'),
-                     LogEntry(None, 'orchestrator line 2'),
-                     LogEntry('x86_64', 'Hurray for bacon: \u2017'),
-                     LogEntry('x86_64', 'line 2')]
-        flexmock(OSBS).should_receive('get_orchestrator_build_logs').and_return(fake_logs)
-
         flexmock(koji, ClientSession=lambda hub, opts: session, PathInfo=pathinfo)
         kwargs = {
             'url': 'https://something.com',
@@ -456,8 +449,6 @@ class TestSendMailPlugin(object):
         #   combinations
         session = MockedClientSession('', has_kerberos=True)
         pathinfo = MockedPathInfo('https://koji')
-
-        flexmock(OSBS).should_receive('get_orchestrator_build_logs').and_raise(error_type)
 
         flexmock(koji, ClientSession=lambda hub, opts: session, PathInfo=pathinfo)
         kwargs = {
@@ -738,10 +729,6 @@ class TestSendMailPlugin(object):
                                  ssl_certs_dir='/certs')
 
         receivers = ['foo@bar.com', 'x@y.com']
-        fake_logs = [LogEntry(None, 'orchestrator'),
-                     LogEntry(None, 'orchestrator line 2'),
-                     LogEntry('x86_64', 'Hurray for bacon: \u2017'),
-                     LogEntry('x86_64', 'line 2')]
         p = SendMailPlugin(workflow,
                            from_address='foo@bar.com', smtp_host='smtp.spam.com',
                            send_on=[])
@@ -749,7 +736,6 @@ class TestSendMailPlugin(object):
         (flexmock(p).should_receive('_should_send')
             .with_args(False, False).and_return(True))
         flexmock(p).should_receive('_get_receivers_list').and_return(receivers)
-        flexmock(OSBS).should_receive('get_orchestrator_build_logs').and_return(fake_logs)
         flexmock(p).should_receive('_get_image_name_and_repos').and_return(('foobar',
                                                                            ['foo/bar:baz',
                                                                             'foo/bar:spam']))
