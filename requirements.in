@@ -12,3 +12,4 @@ git+https://github.com/containerbuildsystem/osbs-client@be934592d8c2a90c186bdab6
 cryptography < 3.5
 requests
 koji
+PyGObject

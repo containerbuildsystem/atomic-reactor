@@ -44,7 +44,8 @@ function setup_osbs() {
   fi
 
   # List common install dependencies
-  PKG_COMMON_EXTRA=(git-core gcc krb5-devel "$PY_PKG-devel" popt-devel redhat-rpm-config)
+  PKG_COMMON_EXTRA=(git-core gcc krb5-devel "$PY_PKG-devel" popt-devel redhat-rpm-config
+                    cairo-devel gobject-introspection-devel cairo-gobject-devel)
   PKG_EXTRA+=("${PKG_COMMON_EXTRA[@]}")
 
   PIP_INST=("$PIP" install --index-url "${PYPI_INDEX:-https://pypi.org/simple}")
@@ -74,8 +75,9 @@ function setup_osbs() {
     $RUN sh -c "RPM_PY_SYS=true ${PIP_INST[*]} rpm-py-installer"
   fi
 
-  # Pip install packages for atomic-reactor
-  $RUN "${PIP_INST[@]}" -r requirements.txt
+  # Pip install packages for atomic-reactor, ignore installed to
+  #  avoid conflict with PyGoObject on fedora
+  $RUN "${PIP_INST[@]}" -r requirements.txt --ignore-installed
 
   # Setuptools install atomic-reactor from source
   $RUN $PYTHON setup.py install
