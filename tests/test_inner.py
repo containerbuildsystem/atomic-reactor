@@ -45,7 +45,6 @@ BUILD_RESULTS_ATTRS = ['build_logs',
 DUMMY_BUILD_RESULT = BuildResult(image_id="image_id")
 DUMMY_FAILED_BUILD_RESULT = BuildResult(fail_reason='it happens')
 DUMMY_REMOTE_BUILD_RESULT = BuildResult.make_remote_image_result()
-DUMMY_ORIGINAL_DF = "FROM test_base_image"
 
 pytestmark = pytest.mark.usefixtures('user_params')
 
