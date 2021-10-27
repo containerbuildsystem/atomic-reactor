@@ -54,7 +54,6 @@ class ChangeFromPlugin(PreBuildPlugin):
 
     def run(self):
         dfp = df_parser(self.workflow.df_path)
-        self.workflow.original_df = dfp.content
 
         df_base = dfp.baseimage
         build_base = self.workflow.dockerfile_images.base_image

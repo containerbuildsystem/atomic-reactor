@@ -486,7 +486,6 @@ class DockerBuildWorkflow(object):
         # info about pre-declared build, build-id and token
         self.reserved_build_id = None
         self.reserved_token = None
-        self.cancel_isolated_autorebuild = False
         self.koji_source_nvr = {}
         self.koji_source_source_url = None
         self.koji_source_manifest = None
@@ -504,7 +503,6 @@ class DockerBuildWorkflow(object):
 
         self.df_dir = build_file_dir
         self._df_path = None
-        self.original_df = None
         self.buildargs = {}  # --buildargs for container build
         self.dockerfile_images = DockerfileImages([])
         # OSBS2 TBD

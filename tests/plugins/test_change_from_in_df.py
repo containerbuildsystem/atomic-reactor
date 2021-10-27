@@ -266,7 +266,6 @@ def test_update_parent_images(df_content, expected_df_content, tmpdir):
     original_base = workflow.dockerfile_images.base_image
     run_plugin(workflow)
     assert dfp.content == expected_df_content
-    assert workflow.original_df == df_content
     if workflow.dockerfile_images.base_from_scratch:
         assert original_base == workflow.dockerfile_images.base_image
 
