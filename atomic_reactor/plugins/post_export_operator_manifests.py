@@ -81,6 +81,7 @@ class ExportOperatorManifestsPlugin(PostBuildPlugin):
         if not self.should_run():
             return
 
+        # OSBS2 TBD this should go in the context dir
         manifests_archive_dir = tempfile.mkdtemp()
 #        image = self.workflow.image
         # OSBS2 TBD

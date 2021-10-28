@@ -8,7 +8,6 @@ of the BSD license. See the LICENSE file for details.
 import os
 import shutil
 import subprocess
-import tempfile
 
 from atomic_reactor.inner import BuildResult
 from atomic_reactor.constants import (PLUGIN_SOURCE_CONTAINER_KEY, EXPORTED_SQUASHED_IMAGE_NAME,
@@ -27,7 +26,7 @@ class SourceContainerPlugin(BuildStepPlugin):
     key = PLUGIN_SOURCE_CONTAINER_KEY
 
     def export_image(self, image_output_dir):
-        output_path = os.path.join(tempfile.mkdtemp(), EXPORTED_SQUASHED_IMAGE_NAME)
+        output_path = os.path.join(self.workflow.source.workdir, EXPORTED_SQUASHED_IMAGE_NAME)
 
         cmd = ['skopeo', 'copy']
         source_img = 'oci:{}'.format(image_output_dir)
@@ -88,7 +87,8 @@ class SourceContainerPlugin(BuildStepPlugin):
         if maven_source_exists and not os.listdir(maven_source_data_dir):
             self.log.warning("Maven source directory '%s' is empty", maven_source_data_dir)
 
-        image_output_dir = tempfile.mkdtemp()
+        image_output_dir = os.path.join(self.workflow.source.workdir, 'output')
+        os.makedirs(image_output_dir, exist_ok=True)
         cmd = ['bsi', '-d']
         drivers = set()
 
