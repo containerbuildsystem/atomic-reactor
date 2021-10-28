@@ -118,7 +118,12 @@ class Source(object):
         return self._config
 
     def remove_workdir(self):
-        shutil.rmtree(self.workdir)
+        for entry_name in os.listdir(self.workdir):
+            entry_path = os.path.join(self.workdir, entry_name)
+            if os.path.isfile(entry_path):
+                os.unlink(entry_path)
+            else:
+                shutil.rmtree(entry_path)
 
     def get_vcs_info(self):
         """Returns VcsInfo namedtuple or None if not applicable."""
