@@ -30,6 +30,7 @@ class MockSource(object):
         self.dockerfile_path = os.path.join(tmpdir, 'Dockerfile')
         self.path = tmpdir
         self.config = flexmock(image_build_method=None)
+        self.workdir = tmpdir
 
     def get_build_file_path(self):
         return self.dockerfile_path, self.path
@@ -100,11 +101,11 @@ def test_running_build(tmpdir, caplog, user_params,
         }]
     )
 
-    temp_image_output_dir = os.path.join(str(tmpdir), 'image_output_dir')
-    temp_image_export_dir = os.path.join(str(tmpdir), 'image_export_dir')
+    temp_image_output_dir = os.path.join(str(tmpdir), 'output')
+    temp_image_export_dir = str(tmpdir)
     tempfile_chain = flexmock(tempfile).should_receive("mkdtemp").and_return(temp_image_output_dir)
     tempfile_chain.and_return(temp_image_export_dir)
-    os.mkdir(temp_image_export_dir)
+    os.makedirs(temp_image_export_dir, exist_ok=True)
     os.makedirs(os.path.join(temp_image_output_dir, 'blobs', 'sha256'))
     # temp dir created by bsi
     flexmock(os).should_receive('getcwd').and_return(str(tmpdir))

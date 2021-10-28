@@ -7,7 +7,6 @@ of the BSD license. See the LICENSE file for details.
 """
 import os
 import shutil
-import tempfile
 
 import koji
 import tarfile
@@ -135,7 +134,8 @@ class FetchSourcesPlugin(PreBuildPlugin):
         :param download_dir: str, directory where to download content
         :return: str, paths to directory with downloaded sources
         """
-        workdir = tempfile.mkdtemp()
+        workdir = os.path.join(self.workflow.source.workdir, 'sources')
+        os.makedirs(workdir, exist_ok=True)
         dest_dir = os.path.join(workdir, download_dir)
         if not os.path.exists(dest_dir):
             os.makedirs(dest_dir)
