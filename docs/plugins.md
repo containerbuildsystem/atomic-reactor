@@ -293,7 +293,7 @@ These are run at the end of the build, even for failed builds.
   - Status: Disabled
   - Aggregates output of **koji_upload** for each worker build to create a Koji
     Build object. It will replace **koji_promote** when enabled
-- **store_metadata_in_osv3**
+- **store_metadata**
   - Status: Enabled
   - The OpenShift Build object is annotated with information about the build,
     such as the Koji Build ID, built docker image ID, parent docker image ID,

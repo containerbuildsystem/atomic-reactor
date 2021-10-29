@@ -18,7 +18,7 @@ def annotation(key):
 
     If run() returns None, no annotation will be set.
 
-    The `store_metadata_in_osv3` plugin will automatically collect these
+    The `store_metadata` plugin will automatically collect these
     annotations and upload them to OpenShift.
 
     Example:

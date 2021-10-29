@@ -46,6 +46,6 @@ class SourceBuildTask(plugin_based.PluginBasedTask):
             {"name": "verify_media", "required": False},
             {"name": "koji_import_source_container"},
             {"name": "koji_tag_build"},
-            {"name": "store_metadata_in_osv3"},
+            {"name": "store_metadata"},
         ],
     )
