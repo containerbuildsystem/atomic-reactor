@@ -9,7 +9,7 @@ import json
 
 from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.exit_sendmail import SendMailPlugin, validate_address
-from atomic_reactor.plugins.exit_store_metadata_in_osv3 import StoreMetadataInOSv3Plugin
+from atomic_reactor.plugins.exit_store_metadata import StoreMetadataPlugin
 from atomic_reactor.plugins.exit_koji_import import KojiImportPlugin
 from atomic_reactor.utils.koji import get_koji_task_owner
 from atomic_reactor.config import Configuration
@@ -137,7 +137,7 @@ def mock_store_metadata_results(workflow, annotations=None):
     result = {}
     if annotations:
         result['annotations'] = {key: json.dumps(value) for key, value in annotations.items()}
-    workflow.exit_results[StoreMetadataInOSv3Plugin.key] = result
+    workflow.exit_results[StoreMetadataPlugin.key] = result
 
 
 @pytest.mark.parametrize(('address', 'valid'), [

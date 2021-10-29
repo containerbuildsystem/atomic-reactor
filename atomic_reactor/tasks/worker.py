@@ -57,7 +57,7 @@ class WorkerTask(plugin_based.PluginBasedTask):
             {"name": "koji_upload", "args": {"blocksize": 10485760}},
         ],
         exit=[
-            {"name": "store_metadata_in_osv3"},
+            {"name": "store_metadata"},
             {"name": "remove_built_image"},
         ],
     )

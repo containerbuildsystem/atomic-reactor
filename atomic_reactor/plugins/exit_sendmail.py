@@ -17,7 +17,7 @@ import json
 
 from atomic_reactor.plugin import ExitPlugin, PluginFailedException
 from atomic_reactor.plugins.exit_koji_import import KojiImportPlugin
-from atomic_reactor.plugins.exit_store_metadata_in_osv3 import StoreMetadataInOSv3Plugin
+from atomic_reactor.plugins.exit_store_metadata import StoreMetadataPlugin
 from atomic_reactor.utils.koji import get_koji_task_owner
 from atomic_reactor.util import df_parser
 from atomic_reactor.constants import PLUGIN_SENDMAIL_KEY
@@ -157,7 +157,7 @@ class SendMailPlugin(ExitPlugin):
         labels = Labels(dockerfile.labels)
         _, image_name = labels.get_name_and_value(Labels.LABEL_TYPE_NAME)
 
-        stored_data = self.workflow.exit_results.get(StoreMetadataInOSv3Plugin.key)
+        stored_data = self.workflow.exit_results.get(StoreMetadataPlugin.key)
         if not stored_data or 'annotations' not in stored_data:
             raise ValueError('Stored Metadata not found')
 

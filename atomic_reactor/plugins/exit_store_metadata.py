@@ -20,8 +20,8 @@ from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.utils import imageutil
 
 
-class StoreMetadataInOSv3Plugin(ExitPlugin):
-    key = "store_metadata_in_osv3"
+class StoreMetadataPlugin(ExitPlugin):
+    key = "store_metadata"
     is_allowed_to_fail = False
 
     def __init__(self, workflow):
@@ -31,7 +31,7 @@ class StoreMetadataInOSv3Plugin(ExitPlugin):
         :param workflow: DockerBuildWorkflow instance
         """
         # call parent constructor
-        super(StoreMetadataInOSv3Plugin, self).__init__(workflow)
+        super(StoreMetadataPlugin, self).__init__(workflow)
         self.source_build = PLUGIN_FETCH_SOURCES_KEY in self.workflow.prebuild_results
 
     def get_result(self, result):

@@ -22,7 +22,7 @@ from atomic_reactor.inner import DockerBuildWorkflow, BuildResult
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
-from atomic_reactor.plugins.exit_store_metadata_in_osv3 import StoreMetadataInOSv3Plugin
+from atomic_reactor.plugins.exit_store_metadata import StoreMetadataPlugin
 from atomic_reactor.util import LazyGit, ManifestDigest, df_parser, DockerfileImages
 from atomic_reactor.utils import imageutil
 import pytest
@@ -199,16 +199,16 @@ CMD blabla"""
     runner = ExitPluginsRunner(
         workflow,
         [{
-            'name': StoreMetadataInOSv3Plugin.key,
+            'name': StoreMetadataPlugin.key,
             "args": {
                 "url": "http://example.com/"
             }
         }]
     )
     output = runner.run()
-    assert StoreMetadataInOSv3Plugin.key in output
-    labels = output[StoreMetadataInOSv3Plugin.key]["labels"]
-    annotations = output[StoreMetadataInOSv3Plugin.key]["annotations"]
+    assert StoreMetadataPlugin.key in output
+    labels = output[StoreMetadataPlugin.key]["labels"]
+    annotations = output[StoreMetadataPlugin.key]["annotations"]
     assert "dockerfile" in annotations
     assert is_string_type(annotations['dockerfile'])
     assert "repositories" in annotations
@@ -397,16 +397,16 @@ def test_metadata_plugin_source(image_id, br_annotations, expected_br_annotation
     runner = ExitPluginsRunner(
         workflow,
         [{
-            'name': StoreMetadataInOSv3Plugin.key,
+            'name': StoreMetadataPlugin.key,
             "args": {
                 "url": "http://example.com/"
             }
         }]
     )
     output = runner.run()
-    assert StoreMetadataInOSv3Plugin.key in output
-    labels = output[StoreMetadataInOSv3Plugin.key]["labels"]
-    annotations = output[StoreMetadataInOSv3Plugin.key]["annotations"]
+    assert StoreMetadataPlugin.key in output
+    labels = output[StoreMetadataPlugin.key]["labels"]
+    annotations = output[StoreMetadataPlugin.key]["annotations"]
     assert "repositories" in annotations
     assert is_string_type(annotations['repositories'])
     assert "filesystem" in annotations
@@ -513,14 +513,14 @@ def test_koji_filesystem_label(res):
     runner = ExitPluginsRunner(
         workflow,
         [{
-            'name': StoreMetadataInOSv3Plugin.key,
+            'name': StoreMetadataPlugin.key,
             "args": {
                 "url": "http://example.com/"
             }
         }]
     )
     output = runner.run()
-    labels = output[StoreMetadataInOSv3Plugin.key]["labels"]
+    labels = output[StoreMetadataPlugin.key]["labels"]
 
     if 'filesystem-koji-task-id' in res:
         assert 'filesystem-koji-task-id' in labels
@@ -563,15 +563,15 @@ CMD blabla"""
     runner = ExitPluginsRunner(
         workflow,
         [{
-            'name': StoreMetadataInOSv3Plugin.key,
+            'name': StoreMetadataPlugin.key,
             "args": {
                 "url": "http://example.com/"
             }
         }]
     )
     output = runner.run()
-    assert StoreMetadataInOSv3Plugin.key in output
-    annotations = output[StoreMetadataInOSv3Plugin.key]["annotations"]
+    assert StoreMetadataPlugin.key in output
+    annotations = output[StoreMetadataPlugin.key]["annotations"]
     assert "dockerfile" in annotations
     assert "repositories" in annotations
     assert "commit_id" in annotations
@@ -599,15 +599,15 @@ def test_exit_before_dockerfile_created(tmpdir):
     runner = ExitPluginsRunner(
         workflow,
         [{
-            'name': StoreMetadataInOSv3Plugin.key,
+            'name': StoreMetadataPlugin.key,
             "args": {
                 "url": "http://example.com/"
             }
         }]
     )
     output = runner.run()
-    assert StoreMetadataInOSv3Plugin.key in output
-    annotations = output[StoreMetadataInOSv3Plugin.key]["annotations"]
+    assert StoreMetadataPlugin.key in output
+    annotations = output[StoreMetadataPlugin.key]["annotations"]
     assert annotations["base-image-name"] == ""
     assert annotations["base-image-id"] == ""
     assert annotations["dockerfile"] == ""
@@ -628,7 +628,7 @@ CMD blabla"""
     runner = ExitPluginsRunner(
         workflow,
         [{
-            'name': StoreMetadataInOSv3Plugin.key,
+            'name': StoreMetadataPlugin.key,
             "args": {
                 "url": "http://example.com/"
             }
@@ -649,7 +649,7 @@ def test_store_metadata_fail_update_labels(caplog):
     runner = ExitPluginsRunner(
         workflow,
         [{
-            'name': StoreMetadataInOSv3Plugin.key,
+            'name': StoreMetadataPlugin.key,
             "args": {
                 "url": "http://example.com/"
             }
@@ -700,15 +700,15 @@ CMD blabla"""
     runner = ExitPluginsRunner(
         workflow,
         [{
-            'name': StoreMetadataInOSv3Plugin.key,
+            'name': StoreMetadataPlugin.key,
             "args": {
                 "url": "http://example.com/"
             }
         }]
     )
     output = runner.run()
-    assert StoreMetadataInOSv3Plugin.key in output
-    annotations = output[StoreMetadataInOSv3Plugin.key]["annotations"]
+    assert StoreMetadataPlugin.key in output
+    annotations = output[StoreMetadataPlugin.key]["annotations"]
     repositories = json.loads(annotations['repositories'])
     unique_repositories = repositories['unique']
     primary_repositories = repositories['primary']
@@ -752,15 +752,15 @@ def test_set_koji_annotations_whitelist(tmpdir, koji_conf):
     runner = ExitPluginsRunner(
         workflow,
         [{
-            'name': StoreMetadataInOSv3Plugin.key,
+            'name': StoreMetadataPlugin.key,
             "args": {
                 "url": "http://example.com/"
             }
         }]
     )
     output = runner.run()
-    assert StoreMetadataInOSv3Plugin.key in output
-    annotations = output[StoreMetadataInOSv3Plugin.key]["annotations"]
+    assert StoreMetadataPlugin.key in output
+    annotations = output[StoreMetadataPlugin.key]["annotations"]
     whitelist = None
     if koji_conf:
         whitelist = koji_conf.get('task_annotations_whitelist')
@@ -781,7 +781,7 @@ def test_plugin_annotations():
     runner = ExitPluginsRunner(
         workflow,
         [{
-            'name': StoreMetadataInOSv3Plugin.key,
+            'name': StoreMetadataPlugin.key,
             "args": {
                 "url": "http://example.com/"
             }
@@ -789,7 +789,7 @@ def test_plugin_annotations():
     )
 
     output = runner.run()
-    annotations = output[StoreMetadataInOSv3Plugin.key]["annotations"]
+    annotations = output[StoreMetadataPlugin.key]["annotations"]
 
     assert annotations['foo'] == '{"bar": "baz"}'
     assert annotations['spam'] == '["eggs"]'
@@ -802,7 +802,7 @@ def test_plugin_labels():
     runner = ExitPluginsRunner(
         workflow,
         [{
-            'name': StoreMetadataInOSv3Plugin.key,
+            'name': StoreMetadataPlugin.key,
             "args": {
                 "url": "http://example.com/"
             }
@@ -810,7 +810,7 @@ def test_plugin_labels():
     )
 
     output = runner.run()
-    labels = output[StoreMetadataInOSv3Plugin.key]["labels"]
+    labels = output[StoreMetadataPlugin.key]["labels"]
 
     assert labels['foo'] == '1'
     assert labels['bar'] == 'two'

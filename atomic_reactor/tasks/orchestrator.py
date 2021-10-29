@@ -52,7 +52,7 @@ class OrchestratorTask(plugin_based.PluginBasedTask):
             {"name": "koji_import"},
             {"name": "push_floating_tags"},
             {"name": "koji_tag_build"},
-            {"name": "store_metadata_in_osv3"},
+            {"name": "store_metadata"},
             {"name": "sendmail"},
             {"name": "remove_built_image"},
             {"name": "remove_worker_metadata"},
