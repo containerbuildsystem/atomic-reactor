@@ -201,11 +201,11 @@ class StoreMetadataPlugin(ExitPlugin):
 
     def run(self):
         try:
-            build_id = self.workflow.user_params['pipeline_run_name']
+            pipeline_run_name = self.workflow.user_params['pipeline_run_name']
         except KeyError:
             self.log.error("No pipeline_run_name found")
             raise
-        self.log.info("build id = %s", build_id)
+        self.log.info("pipelineRun name = %s", pipeline_run_name)
         osbs = get_openshift_session(self.workflow.conf,
                                      self.workflow.user_params.get('namespace'))
 
@@ -295,7 +295,7 @@ class StoreMetadataPlugin(ExitPlugin):
         self.set_koji_task_annotations_whitelist(annotations)
 
         try:
-            osbs.update_annotations_on_build(build_id, annotations)
+            osbs.update_annotations_on_build(pipeline_run_name, annotations)
         except OsbsResponseException:
             self.log.debug("annotations: %r", annotations)
             raise
@@ -303,7 +303,7 @@ class StoreMetadataPlugin(ExitPlugin):
         labels = self.make_labels()
         if labels:
             try:
-                osbs.update_labels_on_build(build_id, labels)
+                osbs.update_labels_on_build(pipeline_run_name, labels)
             except OsbsResponseException:
                 self.log.debug("labels: %r", labels)
                 raise
