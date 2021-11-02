@@ -17,7 +17,7 @@
     "signing_intent": {"type": "string"},
     "sources_for_koji_build_nvr": {"type": "string"},
     "sources_for_koji_build_id": {"type": "integer"},
-    "user": {"type": "string"},
+    "user": {"type": "string"}
   },
   "required": ["build_json_dir", "user"]
 }
