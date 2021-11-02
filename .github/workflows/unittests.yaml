@@ -58,7 +58,7 @@ jobs:
           COVERALLS_PARALLEL: true
         run: |
           sudo apt install python3-testresources
-          pip3 install --upgrade pip
+          pip3 install --upgrade pip==20.0.2
           pip3 install --upgrade setuptools
           pip3 install --upgrade coveralls
           /home/runner/.local/bin/coveralls --service=github
@@ -71,7 +71,7 @@ jobs:
     - name: Finished
       run: |
         sudo apt install python3-testresources
-        pip3 install --upgrade pip
+        pip3 install --upgrade pip==20.0.2
         pip3 install --upgrade setuptools
         pip3 install --upgrade coveralls
         /home/runner/.local/bin/coveralls --finish --service=github
