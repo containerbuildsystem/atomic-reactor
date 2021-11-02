@@ -57,6 +57,7 @@ jobs:
           COVERALLS_FLAG_NAME: ${{ matrix.os.name }}-${{ matrix.os.version }}-python${{ matrix.os.python }}
           COVERALLS_PARALLEL: true
         run: |
+          sudo apt install python3-testresources
           pip3 install --upgrade pip
           pip3 install --upgrade setuptools
           pip3 install --upgrade coveralls
@@ -69,6 +70,7 @@ jobs:
     steps:
     - name: Finished
       run: |
+        sudo apt install python3-testresources
         pip3 install --upgrade pip
         pip3 install --upgrade setuptools
         pip3 install --upgrade coveralls
