@@ -28,7 +28,7 @@ jobs:
             engine: docker
 
           - name: fedora
-            version: 33
+            version: 35
             python: 3
             engine: docker
 
