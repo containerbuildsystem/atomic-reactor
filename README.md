@@ -23,14 +23,6 @@ Python library with command line interface for building docker images.
 - Change base image (`FROM`) in your Dockerfile
 - Run simple tests after your image is built
 
-There are several build modes available:
-
-- Building within a docker container using docker from host by mounting
-  `docker.sock` inside the container
-- Building within a privileged docker container (new instance of docker is
-  running inside)
-- Executing build within current environment
-
 ## Installation
 
 ### For Fedora Users
