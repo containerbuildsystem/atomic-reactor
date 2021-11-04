@@ -57,6 +57,34 @@ def parse_args(args: Optional[Sequence[str]] = None) -> dict:
     )
     source_build.set_defaults(func=task.source_build)
 
+    binary_container_prebuild = tasks.add_parser(
+        "binary-container-prebuild",
+        help="binary container pre-build step",
+        description="Execute binary container pre-build steps.",
+    )
+    binary_container_prebuild.set_defaults(func=task.binary_container_prebuild)
+
+    binary_container_build = tasks.add_parser(
+        "binary-container-build",
+        help="build a binary container",
+        description="Build a binary container.",
+    )
+    binary_container_build.set_defaults(func=task.binary_container_build)
+
+    binary_container_postbuild = tasks.add_parser(
+        "binary-container-postbuild",
+        help="binary container post-build step",
+        description="Execute binary container post-build steps.",
+    )
+    binary_container_postbuild.set_defaults(func=task.binary_container_postbuild)
+
+    binary_container_exit = tasks.add_parser(
+        "binary-container-exit",
+        help="exit a binary container build",
+        description="Execute binary container exit steps.",
+    )
+    binary_container_exit.set_defaults(func=task.binary_container_exit)
+
     return vars(parser.parse_args(args))
 
 

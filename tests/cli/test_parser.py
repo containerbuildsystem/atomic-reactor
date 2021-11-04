@@ -46,6 +46,22 @@ def test_parse_args_version(capsys):
             ["task", *REQUIRED_COMMON_ARGS, "source-build"],
             {**EXPECTED_ARGS, "func": task.source_build},
         ),
+        (
+            ["task", *REQUIRED_COMMON_ARGS, "binary-container-prebuild"],
+            {**EXPECTED_ARGS, "func": task.binary_container_prebuild},
+        ),
+        (
+            ["task", *REQUIRED_COMMON_ARGS, "binary-container-build"],
+            {**EXPECTED_ARGS, "func": task.binary_container_build},
+        ),
+        (
+            ["task", *REQUIRED_COMMON_ARGS, "binary-container-postbuild"],
+            {**EXPECTED_ARGS, "func": task.binary_container_postbuild},
+        ),
+        (
+            ["task", *REQUIRED_COMMON_ARGS, "binary-container-exit"],
+            {**EXPECTED_ARGS, "func": task.binary_container_exit},
+        ),
         # global and required args
         (
             ["--verbose", "task", *REQUIRED_COMMON_ARGS, "orchestrator"],
@@ -59,6 +75,25 @@ def test_parse_args_version(capsys):
         (
             ["task", *REQUIRED_COMMON_ARGS, "--config-file=config.yaml", "source-build"],
             {**EXPECTED_ARGS, "config_file": "config.yaml", "func": task.source_build},
+        ),
+        (
+            ["task", *REQUIRED_COMMON_ARGS, "--config-file=config.yaml",
+             "binary-container-prebuild"],
+            {**EXPECTED_ARGS, "config_file": "config.yaml", "func": task.binary_container_prebuild},
+        ),
+        (
+            ["task", *REQUIRED_COMMON_ARGS, "--config-file=config.yaml", "binary-container-build"],
+            {**EXPECTED_ARGS, "config_file": "config.yaml", "func": task.binary_container_build},
+        ),
+        (
+            ["task", *REQUIRED_COMMON_ARGS, "--config-file=config.yaml",
+             "binary-container-postbuild"],
+            {**EXPECTED_ARGS, "config_file": "config.yaml",
+             "func": task.binary_container_postbuild},
+        ),
+        (
+            ["task", *REQUIRED_COMMON_ARGS, "--config-file=config.yaml", "binary-container-exit"],
+            {**EXPECTED_ARGS, "config_file": "config.yaml", "func": task.binary_container_exit},
         ),
         (
             ["task", *REQUIRED_COMMON_ARGS, "--user-params", '{"a": 1}', "orchestrator"],
@@ -94,12 +129,60 @@ def test_parse_args_valid(cli_args, expect_parsed_args):
             "unrecognized arguments: --verbose",
         ),
         (
+            ["task", *REQUIRED_COMMON_ARGS, "--verbose", "binary-container-prebuild"],
+            "unrecognized arguments: --verbose",
+        ),
+        (
+            ["task", *REQUIRED_COMMON_ARGS, "--verbose", "binary-container-build"],
+            "unrecognized arguments: --verbose",
+        ),
+        (
+            ["task", *REQUIRED_COMMON_ARGS, "--verbose", "binary-container-postbuild"],
+            "unrecognized arguments: --verbose",
+        ),
+        (
+            ["task", *REQUIRED_COMMON_ARGS, "--verbose", "binary-container-exit"],
+            "unrecognized arguments: --verbose",
+        ),
+        (
             ["task", *REQUIRED_COMMON_ARGS, "source-build", "--user-params={}"],
+            "unrecognized arguments: --user-params",
+        ),
+        (
+            ["task", *REQUIRED_COMMON_ARGS, "binary-container-prebuild", "--user-params={}"],
+            "unrecognized arguments: --user-params",
+        ),
+        (
+            ["task", *REQUIRED_COMMON_ARGS, "binary-container-build", "--user-params={}"],
+            "unrecognized arguments: --user-params",
+        ),
+        (
+            ["task", *REQUIRED_COMMON_ARGS, "binary-container-postbuild", "--user-params={}"],
+            "unrecognized arguments: --user-params",
+        ),
+        (
+            ["task", *REQUIRED_COMMON_ARGS, "binary-container-exit", "--user-params={}"],
             "unrecognized arguments: --user-params",
         ),
         # missing common arguments
         (
             ["task", "source-build"],
+            "the following arguments are required: --build-dir, --context-dir",
+        ),
+        (
+            ["task", "binary-container-prebuild"],
+            "the following arguments are required: --build-dir, --context-dir",
+        ),
+        (
+            ["task", "binary-container-build"],
+            "the following arguments are required: --build-dir, --context-dir",
+        ),
+        (
+            ["task", "binary-container-postbuild"],
+            "the following arguments are required: --build-dir, --context-dir",
+        ),
+        (
+            ["task", "binary-container-exit"],
             "the following arguments are required: --build-dir, --context-dir",
         ),
     ],
