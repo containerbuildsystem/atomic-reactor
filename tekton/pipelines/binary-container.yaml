@@ -1,0 +1,102 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: binary-container-0-1  # dot is not allowed in the name
+spec:
+  params:
+    - name: OSBS_IMAGE
+      description: The location of the OSBS builder image (FQDN pullspec)
+      type: string
+    - name: USER_PARAMS
+      type: string
+      description: User parameters in JSON format
+
+  workspaces:
+    - name: ws-build-dir
+    - name: ws-context-dir
+    - name: ws-registries-secret
+    - name: ws-koji-secret
+    - name: ws-reactor-config-map
+
+  tasks:
+    - name: binary-container-prebuild
+      taskRef:
+        name: binary-container-prebuild-0-1
+      workspaces:
+        - name: ws-build-dir
+          workspace: ws-build-dir
+        - name: ws-context-dir
+          workspace: ws-context-dir
+        - name: ws-registries-secret
+          workspace: ws-registries-secret
+        - name: ws-koji-secret
+          workspace: ws-koji-secret
+        - name: ws-reactor-config-map
+          workspace: ws-reactor-config-map
+      params:
+        - name: OSBS_IMAGE
+          value: "$(params.OSBS_IMAGE)"
+        - name: USER_PARAMS
+          value: "$(params.USER_PARAMS)"
+    - name: binary-container-build
+      runAfter:
+        - binary-container-prebuild
+      taskRef:
+        name: binary-container-build-0-1
+      workspaces:
+        - name: ws-build-dir
+          workspace: ws-build-dir
+        - name: ws-context-dir
+          workspace: ws-context-dir
+        - name: ws-registries-secret
+          workspace: ws-registries-secret
+        - name: ws-koji-secret
+          workspace: ws-koji-secret
+        - name: ws-reactor-config-map
+          workspace: ws-reactor-config-map
+      params:
+        - name: OSBS_IMAGE
+          value: "$(params.OSBS_IMAGE)"
+        - name: USER_PARAMS
+          value: "$(params.USER_PARAMS)"
+    - name: binary-container-postbuild
+      runAfter:
+        - binary-container-build
+      taskRef:
+        name: binary-container-postbuild-0-1
+      workspaces:
+        - name: ws-build-dir
+          workspace: ws-build-dir
+        - name: ws-context-dir
+          workspace: ws-context-dir
+        - name: ws-registries-secret
+          workspace: ws-registries-secret
+        - name: ws-koji-secret
+          workspace: ws-koji-secret
+        - name: ws-reactor-config-map
+          workspace: ws-reactor-config-map
+      params:
+        - name: OSBS_IMAGE
+          value: "$(params.OSBS_IMAGE)"
+        - name: USER_PARAMS
+          value: "$(params.USER_PARAMS)"
+  finally:
+    - name: binary-container-exit
+      taskRef:
+        name: binary-container-exit-0-1
+      workspaces:
+        - name: ws-build-dir
+          workspace: ws-build-dir
+        - name: ws-context-dir
+          workspace: ws-context-dir
+        - name: ws-registries-secret
+          workspace: ws-registries-secret
+        - name: ws-koji-secret
+          workspace: ws-koji-secret
+        - name: ws-reactor-config-map
+          workspace: ws-reactor-config-map
+      params:
+        - name: OSBS_IMAGE
+          value: "$(params.OSBS_IMAGE)"
+        - name: USER_PARAMS
+          value: "$(params.USER_PARAMS)"
