@@ -1,0 +1,32 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: binary-container-postbuild-0-1  # dot is not allowed in the name
+spec:
+  description: >-
+    OSBS postbuild task for building binary container image
+  params:
+    - name: OSBS_IMAGE
+      description: The location of the OSBS builder image (FQDN pullspec)
+      type: string
+    - name: USER_PARAMS
+      type: string
+      description: User parameters in JSON format
+
+  workspaces:
+    - name: ws-build-dir
+    - name: ws-context-dir
+    - name: ws-registries-secret  # access with $(workspaces.ws-registries-secret.path)/token
+    - name: ws-koji-secret  # access with $(workspaces.ws-koji-secret.path)/token
+    - name: ws-reactor-config-map
+
+  steps:
+    - name: binary-container-postbuild
+      image: $(params.OSBS_IMAGE)
+      script: >
+        atomic-reactor -v task
+        --user-params="$(params.USER_PARAMS)"
+        --build-dir=$(workspaces.ws-build-dir.path)
+        --context-dir=$(workspaces.ws-context-dir.path)
+        --config-file=$(workspaces.ws-reactor-config-map.path)/config.yaml
+        binary-container-postbuild
