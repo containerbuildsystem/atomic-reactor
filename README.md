@@ -42,16 +42,6 @@ export PYTHONPATH="${REACTOR_PATH}:${PYTHONPATH}"
 alias atomic-reactor="python ${REACTOR_PATH}/atomic-reactor/cli/main.py"
 ```
 
-### Dependencies
-
-- [docker-py][]
-- The [koji plugin][] requires the `koji` package, which is not available on
-  PyPI: you'll have to install it manually
-
-```bash
-sudo dnf install koji
-```
-
 ### Adding Dependencies
 
 To add more Python dependencies, add them to the following files:
