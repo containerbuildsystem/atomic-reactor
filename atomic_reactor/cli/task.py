@@ -5,10 +5,12 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
-
+from atomic_reactor.tasks.binary import BinaryBuildTask, BinaryExitTask, \
+    BinaryPostBuildTask, BinaryPreBuildTask
+from atomic_reactor.tasks.common import TaskParams
 from atomic_reactor.tasks.orchestrator import OrchestratorTask, OrchestratorTaskParams
-from atomic_reactor.tasks.worker import WorkerTask, WorkerTaskParams
 from atomic_reactor.tasks.sources import SourceBuildTask, SourceBuildTaskParams
+from atomic_reactor.tasks.worker import WorkerTask, WorkerTaskParams
 
 
 def orchestrator(task_args: dict):
@@ -38,4 +40,44 @@ def source_build(task_args: dict):
     """
     params = SourceBuildTaskParams.from_cli_args(task_args)
     task = SourceBuildTask(params)
+    return task.execute()
+
+
+def binary_container_prebuild(task_args: dict):
+    """Run binary container pre-build steps.
+
+    :param task_args: CLI arguments for a binary-container-prebuild task
+    """
+    params = TaskParams.from_cli_args(task_args)
+    task = BinaryPreBuildTask(params)
+    return task.execute()
+
+
+def binary_container_build(task_args: dict):
+    """Run a binary container build.
+
+    :param task_args: CLI arguments for a binary-container-build task
+    """
+    params = TaskParams.from_cli_args(task_args)
+    task = BinaryBuildTask(params)
+    return task.execute()
+
+
+def binary_container_postbuild(task_args: dict):
+    """Run binary container post-build steps.
+
+    :param task_args: CLI arguments for a binary-container-postbuild task
+    """
+    params = TaskParams.from_cli_args(task_args)
+    task = BinaryPostBuildTask(params)
+    return task.execute()
+
+
+def binary_container_exit(task_args: dict):
+    """Run binary container exit steps.
+
+    :param task_args: CLI arguments for a binary-container-exit task
+    """
+    params = TaskParams.from_cli_args(task_args)
+    task = BinaryExitTask(params)
     return task.execute()
