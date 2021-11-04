@@ -25,12 +25,6 @@ Python library with command line interface for building docker images.
 
 ## Installation
 
-### For Fedora Users
-
-```bash
-sudo dnf install atomic-reactor python-atomic-reactor-koji
-```
-
 ### From git
 
 Clone this git repo and install Atomic Reactor using python installer:
@@ -38,7 +32,7 @@ Clone this git repo and install Atomic Reactor using python installer:
 ```bash
 git clone https://github.com/containerbuildsystem/atomic-reactor.git
 cd atomic-reactor
-sudo pip install .
+pip install . --user
 ```
 
 You don't even need to install it. You may use it straight from git:
