@@ -6,6 +6,7 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
+import _hashlib
 import hashlib
 from itertools import chain
 import json
@@ -16,7 +17,7 @@ import requests
 from requests.exceptions import SSLError, HTTPError, RetryError
 import shutil
 import tempfile
-from typing import Iterator, Sequence
+from typing import Iterator, Sequence, Dict, Union, List, BinaryIO, Tuple, Optional
 import logging
 import uuid
 import yaml
@@ -353,7 +354,9 @@ def _process_plugin_substitution(mapping, key_parts, value):
                            (plugin_name, plugins_num))
 
 
-def _compute_checksums(fd, hash_objs, blocksize=65536):
+def _compute_checksums(
+    fd: BinaryIO, hash_objs: List[_hashlib.HASH], blocksize: int = 65536
+) -> None:
     """
     Compute file checksums in given hash objects.
 
@@ -368,7 +371,7 @@ def _compute_checksums(fd, hash_objs, blocksize=65536):
         buf = fd.read(blocksize)
 
 
-def get_checksums(filename, algorithms):
+def get_checksums(filename: Union[str, BinaryIO], algorithms: List[str]) -> Dict[str, str]:
     """
     Compute a checksum(s) of given file using specified algorithms.
 
@@ -474,7 +477,7 @@ def base_image_is_scratch(base_image_name):
     return SCRATCH_FROM == base_image_name
 
 
-def base_image_is_custom(base_image_name):
+def base_image_is_custom(base_image_name: str) -> bool:
     return bool(re.match('^koji/image-build(:.*)?$', base_image_name))
 
 
@@ -710,7 +713,9 @@ class RegistryClient(object):
     def dockercfg_path(self):
         return self._session.dockercfg_path
 
-    def get_manifest(self, image, version):
+    def get_manifest(
+        self, image: ImageName, version: str
+    ) -> Tuple[Optional[requests.Response], Optional[Exception]]:
         saved_not_found = None
         media_type = get_manifest_media_type(version)
         try:
@@ -798,7 +803,7 @@ class RegistryClient(object):
 
         return ManifestDigest(**digests)
 
-    def get_manifest_list(self, image):
+    def get_manifest_list(self, image: ImageName) -> Optional[requests.Response]:
         """Return manifest list for image.
 
         :param image: ImageName, the remote image to inspect
@@ -821,7 +826,9 @@ class RegistryClient(object):
         digest_dict = get_checksums(io.BytesIO(response.content), ['sha256'])
         return 'sha256:{}'.format(digest_dict['sha256sum'])
 
-    def get_all_manifests(self, image, versions=('v1', 'v2', 'v2_list')):
+    def get_all_manifests(
+        self, image: ImageName, versions: Tuple[str] = ('v1', 'v2', 'v2_list')
+    ) -> Dict[str, requests.Response]:
         """Return manifest digests for image.
 
         :param image: ImageName, the remote image to inspect
@@ -971,7 +978,7 @@ def is_manifest_list(version):
     return version == MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST or version == MEDIA_TYPE_OCI_V1_INDEX
 
 
-def get_manifest_media_type(version):
+def get_manifest_media_type(version: str) -> str:
     try:
         return ManifestDigest.content_type[version]
     except KeyError as exc:
@@ -1000,7 +1007,9 @@ def get_digests_map_from_annotations(digests_str):
     return digests
 
 
-def query_registry(registry_session, image, digest=None, version='v1', is_blob=False):
+def query_registry(
+    registry_session, image: ImageName, digest=None, version='v1', is_blob=False
+) -> requests.Response:
     """Return manifest digest for image.
 
     :param registry_session: RegistrySession
@@ -1616,20 +1625,20 @@ class DockerfileImages(object):
     source and organization with set_source_registry method
     and local tags in _local_parents via setter with valid key
     """
-    def __init__(self, dfp_parents):
-        self._original_parents = deepcopy(dfp_parents) if dfp_parents else []
+    def __init__(self, dfp_parents: List[str]):
+        self._original_parents: List[str] = deepcopy(dfp_parents) if dfp_parents else []
         self._custom_parent_image = False
         self._custom_base_image = False
         self._base_from_scratch = False
-        self._source_registry = None
-        self._organization = None
-        self._pullable_parents = []
-        self._local_parents = []
+        self._source_registry: Optional[str] = None
+        self._organization: Optional[str] = None
+        self._pullable_parents: List[ImageName] = []
+        self._local_parents: List[Optional[ImageName]] = []
         self._create_pullable()
         self._source_and_org_set = False
 
     @property
-    def original_parents(self):
+    def original_parents(self) -> List[str]:
         """
         provides unmodified parent_images from Dockerfile
         :return: list
@@ -1637,7 +1646,7 @@ class DockerfileImages(object):
         return self._original_parents
 
     @property
-    def original_base_image(self):
+    def original_base_image(self) -> Optional[str]:
         """
         provides unmodified base image from Dockerfile
         :return: str or None
@@ -1645,7 +1654,7 @@ class DockerfileImages(object):
         return self._original_parents[-1] if self._original_parents else None
 
     @property
-    def base_image(self):
+    def base_image(self) -> Union[str, ImageName]:
         """
         provides local tag if it is known,
         or pullable base image with registry and enclosed (if registry is source registry),
@@ -1661,7 +1670,7 @@ class DockerfileImages(object):
             return self.base_image_key
 
     @property
-    def base_image_key(self):
+    def base_image_key(self) -> Union[str, ImageName]:
         """
         provides pullable base image with registry and enclosed (if registry is source registry),
         or scratch or custom base image
@@ -1676,7 +1685,7 @@ class DockerfileImages(object):
             raise KeyError('base_image')
 
     @property
-    def base_from_scratch(self):
+    def base_from_scratch(self) -> bool:
         """
         base image is FROM scratch
         :return: boolean
@@ -1684,7 +1693,7 @@ class DockerfileImages(object):
         return self._base_from_scratch
 
     @property
-    def custom_base_image(self):
+    def custom_base_image(self) -> bool:
         """
         base image is custom (FROM koji/image-build)
         :return: boolean
@@ -1692,7 +1701,7 @@ class DockerfileImages(object):
         return self._custom_base_image
 
     @property
-    def custom_parent_image(self):
+    def custom_parent_image(self) -> bool:
         """
         any parent image is custom (FROM koji/image-build)
         :return: boolean
@@ -1700,17 +1709,17 @@ class DockerfileImages(object):
         return self._custom_parent_image
 
     @property
-    def source_registry(self):
+    def source_registry(self) -> Optional[str]:
         return self._source_registry
 
     @property
-    def organization(self):
+    def organization(self) -> Optional[str]:
         return self._organization
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self._pullable_parents)
 
-    def __setitem__(self, key, item):
+    def __setitem__(self, key: Union[str, ImageName], item: Union[str, ImageName]):
         """
         for key can be used: string or ImageName
         image without registry and organization
@@ -1738,7 +1747,7 @@ class DockerfileImages(object):
         self._local_parents[kindex] = ImageName.parse(item)
         logger.info("set parent image '%s' to '%s'", key.to_str(), item)
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: Union[str, ImageName]):
         """
         for key can be used: string or ImageName
         image without registry and organization
@@ -1776,7 +1785,7 @@ class DockerfileImages(object):
     def items(self):
         return zip(self.keys(), self.values())   # pylint: disable=zip-builtin-not-iterating
 
-    def _create_pullable(self):
+    def _create_pullable(self) -> None:
         for index, image in enumerate(reversed(self._original_parents)):
             image_name = ImageName.parse(image)
             if base_image_is_scratch(image_name.get_repo()):
@@ -1792,7 +1801,7 @@ class DockerfileImages(object):
                 self._pullable_parents.append(image_name)
                 self._local_parents.append(None)
 
-    def set_source_registry(self, source_registry, organization=None):
+    def set_source_registry(self, source_registry: str, organization: Optional[str] = None) -> None:
         """
         set source registry and organization
         has to be done before using with expectation of having
@@ -1809,7 +1818,7 @@ class DockerfileImages(object):
         self._enclose_pullable()
         self._source_and_org_set = True
 
-    def _should_enclose(self, image):
+    def _should_enclose(self, image: ImageName) -> bool:
         if image.registry and image.registry != self._source_registry:
             return False
         if self._organization:
