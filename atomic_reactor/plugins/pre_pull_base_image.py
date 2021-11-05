@@ -13,15 +13,17 @@ trigger instead of what is in the Dockerfile.
 Tag each image to a unique name (the build name plus a nonce) to be used during
 this build so that it isn't removed by other builds doing clean-up.
 """
+from io import BytesIO
+from typing import Optional, Union
 
 import docker
+import requests
 
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import (get_platforms, base_image_is_custom,
                                  get_checksums, get_manifest_media_type,
                                  RegistrySession, RegistryClient, map_to_user_params)
 from atomic_reactor.utils import imageutil
-from io import BytesIO
 from requests.exceptions import HTTPError, RetryError, Timeout
 from osbs.utils import ImageName
 
@@ -106,7 +108,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
             raise RuntimeError('Error when extracting parent images manifest digests: {}'
                                .format(digest_fetching_exceptions))
 
-    def _get_image_with_digest(self, image):
+    def _get_image_with_digest(self, image: ImageName) -> Optional[ImageName]:
         image_str = image.to_str()
         try:
             image_metadata = self.workflow.parent_images_digests[image_str]
@@ -124,7 +126,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
         new_image = '{}@sha256:{}'.format(image_name, digest)
         return ImageName.parse(new_image)
 
-    def _store_manifest_digest(self, image, use_original_tag):
+    def _store_manifest_digest(self, image: ImageName, use_original_tag: bool) -> None:
         """Store media type and digest for manifest list or v2 schema 2 manifest digest"""
         image_str = image.to_str()
         manifest_list = self._get_manifest_list(image)
@@ -156,12 +158,12 @@ class PullBaseImagePlugin(PreBuildPlugin):
 
         self.workflow.parent_images_digests[image_str] = parent_digests
 
-    def _resolve_base_image(self):
+    def _resolve_base_image(self) -> Union[str, ImageName]:
         base_image = self.workflow.dockerfile_images.base_image
         self.log.info("using %s as base image.", base_image)
         return base_image
 
-    def _ensure_image_registry(self, image):
+    def _ensure_image_registry(self, image: ImageName) -> None:
         """If plugin configured with a parent registry, ensure the image uses it"""
         # if registry specified in Dockerfile image, ensure it's the one allowed by config
         if image.registry:
@@ -176,7 +178,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
             raise RuntimeError("Shouldn't happen, images should have already "
                                "registry set in dockerfile_images")
 
-    def _pull_and_tag_image(self, image, nonce):
+    def _pull_and_tag_image(self, image: ImageName, nonce: str) -> ImageName:
         """Docker pull the image and tag it uniquely for use by this build"""
         image = image.copy()
 #        reg_client = self._get_registry_client(image.registry)
@@ -220,7 +222,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
         self.log.error("giving up trying to pull image")
         raise RuntimeError("too many attempts to pull and tag image")
 
-    def _get_manifest_list(self, image):
+    def _get_manifest_list(self, image: ImageName) -> requests.Response:
         """try to figure out manifest list"""
         if image in self.manifest_list_cache:
             return self.manifest_list_cache[image]
@@ -248,7 +250,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
         self.manifest_list_cache[image] = manifest_list
         return self.manifest_list_cache[image]
 
-    def _validate_platforms_in_image(self, image):
+    def _validate_platforms_in_image(self, image: ImageName) -> None:
         """Ensure that the image provides all platforms expected for the build."""
         expected_platforms = get_platforms(self.workflow)
         if not expected_platforms:
@@ -287,7 +289,7 @@ class PullBaseImagePlugin(PreBuildPlugin):
 
         self.log.info('Base image is a manifest list for all required platforms')
 
-    def _get_registry_client(self, registry):
+    def _get_registry_client(self, registry: str) -> RegistryClient:
         """
         Get registry client for specified registry, cached by registry name
         """
