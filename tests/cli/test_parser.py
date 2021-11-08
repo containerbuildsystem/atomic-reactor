@@ -47,6 +47,10 @@ def test_parse_args_version(capsys):
             {**EXPECTED_ARGS, "func": task.source_build},
         ),
         (
+            ["task", *REQUIRED_COMMON_ARGS, "clone"],
+            {**EXPECTED_ARGS, "func": task.clone},
+        ),
+        (
             ["task", *REQUIRED_COMMON_ARGS, "binary-container-prebuild"],
             {**EXPECTED_ARGS, "func": task.binary_container_prebuild},
         ),
@@ -75,6 +79,10 @@ def test_parse_args_version(capsys):
         (
             ["task", *REQUIRED_COMMON_ARGS, "--config-file=config.yaml", "source-build"],
             {**EXPECTED_ARGS, "config_file": "config.yaml", "func": task.source_build},
+        ),
+        (
+            ["task", *REQUIRED_COMMON_ARGS, "--config-file=config.yaml", "clone"],
+            {**EXPECTED_ARGS, "config_file": "config.yaml", "func": task.clone},
         ),
         (
             ["task", *REQUIRED_COMMON_ARGS, "--config-file=config.yaml",
@@ -129,6 +137,10 @@ def test_parse_args_valid(cli_args, expect_parsed_args):
             "unrecognized arguments: --verbose",
         ),
         (
+            ["task", *REQUIRED_COMMON_ARGS, "--verbose", "clone"],
+            "unrecognized arguments: --verbose",
+        ),
+        (
             ["task", *REQUIRED_COMMON_ARGS, "--verbose", "binary-container-prebuild"],
             "unrecognized arguments: --verbose",
         ),
@@ -146,6 +158,10 @@ def test_parse_args_valid(cli_args, expect_parsed_args):
         ),
         (
             ["task", *REQUIRED_COMMON_ARGS, "source-build", "--user-params={}"],
+            "unrecognized arguments: --user-params",
+        ),
+        (
+            ["task", *REQUIRED_COMMON_ARGS, "clone", "--user-params={}"],
             "unrecognized arguments: --user-params",
         ),
         (
@@ -167,6 +183,10 @@ def test_parse_args_valid(cli_args, expect_parsed_args):
         # missing common arguments
         (
             ["task", "source-build"],
+            "the following arguments are required: --build-dir, --context-dir",
+        ),
+        (
+            ["task", "clone"],
             "the following arguments are required: --build-dir, --context-dir",
         ),
         (
