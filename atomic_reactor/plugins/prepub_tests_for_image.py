@@ -32,7 +32,7 @@ stdout)
 """
 
 import os
-import imp
+import imp  # pylint: disable=deprecated-module
 import shutil
 import tempfile
 

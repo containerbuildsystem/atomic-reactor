@@ -15,7 +15,7 @@ import logging
 import os
 import sys
 import traceback
-import imp
+import imp  # pylint: disable=deprecated-module
 import datetime
 import inspect
 import time

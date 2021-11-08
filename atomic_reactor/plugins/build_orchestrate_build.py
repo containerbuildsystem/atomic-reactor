@@ -695,8 +695,8 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
             arch_digests[arch] = image_name + '@' + manifest['digest']
 
         arch_to_platform = get_goarch_to_platform_mapping(self.workflow, self.plat_des_fallback)
-        for arch in arch_digests:
-            self.build_image_digests[arch_to_platform[arch]] = arch_digests[arch]
+        for arch, digest in arch_digests.items():
+            self.build_image_digests[arch_to_platform[arch]] = digest
 
         # orchestrator platform is in manifest list
         if orchestrator_platform not in self.build_image_digests:

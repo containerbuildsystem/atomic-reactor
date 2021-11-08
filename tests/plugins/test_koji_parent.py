@@ -242,8 +242,8 @@ class TestKojiParent(object):
         }
         media_type = get_manifest_media_type(media_version)
         workflow.builder.parent_images_digests = {}
-        for parent in parent_images:
-            dgst = parent_images[parent].tag
+        for parent, digest in parent_images.items():
+            dgst = digest.tag
             workflow.builder.parent_images_digests[parent.to_str()] = {media_type: dgst}
         if not koji_mtype:
             media_type = get_manifest_media_type('v1')
