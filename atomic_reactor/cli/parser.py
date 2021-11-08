@@ -57,6 +57,13 @@ def parse_args(args: Optional[Sequence[str]] = None) -> dict:
     )
     source_build.set_defaults(func=task.source_build)
 
+    clone = tasks.add_parser(
+        "clone",
+        help="Clone source to build",
+        description="Source is cloned by this command and used by rest of the build tasks",
+    )
+    clone.set_defaults(func=task.clone)
+
     binary_container_prebuild = tasks.add_parser(
         "binary-container-prebuild",
         help="binary container pre-build step",

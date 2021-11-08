@@ -7,6 +7,7 @@ of the BSD license. See the LICENSE file for details.
 """
 from atomic_reactor.tasks.binary import BinaryBuildTask, BinaryExitTask, \
     BinaryPostBuildTask, BinaryPreBuildTask
+from atomic_reactor.tasks.clone import CloneTask
 from atomic_reactor.tasks.common import TaskParams
 from atomic_reactor.tasks.orchestrator import OrchestratorTask, OrchestratorTaskParams
 from atomic_reactor.tasks.sources import SourceBuildTask, SourceBuildTaskParams
@@ -40,6 +41,16 @@ def source_build(task_args: dict):
     """
     params = SourceBuildTaskParams.from_cli_args(task_args)
     task = SourceBuildTask(params)
+    return task.execute()
+
+
+def clone(task_args: dict):
+    """Clone source to build.
+
+    :param task_args: CLI arguments for a clone task
+    """
+    params = TaskParams.from_cli_args(task_args)
+    task = CloneTask(params)
     return task.execute()
 
 
