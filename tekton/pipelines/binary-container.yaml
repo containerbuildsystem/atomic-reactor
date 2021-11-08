@@ -19,7 +19,28 @@ spec:
     - name: ws-reactor-config-map
 
   tasks:
+    - name: clone
+      taskRef:
+        name: clone-0-1
+      workspaces:
+        - name: ws-build-dir
+          workspace: ws-build-dir
+        - name: ws-context-dir
+          workspace: ws-context-dir
+        - name: ws-registries-secret
+          workspace: ws-registries-secret
+        - name: ws-koji-secret
+          workspace: ws-koji-secret
+        - name: ws-reactor-config-map
+          workspace: ws-reactor-config-map
+      params:
+        - name: OSBS_IMAGE
+          value: "$(params.OSBS_IMAGE)"
+        - name: USER_PARAMS
+          value: "$(params.USER_PARAMS)"
     - name: binary-container-prebuild
+      runAfter:
+        - clone
       taskRef:
         name: binary-container-prebuild-0-1
       workspaces:
