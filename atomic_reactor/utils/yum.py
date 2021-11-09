@@ -44,8 +44,12 @@ class YumRepo(object):
         partial sha256 checksum of the full repourl. This avoids multiple
         repos from being written to the same file.
         '''
-        urlpath = unquote(urlsplit(self.repourl, allow_fragments=False).path)
+        urlpath = unquote(urlsplit(self.repourl, allow_fragments=False).path).rstrip(os.sep)
         basename = os.path.basename(urlpath)
+
+        if not basename:
+            raise RuntimeError('basename is empty for yum repo url: %s' % self.repourl)
+
         if not basename.endswith(REPO_SUFFIX):
             basename += REPO_SUFFIX
         if self.add_hash:
