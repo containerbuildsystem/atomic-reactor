@@ -10,7 +10,7 @@ pyparsing<3,>=2.0.2
 semantic-version>=2.6.0
 setuptools-rust>=0.11.4
 # pin setuptools to avoid issue when building with cachito
-setuptools<54.0.0
+setuptools<58.0.0
 setuptools_scm
 setuptools_scm[toml]>=3.4
 # pin tomli to avoid issue when building with cachito
