@@ -15,7 +15,6 @@ from atomic_reactor.constants import PLUGIN_KOJI_UPLOAD_PLUGIN_KEY
 from atomic_reactor.config import get_koji_session, get_openshift_session
 from atomic_reactor.util import is_scratch_build, map_to_user_params
 from atomic_reactor.utils.koji import get_buildroot, get_output, get_output_metadata
-from osbs.exceptions import OsbsException
 
 # An output file and its metadata
 Output = namedtuple('Output', ['file', 'metadata'])
@@ -177,7 +176,8 @@ class KojiUploadPlugin(PostBuildPlugin):
             self.log.info("Not promoting failed build to koji")
             return
 
-        koji_metadata, output_files = self.get_metadata()
+        # OSBS2 TBD
+        _, output_files = self.get_metadata()
 
         if not is_scratch_build(self.workflow):
             try:
@@ -192,17 +192,9 @@ class KojiUploadPlugin(PostBuildPlugin):
 
         md_fragment = '{}-md'.format(self.workflow.user_params['pipeline_run_name'])
         md_fragment_key = 'metadata.json'
-        cm_data = {md_fragment_key: koji_metadata}
         annotations = {
             "metadata_fragment": "configmap/" + md_fragment,
             "metadata_fragment_key": md_fragment_key
         }
-
-        try:
-            self.osbs.create_config_map(md_fragment, cm_data)
-        except OsbsException:
-            self.log.debug("metadata: %r", koji_metadata)
-            self.log.debug("annotations: %r", annotations)
-            raise
 
         return annotations
