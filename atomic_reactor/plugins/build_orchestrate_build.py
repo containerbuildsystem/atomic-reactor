@@ -691,32 +691,6 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
             raise RuntimeError("Build wasn't created from BuildConfig and neither"
                                " has 'from' annotation, which is needed for specified arch")
 
-    def get_build_image_from_imagestream(self, imagestream):
-        try:
-            tag = self.openshift_session.get_image_stream_tag(imagestream).json()
-        except OsbsException as exc:
-            raise RuntimeError("ImageStreamTag not found %s" % imagestream) from exc
-
-        try:
-            tag_image = tag['image']['dockerImageReference']
-        except KeyError as exc:
-            raise RuntimeError("ImageStreamTag is malformed %s" % imagestream) from exc
-
-        if '@sha256:' in tag_image:
-            try:
-                labels = tag['image']['dockerImageMetadata']['Config']['Labels']
-            except KeyError as exc:
-                raise RuntimeError(
-                    "Image in imageStreamTag '%s' is missing Labels" % imagestream
-                ) from exc
-
-            release = labels['release']
-            version = labels['version']
-            docker_tag = "%s-%s" % (version, release)
-            return tag_image[:tag_image.find('@sha256')] + ':' + docker_tag
-        else:
-            return tag_image
-
     def set_build_image(self):
         """
         Overrides build_image for worker, to be same as in orchestrator build
@@ -744,11 +718,8 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
 
         # get image build from build metadata, which is set for direct builds
         # this is explicitly set by osbs-client, it isn't default OpenShift behaviour
-        build_image, imagestream = self.get_image_info_from_annotations()
-
-        # if imageStream is used
-        if imagestream:
-            build_image = self.get_build_image_from_imagestream(imagestream)
+        # OSBS2 TBD
+        build_image, _ = self.get_image_info_from_annotations()
 
         # we have build_image with tag, so we can check for manifest list
         if build_image:
