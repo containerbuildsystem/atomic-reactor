@@ -7,3 +7,7 @@ updates:
     directory: "/"
     schedule:
       interval: "daily"
+    ignore:
+      - dependency-name: "setuptools"
+        # We explicitly pin setuptools<54 to avoid issues when building with Cachito
+        versions: [">=54.0.0"]
