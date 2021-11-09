@@ -22,11 +22,28 @@ import pytest
     ('http://example.com/spam/myrepo.repo', True, 'myrepo-?????.repo'),
     ('http://example.com/bacon/myrepo', True, 'myrepo-?????.repo'),
     ('http://example.com/spam/myrepo-608de.repo', False, 'myrepo-?????.repo'),
+    ('http://example.com/bacon/myrepo?some=extra', True, 'myrepo-?????.repo'),
+    ('http://example.com/bacon/myrepo/?some=extra', True, 'myrepo-?????.repo'),
+    ('http://example.com/bacon/myrepo////?some=extra', True, 'myrepo-?????.repo'),
+    ('http://example.com/bacon/myrepo////?some=extra///', True, 'myrepo-?????.repo'),
+    ('http://example.com/bacon/myrepo/', True, 'myrepo-?????.repo'),
 ))
 def test_add_repo_to_url(repourl, add_hash, pattern):
     repo = YumRepo(repourl, add_hash=add_hash)
     assert repo.repourl == repourl
     assert fnmatch(repo.filename, pattern)
+
+
+@pytest.mark.parametrize('repourl', [
+    'http://example.com/',
+    'http://example.com///',
+    'http://example.com///?some=extra',
+])
+def test_add_repo_to_url_raises(repourl):
+    repo = YumRepo(repourl)
+
+    with pytest.raises(RuntimeError):
+        assert repo.filename
 
 
 def test_invalid_config():
