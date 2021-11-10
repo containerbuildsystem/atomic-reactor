@@ -11,6 +11,7 @@ import os
 
 from atomic_reactor.plugins.pre_bump_release import BumpReleasePlugin
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
+from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.util import df_parser
 from atomic_reactor.constants import PROG
@@ -579,3 +580,23 @@ class TestBumpRelease(object):
                         'version': koji_version,
                         'release': next_release['expected']}
         plugin.workflow.koji_source_nvr = expected_nvr
+
+
+@pytest.mark.parametrize('flatpak, isolated, append', [
+    (True, True, False),
+    (True, False, True),
+    (False, True, False),
+    (False, False, False)
+])
+def test_append_from_user_params(workflow, flatpak, isolated, append):
+    workflow.user_params["flatpak"] = flatpak
+    workflow.user_params["isolated"] = isolated
+    add_koji_map_in_workflow(workflow, hub_url='', root_url='')
+
+    session = MockedClientSessionGeneral('')
+    flexmock(koji, ClientSession=session)
+
+    runner = PreBuildPluginsRunner(workflow, [])
+    plugin = runner.create_instance_from_plugin(BumpReleasePlugin, {})
+
+    assert plugin.append == append
