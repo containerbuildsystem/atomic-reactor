@@ -10,7 +10,7 @@ from atomic_reactor.utils.odcs import (ODCSClient, MULTILIB_METHOD_DEFAULT,
                                        WaitComposeToFinishTimeout)
 from tests.retry_mock import mock_get_retry_session
 
-import flexmock
+from flexmock import flexmock
 import pytest
 import responses
 import json

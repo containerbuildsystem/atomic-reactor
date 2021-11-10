@@ -7,7 +7,7 @@ of the BSD license. See the LICENSE file for details.
 """
 
 import docker
-import flexmock
+from flexmock import flexmock
 import json
 import sys
 import pytest

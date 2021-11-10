@@ -9,7 +9,7 @@ of the BSD license. See the LICENSE file for details.
 from dataclasses import dataclass
 from typing import Optional, ClassVar
 
-import flexmock
+from flexmock import flexmock
 import pytest
 
 from atomic_reactor import source

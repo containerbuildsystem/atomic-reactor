@@ -147,9 +147,8 @@ class TestSquashPlugin(object):
 
             return new_id
 
-        squash = flexmock()
-        squash.should_receive('run').replace_with(mock_run)
-        flexmock(Squash).new_instances(squash).with_args(Squash, **kwargs)
+        flexmock(Squash).should_receive('run').replace_with(mock_run)
+        flexmock(Squash).should_receive('__init__').with_args(**kwargs)
 
         flexmock(exit_remove_built_image).should_receive('defer_removal')
 
