@@ -14,7 +14,7 @@ from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.constants import (PLUGIN_BUMP_RELEASE_KEY, PROG, KOJI_RESERVE_MAX_RETRIES,
                                       KOJI_RESERVE_RETRY_DELAY)
 from atomic_reactor.config import get_koji_session
-from atomic_reactor.util import is_scratch_build, map_to_user_params
+from atomic_reactor.util import is_scratch_build
 from koji import GenericError
 import koji
 
@@ -28,7 +28,13 @@ class BumpReleasePlugin(PreBuildPlugin):
     key = PLUGIN_BUMP_RELEASE_KEY
     is_allowed_to_fail = False  # We really want to stop the process
 
-    args_from_user_params = map_to_user_params("append:flatpak")
+    @staticmethod
+    def args_from_user_params(user_params: dict) -> dict:
+        flatpak = user_params.get("flatpak")
+        isolated = user_params.get("isolated")
+        if flatpak and not isolated:
+            return {"append": True}
+        return {}
 
     # The target parameter is no longer used by this plugin. It's
     # left as an optional parameter to allow a graceful transition
