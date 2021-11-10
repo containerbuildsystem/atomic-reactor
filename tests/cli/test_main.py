@@ -8,7 +8,7 @@ of the BSD license. See the LICENSE file for details.
 
 import logging
 
-import flexmock
+from flexmock import flexmock
 import osbs
 import pytest
 

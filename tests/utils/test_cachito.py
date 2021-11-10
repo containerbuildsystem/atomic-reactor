@@ -10,7 +10,7 @@ from atomic_reactor.utils.cachito import (
     CachitoAPI, CachitoAPIInvalidRequest, CachitoAPIRequestTimeout, CachitoAPIUnsuccessfulRequest)
 
 from requests.exceptions import HTTPError
-import flexmock
+from flexmock import flexmock
 import pytest
 import responses
 import json

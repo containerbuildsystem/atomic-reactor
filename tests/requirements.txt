@@ -68,8 +68,9 @@ flake8==4.0.1 \
     --hash=sha256:479b1304f72536a55948cb40a32dce8bb0ffe3501e26eaf292c7e60eb5e0428d \
     --hash=sha256:806e034dda44114815e23c16ef92f95c91e4c71100ff52813adf7132a6ad870d
     # via -r tests/requirements.in
-flexmock==0.10.10 \
-    --hash=sha256:8bb073f4b7b590672e8c312e73d6a14f88ae624a867b691462f9e8c24b9f19d1
+flexmock==0.11.1 \
+    --hash=sha256:1c51371767f968e1d2f505138de72b07704ecebc9b34e0b52ffdeeb510685c3f \
+    --hash=sha256:8cdd911f48d0696efd41231dbbd63fb1eb8290b34b0bb691019739d6cd94eadd
     # via -r tests/requirements.in
 idna==3.3 \
     --hash=sha256:84d9dd047ffa80596e0f246e2eab0b391788b0503584e8945f2368256d2735ff \

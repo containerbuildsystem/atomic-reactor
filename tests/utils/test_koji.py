@@ -16,7 +16,7 @@ from atomic_reactor.utils.koji import (koji_login, create_koji_session,
 from atomic_reactor.plugin import BuildCanceledException
 from atomic_reactor.constants import (KOJI_MAX_RETRIES, KOJI_RETRY_INTERVAL,
                                       KOJI_OFFLINE_RETRY_INTERVAL)
-import flexmock
+from flexmock import flexmock
 import pytest
 
 
