@@ -215,14 +215,19 @@ class LazyGit(object):
     def commit_id(self):
         return self._commit_id
 
+    def clone(self):
+        repo_data = clone_git_repo(self.git_url, self._tmpdir, self.commit,
+                                   branch=self._branch, depth=self._git_depth)
+        self._commit_id = repo_data.commit_id
+        self._git_path = repo_data.repo_path
+        self._git_depth = repo_data.commit_depth
+        return self._git_path
+
     @property
     def git_path(self):
         if self._git_path is None:
-            repo_data = clone_git_repo(self.git_url, self._tmpdir, self.commit,
-                                       branch=self._branch, depth=self._git_depth)
-            self._commit_id = repo_data.commit_id
-            self._git_path = repo_data.repo_path
-            self._git_depth = repo_data.commit_depth
+            self._commit_id, self._git_depth = reset_git_repo(self._tmpdir, self.commit)
+            self._git_path = self._tmpdir
         return self._git_path
 
     def __enter__(self):

@@ -313,7 +313,9 @@ def mock_environment(tmpdir, session=None, name=None,
 
     flexmock(subprocess, Popen=fake_Popen)
     flexmock(koji, ClientSession=lambda hub, opts: session)
-    flexmock(GitSource)
+    (flexmock(GitSource)
+        .should_receive('path')
+        .and_return(tmpdir))
     logs = [LogEntry(None, 'orchestrator')]
 
     if not source_build:

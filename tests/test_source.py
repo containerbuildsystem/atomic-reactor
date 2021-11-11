@@ -28,6 +28,7 @@ class TestSource(object):
 class TestGitSource(object):
     def test_checks_out_repo(self):
         gs = GitSource('git', DOCKERFILE_GIT)
+        gs.get()
         assert os.path.exists(os.path.join(gs.path, '.git'))
         assert os.path.basename(gs.path) == 'docker-hello-world'
         assert gs.commit_id is not None
@@ -44,6 +45,7 @@ class TestPathSource(object):
     def test_copies_target_dir(self, tmpdir):
         tmpdir.ensure('foo', 'bar', 'Dockerfile')
         ps = PathSource('path', 'file://' + os.path.join(str(tmpdir), 'foo'))
+        ps.get()
         path = ps.path
         assert os.path.isfile(os.path.join(path, 'bar', 'Dockerfile'))
         # make sure these are the same even on second access to ps.path/ps.get(),

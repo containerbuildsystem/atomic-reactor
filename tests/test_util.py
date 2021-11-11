@@ -144,6 +144,7 @@ def test_figure_out_build_file(tmpdir, contents, local_path, expected_path, expe
 @requires_internet
 def test_lazy_git():
     lazy_git = LazyGit(git_url=DOCKERFILE_GIT)
+    lazy_git.clone()
     with lazy_git:
         assert lazy_git.git_path is not None
         assert lazy_git.commit_id is not None
@@ -160,6 +161,7 @@ def test_lazy_git():
 def test_lazy_git_with_tmpdir(tmpdir):
     t = str(tmpdir.realpath())
     lazy_git = LazyGit(git_url=DOCKERFILE_GIT, tmpdir=t)
+    lazy_git.clone()
     assert lazy_git._tmpdir == t
     assert lazy_git.git_path is not None
     assert lazy_git.commit_id is not None
