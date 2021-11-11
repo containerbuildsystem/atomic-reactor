@@ -85,7 +85,7 @@ class Source(object):
 
     @property
     def path(self):
-        return self.get()
+        return self.source_path
 
     @property
     def workdir(self):
@@ -145,6 +145,10 @@ class GitSource(Source):
         return self.lg.commit_id
 
     def get(self):
+        return self.lg.clone()
+
+    @property
+    def path(self):
         return self.lg.git_path
 
     def get_vcs_info(self):
@@ -167,6 +171,10 @@ class PathSource(Source):
             self.uri = 'file://' + self.uri
         self.schemeless_path = self.uri[len('file://'):]
         os.makedirs(self.source_path)
+
+    @property
+    def path(self):
+        return self.get()
 
     def get(self):
         # work around the weird behaviour of copytree, which requires the top dir
