@@ -5,6 +5,7 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
+from pathlib import Path
 
 import pytest
 import requests
@@ -61,11 +62,28 @@ def user_params(monkeypatch):
 
 
 @pytest.fixture
-def workflow(user_params):
-    return DockerBuildWorkflow(source=None)
+def workflow(build_dir, user_params):
+    return DockerBuildWorkflow(build_dir, source=None)
 
 
 @pytest.mark.optionalhook
 def pytest_html_results_table_row(report, cells):
     if report.passed or report.skipped:
         del cells[:]
+
+
+@pytest.fixture
+def build_dir(tmpdir):
+    """
+    This is the --build-dir passed to atomic-reactor tasks used to initialize
+    the RootBuildDir object.
+    """
+    return Path(tmpdir.join("build_dir").mkdir())
+
+
+@pytest.fixture
+def source_dir(tmpdir):
+    """
+    The directory holding source files and can be passed to the mock Source object.
+    """
+    return Path(tmpdir.join("source_dir").mkdir())

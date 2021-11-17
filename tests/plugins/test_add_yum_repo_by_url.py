@@ -8,7 +8,6 @@ of the BSD license. See the LICENSE file for details.
 
 from atomic_reactor.constants import YUM_REPOS_DIR
 
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_add_yum_repo_by_url import AddYumRepoByUrlPlugin
 from atomic_reactor.utils.yum import YumRepo
@@ -28,8 +27,7 @@ pytestmark = pytest.mark.usefixtures('user_params')
 repocontent = '''[repo]\n'''
 
 
-def prepare(scratch=False):
-    workflow = DockerBuildWorkflow(source=None)
+def prepare(workflow, scratch=False):
     workflow.source = StubSource()
     workflow.dockerfile_images = DockerfileImages([])
     workflow.user_params['scratch'] = scratch
@@ -43,8 +41,8 @@ def prepare(scratch=False):
 
 
 @pytest.mark.parametrize('inject_proxy', [None, 'http://proxy.example.com'])
-def test_no_repourls(inject_proxy):
-    workflow = prepare()
+def test_no_repourls(inject_proxy, workflow):
+    workflow = prepare(workflow)
     runner = PreBuildPluginsRunner(workflow, [{
         'name': AddYumRepoByUrlPlugin.key,
         'args': {'repourls': [], 'inject_proxy': inject_proxy}}])
@@ -54,8 +52,8 @@ def test_no_repourls(inject_proxy):
 
 
 @pytest.mark.parametrize('inject_proxy', [None, 'http://proxy.example.com'])
-def test_single_repourl(inject_proxy):
-    workflow = prepare()
+def test_single_repourl(inject_proxy, workflow):
+    workflow = prepare(workflow)
     url = 'http://example.com/example%20repo.repo'
     filename = 'example repo-a8b44.repo'
     runner = PreBuildPluginsRunner(workflow, [{
@@ -80,10 +78,10 @@ def test_single_repourl(inject_proxy):
     (['http://example.com/spam/myrepo.repo', 'http://example.com/bacon/myrepo.repo'],
      ['myrepo-91be9.repo', 'myrepo-c8e02.repo']),
 ))
-def test_multiple_repourls(caplog,
+def test_multiple_repourls(workflow, caplog,
                            base_from_scratch, parent_images, inject_proxy,
                            repos, filenames):
-    workflow = prepare()
+    workflow = prepare(workflow)
 
     dockerfile_images = []
     if parent_images:
@@ -114,8 +112,8 @@ def test_multiple_repourls(caplog,
 
 
 @pytest.mark.parametrize('inject_proxy', [None, 'http://proxy.example.com'])
-def test_single_repourl_no_suffix(inject_proxy):
-    workflow = prepare()
+def test_single_repourl_no_suffix(inject_proxy, workflow):
+    workflow = prepare(workflow)
     url = 'http://example.com/example%20repo'
     pattern = 'example repo-?????.repo'
     runner = PreBuildPluginsRunner(workflow, [{
@@ -146,8 +144,8 @@ def test_single_repourl_no_suffix(inject_proxy):
     (['http://example.com/a/b/c/myrepo', 'http://example.com/a/b/c/myrepo.repo'],
      ['myrepo-?????.repo', 'myrepo-?????.repo']),
 ))
-def test_multiple_repourls_no_suffix(inject_proxy, repos, patterns):
-    workflow = prepare()
+def test_multiple_repourls_no_suffix(workflow, inject_proxy, repos, patterns):
+    workflow = prepare(workflow)
     runner = PreBuildPluginsRunner(workflow, [{
         'name': AddYumRepoByUrlPlugin.key,
         'args': {'repourls': repos, 'inject_proxy': inject_proxy}}])
@@ -168,12 +166,12 @@ def test_multiple_repourls_no_suffix(inject_proxy, repos, patterns):
                                (list(workflow.files.keys()), pattern))
 
 
-def test_invalid_repourl():
+def test_invalid_repourl(workflow):
     """Plugin should raise RuntimeError with repo details when invalid URL
        is used
     """
     WRONG_REPO_URL = "http://example.com/nope/repo"
-    workflow = prepare()
+    workflow = prepare(workflow)
     runner = PreBuildPluginsRunner(workflow, [{
         'name': AddYumRepoByUrlPlugin.key,
         'args': {'repourls': [WRONG_REPO_URL], 'inject_proxy': None}}])
@@ -208,8 +206,8 @@ def test_invalid_repourl():
     (['foo.redhat.com', 'bar.redhat.com'],
      ['http://wrong.foo.redhat.com/some/repo', 'http://wrong.bar.redhat.com/some/repo'], True),
 ))
-def test_allowed_domains(allowed_domains, repo_urls, will_raise, scratch):
-    workflow = prepare(scratch)
+def test_allowed_domains(allowed_domains, repo_urls, will_raise, scratch, workflow):
+    workflow = prepare(workflow, scratch)
     reactor_map = {'version': 1}
 
     if allowed_domains is not None:

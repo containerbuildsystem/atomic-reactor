@@ -9,7 +9,6 @@ import koji
 import os
 
 from atomic_reactor.plugins.pre_koji import KojiPlugin
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.util import DockerfileImages
 from flexmock import flexmock
@@ -82,8 +81,7 @@ class MockedPathInfo(object):
         return "{0}/repos/{1}/{2}".format(self.topdir, name, repo_id)
 
 
-def prepare():
-    workflow = DockerBuildWorkflow(source=None)
+def prepare(workflow):
     workflow.source = StubSource()
 
     session = MockedClientSession(hub='', opts=None)
@@ -145,10 +143,11 @@ class TestKoji(object):
 
 
     ])
-    def test_koji_plugin(self, tmpdir, caplog, parent_images, base_from_scratch,
+    def test_koji_plugin(self, workflow, source_dir, caplog,
+                         parent_images, base_from_scratch,
                          target, expect_success, root, koji_ssl_certs,
                          expected_string, expected_file, proxy):
-        workflow = prepare()
+        prepare(workflow)
         dockerfile_images = []
         if parent_images:
             dockerfile_images.append('parent_image:latest')
@@ -159,12 +158,12 @@ class TestKoji(object):
         args = {'target': target}
 
         if koji_ssl_certs:
-            tmpdir.join('cert').write('cert')
-            tmpdir.join('serverca').write('serverca')
+            source_dir.joinpath("cert").write_text("cert", "utf-8")
+            source_dir.joinpath("serverca").write_text("serverca", "utf-8")
 
         workflow.conf.conf = {'version': 1, 'yum_proxy': proxy}
         add_koji_map_in_workflow(workflow, hub_url='', root_url=root,
-                                 ssl_certs_dir=str(tmpdir) if koji_ssl_certs else None)
+                                 ssl_certs_dir=str(source_dir) if koji_ssl_certs else None)
 
         runner = PreBuildPluginsRunner(workflow, [{
             'name': KojiPlugin.key,
@@ -214,8 +213,8 @@ class TestKoji(object):
         (None, [], False),
         (None, [], True),
     ])
-    def test_skip_plugin(self, caplog, target, yum_repos, include_repo):
-        workflow = prepare()
+    def test_skip_plugin(self, workflow, caplog, target, yum_repos, include_repo):
+        prepare(workflow)
         args = {'target': target}
 
         add_koji_map_in_workflow(workflow, hub_url='', root_url='http://example.com')

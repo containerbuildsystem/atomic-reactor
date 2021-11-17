@@ -6,13 +6,12 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
-import os
 import logging
 
 from flexmock import flexmock
 
-from atomic_reactor.constants import PLUGIN_REMOVE_WORKER_METADATA_KEY
-from atomic_reactor.inner import DockerBuildWorkflow, BuildResult
+from atomic_reactor.constants import DOCKERFILE_FILENAME, PLUGIN_REMOVE_WORKER_METADATA_KEY
+from atomic_reactor.inner import BuildResult
 from atomic_reactor.plugin import ExitPluginsRunner
 from osbs.exceptions import OsbsResponseException
 from atomic_reactor.plugins.build_orchestrate_build import (WorkerBuildInfo, ClusterInfo,
@@ -35,10 +34,9 @@ class MockOSBS(object):
 
 class MockSource(object):
 
-    def __init__(self, tmpdir):
-        tmpdir = str(tmpdir)
-        self.dockerfile_path = os.path.join(tmpdir, 'Dockerfile')
-        self.path = tmpdir
+    def __init__(self, source_dir):
+        self.dockerfile_path = str(source_dir / DOCKERFILE_FILENAME)
+        self.path = str(source_dir)
 
     def get_dockerfile_path(self):
         return self.dockerfile_path, self.path
@@ -53,10 +51,9 @@ class MockSource(object):
         pass
 
 
-def mock_workflow(tmpdir):
-    workflow = DockerBuildWorkflow(source=None)
-    setattr(workflow, 'source', MockSource(tmpdir))
-
+@pytest.fixture
+def workflow(workflow, source_dir):
+    workflow.source = MockSource(source_dir)
     return workflow
 
 
@@ -67,10 +64,8 @@ def mock_workflow(tmpdir):
 @pytest.mark.parametrize('fragment_annotation', [True, False])
 @pytest.mark.parametrize('fragment_key', ['metadata.json', None])
 @pytest.mark.parametrize('cm_not_found', [True, False])
-def test_remove_worker_plugin(tmpdir, caplog, user_params,
+def test_remove_worker_plugin(caplog, workflow,
                               platforms, fragment_annotation, fragment_key, cm_not_found):
-    workflow = mock_workflow(tmpdir)
-
     annotations = {'worker-builds': {}}
     log = logging.getLogger("atomic_reactor.plugins." + OrchestrateBuildPlugin.key)
     build = None
@@ -138,10 +133,9 @@ def test_remove_worker_plugin(tmpdir, caplog, user_params,
                 assert msg in caplog.text
 
 
-def test_remove_worker_metadata_no_worker_build(tmpdir, caplog, user_params):
+def test_remove_worker_metadata_no_worker_build(caplog, workflow):
     """Don't traceback with missing worker builds, without worker
     builds plugin should just skip"""
-    workflow = mock_workflow(tmpdir)
     annotations = None
     workflow.build_result = BuildResult(annotations=annotations, image_id="id1234")
 

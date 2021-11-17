@@ -249,7 +249,7 @@ class WatcherWithSignal(Watcher):
             os.kill(os.getpid(), self.signal)
 
 
-def test_workflow_base_images():
+def test_workflow_base_images(build_dir):
     """
     Test workflow for base images
     """
@@ -263,6 +263,7 @@ def test_workflow_base_images():
     watch_post = Watcher()
     watch_exit = Watcher()
     workflow = DockerBuildWorkflow(
+        build_dir,
         source=None,
         plugins=PluginsDef(
             prebuild=[{'name': 'pre_watched', 'args': {'watcher': watch_pre}}],
@@ -283,7 +284,7 @@ def test_workflow_base_images():
     assert watch_exit.was_called()
 
 
-def test_workflow_compat(caplog):
+def test_workflow_compat(build_dir, caplog):
     """
     Some of our plugins have changed from being run post-build to
     being run at exit. Let's test what happens when we try running an
@@ -298,6 +299,7 @@ def test_workflow_compat(caplog):
     caplog.clear()
 
     workflow = DockerBuildWorkflow(
+        build_dir,
         source=None,
         plugins=PluginsDef(
             postbuild=[{'name': 'store_logs_to_file', 'args': {'watcher': watch_exit}}],
@@ -477,7 +479,7 @@ class Exit(ExitPlugin):
      False,  # does not log error
      ),
 ])
-def test_plugin_errors(plugins, should_fail, should_log, caplog):
+def test_plugin_errors(plugins, should_fail, should_log, build_dir, caplog):
     """
     Try bad plugin configuration.
     """
@@ -486,7 +488,8 @@ def test_plugin_errors(plugins, should_fail, should_log, caplog):
     this_file = inspect.getfile(PreRaises)
 
     caplog.clear()
-    workflow = DockerBuildWorkflow(source=None,
+    workflow = DockerBuildWorkflow(build_dir,
+                                   source=None,
                                    plugin_files=[this_file],
                                    plugins=PluginsDef(**plugins))
 
@@ -523,7 +526,7 @@ def test_plugin_errors(plugins, should_fail, should_log, caplog):
                                      'post_raises',
                                      'exit_raises',
                                      'exit_raises_allowed'])
-def test_workflow_plugin_error(fail_at):
+def test_workflow_plugin_error(fail_at, build_dir):
     """
     This is a test for what happens when plugins fail.
 
@@ -562,7 +565,9 @@ def test_workflow_plugin_error(fail_at):
         # Typo in the parameter list?
         assert False
 
-    workflow = DockerBuildWorkflow(source=None, plugins=plugins, plugin_files=[this_file])
+    workflow = DockerBuildWorkflow(
+        build_dir, source=None, plugins=plugins, plugin_files=[this_file]
+    )
 
     # Most failures cause the build process to abort. Unless, it's
     # an exit plugin that's explicitly allowed to fail.
@@ -602,7 +607,7 @@ def test_workflow_plugin_error(fail_at):
     assert watch_exit.was_called()
 
 
-def test_workflow_docker_build_error():
+def test_workflow_docker_build_error(build_dir):
     """
     This is a test for what happens when the docker build fails.
     """
@@ -615,6 +620,7 @@ def test_workflow_docker_build_error():
     watch_exit = Watcher()
 
     workflow = DockerBuildWorkflow(
+        build_dir,
         source=None,
         plugins=PluginsDef(
             prebuild=[{'name': 'pre_watched', 'args': {'watcher': watch_pre}}],
@@ -656,7 +662,7 @@ def test_workflow_docker_build_error():
     ({'buildstep', 'post'}, 'buildstep'),
     ({'prepub', 'post'}, 'prepub'),
 ))
-def test_workflow_docker_build_error_reports(steps_to_fail, step_reported):
+def test_workflow_docker_build_error_reports(steps_to_fail, step_reported, build_dir):
     """
     Test if first error is reported properly. (i.e. exit plugins are not
     hiding the original root cause)
@@ -678,6 +684,7 @@ def test_workflow_docker_build_error_reports(steps_to_fail, step_reported):
     watch_exit = construct_watcher('exit')
 
     workflow = DockerBuildWorkflow(
+        build_dir,
         source=None,
         plugins=PluginsDef(
             prebuild=[{'name': 'pre_watched',
@@ -713,13 +720,14 @@ class ExitUsesSource(ExitWatched):
 
 
 @requires_internet
-def test_source_not_removed_for_exit_plugins():
+def test_source_not_removed_for_exit_plugins(build_dir):
     flexmock(DockerfileParser, content='df_content')
     mock_inspect()
     this_file = inspect.getfile(PreRaises)
     watch_exit = Watcher()
     watch_buildstep = Watcher()
     workflow = DockerBuildWorkflow(
+        build_dir,
         source=None,
         plugins=PluginsDef(
             exit=[{'name': 'uses_source', 'args': {'watcher': watch_exit}}],
@@ -841,7 +849,7 @@ class ExitResult(ValueMixIn, ExitPlugin):
     ['buildstep_remote_value', False],
     ['buildstep_failed_value', True],
 ])
-def test_workflow_plugin_results(buildstep_plugin, buildstep_raises):
+def test_workflow_plugin_results(buildstep_plugin, buildstep_raises, build_dir):
     """
     Verifies the results of plugins in different phases
     are stored properly.
@@ -860,7 +868,9 @@ def test_workflow_plugin_results(buildstep_plugin, buildstep_raises):
         exit=[{'name': 'exit_value'}],
     )
 
-    workflow = DockerBuildWorkflow(source=None, plugins=plugins, plugin_files=[this_file])
+    workflow = DockerBuildWorkflow(
+        build_dir, source=None, plugins=plugins, plugin_files=[this_file]
+    )
 
     if buildstep_raises:
         with pytest.raises(PluginFailedException):
@@ -882,7 +892,7 @@ def test_workflow_plugin_results(buildstep_plugin, buildstep_raises):
 
 
 @pytest.mark.parametrize('fail_at', ['pre', 'prepub', 'buildstep', 'post', 'exit'])
-def test_cancel_build(fail_at, caplog):
+def test_cancel_build(fail_at, build_dir, caplog):
     """
     Verifies that exit plugins are executed when the build is canceled
     """
@@ -901,6 +911,7 @@ def test_cancel_build(fail_at, caplog):
     caplog.clear()
 
     workflow = DockerBuildWorkflow(
+        build_dir,
         source=None,
         plugins=PluginsDef(
             prebuild=[{'name': 'pre_watched', 'args': {'watcher': watch_pre}}],
@@ -949,7 +960,7 @@ def test_cancel_build(fail_at, caplog):
 
 
 @pytest.mark.parametrize('has_version', [True, False])
-def test_show_version(has_version, caplog):
+def test_show_version(has_version, build_dir, caplog):
     """
     Test atomic-reactor print version of osbs-client used to build the build json
     if available
@@ -972,7 +983,7 @@ def test_show_version(has_version, caplog):
     if has_version:
         params['client_version'] = VERSION
 
-    workflow = DockerBuildWorkflow(source=None, **params)
+    workflow = DockerBuildWorkflow(build_dir, source=None, **params)
     workflow.build_docker_image()
     expected_log_message = "build json was built by osbs-client {}".format(VERSION)
     assert any(
@@ -982,13 +993,14 @@ def test_show_version(has_version, caplog):
     ) == has_version
 
 
-def test_layer_sizes():
+def test_layer_sizes(build_dir):
     flexmock(DockerfileParser, content='df_content')
     mock_inspect()
     this_file = inspect.getfile(PreRaises)
     watch_exit = Watcher()
     watch_buildstep = Watcher()
     workflow = DockerBuildWorkflow(
+        build_dir,
         source=None,
         plugins=PluginsDef(
             exit=[{'name': 'uses_source', 'args': {'watcher': watch_exit}}],
@@ -1017,14 +1029,15 @@ def test_layer_sizes():
     ([{'name': 'some_other_name'},
       {'name': PLUGIN_BUILD_ORCHESTRATE_KEY}], True)
 ])
-def test_workflow_is_orchestrator_build(buildstep_plugins, is_orchestrator):
-    workflow = DockerBuildWorkflow(source=None,
+def test_workflow_is_orchestrator_build(buildstep_plugins, is_orchestrator, build_dir):
+    workflow = DockerBuildWorkflow(build_dir,
+                                   source=None,
                                    plugins=PluginsDef(buildstep=buildstep_plugins))
     assert workflow.is_orchestrator_build() == is_orchestrator
 
 
-def test_parent_images_to_str(caplog):
-    workflow = DockerBuildWorkflow(source=None)
+def test_parent_images_to_str(caplog, build_dir):
+    workflow = DockerBuildWorkflow(build_dir, source=None)
     workflow.dockerfile_images = DockerfileImages(['fedora:latest', 'bacon'])
     workflow.dockerfile_images['fedora:latest'] = "spam"
     expected_results = {
@@ -1034,33 +1047,33 @@ def test_parent_images_to_str(caplog):
     assert "None in: base bacon:latest has parent None" in caplog.text
 
 
-def test_no_base_image(tmpdir):
-    workflow = DockerBuildWorkflow(source=None)
+def test_no_base_image(build_dir, source_dir):
+    workflow = DockerBuildWorkflow(build_dir, source=None)
 
-    dfp = df_parser(str(tmpdir))
+    dfp = df_parser(str(source_dir))
     dfp.content = "# no FROM\nADD spam /eggs"
 
     workflow._df_path = dfp.dockerfile_path
     with pytest.raises(RuntimeError) as exc:
-        workflow.set_df_path(str(tmpdir))
+        workflow.set_df_path(str(source_dir))
     assert "no base image specified" in str(exc.value)
 
 
-def test_different_custom_base_images(tmpdir):
+def test_different_custom_base_images(build_dir, source_dir):
     source = PathSource(
-        "path", f"file://{DOCKERFILE_MULTISTAGE_CUSTOM_BAD_PATH}", workdir=str(tmpdir)
+        "path", f"file://{DOCKERFILE_MULTISTAGE_CUSTOM_BAD_PATH}", workdir=str(source_dir)
     )
     with pytest.raises(NotImplementedError) as exc:
-        DockerBuildWorkflow(source=source)
+        DockerBuildWorkflow(build_dir, source=source)
     message = "multiple different custom base images aren't allowed in Dockerfile"
     assert message in str(exc.value)
 
 
-def test_copy_from_unkown_stage(tmpdir):
+def test_copy_from_unkown_stage(build_dir, source_dir):
     """test when user has specified COPY --from=image (instead of builder)"""
-    source = PathSource("path", f"file://{tmpdir}", workdir=str(tmpdir))
+    source = PathSource("path", f"file://{source_dir}", workdir=str(source_dir))
 
-    dfp = df_parser(str(tmpdir))
+    dfp = df_parser(str(source_dir))
     dfp.content = dedent("""\
         FROM monty as vikings
         FROM python
@@ -1068,21 +1081,21 @@ def test_copy_from_unkown_stage(tmpdir):
         COPY --from=notvikings /spam/eggs /bin/eggs
     """)
     with pytest.raises(RuntimeError) as exc_info:
-        DockerBuildWorkflow(source=source)
+        DockerBuildWorkflow(build_dir, source=source)
     assert "FROM notvikings AS source" in str(exc_info.value)
 
 
-def test_copy_from_invalid_index(tmpdir):
-    source = PathSource("path", f"file://{tmpdir}", workdir=str(tmpdir))
+def test_copy_from_invalid_index(build_dir, source_dir):
+    source = PathSource("path", f"file://{source_dir}", workdir=str(source_dir))
 
-    dfp = df_parser(str(tmpdir))
+    dfp = df_parser(str(source_dir))
     dfp.content = dedent("""\
         FROM monty as vikings
         # using an index we haven't seen should break:
         COPY --from=5 /spam/eggs /bin/eggs
     """)
     with pytest.raises(RuntimeError) as exc_info:
-        DockerBuildWorkflow(source=source)
+        DockerBuildWorkflow(build_dir, source=source)
     assert "COPY --from=5" in str(exc_info.value)
 
 

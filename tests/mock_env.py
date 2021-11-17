@@ -5,8 +5,8 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
-
-from typing import Iterable, List, Union
+from pathlib import Path
+from typing import Iterable, List, Optional, Union
 
 from atomic_reactor.constants import (PLUGIN_BUILD_ORCHESTRATE_KEY,
                                       PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
@@ -55,8 +55,12 @@ class MockEnv(object):
         'exit': 'exit_results',
     }
 
-    def __init__(self, workflow=None):
-        self.workflow = workflow or DockerBuildWorkflow()
+    def __init__(self, workflow=None, build_dir: Optional[Path] = None):
+        if not workflow and build_dir is None:
+            raise ValueError(
+                "Argument build_dir is missed to create a DockerBuildWorkflow instance."
+            )
+        self.workflow = workflow or DockerBuildWorkflow(build_dir)
         self.workflow.source = StubSource()
 
         self._phase = None

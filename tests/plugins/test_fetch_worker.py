@@ -9,7 +9,7 @@ of the BSD license. See the LICENSE file for details.
 import logging
 
 from atomic_reactor.constants import PLUGIN_FETCH_WORKER_METADATA_KEY
-from atomic_reactor.inner import DockerBuildWorkflow, BuildResult
+from atomic_reactor.inner import BuildResult
 from atomic_reactor.plugin import PostBuildPluginsRunner
 from atomic_reactor.plugins.build_orchestrate_build import (WorkerBuildInfo, ClusterInfo,
                                                             OrchestrateBuildPlugin)
@@ -33,15 +33,8 @@ class MockOSBS(object):
         return MockConfigMapResponse(self.config_map[name])
 
 
-def mock_workflow(tmpdir):
-    workflow = DockerBuildWorkflow(source=None)
-    return workflow
-
-
 @pytest.mark.parametrize('fragment_key', ['metadata.json', None])
-def test_fetch_worker_plugin(tmpdir, user_params, fragment_key):
-    workflow = mock_workflow(tmpdir)
-
+def test_fetch_worker_plugin(fragment_key, workflow):
     annotations = {
         'worker-builds': {
             'x86_64': {

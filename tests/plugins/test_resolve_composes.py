@@ -7,6 +7,8 @@ of the BSD license. See the LICENSE file for details.
 """
 
 import re
+from pathlib import Path
+
 import koji
 import os
 import responses
@@ -16,7 +18,7 @@ from copy import deepcopy
 
 from atomic_reactor.constants import (
     PLUGIN_KOJI_PARENT_KEY,
-    BASE_IMAGE_KOJI_BUILD
+    BASE_IMAGE_KOJI_BUILD, DOCKERFILE_FILENAME
 )
 from atomic_reactor.source import SourceConfig
 from atomic_reactor.utils.odcs import ODCSClient, construct_compose_url
@@ -78,29 +80,29 @@ DEFAULT_SIGNING_INTENT = 'release'
 
 
 @pytest.fixture
-def mocked_env(tmpdir, user_params):
+def mocked_env(workflow, source_dir):
     env = (
-        MockEnv()
+        MockEnv(workflow)
         .for_plugin("prebuild", ResolveComposesPlugin.key)
         .set_orchestrator_platforms(ODCS_COMPOSE_DEFAULT_ARCH_LIST)
         .set_dockerfile_images(["Fedora:22"])
         .set_check_platforms_result(set(ODCS_COMPOSE_DEFAULT_ARCH_LIST))
-        .set_reactor_config(make_reactor_config(tmpdir))
+        .set_reactor_config(make_reactor_config(source_dir))
     )
 
-    env.workflow.source = MockSource(tmpdir)
-    mock_repo_config(tmpdir)
+    env.workflow.source = MockSource(source_dir)
+    mock_repo_config(source_dir)
 
     # These are used for further mocking and are not normally part of MockEnv
-    env._tmpdir = tmpdir
+    env._tmpdir = source_dir
     env._koji_session = mock_koji_session()
     return env
 
 
 class MockSource(object):
-    def __init__(self, tmpdir):
-        self.dockerfile_path = str(tmpdir.join('Dockerfile'))
-        self.path = str(tmpdir)
+    def __init__(self, source_dir: Path):
+        self.dockerfile_path = str(source_dir / DOCKERFILE_FILENAME)
+        self.path = str(source_dir)
         self._config = None
 
     def get_build_file_path(self):
@@ -112,7 +114,7 @@ class MockSource(object):
         return self._config
 
 
-def make_reactor_config(tmpdir, data=None, default_si=DEFAULT_SIGNING_INTENT):
+def make_reactor_config(source_dir: Path, data=None, default_si=DEFAULT_SIGNING_INTENT):
     if data is None:
         data = dedent("""\
             version: 1
@@ -132,14 +134,14 @@ def make_reactor_config(tmpdir, data=None, default_si=DEFAULT_SIGNING_INTENT):
                 hub_url: /
                 root_url: ''
                 auth: {{}}
-            """.format(default_si, ODCS_URL, tmpdir))
+            """.format(default_si, ODCS_URL, source_dir))
 
-    tmpdir.join('cert').write('')
+    source_dir.joinpath('cert').write_text("", "utf-8")
     config = yaml.safe_load(data)
     return config
 
 
-def mock_repo_config(tmpdir, data=None, signing_intent=None):
+def mock_repo_config(source_dir: Path, data=None, signing_intent=None):
     if data is None:
         data = dedent("""\
             compose:
@@ -151,10 +153,10 @@ def mock_repo_config(tmpdir, data=None, signing_intent=None):
         if signing_intent:
             data += "    signing_intent: {}".format(signing_intent)
 
-    tmpdir.join('container.yaml').write(data)
+    source_dir.joinpath('container.yaml').write_text(data, "utf-8")
 
 
-def mock_content_sets_config(tmpdir, data=None):
+def mock_content_sets_config(source_dir: Path, data=None):
     if data is None:
         data = dedent("""\
             x86_64:
@@ -163,7 +165,7 @@ def mock_content_sets_config(tmpdir, data=None):
             - pulp-eggs-rpms
         """)
 
-    tmpdir.join('content_sets.yml').write(data)
+    source_dir.joinpath('content_sets.yml').write_text(data, "utf-8")
 
 
 def mock_odcs_client_start_compose():
@@ -323,7 +325,7 @@ class TestResolveComposes(object):
                 """)
             mock_repo_config(mocked_env._tmpdir, repo_config)
         elif not compose_defined:
-            mocked_env._tmpdir.join('container.yaml').write("")
+            mocked_env._tmpdir.joinpath('container.yaml').write_text("", "utf-8")
 
         parent_compose_ids = [10, 11]
         parent_repo = "http://example.com/parent.repo"
@@ -904,19 +906,19 @@ class TestResolveComposes(object):
             {'insecure': False, 'timeout': None}
         ),
     ))
-    def test_odcs_session_creation(self, tmpdir, mocked_env, plugin_args, expected_kwargs):
+    def test_odcs_session_creation(self, mocked_env, plugin_args, expected_kwargs):
         plug_args = deepcopy(plugin_args)
         exp_kwargs = deepcopy(expected_kwargs)
-        mocked_env.set_reactor_config(make_reactor_config(tmpdir))
+        mocked_env.set_reactor_config(make_reactor_config(mocked_env._tmpdir))
 
         if plug_args.get('odcs_openidc_secret_path') is True:
-            mocked_env._tmpdir.join('token').write('the-token')
+            mocked_env._tmpdir.joinpath('token').write_text('the-token', 'utf-8')
             plug_args['odcs_openidc_secret_path'] = str(mocked_env._tmpdir)
 
         if plug_args.get('odcs_ssl_secret_path') is True:
-            mocked_env._tmpdir.join('cert').write('the-cert')
+            mocked_env._tmpdir.joinpath('cert').write_text('the-cert', 'utf-8')
             plug_args['odcs_ssl_secret_path'] = str(mocked_env._tmpdir)
-            exp_kwargs['cert'] = str(mocked_env._tmpdir.join('cert'))
+            exp_kwargs['cert'] = str(mocked_env._tmpdir.joinpath('cert'))
 
         exp_kwargs['insecure'] = False
         if 'token' in exp_kwargs:
@@ -1002,11 +1004,11 @@ class TestResolveComposes(object):
 
     ))
     @pytest.mark.parametrize('use_compose_id', (False, True))
-    def test_adjust_signing_intent(self, tmpdir, mocked_env, default_si, config_si, arg_si,
+    def test_adjust_signing_intent(self, mocked_env, default_si, config_si, arg_si,
                                    parent_si, expected_si, overridden, use_compose_id):
 
         mocked_env.set_reactor_config(
-            make_reactor_config(tmpdir, default_si=default_si)
+            make_reactor_config(mocked_env._tmpdir, default_si=default_si)
         )
         mock_repo_config(mocked_env._tmpdir, signing_intent=config_si)
 
@@ -1157,7 +1159,9 @@ class TestResolveComposes(object):
 
         if content_sets:
             cs_json = {'x86_64': main_cs_list}
-            mocked_env._tmpdir.join('content_sets.yml').write(yaml.safe_dump(cs_json))
+            mocked_env._tmpdir.joinpath('content_sets.yml').write_text(
+                yaml.safe_dump(cs_json), "utf-8"
+            )
 
         container_json = {'compose': {'pulp_repos': True}}
         if build_only_content_sets:
@@ -1165,7 +1169,9 @@ class TestResolveComposes(object):
         else:
             container_json['compose']['build_only_content_sets'] = None
 
-        mocked_env._tmpdir.join('container.yaml').write(yaml.safe_dump(container_json))
+        mocked_env._tmpdir.joinpath('container.yaml').write_text(
+            yaml.safe_dump(container_json), "utf-8"
+        )
 
         all_cs = []
         if content_sets:
@@ -1210,7 +1216,7 @@ class TestResolveComposes(object):
         ('', 'KEY3'),
     ))
     def test_renew_compose(self, mocked_env, state_name, time_to_expire_delta, expect_renew,
-                           sigkeys, depkeys, tmpdir, caplog):
+                           sigkeys, depkeys, source_dir, caplog):
         old_odcs_compose = ODCS_COMPOSE.copy()
         time_to_expire = (ODCS_COMPOSE_TIME_TO_EXPIRE -
                           ODCS_COMPOSE_SECONDS_TO_LIVE +
@@ -1271,8 +1277,8 @@ class TestResolveComposes(object):
                 hub_url: /
                 root_url: ''
                 auth: {{}}
-            """.format(sigkeys.replace(' ', ','), depkeys.replace(' ', ','), ODCS_URL, tmpdir))
-        mocked_env.set_reactor_config(make_reactor_config(tmpdir, data=data))
+            """.format(sigkeys.replace(' ', ','), depkeys.replace(' ', ','), ODCS_URL, source_dir))
+        mocked_env.set_reactor_config(make_reactor_config(source_dir, data=data))
 
         plugin_result = self.run_plugin_with_args(mocked_env, plugin_args)
 
@@ -1319,9 +1325,9 @@ class TestResolveComposes(object):
 
         assert self.get_override_yum_repourls(mocked_env.workflow) == expected_yum_repourls
 
-    def test_abort_when_odcs_config_missing(self, tmpdir, caplog, mocked_env):
+    def test_abort_when_odcs_config_missing(self, caplog, mocked_env):
         # Clear out default reactor config
-        mocked_env.set_reactor_config(make_reactor_config(tmpdir, data='version: 1'))
+        mocked_env.set_reactor_config(make_reactor_config(mocked_env._tmpdir, data='version: 1'))
         with caplog.at_level(logging.INFO):
             self.run_plugin_with_args(mocked_env)
 

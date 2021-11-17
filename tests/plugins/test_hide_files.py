@@ -13,7 +13,6 @@ from flexmock import flexmock
 import pytest
 
 from atomic_reactor.constants import INSPECT_CONFIG
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.plugins.pre_hide_files import HideFilesPlugin
 from atomic_reactor.util import df_parser
@@ -23,16 +22,16 @@ from atomic_reactor.utils import imageutil
 @pytest.mark.usefixtures('user_params')
 class TestHideFilesPlugin(object):
 
-    def test_missing_config(self, tmpdir):
+    def test_missing_config(self, workflow, source_dir):
         df_content = dedent("""\
             FROM fedora
             RUN yum install -y python-flask
             CMD /bin/bash
             """)
-        df = df_parser(str(tmpdir))
+        df = df_parser(str(source_dir))
         df.content = df_content
 
-        workflow = self.prepare(df.dockerfile_path)
+        self.prepare(workflow, df.dockerfile_path)
 
         runner = PreBuildPluginsRunner(workflow, [
             {'name': HideFilesPlugin.key, 'args': {}},
@@ -146,8 +145,8 @@ class TestHideFilesPlugin(object):
             "inherited_user"
         ),
     ])
-    def test_hide_files(self, tmpdir, df_content, expected_df, inherited_user):
-        df = df_parser(str(tmpdir))
+    def test_hide_files(self, workflow, source_dir, df_content, expected_df, inherited_user):
+        df = df_parser(str(source_dir))
         df.content = df_content
         hide_files = {'tmpdir': '/tmp', 'files': ['/etc/yum.repos.d/repo_ignore_1.repo',
                                                   '/etc/yum.repos.d/repo_ignore_2.repo']}
@@ -155,8 +154,11 @@ class TestHideFilesPlugin(object):
             'sha256:123456',
         ]
 
-        workflow = self.prepare(df.dockerfile_path, hide_files=hide_files,
-                                parent_images=parent_images, inherited_user=inherited_user)
+        self.prepare(workflow,
+                     df.dockerfile_path,
+                     hide_files=hide_files,
+                     parent_images=parent_images,
+                     inherited_user=inherited_user)
 
         runner = PreBuildPluginsRunner(workflow, [
             {'name': HideFilesPlugin.key, 'args': {}},
@@ -165,7 +167,7 @@ class TestHideFilesPlugin(object):
 
         assert df.content == expected_df
 
-    def test_hide_files_multi_stage(self, tmpdir):
+    def test_hide_files_multi_stage(self, workflow, source_dir):
         df_content = dedent("""\
             FROM sha256:123456 as builder
             RUN blah
@@ -180,7 +182,7 @@ class TestHideFilesPlugin(object):
             USER custom_user2
             CMD /bin/bash
             """)
-        df = df_parser(str(tmpdir))
+        df = df_parser(str(source_dir))
         df.content = df_content
         hide_files = {'tmpdir': '/tmp', 'files': ['/etc/yum.repos.d/repo_ignore_1.repo',
                                                   '/etc/yum.repos.d/repo_ignore_2.repo']}
@@ -189,8 +191,11 @@ class TestHideFilesPlugin(object):
             'sha256:654321',
         ]
 
-        workflow = self.prepare(df.dockerfile_path, hide_files=hide_files,
-                                parent_images=parent_images, inherited_user="inherited_user")
+        self.prepare(workflow,
+                     df.dockerfile_path,
+                     hide_files=hide_files,
+                     parent_images=parent_images,
+                     inherited_user="inherited_user")
 
         runner = PreBuildPluginsRunner(workflow, [
             {'name': HideFilesPlugin.key, 'args': {}},
@@ -237,8 +242,7 @@ class TestHideFilesPlugin(object):
             """)
         assert df.content == expected_df_content
 
-    def prepare(self, df_path, inherited_user='', hide_files=None, parent_images=None):
-        workflow = DockerBuildWorkflow(source=None)
+    def prepare(self, workflow, df_path, inherited_user='', hide_files=None, parent_images=None):
         workflow.source = MockSource(df_path)
         flexmock(workflow, df_path=df_path)
 
@@ -251,8 +255,6 @@ class TestHideFilesPlugin(object):
         if hide_files is not None:
             reactor_config = {'version': 1, 'hide_files': hide_files}
             workflow.conf.conf = reactor_config
-
-        return workflow
 
 
 class MockSource(object):

@@ -15,7 +15,6 @@ import koji as koji
 import osbs
 import atomic_reactor.plugins.post_tag_and_push
 from atomic_reactor.constants import IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.post_tag_and_push import ExceedsImageSizeError, TagAndPushPlugin
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
@@ -114,12 +113,10 @@ PUSH_ERROR_LOGS = [
                                                           "password": "mypassword"}}}),
 ])
 def test_tag_and_push_plugin(
-        tmpdir, monkeypatch, caplog, user_params,
+        workflow, monkeypatch, caplog,
         image_name, logs, should_raise, has_config, missing_v2,
         use_secret, file_name, dockerconfig_contents):
 
-    workflow = DockerBuildWorkflow(source=None)
-    workflow.user_params['image_tag'] = TEST_IMAGE
     workflow.tag_conf.add_primary_image(image_name)
 
     secret_path = None
@@ -333,7 +330,7 @@ def test_tag_and_push_plugin(
     False,
     True,
 ])
-def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, user_params,
+def test_tag_and_push_plugin_oci(workflow, tmpdir, monkeypatch,
                                  source_docker_archive, v2s2, use_secret,
                                  fail_push, caplog):
     # For now, we don't want to require having a skopeo and an OCI-supporting
@@ -353,7 +350,6 @@ def test_tag_and_push_plugin_oci(tmpdir, monkeypatch, user_params,
                                            sources_timestamp.strftime('%Y%m%d%H%M%S'),
                                            current_platform)
 
-    workflow = DockerBuildWorkflow(source=None)
     workflow.user_params['image_tag'] = TEST_IMAGE
     if source_docker_archive:
         workflow.build_result._source_docker_archive = sources_dir_path

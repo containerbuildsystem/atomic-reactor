@@ -8,13 +8,13 @@ of the BSD license. See the LICENSE file for details.
 
 import json
 import koji
+from pathlib import Path
 
 import atomic_reactor
 from atomic_reactor.constants import (
-    INSPECT_CONFIG, BASE_IMAGE_KOJI_BUILD, PARENT_IMAGES_KOJI_BUILDS,
+    DOCKERFILE_FILENAME, INSPECT_CONFIG, BASE_IMAGE_KOJI_BUILD, PARENT_IMAGES_KOJI_BUILDS,
     PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
 )
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_koji_parent import KojiParentPlugin
 from atomic_reactor.util import get_manifest_media_type, DockerfileImages
@@ -67,24 +67,22 @@ BASE_IMAGE_LABELS_W_ALIASES = {
 
 
 class MockSource(object):
-    def __init__(self, tmpdir):
-        self.dockerfile_path = str(tmpdir.join('Dockerfile'))
-        self.path = str(tmpdir)
+    def __init__(self, source_dir: Path):
+        self.dockerfile_path = str(source_dir / DOCKERFILE_FILENAME)
+        self.path = str(source_dir)
         self.commit_id = None
         self.config = None
 
 
 @pytest.fixture()
-def workflow(tmpdir, user_params):
-    workflow = DockerBuildWorkflow(source=None)
-    workflow.source = MockSource(tmpdir)
+def workflow(workflow, source_dir):
+    workflow.source = MockSource(source_dir)
     workflow.dockerfile_images = DockerfileImages(['base:latest'])
     workflow.dockerfile_images['base:latest'] = ImageName.parse('base:stubDigest')
     base_inspect = {INSPECT_CONFIG: {'Labels': BASE_IMAGE_LABELS.copy()}}
     flexmock(imageutil).should_receive('base_image_inspect').and_return(base_inspect)
     flexmock(imageutil).should_receive('get_inspect_for_image').and_return(base_inspect)
     workflow.parent_images_digests = {'base:latest': {V2_LIST: 'stubDigest'}}
-
     return workflow
 
 

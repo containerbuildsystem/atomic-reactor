@@ -17,7 +17,6 @@ import smtplib
 
 import atomic_reactor
 import koji
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.util import read_yaml, DockerfileImages
 import atomic_reactor.utils.cachito
 import atomic_reactor.utils.koji
@@ -1388,16 +1387,16 @@ build_env_vars:
         (False, None),
         (False, 'organization'),
     ])
-    def test_set_source_registry(self, tmpdir, dockerfile_images, organization, user_params):
+    def test_set_source_registry(
+        self, workflow, source_dir, dockerfile_images, organization, user_params
+    ):
         config = REQUIRED_CONFIG
 
         if organization:
             config += "\nregistries_organization: " + organization
 
-        filename = os.path.join(str(tmpdir), 'config.yaml')
-        with open(filename, 'w') as fp:
-            fp.write(dedent(config))
-        workflow = DockerBuildWorkflow(source=None)
+        config_yaml = source_dir / 'config.yaml'
+        config_yaml.write_text(dedent(config), "utf-8")
 
         if dockerfile_images:
             parent_images = ['parent:latest', 'base:latest']
@@ -1413,7 +1412,7 @@ build_env_vars:
         if parent_images:
             workflow.dockerfile_images = DockerfileImages(parent_images)
 
-        conf = Configuration(config_path=filename)
+        conf = Configuration(config_path=str(config_yaml))
         conf.set_workflow_based_on_config(workflow)
 
         if dockerfile_images:

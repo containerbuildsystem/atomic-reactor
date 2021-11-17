@@ -16,9 +16,11 @@ import threading
 import os
 import time
 import re
+from pathlib import Path
 from textwrap import dedent
-from typing import List
+from typing import List, Optional
 
+from atomic_reactor.dirs import RootBuildDir
 from atomic_reactor.plugin import (
     BuildCanceledException,
     BuildStepPluginsRunner,
@@ -419,6 +421,7 @@ class DockerBuildWorkflow(object):
 
     def __init__(
         self,
+        build_dir: Path,
         source: Source = None,
         plugins: PluginsDef = None,
         user_params: dict = None,
@@ -434,7 +437,11 @@ class DockerBuildWorkflow(object):
         :param plugin_files: load plugins also from these files
         :param client_version: osbs-client version used to render build json
         """
+        self._build_dir = build_dir
+
         self.source = source or DummySource(None, None)
+        # Will be set later to once the platforms are determined for the build.
+        self.build_dirs: Optional[RootBuildDir] = None
         self.plugins = plugins or PluginsDef()
         self.user_params = user_params or self._default_user_params.copy()
 
@@ -573,6 +580,14 @@ class DockerBuildWorkflow(object):
                       FROM ...
                       COPY --from=source <src> <dest>
                     """).format(stmt['content'], stage))
+
+    def init_build_dirs(self, platforms: List[str]) -> None:
+        """Initialize the root build directory with specific determined platforms.
+
+        :param list[str] platforms: a list of platforms to build for.
+        """
+        self.build_dirs = RootBuildDir(self._build_dir, platforms)
+        self.build_dirs.copy_sources(self.source)
 
     def parent_images_to_str(self):
         results = {}

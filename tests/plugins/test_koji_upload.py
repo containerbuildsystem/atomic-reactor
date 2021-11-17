@@ -6,6 +6,7 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
+from pathlib import Path
 import koji
 import os
 import platform
@@ -14,6 +15,7 @@ import tempfile
 import zipfile
 
 from atomic_reactor.constants import (
+    DOCKERFILE_FILENAME,
     IMAGE_TYPE_DOCKER_ARCHIVE,
     PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY,
     OPERATOR_MANIFESTS_ARCHIVE)
@@ -21,7 +23,7 @@ from atomic_reactor.plugins.post_koji_upload import (KojiUploadLogger,
                                                      KojiUploadPlugin)
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 
-from atomic_reactor.inner import DockerBuildWorkflow, TagConf, PushConf, BuildResult
+from atomic_reactor.inner import TagConf, PushConf, BuildResult
 from atomic_reactor.util import ManifestDigest, DockerfileImages
 from atomic_reactor.utils.rpm import parse_rpm_output
 from atomic_reactor.utils import imageutil
@@ -204,13 +206,12 @@ def is_string_type(obj):
     return isinstance(obj, str)
 
 
-def mock_environment(tmpdir, session=None, name=None, component=None, version=None,
-                     release=None, build_process_failed=False, additional_tags=None,
+def mock_environment(workflow, source_dir: Path, session=None, name=None, component=None,
+                     version=None, release=None, build_process_failed=False, additional_tags=None,
                      has_config=None, scratch=False):
     if session is None:
         session = MockedClientSession('', task_states=None)
 
-    workflow = DockerBuildWorkflow(source=None)
     base_image_id = '123456parent-id'
     workflow.source = StubSource()
     workflow.dockerfile_images = DockerfileImages(['Fedora:22'])
@@ -218,14 +219,16 @@ def mock_environment(tmpdir, session=None, name=None, component=None, version=No
     flexmock(imageutil).should_receive('base_image_inspect').and_return({'Id': base_image_id})
     workflow.user_params['scratch'] = scratch
     setattr(workflow, 'tag_conf', TagConf())
-    with open(os.path.join(str(tmpdir), 'Dockerfile'), 'wt') as df:
-        df.write('FROM base\n'
-                 'LABEL BZComponent={component} com.redhat.component={component}\n'
-                 'LABEL Version={version} version={version}\n'
-                 'LABEL Release={release} release={release}\n'
-                 .format(component=component, version=version, release=release))
-        flexmock(workflow, df_path=df.name)
-        workflow.df_dir = str(tmpdir)
+    dockerfile = source_dir / DOCKERFILE_FILENAME
+    dockerfile.write_text(
+        f'FROM base\n'
+        f'LABEL BZComponent={component} com.redhat.component={component}\n'
+        f'LABEL Version={version} version={version}\n'
+        f'LABEL Release={release} release={release}\n',
+        "utf-8",
+    )
+    flexmock(workflow, df_path=str(dockerfile))
+    workflow.df_dir = str(source_dir)
     if name and version:
         workflow.tag_conf.add_unique_image('user/test-image:{v}-timestamp'
                                            .format(v=version))
@@ -257,10 +260,14 @@ def mock_environment(tmpdir, session=None, name=None, component=None, version=No
                 'container_config': {}
             }
 
-    with open(os.path.join(str(tmpdir), 'image.tar.xz'), 'wt') as fp:
-        fp.write('x' * 2**12)
-        setattr(workflow, 'exported_image_sequence', [{'path': fp.name,
-                                                       'type': IMAGE_TYPE_DOCKER_ARCHIVE}])
+    image_tar = source_dir / 'image.tar.xz'
+    image_tar.write_text("x" * 2**12, "utf-8")
+    setattr(workflow, 'exported_image_sequence', [
+        {
+            'path': str(image_tar),
+            'type': IMAGE_TYPE_DOCKER_ARCHIVE,
+        }
+    ])
 
     if build_process_failed:
         workflow.build_result = BuildResult(logs=["docker build log - \u2018 \u2017 \u2019 \n'"],
@@ -277,17 +284,15 @@ def mock_environment(tmpdir, session=None, name=None, component=None, version=No
         "RSA/SHA256, Tue 30 Aug 2016 00:00:00, Key ID 01234567890abd;(none);(none);(none)",
     ])
 
-    return workflow
-
 
 @pytest.fixture
-def _user_params(monkeypatch):
-    monkeypatch.setattr(DockerBuildWorkflow,
-                        '_default_user_params',
-                        {'namespace': NAMESPACE,
-                         'pipeline_run_name': BUILD_ID,
-                         'koji_task_id': MockedClientSession.TAG_TASK_ID,
-                         })
+def workflow(workflow):
+    workflow.user_params.update({
+        'namespace': NAMESPACE,
+        'pipeline_run_name': BUILD_ID,
+        'koji_task_id': MockedClientSession.TAG_TASK_ID,
+    })
+    return workflow
 
 
 @pytest.fixture
@@ -362,7 +367,7 @@ class TestKojiUploadLogger(object):
         (12, 1, 7),
         (12, 3, 5),
     ])
-    def test_with_defaults(self, totalsize, step, expected_times, _user_params):
+    def test_with_defaults(self, totalsize, step, expected_times):
         logger = flexmock()
         logger.should_receive('debug').times(expected_times)
         upload_logger = KojiUploadLogger(logger)
@@ -384,14 +389,14 @@ class TestKojiUploadLogger(object):
             upload_logger.callback(offset, totalsize, step, 1.0, 1.0)
 
 
-@pytest.mark.usefixtures('user_params')
 @pytest.mark.skip('plugin and tests needs to be updated')
 class TestKojiUpload(object):
-    def test_koji_upload_failed_build(self, tmpdir, _user_params):
+    def test_koji_upload_failed_build(self, workflow, source_dir):
         session = MockedClientSession('')
         osbs = MockedOSBS()
-        workflow = mock_environment(tmpdir, session=session, build_process_failed=True,
-                                    name='ns/name', version='1.0', release='1')
+        mock_environment(workflow, source_dir,
+                         session=session, build_process_failed=True,
+                         name='ns/name', version='1.0', release='1')
         runner = create_runner(workflow)
         runner.run()
 
@@ -399,14 +404,14 @@ class TestKojiUpload(object):
         metadata = get_metadata(workflow, osbs)
         assert not metadata
 
-    def test_koji_upload_no_tagconf(self, tmpdir, _user_params):
-        workflow = mock_environment(tmpdir)
+    def test_koji_upload_no_tagconf(self, workflow, source_dir):
+        mock_environment(workflow, source_dir)
         runner = create_runner(workflow)
         with pytest.raises(PluginFailedException):
             runner.run()
 
-    def test_koji_upload_no_build_metadata(self, tmpdir, _user_params):
-        workflow = mock_environment(tmpdir, name='ns/name', version='1.0', release='1')
+    def test_koji_upload_no_build_metadata(self, workflow, source_dir):
+        mock_environment(workflow, source_dir, name='ns/name', version='1.0', release='1')
         runner = create_runner(workflow)
         workflow.user_params = {}
 
@@ -422,14 +427,14 @@ class TestKojiUpload(object):
             'should_raise': True,
         },
     ])
-    def test_koji_upload_krb_args(self, tmpdir, params, _user_params):
+    def test_koji_upload_krb_args(self, params, workflow, source_dir):
         session = MockedClientSession('')
         expectation = flexmock(session).should_receive('krb_login').and_return(True)
         name = 'name'
         version = '1.0'
         release = '1'
-        workflow = mock_environment(tmpdir, session=session, name=name, version=version,
-                                    release=release)
+        mock_environment(workflow, source_dir,
+                         session=session, name=name, version=version, release=release)
         runner = create_runner(workflow)
 
         if params['should_raise']:
@@ -440,26 +445,26 @@ class TestKojiUpload(object):
             expectation.once()
             runner.run()
 
-    def test_koji_upload_krb_fail(self, tmpdir, _user_params):
+    def test_koji_upload_krb_fail(self, workflow, source_dir):
         session = MockedClientSession('')
         (flexmock(session)
             .should_receive('krb_login')
             .and_raise(RuntimeError)
             .once())
-        workflow = mock_environment(tmpdir, session=session, name='ns/name', version='1.0',
-                                    release='1')
+        mock_environment(workflow, source_dir,
+                         session=session, name='ns/name', version='1.0', release='1')
         runner = create_runner(workflow)
         with pytest.raises(PluginFailedException):
             runner.run()
 
-    def test_koji_upload_ssl_fail(self, tmpdir, _user_params):
+    def test_koji_upload_ssl_fail(self, workflow, source_dir):
         session = MockedClientSession('')
         (flexmock(session)
             .should_receive('ssl_login')
             .and_raise(RuntimeError)
             .once())
-        workflow = mock_environment(tmpdir, session=session, name='ns/name', version='1.0',
-                                    release='1')
+        mock_environment(workflow, source_dir,
+                         session=session, name='ns/name', version='1.0', release='1')
         runner = create_runner(workflow, ssl_certs=True)
         with pytest.raises(PluginFailedException):
             runner.run()
@@ -467,8 +472,8 @@ class TestKojiUpload(object):
     @pytest.mark.parametrize('fail_method', [
         'get_build_logs',
     ])
-    def test_koji_upload_osbs_fail(self, tmpdir, fail_method, _user_params):
-        workflow = mock_environment(tmpdir, name='name', version='1.0', release='1')
+    def test_koji_upload_osbs_fail(self, fail_method, workflow, source_dir):
+        mock_environment(workflow, source_dir, name='name', version='1.0', release='1')
         (flexmock(OSBS)
             .should_receive(fail_method)
             .and_raise(OsbsException))
@@ -658,7 +663,7 @@ class TestKojiUpload(object):
                 assert 'container_config' not in [x.lower() for x in config.keys()]
                 assert all(is_string_type(entry) for entry in config)
 
-    def test_koji_upload_import_fail(self, tmpdir, caplog, _user_params):
+    def test_koji_upload_import_fail(self, workflow, source_dir, caplog):
         session = MockedClientSession('')
         (flexmock(OSBS)
             .should_receive('create_config_map')
@@ -667,8 +672,8 @@ class TestKojiUpload(object):
         version = '1.0'
         release = '1'
         target = 'images-docker-candidate'
-        workflow = mock_environment(tmpdir, name=name, version=version, release=release,
-                                    session=session)
+        mock_environment(workflow, source_dir,
+                         name=name, version=version, release=release, session=session)
         runner = create_runner(workflow, target=target)
         with pytest.raises(PluginFailedException):
             runner.run()
@@ -679,13 +684,14 @@ class TestKojiUpload(object):
         None,
         ['3.2'],
     ])
-    def test_koji_upload_image_tags(self, tmpdir, additional_tags, _user_params):
+    def test_koji_upload_image_tags(self, additional_tags, workflow, source_dir):
         osbs = MockedOSBS()
         session = MockedClientSession('')
         version = '3.2.1'
         release = '4'
-        workflow = mock_environment(tmpdir, name='ns/name', version=version, release=release,
-                                    session=session, additional_tags=additional_tags)
+        mock_environment(workflow, source_dir,
+                         name='ns/name', version=version, release=release,
+                         session=session, additional_tags=additional_tags)
         runner = create_runner(workflow)
         runner.run()
 
@@ -721,10 +727,8 @@ class TestKojiUpload(object):
     ])
     @pytest.mark.parametrize('has_config', (True, False))
     @pytest.mark.parametrize('base_from_scratch', (True, False))
-    def test_koji_upload_success(self, tmpdir,
-                                 blocksize,
-                                 _user_params, has_config,
-                                 base_from_scratch):
+    def test_koji_upload_success(self, blocksize, has_config, base_from_scratch,
+                                 workflow, source_dir):
         osbs = MockedOSBS()
         session = MockedClientSession('')
         component = 'component'
@@ -732,8 +736,9 @@ class TestKojiUpload(object):
         version = '1.0'
         release = '1'
 
-        workflow = mock_environment(tmpdir, session=session, name=name, component=component,
-                                    version=version, release=release, has_config=has_config)
+        mock_environment(workflow, source_dir,
+                         session=session, name=name, component=component, version=version,
+                         release=release, has_config=has_config)
         if base_from_scratch:
             workflow.dockerfile_images = DockerfileImages(['scratch'])
         target = 'images-docker-candidate'
@@ -781,14 +786,14 @@ class TestKojiUpload(object):
         if blocksize is not None:
             assert blocksize == session.blocksize
 
-    def test_koji_upload_pullspec(self, tmpdir, _user_params):
+    def test_koji_upload_pullspec(self, workflow, source_dir):
         osbs = MockedOSBS()
         session = MockedClientSession('')
         name = 'ns/name'
         version = '1.0'
         release = '1'
-        workflow = mock_environment(tmpdir, session=session, name=name, version=version,
-                                    release=release)
+        mock_environment(workflow, source_dir,
+                         session=session, name=name, version=version, release=release)
         runner = create_runner(workflow)
         runner.run()
 
@@ -831,12 +836,12 @@ class TestKojiUpload(object):
         (None, {'x86_64-build.log'}),
         ('foo', {'foo-build.log'}),
     ])
-    def test_koji_upload_logs(self, tmpdir, is_scratch, logs_return_bytes,
-                              platform, expected_logs, _user_params):
+    def test_koji_upload_logs(self, is_scratch, logs_return_bytes, platform, expected_logs,
+                              workflow, source_dir):
         MockedOSBS(logs_return_bytes=logs_return_bytes)
         session = MockedClientSession('')
-        workflow = mock_environment(tmpdir, session=session, name='name', version='1.0',
-                                    release='1', scratch=is_scratch)
+        mock_environment(workflow, source_dir, session=session, name='name', version='1.0',
+                         release='1', scratch=is_scratch)
         runner = create_runner(workflow, platform=platform)
         runner.run()
 
@@ -860,11 +865,11 @@ class TestKojiUpload(object):
         if not is_scratch:
             assert images[0].endswith(platform + ".tar.xz")
 
-    def test_koji_upload_available_references(self, tmpdir, _user_params):
+    def test_koji_upload_available_references(self, workflow, source_dir):
         server = MockedOSBS()
         session = MockedClientSession('')
-        workflow = mock_environment(tmpdir, session=session, name='name', version='1.0',
-                                    release='1')
+        mock_environment(workflow, source_dir,
+                         session=session, name='name', version='1.0', release='1')
         runner = create_runner(workflow, platform='x86_64')
         runner.run()
 
@@ -882,12 +887,12 @@ class TestKojiUpload(object):
         assert (len(digests), len(repositories)) == expected
 
     @pytest.mark.parametrize('has_operator_manifests', [False, True])
-    def test_koji_upload_operator_manifests(self, tmpdir, has_operator_manifests, _user_params):
+    def test_koji_upload_operator_manifests(self, has_operator_manifests, workflow, source_dir):
         server = MockedOSBS()
         session = MockedClientSession('')
-        workflow = mock_environment(tmpdir, session=session, name='name', version='1.0',
-                                    release='1')
-        op_manifests_path = os.path.join(str(tmpdir), OPERATOR_MANIFESTS_ARCHIVE)
+        mock_environment(workflow, source_dir,
+                         session=session, name='name', version='1.0', release='1')
+        op_manifests_path = source_dir / OPERATOR_MANIFESTS_ARCHIVE
         with tempfile.NamedTemporaryFile() as stub:
             stub.write(b'stub')
             stub.flush()
@@ -895,7 +900,8 @@ class TestKojiUpload(object):
                 archive.write(stub.name, 'stub.yml')
 
         if has_operator_manifests:
-            workflow.postbuild_results[PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY] = op_manifests_path
+            results = workflow.postbuild_results
+            results[PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY] = str(op_manifests_path)
         runner = create_runner(workflow, platform='x86_64')
         runner.run()
         data_list = list(server.configmap.values())

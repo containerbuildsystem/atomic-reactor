@@ -19,7 +19,7 @@ from collections import OrderedDict
 from tests.constants import DOCKER0_REGISTRY
 
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
-from atomic_reactor.inner import DockerBuildWorkflow, TagConf, BuildResult
+from atomic_reactor.inner import TagConf, BuildResult
 from atomic_reactor.util import (registry_hostname, ManifestDigest, get_floating_images,
                                  get_primary_images, sha256sum)
 from atomic_reactor.plugins.post_group_manifests import GroupManifestsPlugin
@@ -292,9 +292,7 @@ def mock_registries(registries, config, schema_version='v2', foreign_layers=Fals
     }
 
 
-def mock_environment(tmpdir, primary_images=None,
-                     annotations=None):
-    workflow = DockerBuildWorkflow(source=None)
+def mock_environment(workflow, primary_images=None, annotations=None):
     setattr(workflow, 'tag_conf', TagConf())
     if primary_images:
         for image in primary_images:
@@ -304,8 +302,6 @@ def mock_environment(tmpdir, primary_images=None,
 
     workflow.tag_conf.add_floating_image('namespace/httpd:floating')
     workflow.build_result = BuildResult(image_id='123456', annotations=annotations or {})
-
-    return workflow
 
 
 REGISTRY_V2 = 'registry_v2.example.com'
@@ -408,7 +404,7 @@ OTHER_V2 = 'registry.example.com:5001'
      None)
 ])
 @responses.activate  # noqa
-def test_group_manifests(tmpdir, schema_version, test_name, group, foreign_layers,
+def test_group_manifests(workflow, source_dir, schema_version, test_name, group, foreign_layers,
                          registries, workers, expected_exception, user_params):
     test_images = ['namespace/httpd:2.4',
                    'namespace/httpd:latest']
@@ -423,7 +419,7 @@ def test_group_manifests(tmpdir, schema_version, test_name, group, foreign_layer
         OTHER_V2: {'version': 'v2', 'insecure': False},
     }
 
-    temp_dir = mkdtemp(dir=str(tmpdir))
+    temp_dir = mkdtemp(dir=str(source_dir))
     with open(os.path.join(temp_dir, ".dockercfg"), "w+") as dockerconfig:
         dockerconfig_contents = {
             REGISTRY_V2: {
@@ -450,7 +446,7 @@ def test_group_manifests(tmpdir, schema_version, test_name, group, foreign_layer
     mocked_registries, annotations = mock_registries(registry_conf, workers,
                                                      schema_version=schema_version,
                                                      foreign_layers=foreign_layers)
-    workflow = mock_environment(tmpdir, primary_images=test_images, annotations=annotations)
+    mock_environment(workflow, primary_images=test_images, annotations=annotations)
 
     registries_list = []
 

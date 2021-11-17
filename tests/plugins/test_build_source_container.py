@@ -8,6 +8,7 @@ of the BSD license. See the LICENSE file for details.
 import os
 import subprocess
 import tempfile
+from pathlib import Path
 
 from flexmock import flexmock
 import pytest
@@ -16,7 +17,6 @@ import tarfile
 import re
 
 from atomic_reactor.constants import PLUGIN_FETCH_SOURCES_KEY
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.constants import EXPORTED_SQUASHED_IMAGE_NAME
 from atomic_reactor.plugin import BuildStepPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.build_source_container import SourceContainerPlugin
@@ -36,18 +36,15 @@ class MockSource(object):
         return self.dockerfile_path, self.path
 
 
-def mock_workflow(tmpdir, sources_dir='', remote_dir='', maven_dir=''):
-    workflow = DockerBuildWorkflow(source=None)
-    source = MockSource(tmpdir)
+def mock_workflow(workflow, source_dir: Path, sources_dir='', remote_dir='', maven_dir=''):
+    source = MockSource(source_dir)
     setattr(workflow, 'source', source)
 
     workflow.prebuild_results[PLUGIN_FETCH_SOURCES_KEY] = {
-        'image_sources_dir': os.path.join(tmpdir.strpath, sources_dir),
-        'remote_sources_dir': os.path.join(tmpdir.strpath, remote_dir),
-        'maven_sources_dir': os.path.join(tmpdir.strpath, maven_dir),
+        'image_sources_dir': str(source_dir / sources_dir),
+        'remote_sources_dir': str(source_dir / remote_dir),
+        'maven_sources_dir': str(source_dir / maven_dir),
     }
-
-    return workflow
 
 
 @pytest.mark.parametrize('sources_dir, sources_dir_exists, sources_dir_empty', [
@@ -63,7 +60,7 @@ def mock_workflow(tmpdir, sources_dir='', remote_dir='', maven_dir=''):
     ('maven_sources_dir', True, True),
     ('maven_sources_dir', True, False)])
 @pytest.mark.parametrize('export_failed', (True, False))
-def test_running_build(tmpdir, caplog, user_params,
+def test_running_build(workflow, source_dir, caplog,
                        sources_dir, sources_dir_exists, sources_dir_empty,
                        remote_dir, remote_dir_exists, remote_dir_empty,
                        maven_dir, maven_dir_exists, maven_dir_empty,
@@ -71,27 +68,27 @@ def test_running_build(tmpdir, caplog, user_params,
     """
     Test if proper result is returned and if plugin works
     """
-    sources_dir_path = os.path.join(tmpdir.strpath, sources_dir)
+    sources_dir_path = source_dir / sources_dir
     if sources_dir_exists:
-        os.mkdir(sources_dir_path)
+        sources_dir_path.mkdir()
         if not sources_dir_empty:
-            os.mknod(os.path.join(sources_dir_path, 'stub.srpm'))
+            os.mknod(sources_dir_path / 'stub.srpm')
 
-    remote_dir_path = os.path.join(tmpdir.strpath, remote_dir)
+    remote_dir_path = source_dir / remote_dir
     if remote_dir_exists:
-        os.mkdir(remote_dir_path)
+        remote_dir_path.mkdir()
         if not remote_dir_empty:
-            os.mknod(os.path.join(remote_dir_path, 'remote-sources-first.tar.gz'))
-            os.mknod(os.path.join(remote_dir_path, 'remote-sources-second.tar.gz'))
+            os.mknod(remote_dir_path / 'remote-sources-first.tar.gz')
+            os.mknod(remote_dir_path / 'remote-sources-second.tar.gz')
 
-    maven_dir_path = os.path.join(tmpdir.strpath, maven_dir)
+    maven_dir_path = source_dir / maven_dir
     if maven_dir_exists:
-        os.mkdir(maven_dir_path)
+        maven_dir_path.mkdir()
         if not maven_dir_empty:
-            os.mkdir(os.path.join(maven_dir_path, 'maven-sources-1'))
-            os.mknod(os.path.join(maven_dir_path, 'maven-sources-1', 'maven-sources-1.tar.gz'))
+            os.mkdir(maven_dir_path / 'maven-sources-1')
+            os.mknod(maven_dir_path / 'maven-sources-1' / 'maven-sources-1.tar.gz')
 
-    workflow = mock_workflow(tmpdir, sources_dir, remote_dir, maven_dir)
+    mock_workflow(workflow, source_dir, sources_dir, remote_dir, maven_dir)
 
     runner = BuildStepPluginsRunner(
         workflow,
@@ -101,16 +98,18 @@ def test_running_build(tmpdir, caplog, user_params,
         }]
     )
 
-    temp_image_output_dir = os.path.join(str(tmpdir), 'output')
-    temp_image_export_dir = str(tmpdir)
-    tempfile_chain = flexmock(tempfile).should_receive("mkdtemp").and_return(temp_image_output_dir)
-    tempfile_chain.and_return(temp_image_export_dir)
-    os.makedirs(temp_image_export_dir, exist_ok=True)
-    os.makedirs(os.path.join(temp_image_output_dir, 'blobs', 'sha256'))
+    temp_image_output_dir = source_dir / 'output'
+    temp_image_export_dir = source_dir
+    tempfile_chain = (flexmock(tempfile)
+                      .should_receive("mkdtemp")
+                      .and_return(str(temp_image_output_dir)))
+    tempfile_chain.and_return(str(temp_image_export_dir))
+    temp_image_export_dir.mkdir(parents=True, exist_ok=True)
+    temp_image_output_dir.joinpath('blobs', 'sha256').mkdir(parents=True, exist_ok=True)
     # temp dir created by bsi
-    flexmock(os).should_receive('getcwd').and_return(str(tmpdir))
-    temp_bsi_dir = os.path.join(str(tmpdir), 'SrcImg')
-    os.mkdir(temp_bsi_dir)
+    flexmock(os).should_receive('getcwd').and_return(str(source_dir))
+    temp_bsi_dir = source_dir / 'SrcImg'
+    temp_bsi_dir.mkdir()
 
     def check_run_skopeo(args):
         """Mocked call to skopeo"""
@@ -139,17 +138,17 @@ def test_running_build(tmpdir, caplog, user_params,
 
         if sources_dir and sources_dir_exists:
             args_expect.append('-s')
-            args_expect.append(sources_dir_path)
+            args_expect.append(str(sources_dir_path))
         if remote_dir and remote_dir_exists:
-            for count in range(len(os.listdir(os.path.join(tmpdir, remote_dir)))):
+            for count in range(len(os.listdir(source_dir / remote_dir))):
                 args_expect.append('-e')
-                args_expect.append(os.path.join(remote_dir_path, f"remote_source_{count}"))
+                args_expect.append(str(remote_dir_path / f"remote_source_{count}"))
         if maven_dir and maven_dir_exists:
-            for maven_subdir in os.listdir(os.path.join(tmpdir, maven_dir)):
+            for maven_subdir in os.listdir(source_dir / maven_dir):
                 args_expect.append('-e')
-                args_expect.append(os.path.join(tmpdir, maven_dir, maven_subdir))
+                args_expect.append(str(source_dir / maven_dir / maven_subdir))
         args_expect.append('-o')
-        args_expect.append(temp_image_output_dir)
+        args_expect.append(str(temp_image_output_dir))
 
         assert args == args_expect
         return 'stub stdout'
@@ -176,23 +175,23 @@ def test_running_build(tmpdir, caplog, user_params,
                         "platform": {"architecture": "amd64", "os": "linux"}}]}
     blob_json = {"schemaVersion": 2, "layers": []}
 
-    with open(os.path.join(temp_image_output_dir, 'index.json'), 'w') as fp:
-        fp.write(json.dumps(index_json))
-    with open(os.path.join(temp_image_output_dir, 'blobs', 'sha256', blob_sha), 'w') as fp:
-        fp.write(json.dumps(blob_json))
+    temp_image_output_dir.joinpath("index.json").write_text(json.dumps(index_json), "utf-8")
+    temp_image_output_dir.joinpath("blobs", "sha256", blob_sha).write_text(
+        json.dumps(blob_json), "utf-8"
+    )
 
     if not export_failed:
-        export_tar = os.path.join(temp_image_export_dir, EXPORTED_SQUASHED_IMAGE_NAME)
+        export_tar = temp_image_export_dir / EXPORTED_SQUASHED_IMAGE_NAME
         with open(export_tar, "wb") as f:
             with tarfile.TarFile(mode="w", fileobj=f) as tf:
                 for f in os.listdir(temp_image_output_dir):
-                    tf.add(os.path.join(temp_image_output_dir, f), f)
+                    tf.add(str(temp_image_output_dir / f), f)
 
     if not any([sources_dir_exists, remote_dir_exists, maven_dir_exists]):
         build_result = runner.run()
-        err_msg = "No SRPMs directory '{}' available".format(sources_dir_path)
-        err_msg += "\nNo Remote source directory '{}' available".format(remote_dir_path)
-        err_msg += "\nNo Maven source directory '{}' available".format(maven_dir_path)
+        err_msg = f"No SRPMs directory '{sources_dir_path}' available"
+        err_msg += f"\nNo Remote source directory '{remote_dir_path}' available"
+        err_msg += f"\nNo Maven source directory '{maven_dir_path}' available"
         # Since Python 3.7 logger adds additional whitespaces by default -> checking without them
         assert re.sub(r'\s+', " ", err_msg) in re.sub(r'\s+', " ", caplog.text)
         assert build_result.is_failed()
@@ -205,9 +204,9 @@ def test_running_build(tmpdir, caplog, user_params,
         assert not build_result.is_failed()
         assert build_result.source_docker_archive
         assert 'stub stdout' in caplog.text
-        empty_srpm_msg = "SRPMs directory '{}' is empty".format(sources_dir_path)
-        empty_remote_msg = "Remote source directory '{}' is empty".format(remote_dir_path)
-        empty_maven_msg = "Maven source directory '{}' is empty".format(maven_dir_path)
+        empty_srpm_msg = f"SRPMs directory '{sources_dir_path}' is empty"
+        empty_remote_msg = f"Remote source directory '{remote_dir_path}' is empty"
+        empty_maven_msg = f"Maven source directory '{maven_dir_path}' is empty"
         if sources_dir_exists and sources_dir_empty:
             assert empty_srpm_msg in caplog.text
         else:
@@ -246,14 +245,14 @@ def test_running_build(tmpdir, caplog, user_params,
         assert remove_tmpbsi_msg in caplog.text
 
 
-def test_failed_build(tmpdir, caplog, user_params):
+def test_failed_build(workflow, source_dir, caplog, user_params):
     """
     Test if proper error state is returned when build inside build
     container failed
     """
     (flexmock(subprocess).should_receive('check_output')
      .and_raise(subprocess.CalledProcessError(1, 'cmd', output='stub stdout')))
-    workflow = mock_workflow(tmpdir)
+    mock_workflow(workflow, source_dir)
     runner = BuildStepPluginsRunner(
         workflow,
         [{

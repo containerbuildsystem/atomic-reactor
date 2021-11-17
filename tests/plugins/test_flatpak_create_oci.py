@@ -5,6 +5,7 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
+from pathlib import Path
 
 from flexmock import flexmock
 from io import BytesIO
@@ -18,8 +19,12 @@ import tarfile
 import time
 from textwrap import dedent
 
-from atomic_reactor.constants import IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR, SUBPROCESS_MAX_RETRIES
-from atomic_reactor.inner import DockerBuildWorkflow
+from atomic_reactor.constants import (
+    DOCKERFILE_FILENAME,
+    IMAGE_TYPE_OCI,
+    IMAGE_TYPE_OCI_TAR,
+    SUBPROCESS_MAX_RETRIES,
+)
 from atomic_reactor.plugin import PrePublishPluginsRunner, PluginFailedException
 from osbs.utils import ImageName
 
@@ -385,9 +390,9 @@ def load_labels_and_annotations(metadata):
 
 
 class DefaultInspector(object):
-    def __init__(self, tmpdir, metadata):
+    def __init__(self, source_dir: str, metadata):
         # Import the OCI bundle into a ostree repository for examination
-        self.repodir = os.path.join(str(tmpdir), 'repo')
+        self.repodir = os.path.join(source_dir, 'repo')
         subprocess.check_call(['ostree', 'init', '--mode=archive-z2', '--repo=' + self.repodir])
         subprocess.check_call(['flatpak', 'build-import-bundle', '--oci',
                                self.repodir, str(metadata['path'])])
@@ -437,11 +442,11 @@ def make_and_store_reactor_config_map(workflow, flatpak_metadata):
     workflow.conf.conf = reactor_map
 
 
-def write_docker_file(config, tmpdir):
-    df_path = os.path.join(tmpdir, "Dockerfile")
+def write_docker_file(config, source_dir: Path):
+    dockerfile = source_dir / DOCKERFILE_FILENAME
     base_module_name = config['base_module']
     base_module = config['modules'][base_module_name]
-    with open(df_path, "w") as f:
+    with open(dockerfile, "w") as f:
         f.write(dedent("""\
                        FROM fedora:30
 
@@ -454,7 +459,7 @@ def write_docker_file(config, tmpdir):
                                   stream=base_module['stream'],
                                   version=base_module['version'])))
 
-    return df_path
+    return dockerfile
 
 
 @pytest.mark.skip(reason="plugin needs rework to get image content")
@@ -469,7 +474,7 @@ def write_docker_file(config, tmpdir):
     ('runtime', 'both', None),
     ('sdk', 'both', None),
 ])
-def test_flatpak_create_oci(tmpdir, user_params, config_name, flatpak_metadata, breakage):
+def test_flatpak_create_oci(workflow, source_dir, config_name, flatpak_metadata, breakage):
     # Check that we actually have flatpak available
     have_flatpak = False
     try:
@@ -493,18 +498,17 @@ def test_flatpak_create_oci(tmpdir, user_params, config_name, flatpak_metadata, 
 
     config = CONFIGS[config_name]
 
-    workflow = DockerBuildWorkflow(source=None)
     workflow.user_params.update(USER_PARAMS)
-    df_path = write_docker_file(config, str(tmpdir))
+    df_path = write_docker_file(config, source_dir)
     flexmock(workflow, df_path=df_path)
 
     #  Make a local copy instead of pushing oci to docker storage
-    workflow.storage_transport = 'oci:{}'.format(str(tmpdir))
+    workflow.storage_transport = f'oci:{source_dir}'
 
     make_and_store_reactor_config_map(workflow, flatpak_metadata)
 
-    filesystem_dir = os.path.join(str(tmpdir), 'filesystem')
-    os.mkdir(filesystem_dir)
+    filesystem_dir = source_dir / 'filesystem'
+    filesystem_dir.mkdir()
 
     filesystem_contents = config['filesystem_contents']
 
@@ -513,19 +517,17 @@ def test_flatpak_create_oci(tmpdir, user_params, config_name, flatpak_metadata, 
         path = parts[0]
         mode = parts[1] if len(parts) == 2 else None
 
-        fullpath = os.path.join(filesystem_dir, path[1:])
-        parent_dir = os.path.dirname(fullpath)
-        if not os.path.isdir(parent_dir):
-            os.makedirs(parent_dir)
+        fullpath = filesystem_dir / path[1:]
+        if not fullpath.parent.exists():
+            fullpath.parent.mkdir(parents=True)
 
         if contents is None:
-            os.mkdir(fullpath)
+            fullpath.mkdir()
         else:
-            with open(fullpath, 'wb') as f:
-                f.write(contents)
+            fullpath.write_bytes(contents)
 
         if mode is not None:
-            os.chmod(fullpath, int(mode, 8))
+            fullpath.chmod(int(mode, 8))
 
     if breakage == 'no_runtime':
         # Copy the parts of the config we are going to change
@@ -640,7 +642,7 @@ def test_flatpak_create_oci(tmpdir, user_params, config_name, flatpak_metadata, 
         if flatpak_metadata != 'both':
             return
 
-        inspector = DefaultInspector(tmpdir, dir_metadata)
+        inspector = DefaultInspector(str(source_dir), dir_metadata)
 
         files = inspector.list_files()
         assert sorted(files) == config['expected_contents']
@@ -678,10 +680,7 @@ def test_flatpak_create_oci(tmpdir, user_params, config_name, flatpak_metadata, 
 
 @pytest.mark.skipif(not MODULEMD_AVAILABLE,  # noqa
                     reason="libmodulemd not available")
-def test_skip_plugin(caplog, user_params):
-    workflow = DockerBuildWorkflow(source=None)
-    workflow.user_params = {}
-
+def test_skip_plugin(workflow, caplog):
     runner = PrePublishPluginsRunner(
         workflow,
         [{

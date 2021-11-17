@@ -6,6 +6,7 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 from functools import partial
+from pathlib import Path
 from textwrap import dedent
 
 import pytest
@@ -13,8 +14,12 @@ import pytest
 from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.pre_check_user_settings import CheckUserSettingsPlugin
 from atomic_reactor.util import df_parser, DockerfileImages
-from atomic_reactor.constants import (REPO_CONTENT_SETS_CONFIG, REPO_FETCH_ARTIFACTS_URL,
-                                      REPO_FETCH_ARTIFACTS_KOJI)
+from atomic_reactor.constants import (
+    DOCKERFILE_FILENAME,
+    REPO_CONTENT_SETS_CONFIG,
+    REPO_FETCH_ARTIFACTS_KOJI,
+    REPO_FETCH_ARTIFACTS_URL,
+)
 
 from tests.mock_env import MockEnv
 from tests.stubs import StubSource
@@ -22,7 +27,7 @@ from tests.stubs import StubSource
 pytestmark = pytest.mark.usefixtures('user_params')
 
 
-def mock_dockerfile(tmpdir, labels, from_scratch=True):
+def mock_dockerfile(source_dir: Path, labels, from_scratch=True):
     base = 'FROM scratch' if from_scratch else 'FROM fedora:30'
     cmd = 'CMD /bin/cowsay moo'
     extra_labels = [
@@ -31,10 +36,10 @@ def mock_dockerfile(tmpdir, labels, from_scratch=True):
 
     ]
     data = '\n'.join([base] + extra_labels + [cmd])
-    tmpdir.join('Dockerfile').write(data)
+    source_dir.joinpath(DOCKERFILE_FILENAME).write_text(data, "utf-8")
 
 
-def mock_dockerfile_multistage(tmpdir, labels, from_scratch=False):
+def mock_dockerfile_multistage(source_dir: Path, labels, from_scratch=False):
     data = """\
     FROM scratch
     RUN echo *
@@ -48,36 +53,37 @@ def mock_dockerfile_multistage(tmpdir, labels, from_scratch=False):
         for label in labels
     )
     data_from = 'FROM scratch' if from_scratch else 'FROM fedora:30'
-    tmpdir.join('Dockerfile').write(
-        data.format(data_from=data_from, extra_labels=extra_labels)
+    source_dir.joinpath(DOCKERFILE_FILENAME).write_text(
+        data.format(data_from=data_from, extra_labels=extra_labels), "utf-8"
     )
 
 
 class FakeSource(StubSource):
     """Fake source for config files validation"""
 
-    def __init__(self, dockerfile_path):
+    def __init__(self, source_dir: Path):
         """Initialize this fake source
 
         :param dockerfile_path: the path to the dockerfile, not including the dockerfile filename.
         :type dockerfile_path: py.path.LocalPath
         """
         super().__init__()
-        self.path = str(dockerfile_path)
-        self.dockerfile_path = str(dockerfile_path.join('Dockerfile'))
+        self.path = str(source_dir)
+        self.dockerfile_path = str(source_dir / DOCKERFILE_FILENAME)
 
     def get_build_file_path(self):
         """Ensure the validations run against distgit config files"""
         return self.dockerfile_path, self.path
 
 
-def mock_env(dockerfile_path, labels=None, flatpak=False, dockerfile_f=mock_dockerfile,
+def mock_env(workflow, source_dir: Path, labels=None, flatpak=False, dockerfile_f=mock_dockerfile,
              isolated=None):
     """Mock test environment
 
-    :param dockerfile_path: the path to the fake dockerfile to be created, not including the
-        dockerfile filename.
-    :type dockerfile_path: py.path.LocalPath
+    :param workflow: a DockerBuildWorkflow object for a specific test.
+    :type workflow: DockerBuildWorkflow
+    :param source_dir: path to the source directory holding the dockerfile to be created.
+    :type source_dir: pathlib.Path
     :param labels: an iterable labels set for testing operator bundle or appregistry build.
     :type labels: iterable[str]
     :param bool flatpak: a flag to indicate whether the test is for a flatpak build.
@@ -93,16 +99,18 @@ def mock_env(dockerfile_path, labels=None, flatpak=False, dockerfile_f=mock_dock
 
     if not flatpak:
         # flatpak build has no Dockefile
-        dockerfile_f(dockerfile_path, labels)
+        dockerfile_f(source_dir, labels)
 
-    env = MockEnv().for_plugin('prebuild', CheckUserSettingsPlugin.key, {'flatpak': flatpak})
-    env.workflow.source = FakeSource(dockerfile_path)
+    env = MockEnv(workflow).for_plugin(
+        'prebuild', CheckUserSettingsPlugin.key, {'flatpak': flatpak}
+    )
+    env.workflow.source = FakeSource(source_dir)
 
     if isolated is not None:
         env.set_isolated(isolated)
 
-    dfp = df_parser(str(dockerfile_path))
-    env.workflow._df_path = str(dockerfile_path)
+    dfp = df_parser(str(source_dir))
+    env.workflow._df_path = str(source_dir)
     env.workflow.dockerfile_images = DockerfileImages([] if flatpak else dfp.parent_images)
 
     return env.create_runner()
@@ -117,9 +125,9 @@ class TestDockerfileChecks(object):
         (['version="0.1.test.label.version_with_underscore"'], False),
         (['version="0.1/.test.label.version|with|error"'], True),
     ))
-    def test_label_version_check(self, tmpdir, labels, expected_fail):
+    def test_label_version_check(self, workflow, source_dir, labels, expected_fail):
         """Dockerfile label version can't contain '/' character"""
-        runner = mock_env(tmpdir, labels=labels)
+        runner = mock_env(workflow, source_dir, labels=labels)
 
         if expected_fail:
             with pytest.raises(PluginFailedException) as e:
@@ -138,9 +146,9 @@ class TestDockerfileChecks(object):
         (['com.redhat.delivery.appregistry=true'], False),
         (['com.redhat.delivery.operator.bundle=true'], False),
     ))
-    def test_mutual_exclusivity_of_labels(self, tmpdir, labels, expected_fail):
+    def test_mutual_exclusivity_of_labels(self, workflow, source_dir, labels, expected_fail):
         """Appregistry and operator.bundle labels are mutually exclusive"""
-        runner = mock_env(tmpdir, labels=labels)
+        runner = mock_env(workflow, source_dir, labels=labels)
 
         if expected_fail:
             with pytest.raises(PluginFailedException) as e:
@@ -159,7 +167,7 @@ class TestDockerfileChecks(object):
         [True, True, [], False],
     ))
     def test_operator_bundle_from_scratch(
-        self, tmpdir, from_scratch, multistage, labels, expected_fail
+        self, workflow, source_dir, from_scratch, multistage, labels, expected_fail
     ):
         """Operator bundle can be only single stage and FROM scratch"""
         if multistage:
@@ -169,7 +177,7 @@ class TestDockerfileChecks(object):
 
         dockerfile_f = partial(dockerfile_f, from_scratch=from_scratch)
 
-        runner = mock_env(tmpdir, dockerfile_f=dockerfile_f, labels=labels)
+        runner = mock_env(workflow, source_dir, dockerfile_f=dockerfile_f, labels=labels)
 
         if expected_fail:
             with pytest.raises(PluginFailedException) as e:
@@ -178,15 +186,15 @@ class TestDockerfileChecks(object):
         else:
             runner.run()
 
-    def test_flatpak_skip_dockerfile_check(self, tmpdir, caplog):
+    def test_flatpak_skip_dockerfile_check(self, workflow, source_dir, caplog):
         """Flatpak builds have no user Dockerfiles, dockefile check must be skipped"""
-        runner = mock_env(tmpdir, flatpak=True)
+        runner = mock_env(workflow, source_dir, flatpak=True)
         runner.run()
 
         assert 'Skipping Dockerfile checks' in caplog.text
 
 
-def write_fetch_artifacts_url(repo_dir, make_mistake=False):
+def write_fetch_artifacts_url(source_dir: Path, make_mistake=False):
     if make_mistake:
         content = dedent('''
             - sha4096: 305aa706018b1089e5b82528b601541f
@@ -199,10 +207,10 @@ def write_fetch_artifacts_url(repo_dir, make_mistake=False):
               target: foo.jar
               url: http://somewhere/foo.jar
         ''')
-    repo_dir.join(REPO_FETCH_ARTIFACTS_URL).write(content)
+    source_dir.joinpath(REPO_FETCH_ARTIFACTS_URL).write_text(content, "utf-8")
 
 
-def write_fetch_artifacts_koji(repo_dir, make_mistake=False):
+def write_fetch_artifacts_koji(source_dir: Path, make_mistake=False):
     if make_mistake:
         content = dedent('''
             - archives:
@@ -216,10 +224,10 @@ def write_fetch_artifacts_koji(repo_dir, make_mistake=False):
               - filename: jmx_prometheus_javaagent-0.3.1.redhat-00006.jar
                 group_id: io.prometheus.jmx
         ''')
-    repo_dir.join(REPO_FETCH_ARTIFACTS_KOJI).write(content)
+    source_dir.joinpath(REPO_FETCH_ARTIFACTS_KOJI).write_text(content, "utf-8")
 
 
-def write_content_sets_yml(repo_dir, make_mistake=False):
+def write_content_sets_yml(source_dir: Path, make_mistake=False):
     if make_mistake:
         content = dedent('''
             x86_64:
@@ -233,38 +241,38 @@ def write_content_sets_yml(repo_dir, make_mistake=False):
             - rhel-7-server-optional-rpms
             - rhel-7-server-rpms
         ''')
-    repo_dir.join(REPO_CONTENT_SETS_CONFIG).write(content)
+    source_dir.joinpath(REPO_CONTENT_SETS_CONFIG).write_text(content, "utf-8")
 
 
 class TestValidateUserConfigFiles(object):
     """Test the validate_user_config_files"""
 
-    def test_validate_the_config_files(self, tmpdir):
-        write_fetch_artifacts_koji(tmpdir)
-        write_fetch_artifacts_url(tmpdir)
-        write_content_sets_yml(tmpdir)
+    def test_validate_the_config_files(self, workflow, source_dir):
+        write_fetch_artifacts_koji(source_dir)
+        write_fetch_artifacts_url(source_dir)
+        write_content_sets_yml(source_dir)
 
-        runner = mock_env(tmpdir)
+        runner = mock_env(workflow, source_dir)
         runner.run()
 
-    def test_catch_invalid_fetch_artifacts_url(self, tmpdir):
-        write_fetch_artifacts_url(tmpdir, make_mistake=True)
+    def test_catch_invalid_fetch_artifacts_url(self, workflow, source_dir):
+        write_fetch_artifacts_url(source_dir, make_mistake=True)
 
-        runner = mock_env(tmpdir)
+        runner = mock_env(workflow, source_dir)
         with pytest.raises(PluginFailedException, match="'sha4096' was unexpected"):
             runner.run()
 
-    def test_catch_invalid_fetch_artifacts_koji(self, tmpdir):
-        write_fetch_artifacts_koji(tmpdir, make_mistake=True)
+    def test_catch_invalid_fetch_artifacts_koji(self, workflow, source_dir):
+        write_fetch_artifacts_koji(source_dir, make_mistake=True)
 
-        runner = mock_env(tmpdir)
+        runner = mock_env(workflow, source_dir)
         with pytest.raises(PluginFailedException, match="'nvr' is a required property"):
             runner.run()
 
-    def test_catch_invalid_content_sets(self, tmpdir):
-        write_content_sets_yml(tmpdir, make_mistake=True)
+    def test_catch_invalid_content_sets(self, workflow, source_dir):
+        write_content_sets_yml(source_dir, make_mistake=True)
 
-        runner = mock_env(tmpdir)
+        runner = mock_env(workflow, source_dir)
         with pytest.raises(PluginFailedException, match="validating 'pattern' has failed"):
             runner.run()
 
@@ -285,15 +293,17 @@ class TestIsolatedBuildChecks(object):
             (False, False, False, False),
         ]
     )
-    def test_isolated_from_scratch_build(self, tmpdir, isolated, bundle, from_scratch,
-                                         expected_fail):
+    def test_isolated_from_scratch_build(
+        self, workflow, source_dir, isolated, bundle, from_scratch, expected_fail
+    ):
         """Test if isolated FROM scratch builds are prohibited except
         operator bundle builds"""
         labels = ['com.redhat.delivery.operator.bundle=true'] if bundle else []
 
         dockerfile_f = partial(mock_dockerfile, from_scratch=from_scratch)
 
-        runner = mock_env(tmpdir, dockerfile_f=dockerfile_f, labels=labels, isolated=isolated)
+        runner = mock_env(workflow, source_dir,
+                          dockerfile_f=dockerfile_f, labels=labels, isolated=isolated)
         if expected_fail:
             with pytest.raises(PluginFailedException) as exc_info:
                 runner.run()

@@ -977,8 +977,8 @@ def test_is_flatpak_build(workflow, extra_user_params, flatpak, user_params):
 
 
 @pytest.mark.parametrize("is_orchestrator", [True, False])
-def test_get_orchestrator_platforms(is_orchestrator):
-    env = MockEnv().set_user_params(platforms=["x86_64", "ppc64le"])
+def test_get_orchestrator_platforms(is_orchestrator, workflow):
+    env = MockEnv(workflow).set_user_params(platforms=["x86_64", "ppc64le"])
     if is_orchestrator:
         env.make_orchestrator()
 
