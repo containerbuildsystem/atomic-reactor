@@ -6,6 +6,7 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
+from pathlib import Path
 from flexmock import flexmock
 
 import responses
@@ -13,7 +14,6 @@ import os
 import pytest
 import yaml
 
-from atomic_reactor.inner import DockerBuildWorkflow
 try:
     from atomic_reactor.plugins.pre_flatpak_create_dockerfile import (get_flatpak_source_spec,
                                                                       FlatpakCreateDockerfilePlugin)
@@ -63,21 +63,18 @@ class MockBuilder(object):
         self.dockerfile_images = DockerfileImages([])
 
 
-def mock_workflow(tmpdir, container_yaml, user_params=None):
-    if user_params is None:
-        user_params = USER_PARAMS
-    workflow = DockerBuildWorkflow(source=None)
-    mock_source = MockSource(tmpdir)
+def mock_workflow(workflow, source_dir: Path, container_yaml, user_params=None):
+    mock_source = MockSource(str(source_dir))
     setattr(workflow, 'builder', MockBuilder())
     flexmock(workflow, source=mock_source)
-    workflow.user_params = user_params
+
+    if user_params is None:
+        workflow.user_params.update(USER_PARAMS)
 
     with open(mock_source.container_yaml_path, "w") as f:
         f.write(container_yaml)
-    workflow.source.config = SourceConfig(str(tmpdir))
-    workflow.df_dir = str(tmpdir)
-
-    return workflow
+    workflow.source.config = SourceConfig(str(source_dir))
+    workflow.df_dir = str(source_dir)
 
 
 CONFIGS = build_flatpak_test_configs()
@@ -93,7 +90,7 @@ CONFIGS = build_flatpak_test_configs()
     ('app', None, 'no_modules'),
     ('app', None, 'multiple_modules'),
 ])
-def test_flatpak_create_dockerfile(tmpdir, user_params, config_name, override_base_image,
+def test_flatpak_create_dockerfile(workflow, source_dir, config_name, override_base_image,
                                    breakage):
     config = CONFIGS[config_name]
 
@@ -115,7 +112,7 @@ def test_flatpak_create_dockerfile(tmpdir, user_params, config_name, override_ba
         data['compose']['modules'] = modules
     container_yaml = yaml.dump(data)
 
-    workflow = mock_workflow(tmpdir, container_yaml)
+    mock_workflow(workflow, source_dir, container_yaml)
 
     source_spec = get_flatpak_source_spec(workflow)
     assert source_spec is None
@@ -155,8 +152,8 @@ def test_flatpak_create_dockerfile(tmpdir, user_params, config_name, override_ba
         assert source_spec == config['source_spec']
 
 
-def test_skip_plugin(tmpdir, caplog, user_params):
-    workflow = mock_workflow(tmpdir, "", user_params={})
+def test_skip_plugin(workflow, source_dir, caplog):
+    mock_workflow(workflow, source_dir, "", user_params={})
 
     base_image = "registry.fedoraproject.org/fedora:latest"
 

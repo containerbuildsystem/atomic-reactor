@@ -21,7 +21,6 @@ from atomic_reactor.constants import (
     REMOTE_SOURCE_TARBALL_FILENAME,
     REMOTE_SOURCE_JSON_FILENAME,
 )
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.build_orchestrate_build import (
     WORKSPACE_KEY_OVERRIDE_KWARGS, OrchestrateBuildPlugin)
@@ -216,7 +215,7 @@ def mock_reactor_config(workflow, data=None):
                 auth: {{}}
             """.format(CACHITO_URL, workflow._tmpdir))
 
-    workflow._tmpdir.join('cert').write('')
+    workflow._tmpdir.joinpath('cert').touch()
     config = yaml.safe_load(data)
     workflow.conf.conf = config
 
@@ -236,7 +235,7 @@ def mock_repo_config(workflow, data=None):
                 ref: {}
             """.format(REMOTE_SOURCE_REPO, REMOTE_SOURCE_REF))
 
-    workflow._tmpdir.join('container.yaml').write(data)
+    workflow._tmpdir.joinpath('container.yaml').write_text(data, "utf-8")
 
     # The repo config is read when SourceConfig is initialized. Force
     # reloading here to make usage easier.
@@ -244,11 +243,9 @@ def mock_repo_config(workflow, data=None):
 
 
 @pytest.fixture
-def workflow(tmpdir, user_params):
-    workflow = DockerBuildWorkflow(source=None)
-
+def workflow(workflow, source_dir):
     # Stash the tmpdir in workflow so it can be used later
-    workflow._tmpdir = tmpdir
+    workflow._tmpdir = source_dir
 
     class MockSource(StubSource):
 
@@ -256,7 +253,7 @@ def workflow(tmpdir, user_params):
             super(MockSource, self).__init__()
             self.workdir = workdir
 
-    workflow.source = MockSource(str(tmpdir))
+    workflow.source = MockSource(str(source_dir))
     workflow.buildstep_plugins_conf = [{'name': PLUGIN_BUILD_ORCHESTRATE_KEY}]
     workflow.user_params = {'koji_task_id': KOJI_TASK_ID}
 
@@ -410,7 +407,7 @@ def mock_koji(user=KOJI_TASK_OWNER):
 
 
 def expected_dowload_path(workflow):
-    return workflow._tmpdir.join('source.tar.gz')
+    return str(workflow._tmpdir / 'source.tar.gz')
 
 
 def setup_function(*args):
@@ -591,7 +588,7 @@ def test_fail_when_missing_cachito_config(workflow):
 
 
 def test_invalid_cert_reference(workflow):
-    bad_certs_dir = str(workflow._tmpdir.join('invalid-dir'))
+    bad_certs_dir = str(workflow._tmpdir / 'invalid-dir')
     reactor_config = dedent("""\
         version: 1
         cachito:

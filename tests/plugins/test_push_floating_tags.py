@@ -154,9 +154,10 @@ def mock_registries(registries, config, primary_images=None, manifest_results=No
     }
 
 
-def mock_environment(primary_images=None, floating_images=None,
+def mock_environment(workflow,
+                     primary_images=None, floating_images=None,
                      manifest_results=None, annotations=None):
-    env = MockEnv().for_plugin("exit", PushFloatingTagsPlugin.key)
+    env = MockEnv(workflow).for_plugin("exit", PushFloatingTagsPlugin.key)
     env.set_plugin_result("postbuild", PLUGIN_GROUP_MANIFESTS_KEY, manifest_results)
 
     workflow = env.workflow
@@ -390,7 +391,7 @@ NOGROUP_OCI_RESULTS = {
      'No manifest digest available, skipping push_floating_tags'),
 ])
 @responses.activate  # noqa
-def test_floating_tags_push(tmpdir, test_name, registries, manifest_results,
+def test_floating_tags_push(workflow, tmpdir, test_name, registries, manifest_results,
                             schema_version, floating_tags, workers, expected_exception,
                             caplog):
     primary_images = ['namespace/httpd:2.4', 'namespace/httpd:primary']
@@ -424,7 +425,8 @@ def test_floating_tags_push(tmpdir, test_name, registries, manifest_results,
                                                      primary_images=primary_images,
                                                      manifest_results=manifest_results,
                                                      schema_version=schema_version)
-    env = mock_environment(primary_images=primary_images,
+    env = mock_environment(workflow,
+                           primary_images=primary_images,
                            floating_images=floating_tags,
                            manifest_results=manifest_results,
                            annotations=annotations)

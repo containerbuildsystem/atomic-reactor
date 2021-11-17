@@ -7,6 +7,7 @@ of the BSD license. See the LICENSE file for details.
 """
 
 import logging
+from pathlib import Path
 
 from atomic_reactor import inner
 from atomic_reactor.tasks import common
@@ -28,6 +29,7 @@ class PluginBasedTask(common.Task):
     def execute(self):
         """Execute the plugins defined in plugins_def."""
         workflow = inner.DockerBuildWorkflow(
+            Path(self._params.build_dir),
             source=self._params.source,
             plugins=self.plugins_def,
             user_params=self._params.user_params,

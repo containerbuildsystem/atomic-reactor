@@ -12,7 +12,7 @@ from textwrap import dedent
 import pytest
 import os.path
 
-from atomic_reactor.inner import DockerBuildWorkflow, BuildResult
+from atomic_reactor.inner import BuildResult
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.post_tag_from_config import TagFromConfigPlugin
 from atomic_reactor.util import df_parser
@@ -44,14 +44,14 @@ class MockSource(object):
         return self.dockerfile_path, self.path
 
 
-def mock_workflow(tmpdir):
-    workflow = DockerBuildWorkflow(source=None)
-    mock_source = MockSource(tmpdir)
+@pytest.fixture
+def workflow(workflow, source_dir):
+    mock_source = MockSource(source_dir)
     flexmock(workflow, source=mock_source)
 
-    df = df_parser(str(tmpdir))
+    df = df_parser(str(source_dir))
     flexmock(workflow, df_path=df.dockerfile_path)
-    workflow.df_dir = str(tmpdir)
+    workflow.df_dir = str(source_dir)
 
     return workflow
 
@@ -61,8 +61,7 @@ def mock_workflow(tmpdir):
     ({}, "KeyError: 'Labels'"),
     (None, "RuntimeError: There is no inspect data"),
 ])
-def test_bad_inspect_data(tmpdir, inspect, error):
-    workflow = mock_workflow(tmpdir)
+def test_bad_inspect_data(workflow, inspect, error):
     if inspect is not None:
         workflow.built_image_inspect = {
             INSPECT_CONFIG: inspect
@@ -104,11 +103,10 @@ def test_bad_inspect_data(tmpdir, inspect, error):
      ['name_value:foo', 'name_value:bar', 'name_value:baz',
       'name_value:version_value']),
 ])
-def test_tag_parse(tmpdir, floating_tags, unique_tags, primary_tags, expected):
-    df = df_parser(str(tmpdir))
+def test_tag_parse(workflow, floating_tags, unique_tags, primary_tags, expected):
+    df = df_parser(workflow.source.path)
     df.content = DF_CONTENT_LABELS
 
-    workflow = mock_workflow(tmpdir)
     flexmock(workflow, df_path=df.dockerfile_path)
     workflow.build_result = BuildResult.make_remote_image_result()
 
@@ -155,8 +153,8 @@ def test_tag_parse(tmpdir, floating_tags, unique_tags, primary_tags, expected):
     ('custom/etcd', None, 'custom/etcd'),
     ('custom/etcd', 'org', 'org/custom-etcd'),
 ))
-def test_tags_enclosed(tmpdir, name, organization, expected):
-    df = df_parser(str(tmpdir))
+def test_tags_enclosed(workflow, name, organization, expected):
+    df = df_parser(workflow.source.path)
     df.content = dedent("""\
         FROM fedora
         LABEL "name"="{}"
@@ -164,7 +162,6 @@ def test_tags_enclosed(tmpdir, name, organization, expected):
         LABEL "release"="99"
     """.format(name))
 
-    workflow = mock_workflow(tmpdir)
     workflow.build_result = BuildResult.make_remote_image_result()
 
     if organization:
@@ -277,9 +274,8 @@ def test_tags_enclosed(tmpdir, name, organization, expected):
         ),
     ],
 )
-def test_tag_suffixes_from_user_params(user_params, is_orchestrator, expect_suffixes, tmpdir):
-    workflow = mock_workflow(tmpdir)
-    workflow.user_params = user_params
+def test_tag_suffixes_from_user_params(user_params, is_orchestrator, expect_suffixes, workflow):
+    workflow.user_params.update(user_params)
 
     plugin = TagFromConfigPlugin(workflow)
     flexmock(plugin).should_receive("is_in_orchestrator").and_return(is_orchestrator)

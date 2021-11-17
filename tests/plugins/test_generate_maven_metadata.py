@@ -6,7 +6,7 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 import json
-import os
+from pathlib import Path
 from textwrap import dedent
 
 import koji
@@ -16,7 +16,7 @@ import yaml
 from flexmock import flexmock
 
 from atomic_reactor.constants import (REPO_FETCH_ARTIFACTS_KOJI,
-                                      REPO_FETCH_ARTIFACTS_PNC)
+                                      REPO_FETCH_ARTIFACTS_PNC, DOCKERFILE_FILENAME)
 from atomic_reactor.constants import REPO_FETCH_ARTIFACTS_URL
 from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.post_generate_maven_metadata import GenerateMavenMetadataPlugin
@@ -281,10 +281,9 @@ DEFAULT_PNC_RESPONSES = {
 
 
 class MockSource(object):
-    def __init__(self, tmpdir):
-        tmpdir = str(tmpdir)
-        self.dockerfile_path = os.path.join(tmpdir, 'Dockerfile')
-        self.path = tmpdir
+    def __init__(self, source_dir: Path):
+        self.dockerfile_path = str(source_dir / DOCKERFILE_FILENAME)
+        self.path = str(source_dir)
 
     def get_build_file_path(self):
         return self.dockerfile_path, self.path
@@ -302,7 +301,7 @@ class MockedPathInfo(object):
         return '{group_id}/{artifact_id}/{version}/{filename}'.format(**maveninfo)
 
 
-def mock_env(tmpdir):
+def mock_env(workflow, source_dir: Path):
     r_c_m = {'version': 1,
              'koji': {
                  'hub_url': KOJI_HUB,
@@ -310,12 +309,12 @@ def mock_env(tmpdir):
                  'auth': {}
              }}
 
-    env = (MockEnv()
+    env = (MockEnv(workflow)
            .for_plugin('postbuild', GenerateMavenMetadataPlugin.key)
            .make_orchestrator()
            .set_reactor_config(r_c_m))
 
-    env.workflow.source = MockSource(tmpdir)
+    env.workflow.source = MockSource(source_dir)
 
     return env
 
@@ -357,13 +356,13 @@ def mock_koji_session(koji_proxyuser=None, koji_ssl_certs_dir=None,
     return session
 
 
-def mock_fetch_artifacts_by_nvr(tmpdir, contents=None):
+def mock_fetch_artifacts_by_nvr(source_dir: Path, contents=None):
     if contents is None:
         contents = dedent("""\
             - nvr: com.sun.xml.bind.mvn-jaxb-parent-2.2.11.4-1
             """)
 
-    tmpdir.join(REPO_FETCH_ARTIFACTS_KOJI).write_text(contents, 'utf-8')
+    source_dir.joinpath(REPO_FETCH_ARTIFACTS_KOJI).write_text(contents, 'utf-8')
 
 
 def mock_nvr_downloads(build_info=None, archives=None, overrides=None):
@@ -407,20 +406,17 @@ def mock_pnc_downloads(contents=None, pnc_responses=None, overrides=None):
                           status=status)
 
 
-def mock_fetch_artifacts_from_pnc(tmpdir, contents=None):
+def mock_fetch_artifacts_from_pnc(source_dir: Path, contents=None):
     if contents is None:
         contents = yaml.safe_dump(DEFAULT_PNC_ARTIFACTS)
-
-    with open(os.path.join(tmpdir, REPO_FETCH_ARTIFACTS_PNC), 'w') as f:
-        f.write(contents)
-        f.flush()
+    source_dir.joinpath(REPO_FETCH_ARTIFACTS_PNC).write_text(contents, "utf-8")
 
 
-def mock_fetch_artifacts_by_url(tmpdir, contents=None):
+def mock_fetch_artifacts_by_url(source_dir: Path, contents=None):
     if not contents:
         contents = yaml.safe_dump(DEFAULT_REMOTE_FILES)
 
-    tmpdir.join(REPO_FETCH_ARTIFACTS_URL).write_text(contents, 'utf-8')
+    source_dir.joinpath(REPO_FETCH_ARTIFACTS_URL).write_text(contents, 'utf-8')
 
 
 def mock_url_downloads(remote_files=None, overrides=None):
@@ -445,16 +441,16 @@ def mock_url_downloads(remote_files=None, overrides=None):
 
 
 @responses.activate
-def test_generate_maven_metadata(tmpdir, user_params):
+def test_generate_maven_metadata(workflow, source_dir):
     mock_koji_session()
-    mock_fetch_artifacts_by_nvr(tmpdir)
+    mock_fetch_artifacts_by_nvr(source_dir)
     mock_nvr_downloads()
-    mock_fetch_artifacts_from_pnc(tmpdir)
+    mock_fetch_artifacts_from_pnc(source_dir)
     mock_pnc_downloads()
-    mock_fetch_artifacts_by_url(tmpdir)
+    mock_fetch_artifacts_by_url(source_dir)
     mock_url_downloads()
 
-    results = mock_env(tmpdir).create_runner().run()
+    results = mock_env(workflow, source_dir).create_runner().run()
 
     plugin_result = results[GenerateMavenMetadataPlugin.key]
 
@@ -483,9 +479,9 @@ def test_generate_maven_metadata(tmpdir, user_params):
     assert expected_build_ids == found_build_ids
 
     for remote_source_file in remote_source_files:
-        dest = os.path.join(str(tmpdir), GenerateMavenMetadataPlugin.DOWNLOAD_DIR,
-                            remote_source_file['file'])
-        assert os.path.exists(dest)
+        assert source_dir.joinpath(
+            GenerateMavenMetadataPlugin.DOWNLOAD_DIR, remote_source_file['file']
+        ).exists()
 
 
 @pytest.mark.parametrize('contents', (  # noqa
@@ -495,33 +491,35 @@ def test_generate_maven_metadata(tmpdir, user_params):
         """),
 ))
 @responses.activate
-def test_generate_maven_metadata_no_source_url(tmpdir, caplog, user_params, contents):
+def test_generate_maven_metadata_no_source_url(
+    workflow, source_dir, caplog, contents
+):
     """Throw deprecation warning when no source-url is provided"""
     mock_koji_session()
-    mock_fetch_artifacts_by_url(tmpdir, contents=contents)
+    mock_fetch_artifacts_by_url(source_dir, contents=contents)
     mock_url_downloads()
 
-    mock_env(tmpdir).create_runner().run()
+    mock_env(workflow, source_dir).create_runner().run()
 
     msg = 'fetch-artifacts-url without source-url is deprecated'
     assert msg in caplog.text
 
 
 @responses.activate
-def test_generate_maven_metadata_url_bad_checksum(tmpdir, user_params):
+def test_generate_maven_metadata_url_bad_checksum(workflow, source_dir):
     """Err when downloaded archive from URL has unexpected checksum."""
     mock_koji_session()
-    mock_fetch_artifacts_by_url(tmpdir)
+    mock_fetch_artifacts_by_url(source_dir)
     mock_url_downloads(overrides={REMOTE_FILE_SPAM['source-url']: {'body': 'corrupted-file'}})
 
     with pytest.raises(PluginFailedException) as e:
-        mock_env(tmpdir).create_runner().run()
+        mock_env(workflow, source_dir).create_runner().run()
 
     assert 'does not match expected checksum' in str(e.value)
 
 
 @responses.activate
-def test_generate_maven_metadata_source_url_no_headers(tmpdir, user_params):
+def test_generate_maven_metadata_source_url_no_headers(workflow, source_dir):
     """
     Err if headers are not present.
     """
@@ -530,18 +528,18 @@ def test_generate_maven_metadata_source_url_no_headers(tmpdir, user_params):
                    'source-url': FILER_ROOT + '/eggs/eggs-sources.tar;a=snapshot;sf=tgz',
                    'md5': 'b1605c846e03035a6538873e993847e5',
                    'source-md5': '927c5b0c62a57921978de1a0421247ea'}
-    mock_fetch_artifacts_by_url(tmpdir, contents=yaml.safe_dump([remote_file]))
+    mock_fetch_artifacts_by_url(source_dir, contents=yaml.safe_dump([remote_file]))
     mock_url_downloads(remote_files=[remote_file],
                        overrides={remote_file['source-url']: {'head': True}})
 
     with pytest.raises(PluginFailedException) as e:
-        mock_env(tmpdir).create_runner().run()
+        mock_env(workflow, source_dir).create_runner().run()
 
     assert 'AttributeError' in str(e.value)
 
 
 @responses.activate
-def test_generate_maven_metadata_source_url_no_filename_in_headers(tmpdir, user_params):
+def test_generate_maven_metadata_source_url_no_filename_in_headers(workflow, source_dir):
     """
     Err if filename not present in content-disposition.
     """
@@ -550,13 +548,13 @@ def test_generate_maven_metadata_source_url_no_filename_in_headers(tmpdir, user_
                    'source-url': FILER_ROOT + '/eggs/eggs-sources.tar;a=snapshot;sf=tgz',
                    'md5': 'b1605c846e03035a6538873e993847e5',
                    'source-md5': '418ddd911e816c41483ef82f7c93c2e3'}
-    mock_fetch_artifacts_by_url(tmpdir, contents=yaml.safe_dump([remote_file]))
+    mock_fetch_artifacts_by_url(source_dir, contents=yaml.safe_dump([remote_file]))
     mock_url_downloads(remote_files=[remote_file],
                        overrides={remote_file['source-url']:
                                   {'headers': {'Content-disposition': 'no filename'},
                                    'head': True}})
 
     with pytest.raises(PluginFailedException) as e:
-        mock_env(tmpdir).create_runner().run()
+        mock_env(workflow, source_dir).create_runner().run()
 
     assert 'IndexError' in str(e.value)

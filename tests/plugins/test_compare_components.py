@@ -12,7 +12,6 @@ import json
 
 from atomic_reactor.constants import (PLUGIN_FETCH_WORKER_METADATA_KEY,
                                       PLUGIN_COMPARE_COMPONENTS_KEY)
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.post_compare_components import (
     filter_components_by_name
@@ -24,11 +23,9 @@ from tests.constants import FILES
 import pytest
 
 
-def mock_workflow(tmpdir):
-    workflow = DockerBuildWorkflow(source=None)
+def mock_workflow(workflow):
     setattr(workflow, 'postbuild_result', {})
     workflow.dockerfile_images = DockerfileImages(['fedora:25'])
-    return workflow
 
 
 def mock_metadatas():
@@ -76,9 +73,9 @@ def test_filter_components_by_name():
     (False, True, False),
     (True, True, False),
 ))
-def test_compare_components_plugin(tmpdir, caplog, user_params,
+def test_compare_components_plugin(workflow, caplog,
                                    base_from_scratch, mismatch, exception, fail):
-    workflow = mock_workflow(tmpdir)
+    mock_workflow(workflow)
     worker_metadatas = mock_metadatas()
 
     # example data has 2 log items before component item hence output[2]
@@ -110,8 +107,8 @@ def test_compare_components_plugin(tmpdir, caplog, user_params,
             assert log_msg in caplog.text
 
 
-def test_no_components(tmpdir, user_params):
-    workflow = mock_workflow(tmpdir)
+def test_no_components(workflow):
+    mock_workflow(workflow)
     worker_metadatas = mock_metadatas()
 
     # example data has 2 log items before component item hence output[2]
@@ -132,8 +129,8 @@ def test_no_components(tmpdir, user_params):
         runner.run()
 
 
-def test_bad_component_type(tmpdir, user_params):
-    workflow = mock_workflow(tmpdir)
+def test_bad_component_type(workflow):
+    mock_workflow(workflow)
     worker_metadatas = mock_metadatas()
 
     # example data has 2 log items before component item hence output[2]
@@ -154,9 +151,9 @@ def test_bad_component_type(tmpdir, user_params):
 
 
 @pytest.mark.parametrize('mismatch', (True, False))
-def test_mismatch_reporting(tmpdir, caplog, user_params, mismatch):
+def test_mismatch_reporting(workflow, caplog, mismatch):
     """Test if expected log entries are reported when components mismatch"""
-    workflow = mock_workflow(tmpdir)
+    mock_workflow(workflow)
     worker_metadatas = mock_metadatas()
 
     component_name = "openssl"
@@ -210,8 +207,8 @@ def test_mismatch_reporting(tmpdir, caplog, user_params, mismatch):
             assert entry not in caplog.text
 
 
-def test_skip_plugin(tmpdir, caplog, user_params):
-    workflow = mock_workflow(tmpdir)
+def test_skip_plugin(workflow, caplog):
+    mock_workflow(workflow)
     workflow.user_params['scratch'] = True
 
     runner = PostBuildPluginsRunner(

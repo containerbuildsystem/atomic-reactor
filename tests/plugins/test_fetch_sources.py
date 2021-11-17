@@ -8,6 +8,8 @@ of the BSD license. See the LICENSE file for details.
 
 import io
 import os
+from pathlib import Path
+
 import yaml
 from textwrap import dedent
 from copy import deepcopy
@@ -25,7 +27,6 @@ from atomic_reactor.constants import (PNC_SYSTEM_USER, REMOTE_SOURCE_TARBALL_FIL
 from flexmock import flexmock
 
 from atomic_reactor import constants
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_fetch_sources import FetchSourcesPlugin
 from atomic_reactor.util import get_checksums
@@ -126,7 +127,7 @@ BASE_CONFIG_MAP = dedent("""\
                PNC_GET_ARTIFACT_PATH))
 
 
-def mock_reactor_config(workflow, tmpdir, data=None, default_si=DEFAULT_SIGNING_INTENT):
+def mock_reactor_config(workflow, source_dir: Path, data=None, default_si=DEFAULT_SIGNING_INTENT):
     if data is None:
         data = dedent("""\
             version: 1
@@ -156,30 +157,32 @@ def mock_reactor_config(workflow, tmpdir, data=None, default_si=DEFAULT_SIGNING_
                auth:
                    ssl_certs_dir: {}
             """.format(KOJI_HUB, KOJI_ROOT, PNC_BASE_API_URL, PNC_GET_SCM_ARCHIVE_PATH,
-                       PNC_GET_ARTIFACT_PATH, default_si, tmpdir))
+                       PNC_GET_ARTIFACT_PATH, default_si, source_dir))
 
     config = {}
     if data:
-        tmpdir.join('cert').write('')
+        source_dir.joinpath("cert").touch()
         config = yaml.safe_load(data)
 
     workflow.conf.conf = config
 
 
-def mock_workflow(tmpdir, for_orchestrator=False, config_map=None,
+def mock_workflow(workflow, source_dir: Path,
+                  for_orchestrator=False, config_map=None,
                   default_si=DEFAULT_SIGNING_INTENT):
-    workflow = DockerBuildWorkflow()
-
     if for_orchestrator:
         workflow.buildstep_plugins_conf = [{'name': constants.PLUGIN_BUILD_ORCHESTRATE_KEY}]
 
-    mock_reactor_config(workflow, tmpdir, data=config_map, default_si=default_si)
+    mock_reactor_config(workflow, source_dir, data=config_map, default_si=default_si)
     return workflow
 
 
-def mock_env(tmpdir, scratch=False, orchestrator=False, koji_build_id=None,
+def mock_env(workflow, source_dir: Path, scratch=False, orchestrator=False, koji_build_id=None,
              koji_build_nvr=None, config_map=None, default_si=DEFAULT_SIGNING_INTENT):
-    workflow = mock_workflow(tmpdir, for_orchestrator=orchestrator, config_map=config_map,
+    workflow = mock_workflow(workflow,
+                             source_dir,
+                             for_orchestrator=orchestrator,
+                             config_map=config_map,
                              default_si=default_si)
     plugin_conf = [{'name': FetchSourcesPlugin.key}]
     plugin_conf[0]['args'] = {
@@ -187,7 +190,7 @@ def mock_env(tmpdir, scratch=False, orchestrator=False, koji_build_id=None,
         'koji_build_nvr': koji_build_nvr
     }
 
-    flexmock(atomic_reactor.source.GitSource, get=str(tmpdir))
+    flexmock(atomic_reactor.source.GitSource, get=str(source_dir))
     runner = PreBuildPluginsRunner(workflow, plugin_conf)
     return runner
 
@@ -349,7 +352,8 @@ def get_remote_file_url(koji_build, file_name=REMOTE_SOURCE_FILE_FILENAME):
     return '{}/files/remote-source-file/{}'.format(base, file_name)
 
 
-def mock_koji_manifest_download(tmpdir, requests_mock, retries=0, dirs_in_remote=('app', 'deps'),
+def mock_koji_manifest_download(source_dir: Path, requests_mock,
+                                retries=0, dirs_in_remote=('app', 'deps'),
                                 files_in_remote=(), cachito_package_names=None,
                                 change_package_names=True):
     class MockBytesIO(io.BytesIO):
@@ -383,30 +387,30 @@ def mock_koji_manifest_download(tmpdir, requests_mock, retries=0, dirs_in_remote
         return f
 
     if 'app' not in dirs_in_remote:
-        os.mkdir(os.path.join(str(tmpdir), 'app'))
+        source_dir.joinpath("app").mkdir()
     if 'deps' not in dirs_in_remote:
-        os.mkdir(os.path.join(str(tmpdir), 'deps'))
+        source_dir.joinpath("deps").mkdir()
 
     for dir_name in dirs_in_remote:
-        os.mkdir(os.path.join(str(tmpdir), dir_name))
+        source_dir.joinpath(dir_name).mkdir()
 
     for file_name in files_in_remote:
-        open(os.path.join(str(tmpdir), file_name), 'w').close()
+        source_dir.joinpath(file_name).touch()
 
-    with tarfile.open(os.path.join(str(tmpdir), 'test.tar.gz'), "w:gz") as tar:
-        tar.add(os.path.join(str(tmpdir), 'app'), arcname='app')
-        tar.add(os.path.join(str(tmpdir), 'deps'), arcname='deps')
+    with tarfile.open(source_dir / 'test.tar.gz', "w:gz") as tar:
+        tar.add(str(source_dir / 'app'), arcname='app')
+        tar.add(str(source_dir / 'deps'), arcname='deps')
 
-    shutil.rmtree(os.path.join(str(tmpdir), 'app'))
-    shutil.rmtree(os.path.join(str(tmpdir), 'deps'))
+    shutil.rmtree(str(source_dir / 'app'))
+    shutil.rmtree(str(source_dir / 'deps'))
 
-    targz_bytes = open(os.path.join(str(tmpdir), 'test.tar.gz'), 'rb').read()
-    targz_checksum = get_checksums(os.path.join(str(tmpdir), 'test.tar.gz'),
-                                   ['md5']).get('md5sum')
+    test_tar = source_dir.joinpath("test.tar.gz")
+    targz_bytes = test_tar.read_bytes()
+    targz_checksum = get_checksums(str(test_tar), ['md5']).get('md5sum')
     KOJIFILE_MEAD_SOURCE_ARCHIVE['checksum'] = targz_checksum
     REMOTE_SOURCE_FILE_ARCHIVE['checksum'] = targz_checksum
 
-    os.unlink(os.path.join(str(tmpdir), 'test.tar.gz'))
+    test_tar.unlink()
 
     def body_remote_json_callback(request, context):
         remote_json = {'packages': []}
@@ -467,10 +471,13 @@ class TestFetchSources(object):
     @pytest.mark.parametrize('retries', (0, 1, constants.HTTP_MAX_RETRIES + 1))
     @pytest.mark.parametrize('custom_rcm', (None, BASE_CONFIG_MAP))
     @pytest.mark.parametrize('signing_intent', ('unsigned', 'empty', 'one', 'multiple', 'invalid'))
-    def test_fetch_sources_remote_source(self, requests_mock, koji_session, tmpdir,
+    def test_fetch_sources_remote_source(self, requests_mock, koji_session, source_dir, workflow,
                                          signing_intent, caplog, retries, custom_rcm):
-        mock_koji_manifest_download(tmpdir, requests_mock, retries)
-        runner = mock_env(tmpdir, koji_build_id=1, config_map=custom_rcm,
+        mock_koji_manifest_download(source_dir, requests_mock, retries)
+        runner = mock_env(workflow,
+                          source_dir,
+                          koji_build_id=1,
+                          config_map=custom_rcm,
                           default_si=signing_intent)
         if signing_intent == 'invalid' and not custom_rcm:
             with pytest.raises(PluginFailedException) as exc:
@@ -525,8 +532,9 @@ class TestFetchSources(object):
 
     @pytest.mark.parametrize('typeinfo_rs', (RS_TYPEINFO, RS_TYPEINFO_NO_JSON, RS_TYPEINFO_NO_2))
     @pytest.mark.parametrize('archives_in_koji', (4, 3, 5))
-    def test_fetch_sources_multiple_remote_sources(self, requests_mock, koji_session,
-                                                   tmpdir, caplog, typeinfo_rs, archives_in_koji):
+    def test_fetch_sources_multiple_remote_sources(self, typeinfo_rs, archives_in_koji,
+                                                   workflow, source_dir, caplog,
+                                                   requests_mock, koji_session):
 
         set_multiple_remote_sources_in_koji_build(koji_session, typeinfo=typeinfo_rs)
         missing_archive = None
@@ -554,8 +562,8 @@ class TestFetchSources(object):
          .with_args(object, type='remote-sources')
          .and_return(list_archives))
 
-        mock_koji_manifest_download(tmpdir, requests_mock)
-        runner = mock_env(tmpdir, koji_build_id=1, config_map=BASE_CONFIG_MAP)
+        mock_koji_manifest_download(source_dir, requests_mock)
+        runner = mock_env(workflow, source_dir, koji_build_id=1, config_map=BASE_CONFIG_MAP)
 
         exc_message = ""
         caplog_message = ""
@@ -623,8 +631,9 @@ class TestFetchSources(object):
             assert runner.workflow.labels['sources_for_koji_build_id'] == 1
 
     @pytest.mark.parametrize('signing_intent', ('unsigned', 'empty', 'one', 'multiple', 'invalid'))
-    def test_koji_signing_intent(self, requests_mock, koji_session, tmpdir,
-                                 signing_intent, caplog):
+    def test_koji_signing_intent(self, signing_intent,
+                                 requests_mock, koji_session,
+                                 workflow, source_dir, caplog):
         """Make sure fetch_sources plugin prefers the koji image build signing intent"""
         image_signing_intent = 'unsigned'
         extra_image = {'odcs': {'signing_intent': image_signing_intent}}
@@ -636,8 +645,8 @@ class TestFetchSources(object):
          .with_args(imageID=3, type='maven')
          .and_return([]))
 
-        mock_koji_manifest_download(tmpdir, requests_mock)
-        runner = mock_env(tmpdir, koji_build_id=1, default_si=signing_intent)
+        mock_koji_manifest_download(source_dir, requests_mock)
+        runner = mock_env(workflow, source_dir, koji_build_id=1, default_si=signing_intent)
         result = runner.run()
         sources_dir = result[constants.PLUGIN_FETCH_SOURCES_KEY]['image_sources_dir']
         sources_list = os.listdir(sources_dir)
@@ -653,19 +662,19 @@ class TestFetchSources(object):
             assert get_srpm_url('usedKey') not in caplog.text
         assert result[constants.PLUGIN_FETCH_SOURCES_KEY]['signing_intent'] == image_signing_intent
 
-    def test_no_build_info(self, requests_mock, koji_session, tmpdir):
-        mock_koji_manifest_download(tmpdir, requests_mock)
-        runner = mock_env(tmpdir)
+    def test_no_build_info(self, requests_mock, koji_session, workflow, source_dir):
+        mock_koji_manifest_download(source_dir, requests_mock)
+        runner = mock_env(workflow, source_dir)
         with pytest.raises(PluginFailedException) as exc:
             runner.run()
         msg = 'FetchSourcesPlugin expects either koji_build_id or koji_build_nvr to be defined'
         assert msg in str(exc.value)
 
     @pytest.mark.parametrize('build_id, build_nvr', (('1', None), (None, 1), ('1', 1)))
-    def test_build_info_with_wrong_type(self, requests_mock, koji_session, tmpdir,
+    def test_build_info_with_wrong_type(self, requests_mock, koji_session, workflow, source_dir,
                                         build_id, build_nvr):
-        mock_koji_manifest_download(tmpdir, requests_mock)
-        runner = mock_env(tmpdir, koji_build_id=build_id, koji_build_nvr=build_nvr)
+        mock_koji_manifest_download(source_dir, requests_mock)
+        runner = mock_env(workflow, source_dir, koji_build_id=build_id, koji_build_nvr=build_nvr)
         with pytest.raises(PluginFailedException) as exc:
             runner.run()
         id_msg = 'koji_build_id must be an int'
@@ -676,35 +685,35 @@ class TestFetchSources(object):
             assert nvr_msg in str(exc.value)
 
     @pytest.mark.parametrize('build_nvr', ('foobar-1-1', u'foobar-1-1'))
-    def test_build_info_with_unicode(self, requests_mock, koji_session, tmpdir,
+    def test_build_info_with_unicode(self, requests_mock, koji_session, workflow, source_dir,
                                      caplog, build_nvr):
-        mock_koji_manifest_download(tmpdir, requests_mock)
-        runner = mock_env(tmpdir, koji_build_nvr=build_nvr)
+        mock_koji_manifest_download(source_dir, requests_mock)
+        runner = mock_env(workflow, source_dir, koji_build_nvr=build_nvr)
         runner.run()
         nvr_msg = 'koji_build_nvr must be a str'
         assert nvr_msg not in caplog.text
 
-    def test_build_with_nvr(self, requests_mock, koji_session, tmpdir):
-        mock_koji_manifest_download(tmpdir, requests_mock)
-        runner = mock_env(tmpdir, koji_build_nvr='foobar-1-1')
+    def test_build_with_nvr(self, requests_mock, koji_session, workflow, source_dir):
+        mock_koji_manifest_download(source_dir, requests_mock)
+        runner = mock_env(workflow, source_dir, koji_build_nvr='foobar-1-1')
         result = runner.run()
         sources_dir = result[constants.PLUGIN_FETCH_SOURCES_KEY]['image_sources_dir']
         sources_list = os.listdir(sources_dir)
         assert len(sources_list) == 1
         assert os.path.basename(sources_list[0]) == '.'.join([KOJI_BUILD_RS['nvr'], 'src', 'rpm'])
 
-    def test_id_and_nvr(self, requests_mock, koji_session, tmpdir):
-        mock_koji_manifest_download(tmpdir, requests_mock)
-        runner = mock_env(tmpdir, koji_build_nvr='foobar-1-1', koji_build_id=1)
+    def test_id_and_nvr(self, requests_mock, koji_session, workflow, source_dir):
+        mock_koji_manifest_download(source_dir, requests_mock)
+        runner = mock_env(workflow, source_dir, koji_build_nvr='foobar-1-1', koji_build_id=1)
         result = runner.run()
         sources_dir = result[constants.PLUGIN_FETCH_SOURCES_KEY]['image_sources_dir']
         sources_list = os.listdir(sources_dir)
         assert len(sources_list) == 1
         assert os.path.basename(sources_list[0]) == '.'.join([KOJI_BUILD_RS['nvr'], 'src', 'rpm'])
 
-    def test_id_and_nvr_mismatch(self, requests_mock, koji_session, tmpdir):
-        mock_koji_manifest_download(tmpdir, requests_mock)
-        runner = mock_env(tmpdir, koji_build_nvr='foobar-1-1', koji_build_id=2)
+    def test_id_and_nvr_mismatch(self, requests_mock, koji_session, workflow, source_dir):
+        mock_koji_manifest_download(source_dir, requests_mock)
+        runner = mock_env(workflow, source_dir, koji_build_nvr='foobar-1-1', koji_build_id=2)
         with pytest.raises(PluginFailedException) as exc:
             runner.run()
         msg = 'When specifying both an id and an nvr, they should point to the same image build'
@@ -715,10 +724,10 @@ class TestFetchSources(object):
         (['module', 'operator-manifests'], 'foobar-1-1', False),
         (['image', 'operator-manifests'], 'foobar-source-1-1', True),
     ])
-    def test_invalid_source_build(self, requests_mock, koji_session, tmpdir,
+    def test_invalid_source_build(self, requests_mock, koji_session, workflow, source_dir,
                                   build_type, koji_build_nvr, source_build):
-        mock_koji_manifest_download(tmpdir, requests_mock)
-        runner = mock_env(tmpdir, koji_build_nvr=koji_build_nvr, koji_build_id=1)
+        mock_koji_manifest_download(source_dir, requests_mock)
+        runner = mock_env(workflow, source_dir, koji_build_nvr=koji_build_nvr, koji_build_id=1)
 
         typeinfo_dict = {b_type: {} for b_type in build_type}
         name, version, release = koji_build_nvr.rsplit('-', 2)
@@ -741,22 +750,24 @@ class TestFetchSources(object):
 
         assert msg in str(exc.value)
 
-    def test_no_source_archive_for_mead_build(self, requests_mock, koji_session, tmpdir):
-        mock_koji_manifest_download(tmpdir, requests_mock)
+    def test_no_source_archive_for_mead_build(
+        self, requests_mock, koji_session, workflow, source_dir
+    ):
+        mock_koji_manifest_download(source_dir, requests_mock)
         (flexmock(koji_session)
          .should_receive('listArchives')
          .with_args(buildID=26, type='maven')
          .and_return([]))
 
         with pytest.raises(PluginFailedException) as exc:
-            mock_env(tmpdir, koji_build_id=KOJI_MEAD_BUILD['build_id']).run()
+            mock_env(workflow, source_dir, koji_build_id=KOJI_MEAD_BUILD['build_id']).run()
 
         msg = f"No sources found for {KOJI_MEAD_BUILD['nvr']}"
 
         assert msg in str(exc.value)
 
-    def test_no_pnc_config_for_pnc_build(self, requests_mock, koji_session, tmpdir):
-        mock_koji_manifest_download(tmpdir, requests_mock)
+    def test_no_pnc_config_for_pnc_build(self, requests_mock, koji_session, workflow, source_dir):
+        mock_koji_manifest_download(source_dir, requests_mock)
 
         r_c_m = dedent("""\
             version: 1
@@ -768,8 +779,11 @@ class TestFetchSources(object):
             """.format(KOJI_HUB, KOJI_ROOT))
 
         with pytest.raises(PluginFailedException) as exc:
-            mock_env(tmpdir, koji_build_id=KOJI_PNC_BUILD['build_id'],
-                     config_map=r_c_m).run()
+            env = mock_env(workflow,
+                           source_dir,
+                           koji_build_id=KOJI_PNC_BUILD['build_id'],
+                           config_map=r_c_m)
+            env.run()
 
         msg = 'No PNC configuration found in reactor config map'
 
@@ -781,8 +795,9 @@ class TestFetchSources(object):
         'baz-2-3.src.rpm',
         'lib-foobar-1-1.src.rpm'
     ])
-    def test_rpm_name_different_from_srpm_name(self, requests_mock, koji_session,
-                                               tmpdir, caplog, srpm_filename, signing_key):
+    def test_rpm_name_different_from_srpm_name(
+        self, signing_key, srpm_filename, requests_mock, koji_session, workflow, source_dir, caplog
+    ):
         set_no_remote_source_in_koji_build(koji_session)
         (flexmock(koji_session)
             .should_receive('getRPMHeaders')
@@ -812,7 +827,10 @@ class TestFetchSources(object):
         requests_mock.register_uri('GET', srpm_url)
 
         signing_intent = 'one' if signing_key is not None else 'empty'
-        runner = mock_env(tmpdir, koji_build_nvr='foobar-1-1', default_si=signing_intent)
+        runner = mock_env(workflow,
+                          source_dir,
+                          koji_build_nvr='foobar-1-1',
+                          default_si=signing_intent)
         runner.run()
 
         assert srpm_url in caplog.text
@@ -844,7 +862,7 @@ class TestFetchSources(object):
          {'denylist_exists': 'does not matter'},
          'Denylist key: denylist_wrong missing in denylist json from : http://denylist_url')
     ])
-    def test_denylist_srpms(self, requests_mock, koji_session, tmpdir,
+    def test_denylist_srpms(self, requests_mock, koji_session, workflow, source_dir,
                             caplog, deny_list, denylist_json, exc_str):
         rcm_json = yaml.safe_load(BASE_CONFIG_MAP)
         rcm_json['source_container'] = {}
@@ -861,9 +879,11 @@ class TestFetchSources(object):
             requests_mock.register_uri('GET', deny_list['denylist_url'],
                                        json=denylist_json, status_code=200)
 
-        mock_koji_manifest_download(tmpdir, requests_mock)
+        mock_koji_manifest_download(source_dir, requests_mock)
         koji_build_nvr = 'foobar-1-1'
-        runner = mock_env(tmpdir, koji_build_nvr=koji_build_nvr,
+        runner = mock_env(workflow,
+                          source_dir,
+                          koji_build_nvr=koji_build_nvr,
                           config_map=yaml.safe_dump(rcm_json))
         if exc_str:
             with pytest.raises(PluginFailedException) as exc:
@@ -885,15 +905,15 @@ class TestFetchSources(object):
             assert 'denylisted srpms: ' in caplog.text
 
     @pytest.mark.parametrize('use_cache', [True, False, None])
-    def test_lookaside_cache(self, requests_mock, koji_session, tmpdir, use_cache):
-        mock_koji_manifest_download(tmpdir, requests_mock)
+    def test_lookaside_cache(self, requests_mock, koji_session, workflow, source_dir, use_cache):
+        mock_koji_manifest_download(source_dir, requests_mock)
         koji_build_nvr = 'foobar-1-1'
-        runner = mock_env(tmpdir, koji_build_nvr=koji_build_nvr)
+        runner = mock_env(workflow, source_dir, koji_build_nvr=koji_build_nvr)
 
         if use_cache:
-            tmpdir.join('sources').write('#ref file.tar.gz')
+            source_dir.joinpath("sources").write_text("#ref file.tar.gz", "utf-8")
         elif use_cache is None:
-            tmpdir.join('sources').write('')
+            source_dir.joinpath("sources").touch()
 
         err_msg = 'Repository is using lookaside cache, which is not allowed ' \
                   'for source container builds'
@@ -907,7 +927,7 @@ class TestFetchSources(object):
             runner.run()
 
     @pytest.mark.parametrize('reason', ['external', 'other'])
-    def test_missing_srpm_header(self, koji_session, tmpdir, reason):
+    def test_missing_srpm_header(self, koji_session, workflow, source_dir, reason):
         (flexmock(koji_session)
             .should_receive('listArchives')
             .with_args(object, type='image')
@@ -926,7 +946,7 @@ class TestFetchSources(object):
             .should_receive('getRPMHeaders')
             .and_return({}))
 
-        runner = mock_env(tmpdir, koji_build_nvr='foobar-1-1')
+        runner = mock_env(workflow, source_dir, koji_build_nvr='foobar-1-1')
         with pytest.raises(PluginFailedException) as exc_info:
             runner.run()
 
@@ -935,7 +955,7 @@ class TestFetchSources(object):
         else:
             assert 'Missing SOURCERPM header' in str(exc_info.value)
 
-    def test_no_srpms_and_remote_sources(self, koji_session, tmpdir):
+    def test_no_srpms_and_remote_sources(self, koji_session, workflow, source_dir):
         set_no_remote_source_in_koji_build(koji_session)
         (flexmock(koji_session)
             .should_receive('listArchives')
@@ -964,7 +984,7 @@ class TestFetchSources(object):
          .with_args(KOJI_BUILD_WO_RS['nvr'], strict=True)
          .and_return(koji_temp_build))
 
-        runner = mock_env(tmpdir, koji_build_nvr='foobar-1-1')
+        runner = mock_env(workflow, source_dir, koji_build_nvr='foobar-1-1')
         with pytest.raises(PluginFailedException) as exc_info:
             runner.run()
 
@@ -1076,7 +1096,7 @@ class TestFetchSources(object):
         (1, 0, 'remote source json missing'),
         (2, 1, 'There can be just one remote sources archive'),
     ])
-    def test_exclude_closed_sources(self, requests_mock, koji_session, tmpdir,
+    def test_exclude_closed_sources(self, requests_mock, koji_session, workflow, source_dir,
                                     caplog, excludelist, excludelist_json, cachito_pkg_names,
                                     exclude_messages, exc_str, vendor_exists, source_archives,
                                     source_json, raise_early):
@@ -1141,11 +1161,13 @@ class TestFetchSources(object):
             requests_mock.register_uri('GET', excludelist['denylist_sources'],
                                        json=excludelist_json, status_code=200)
 
-        mock_koji_manifest_download(tmpdir, requests_mock, dirs_in_remote=dirs_to_create,
+        mock_koji_manifest_download(source_dir,
+                                    requests_mock,
+                                    dirs_in_remote=dirs_to_create,
                                     files_in_remote=files_to_create,
                                     cachito_package_names=cachito_pkg_names,
                                     change_package_names=False)
-        runner = mock_env(tmpdir, koji_build_id=1,
+        runner = mock_env(workflow, source_dir, koji_build_id=1,
                           config_map=yaml.safe_dump(rcm_json))
 
         if raise_early:

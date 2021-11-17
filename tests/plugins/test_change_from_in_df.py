@@ -9,7 +9,6 @@ of the BSD license. See the LICENSE file for details.
 import pytest
 from flexmock import flexmock
 
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_change_from_in_df import ChangeFromPlugin
 from atomic_reactor.util import df_parser, DockerfileImages
@@ -21,7 +20,7 @@ from textwrap import dedent
 pytestmark = pytest.mark.usefixtures('user_params')
 
 
-def mock_workflow(df_path=None, df_images=None):
+def mock_workflow(workflow, df_path=None, df_images=None):
     """
     Provide just enough structure that workflow can be used to run the plugin.
     Defaults below are solely to enable that purpose; tests where those values
@@ -29,7 +28,6 @@ def mock_workflow(df_path=None, df_images=None):
     """
     if df_images is None:
         df_images = []
-    workflow = DockerBuildWorkflow(source=None)
     workflow.source = StubSource()
     flexmock(workflow, df_path=df_path)
     if df_images:
@@ -57,7 +55,7 @@ def run_plugin(workflow):
     "base:image",
     "different_registry.com/base:image",
 ])
-def test_update_base_image(tmpdir, base_image):
+def test_update_base_image(tmpdir, workflow, base_image):
     df_content = dedent("""\
         FROM {}
         LABEL horses=coconuts
@@ -68,7 +66,9 @@ def test_update_base_image(tmpdir, base_image):
     base_str = "base@sha256:1234"
     local_tag = ImageName.parse("base@sha256:1234")
 
-    workflow = mock_workflow(df_path=dfp.dockerfile_path, df_images=dfp.parent_images)
+    workflow = mock_workflow(workflow,
+                             df_path=dfp.dockerfile_path,
+                             df_images=dfp.parent_images)
     workflow.dockerfile_images[base_image] = local_tag
     (flexmock(imageutil)
      .should_receive('get_inspect_for_image')
@@ -80,14 +80,16 @@ def test_update_base_image(tmpdir, base_image):
     assert dfp.content == expected_df
 
 
-def test_update_base_image_inspect_broken(tmpdir, caplog):
+def test_update_base_image_inspect_broken(tmpdir, workflow, caplog):
     """exercise code branch where the base image inspect comes back without an Id"""
     df_content = "FROM base:image"
     dfp = df_parser(str(tmpdir))
     dfp.content = df_content
     image_str = "base@sha256:1234"
     local_tag = ImageName.parse(image_str)
-    workflow = mock_workflow(df_path=dfp.dockerfile_path, df_images=dfp.parent_images)
+    workflow = mock_workflow(workflow,
+                             df_path=dfp.dockerfile_path,
+                             df_images=dfp.parent_images)
     workflow.dockerfile_images['base:image'] = local_tag
     (flexmock(imageutil)
      .should_receive('get_inspect_for_image')
@@ -223,7 +225,7 @@ def test_update_base_image_inspect_broken(tmpdir, caplog):
         """),
     ),
 ])
-def test_update_parent_images(df_content, expected_df_content, tmpdir):
+def test_update_parent_images(df_content, expected_df_content, tmpdir, workflow):
     """test the happy path for updating multiple parents"""
     dfp = df_parser(str(tmpdir))
     dfp.content = df_content
@@ -248,7 +250,9 @@ def test_update_parent_images(df_content, expected_df_content, tmpdir):
         'build-name:3': 'id:3',
     }
 
-    workflow = mock_workflow(df_path=dfp.dockerfile_path, df_images=dfp.parent_images)
+    workflow = mock_workflow(workflow,
+                             df_path=dfp.dockerfile_path,
+                             df_images=dfp.parent_images)
 
     for parent in dfp.parent_images:
         if parent == 'scratch':
@@ -270,7 +274,7 @@ def test_update_parent_images(df_content, expected_df_content, tmpdir):
         assert original_base == workflow.dockerfile_images.base_image
 
 
-def test_parent_images_unresolved(tmpdir):
+def test_parent_images_unresolved(tmpdir, workflow):
     """test when parent_images hasn't been filled in with unique tags."""
     dfp = df_parser(str(tmpdir))
     dfp.content = dedent("""\
@@ -278,7 +282,9 @@ def test_parent_images_unresolved(tmpdir):
         FROM base_image
     """)
 
-    workflow = mock_workflow(df_path=dfp.dockerfile_path, df_images=['extra_image', 'base_image'])
+    workflow = mock_workflow(workflow,
+                             df_path=dfp.dockerfile_path,
+                             df_images=['extra_image', 'base_image'])
     workflow.dockerfile_images['base_image'] = 'base_local'
 
     with pytest.raises(PluginFailedException) as exc:
@@ -286,7 +292,7 @@ def test_parent_images_unresolved(tmpdir):
     assert "raised an exception: ParentImageUnresolved" in str(exc.value)
 
 
-def test_parent_images_missing(tmpdir):
+def test_parent_images_missing(tmpdir, workflow):
     """test when parent_images has been mangled and lacks parents compared to dockerfile."""
     dfp = df_parser(str(tmpdir))
     dfp.content = dedent("""\
@@ -295,7 +301,9 @@ def test_parent_images_missing(tmpdir):
         FROM monty
     """)
 
-    workflow = mock_workflow(df_path=dfp.dockerfile_path, df_images=['monty'])
+    workflow = mock_workflow(workflow,
+                             df_path=dfp.dockerfile_path,
+                             df_images=['monty'])
     workflow.dockerfile_images['monty'] = 'monty_local'
 
     with pytest.raises(PluginFailedException) as exc:
@@ -303,11 +311,12 @@ def test_parent_images_missing(tmpdir):
     assert "raised an exception: ParentImageMissing" in str(exc.value)
 
 
-def test_parent_images_mismatch_base_image(tmpdir):
+def test_parent_images_mismatch_base_image(tmpdir, workflow):
     """test when base_image has been updated differently from parent_images."""
     dfp = df_parser(str(tmpdir))
     dfp.content = "FROM base:image"
-    workflow = mock_workflow(df_path=dfp.dockerfile_path,
+    workflow = mock_workflow(workflow,
+                             df_path=dfp.dockerfile_path,
                              df_images=['base:image', 'parent_different:latest'])
 
     with pytest.raises(PluginFailedException) as exc:

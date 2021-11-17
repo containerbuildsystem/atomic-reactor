@@ -18,7 +18,6 @@ import yaml
 from flexmock import flexmock
 
 from atomic_reactor.constants import REMOTE_SOURCE_DIR, CACHITO_ENV_FILENAME, CACHITO_ENV_ARG_ALIAS
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.source import SourceConfig
 from atomic_reactor.utils.cachito import CFG_TYPE_B64
 from atomic_reactor.plugins.pre_download_remote_source import (
@@ -119,15 +118,15 @@ class TestDownloadRemoteSource(object):
          [CACHITO_ENV_VARIABLES2, CACHITO_ENV_VARIABLES1], True],
     ))
     def test_download_remote_source(
-        self, tmpdir, user_params, insecure, archive_dir_exists,
+        self, workflow, source_dir,
+        insecure, archive_dir_exists,
         has_configuration, configuration_type, configuration_content, remote_sources,
         env_variables, multiple_remote_sources
     ):
         remote_sources_copy = deepcopy(remote_sources)
-        workflow = DockerBuildWorkflow(source=None)
-        df_path = os.path.join(str(tmpdir), 'stub_df_path')
+        df_path = str(source_dir / 'stub_df_path')
         mock_repo_config(workflow, df_path, multiple_remote_sources=multiple_remote_sources)
-        workflow.df_dir = str(tmpdir)
+        workflow.df_dir = str(source_dir)
         flexmock(workflow, df_path=df_path)
         mock_reactor_config(workflow, insecure=insecure)
         config_url = 'https://example.com/dir/configurations'

@@ -12,8 +12,7 @@ import os.path
 import pytest
 import responses
 import shutil
-from atomic_reactor.constants import RELATIVE_REPOS_PATH, INSPECT_CONFIG
-from atomic_reactor.inner import DockerBuildWorkflow
+from atomic_reactor.constants import RELATIVE_REPOS_PATH, INSPECT_CONFIG, DOCKERFILE_FILENAME
 from atomic_reactor.plugin import PluginFailedException, PreBuildPluginsRunner
 from atomic_reactor.plugins.pre_add_yum_repo_by_url import AddYumRepoByUrlPlugin
 from atomic_reactor.plugins.pre_inject_yum_repo import InjectYumRepoPlugin
@@ -30,8 +29,7 @@ CA_BUNDLE_PEM = os.path.basename(BUILDER_CA_BUNDLE)
 pytestmark = pytest.mark.usefixtures('user_params')
 
 
-def prepare(df_path, df_dir, inherited_user=''):
-    workflow = DockerBuildWorkflow(source=None)
+def prepare(workflow, df_path, df_dir, inherited_user=''):
     workflow.source = StubSource()
     inspect_data = {INSPECT_CONFIG: {'User': inherited_user}}
     flexmock(workflow, df_path=df_path)
@@ -41,11 +39,11 @@ def prepare(df_path, df_dir, inherited_user=''):
     return workflow
 
 
-def test_no_base_image_in_dockerfile(tmpdir):
-    dockerfile = tmpdir.join('Dockerfile')
-    dockerfile.write_text('', encoding='utf8')
+def test_no_base_image_in_dockerfile(workflow, source_dir):
+    dockerfile = source_dir.joinpath(DOCKERFILE_FILENAME)
+    dockerfile.touch()
 
-    workflow = prepare(str(dockerfile), str(tmpdir))
+    workflow = prepare(workflow, str(dockerfile), str(source_dir))
     workflow.files = {'/etc/yum.repos.d/foo.repo': 'repo'}
 
     runner = PreBuildPluginsRunner(workflow, [{
@@ -457,11 +455,11 @@ RUN yum install -y httpd \
 @responses.activate
 def test_inject_repos(configure_ca_bundle, inherited_user,
                       repos, dockerfile_content, expected_final_dockerfile,
-                      tmpdir):
-    dockerfile = tmpdir.join('Dockerfile')
-    dockerfile.write_text(dockerfile_content, encoding='utf8')
+                      workflow, source_dir):
+    dockerfile = source_dir.joinpath(DOCKERFILE_FILENAME)
+    dockerfile.write_text(dockerfile_content, "utf-8")
 
-    workflow = prepare(str(dockerfile), str(tmpdir), inherited_user)
+    workflow = prepare(workflow, str(dockerfile), str(source_dir), inherited_user)
 
     config = {
         'version': 1,
@@ -475,7 +473,7 @@ def test_inject_repos(configure_ca_bundle, inherited_user,
     # Ensure the ca_bundle PEM file is copied into build context
     flexmock(shutil).should_receive('copyfile').with_args(
         BUILDER_CA_BUNDLE,
-        str(tmpdir.join(CA_BUNDLE_PEM)),
+        str(source_dir.joinpath(CA_BUNDLE_PEM)),
     )
 
     for repofile_url, repofile_content, _ in repos:
@@ -500,6 +498,7 @@ def test_inject_repos(configure_ca_bundle, inherited_user,
     # Ensure the repofile is updated correctly as well
     for repofile_url, _, expected_final_repofile in repos:
         yum_repo = YumRepo(repofile_url)
-        updated_repos = tmpdir.join(RELATIVE_REPOS_PATH,
-                                    yum_repo.filename).read_text('utf-8')
+        updated_repos = source_dir.joinpath(
+            RELATIVE_REPOS_PATH, yum_repo.filename
+        ).read_text('utf-8')
         assert expected_final_repofile == updated_repos

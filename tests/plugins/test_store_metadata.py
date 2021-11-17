@@ -18,7 +18,7 @@ from atomic_reactor.constants import (PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
                                       PLUGIN_VERIFY_MEDIA_KEY,
                                       PLUGIN_FETCH_SOURCES_KEY,
                                       PLUGIN_RESOLVE_REMOTE_SOURCE)
-from atomic_reactor.inner import DockerBuildWorkflow, BuildResult
+from atomic_reactor.inner import BuildResult
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
@@ -37,7 +37,7 @@ DIGEST_NOT_USED = "not-used"
 pytestmark = pytest.mark.usefixtures('user_params')
 
 
-def prepare(docker_registries=None):
+def prepare(workflow, docker_registries=None):
     if docker_registries is None:
         docker_registries = (LOCALHOST_REGISTRY, DOCKER0_REGISTRY,)
 
@@ -61,7 +61,6 @@ def prepare(docker_registries=None):
      .should_call("__init__")
      .with_args(**config_kwargs))
 
-    workflow = DockerBuildWorkflow(source=None)
     workflow.user_params['namespace'] = 'namespace'
     workflow.user_params['pipeline_run_name'] = 'store_metadata_test'
 
@@ -95,8 +94,6 @@ def prepare(docker_registries=None):
     workflow.source.lg.should_receive("_commit_id").and_return("commit")
     # pylint: enable=no-member
 
-    return workflow
-
 
 @pytest.mark.parametrize(('br_annotations', 'expected_br_annotations'), (
     (None, None),
@@ -126,12 +123,12 @@ def prepare(docker_registries=None):
      ["application/vnd.docker.distribution.manifest.v1+json"]),
 ))
 @pytest.mark.parametrize('remote_sources', [True, False])
-def test_metadata_plugin(tmpdir, br_annotations, expected_br_annotations,
+def test_metadata_plugin(workflow, source_dir, br_annotations, expected_br_annotations,
                          br_labels, expected_br_labels, koji,
                          help_results, expected_help_results, base_from_scratch,
                          verify_media_results, expected_media_results, remote_sources):
     initial_timestamp = datetime.now()
-    workflow = prepare()
+    prepare(workflow)
     if base_from_scratch:
         df_content = """
 FROM fedora
@@ -145,14 +142,14 @@ FROM fedora
 RUN yum install -y python-django
 CMD blabla"""
 
-    df = df_parser(str(tmpdir))
+    df = df_parser(str(source_dir))
     df.content = df_content
     workflow.dockerfile_images = DockerfileImages(df.parent_images)
     for parent in df.parent_images:
         if parent != 'scratch':
             workflow.dockerfile_images[parent] = "sha256:spamneggs"
     flexmock(workflow, df_path=df.dockerfile_path)
-    workflow.df_dir = str(tmpdir)
+    workflow.df_dir = str(source_dir)
 
     workflow.prebuild_results = {
         AddHelpPlugin.key: help_results
@@ -356,9 +353,9 @@ CMD blabla"""
 ))
 def test_metadata_plugin_source(image_id, br_annotations, expected_br_annotations,
                                 br_labels, expected_br_labels, verify_media_results,
-                                expected_media_results):
+                                expected_media_results, workflow):
     initial_timestamp = datetime.now()
-    workflow = prepare()
+    prepare(workflow)
 
     if image_id:
         workflow.koji_source_manifest = {'config': {'digest': image_id}}
@@ -506,8 +503,8 @@ def test_metadata_plugin_source(image_id, br_annotations, expected_br_annotation
     },
     {}
 ))
-def test_koji_filesystem_label(res):
-    workflow = prepare()
+def test_koji_filesystem_label(res, workflow):
+    prepare(workflow)
     if 'filesystem-koji-task-id' in res:
         workflow.labels['filesystem-koji-task-id'] = res['filesystem-koji-task-id']
     runner = ExitPluginsRunner(
@@ -529,17 +526,17 @@ def test_koji_filesystem_label(res):
         assert 'filesystem-koji-task-id' not in labels
 
 
-def test_metadata_plugin_rpmqa_failure(tmpdir):
+def test_metadata_plugin_rpmqa_failure(workflow, source_dir):
     initial_timestamp = datetime.now()
-    workflow = prepare()
+    prepare(workflow)
     df_content = """
 FROM fedora
 RUN yum install -y python-django
 CMD blabla"""
-    df = df_parser(str(tmpdir))
+    df = df_parser(str(source_dir))
     df.content = df_content
     flexmock(workflow, df_path=df.dockerfile_path)
-    workflow.df_dir = str(tmpdir)
+    workflow.df_dir = str(source_dir)
 
     workflow.prebuild_results = {}
     workflow.postbuild_results = {
@@ -590,10 +587,10 @@ CMD blabla"""
     assert "all_rpm_packages" in plugins_metadata["durations"]
 
 
-def test_exit_before_dockerfile_created(tmpdir):
-    workflow = prepare()
+def test_exit_before_dockerfile_created(workflow, source_dir):
+    prepare(workflow)
     workflow.exit_results = {}
-    workflow.df_dir = str(tmpdir)
+    workflow.df_dir = str(source_dir)
     workflow._df_path = None
 
     runner = ExitPluginsRunner(
@@ -613,17 +610,17 @@ def test_exit_before_dockerfile_created(tmpdir):
     assert annotations["dockerfile"] == ""
 
 
-def test_store_metadata_fail_update_annotations(tmpdir, caplog):
-    workflow = prepare()
+def test_store_metadata_fail_update_annotations(workflow, source_dir, caplog):
+    prepare(workflow)
     workflow.exit_results = {}
     df_content = """
 FROM fedora
 RUN yum install -y python-django
 CMD blabla"""
-    df = df_parser(str(tmpdir))
+    df = df_parser(str(source_dir))
     df.content = df_content
     flexmock(workflow, df_path=df.dockerfile_path)
-    workflow.df_dir = str(tmpdir)
+    workflow.df_dir = str(source_dir)
 
     runner = ExitPluginsRunner(
         workflow,
@@ -642,8 +639,8 @@ CMD blabla"""
     assert 'annotations:' in caplog.text
 
 
-def test_store_metadata_fail_update_labels(caplog):
-    workflow = prepare()
+def test_store_metadata_fail_update_labels(workflow, caplog):
+    prepare(workflow)
     workflow.labels = {'some-label': 'some-value'}
 
     runner = ExitPluginsRunner(
@@ -686,16 +683,16 @@ def test_store_metadata_fail_update_labels(caplog):
         ['spam:8888', 'bacon:8888']
     ],
 ])
-def test_filter_repositories(tmpdir, docker_registries, prefixes):
-    workflow = prepare(docker_registries=docker_registries)
+def test_filter_repositories(workflow, source_dir, docker_registries, prefixes):
+    prepare(workflow, docker_registries=docker_registries)
     df_content = """
 FROM fedora
 RUN yum install -y python-django
 CMD blabla"""
-    df = df_parser(str(tmpdir))
+    df = df_parser(str(source_dir))
     df.content = df_content
     flexmock(workflow, df_path=df.dockerfile_path)
-    workflow.df_dir = str(tmpdir)
+    workflow.df_dir = str(source_dir)
 
     runner = ExitPluginsRunner(
         workflow,
@@ -735,8 +732,8 @@ CMD blabla"""
     {'task_annotations_whitelist': []},
     {'task_annotations_whitelist': ['foo']},
     ))
-def test_set_koji_annotations_whitelist(tmpdir, koji_conf):
-    workflow = prepare()
+def test_set_koji_annotations_whitelist(workflow, source_dir, koji_conf):
+    prepare(workflow)
     if koji_conf is not None:
         workflow.conf.conf['koji'] = koji_conf
 
@@ -745,10 +742,10 @@ def test_set_koji_annotations_whitelist(tmpdir, koji_conf):
         RUN nothing
         CMD cowsay moo
         ''')
-    df = df_parser(str(tmpdir))
+    df = df_parser(str(source_dir))
     df.content = df_content
     flexmock(workflow, df_path=df.dockerfile_path)
-    workflow.df_dir = str(tmpdir)
+    workflow.df_dir = str(source_dir)
     runner = ExitPluginsRunner(
         workflow,
         [{
@@ -774,8 +771,8 @@ def test_set_koji_annotations_whitelist(tmpdir, koji_conf):
         assert 'koji_task_annotations_whitelist' not in annotations
 
 
-def test_plugin_annotations():
-    workflow = prepare()
+def test_plugin_annotations(workflow):
+    prepare(workflow)
     workflow.annotations = {'foo': {'bar': 'baz'}, 'spam': ['eggs']}
 
     runner = ExitPluginsRunner(
@@ -795,8 +792,8 @@ def test_plugin_annotations():
     assert annotations['spam'] == '["eggs"]'
 
 
-def test_plugin_labels():
-    workflow = prepare()
+def test_plugin_labels(workflow):
+    prepare(workflow)
     workflow.labels = {'foo': 1, 'bar': 'two'}
 
     runner = ExitPluginsRunner(

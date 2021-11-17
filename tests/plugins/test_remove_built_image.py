@@ -9,7 +9,6 @@ of the BSD license. See the LICENSE file for details.
 from flexmock import flexmock
 import pytest
 
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PostBuildPluginsRunner
 from atomic_reactor.plugins.exit_remove_built_image import (GarbageCollectionPlugin,
                                                             defer_removal)
@@ -25,8 +24,7 @@ class X(object):
     pass
 
 
-def mock_environment():
-    workflow = DockerBuildWorkflow(source=None)
+def mock_environment(workflow):
     workflow.postbuild_results[TagAndPushPlugin.key] = True
     workflow.tag_conf.add_primary_image(TEST_IMAGE)
     workflow.push_conf.add_docker_registry(LOCALHOST_REGISTRY, insecure=True)
@@ -38,7 +36,6 @@ def mock_environment():
 #    base_image = ImageName.parse(IMPORTED_IMAGE_ID)
 #    setattr(workflow.builder, 'base_image', base_image)
     workflow.pulled_base_images.add(IMPORTED_IMAGE_ID)
-    return workflow
 
 
 @pytest.mark.usefixtures('user_params')
@@ -49,8 +46,8 @@ class TestGarbageCollectionPlugin(object):
         (True, [], {IMPORTED_IMAGE_ID, INPUT_IMAGE}),
         (True, ['defer'], {IMPORTED_IMAGE_ID, INPUT_IMAGE, 'defer'}),
     ])
-    def test_remove_built_image_plugin(self, remove_base, deferred, expected):
-        workflow = mock_environment()
+    def test_remove_built_image_plugin(self, remove_base, deferred, expected, workflow):
+        mock_environment(workflow)
         runner = PostBuildPluginsRunner(
             workflow,
             [{

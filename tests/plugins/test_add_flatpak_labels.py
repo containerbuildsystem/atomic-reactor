@@ -7,12 +7,13 @@ of the BSD license. See the LICENSE file for details.
 """
 
 import os
+from pathlib import Path
+
 import pytest
 
 from flexmock import flexmock
 import yaml
 
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugins.pre_add_flatpak_labels import AddFlatpakLabelsPlugin
 
 from atomic_reactor.plugin import PreBuildPluginsRunner
@@ -28,12 +29,11 @@ USER_PARAMS = {'flatpak': True}
 
 
 class MockSource(object):
-    def __init__(self, tmpdir):
-        tmpdir = str(tmpdir)
+    def __init__(self, source_dir: Path):
         self.dockerfile_path = "./"
-        self.path = tmpdir
+        self.path = str(source_dir)
 
-        self.container_yaml_path = os.path.join(tmpdir, 'container.yaml')
+        self.container_yaml_path = str(source_dir / 'container.yaml')
         self.config = None
 
 
@@ -44,26 +44,27 @@ class MockBuilder(object):
         self.image_id = "xxx"
 
 
-def mock_workflow(tmpdir, container_yaml, user_params=None):
-    workflow = DockerBuildWorkflow(source=None)
+def mock_workflow(workflow, source_dir: Path, container_yaml, user_params=None):
     if user_params is None:
         user_params = USER_PARAMS
 
-    mock_source = MockSource(tmpdir)
-    workflow.user_params = user_params
+    if user_params is None:
+        workflow.user_params.update(USER_PARAMS)
+    else:
+        workflow.user_params.update(user_params)
+
+    mock_source = MockSource(source_dir)
     flexmock(workflow, source=mock_source)
 
     with open(mock_source.container_yaml_path, "w") as f:
         f.write(container_yaml)
-    workflow.source.config = SourceConfig(str(tmpdir))
+    workflow.source.config = SourceConfig(str(source_dir))
 
-    df = df_parser(str(tmpdir))
+    df = df_parser(str(source_dir))
     df.content = DF_CONTENT
 
-    workflow.df_dir = str(tmpdir)
+    workflow.df_dir = str(source_dir)
     flexmock(workflow, df_path=df.dockerfile_path)
-
-    return workflow
 
 
 @pytest.mark.parametrize('labels,expected', [
@@ -72,7 +73,7 @@ def mock_workflow(tmpdir, container_yaml, user_params=None):
     ({'a': 'b'}, 'LABEL "a"="b"'),
     ({'a': 'b', 'c': 'd"'}, 'LABEL "a"="b" "c"="d\\""'),
 ]) # noqa
-def test_add_flatpak_labels(tmpdir, user_params, labels, expected):
+def test_add_flatpak_labels(workflow, source_dir, labels, expected):
 
     if labels is not None:
         data = {'flatpak': {'labels': labels}}
@@ -80,7 +81,7 @@ def test_add_flatpak_labels(tmpdir, user_params, labels, expected):
         data = {}
     container_yaml = yaml.dump(data)
 
-    workflow = mock_workflow(tmpdir, container_yaml)
+    mock_workflow(workflow, source_dir, container_yaml)
 
     runner = PreBuildPluginsRunner(
         workflow,
@@ -104,8 +105,8 @@ def test_add_flatpak_labels(tmpdir, user_params, labels, expected):
         assert last_line == "CMD sleep 1000"
 
 
-def test_skip_plugin(tmpdir, caplog, user_params):
-    workflow = mock_workflow(tmpdir, '', user_params={})
+def test_skip_plugin(workflow, source_dir, caplog, user_params):
+    mock_workflow(workflow, source_dir, '', user_params={})
 
     runner = PreBuildPluginsRunner(
         workflow,

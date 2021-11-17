@@ -13,7 +13,6 @@ build_orchestrate_build will prefer this list of architectures over the platform
 USER_PARAMS, which is necessary to allow autobuilds to build on the correct architectures
 when koji build tags change.
 """
-
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import (get_platforms_in_limits, is_scratch_build, is_isolated_build,
                                  get_orchestrator_platforms, map_to_user_params)
@@ -98,5 +97,7 @@ class CheckAndSetPlatformsPlugin(PreBuildPlugin):
         if not final_platforms:
             self.log.error("platforms in limits are empty")
             raise RuntimeError("No platforms to build for")
+
+        self.workflow.init_build_dirs(list(final_platforms))
 
         return final_platforms

@@ -9,11 +9,10 @@ of the BSD license. See the LICENSE file for details.
 import time
 import inspect
 
-from dockerfile_parse import DockerfileParser
 from flexmock import flexmock
 import pytest
 
-from atomic_reactor.inner import DockerBuildWorkflow, BuildResult
+from atomic_reactor.inner import BuildResult
 from atomic_reactor.plugin import (BuildPluginsRunner, PreBuildPluginsRunner,
                                    PostBuildPluginsRunner,
                                    PluginFailedException, PrePublishPluginsRunner,
@@ -52,12 +51,6 @@ class MyPreBuildPlugin(PreBuildPlugin):
         raise InappropriateBuildStepError
 
 
-def mock_workflow(tmpdir):
-    workflow = DockerBuildWorkflow(source=None)
-    flexmock(DockerfileParser, content='df_content')
-    return workflow
-
-
 @pytest.mark.parametrize('runner_type', [  # noqa
     PreBuildPluginsRunner,
     PrePublishPluginsRunner,
@@ -65,11 +58,11 @@ def mock_workflow(tmpdir):
     ExitPluginsRunner,
     BuildStepPluginsRunner,
 ])
-def test_load_plugins(runner_type, tmpdir):
+def test_load_plugins(runner_type, workflow):
     """
     test loading plugins
     """
-    runner = runner_type(mock_workflow(tmpdir), None)
+    runner = runner_type(workflow, None)
     assert runner.plugin_classes is not None
     assert len(runner.plugin_classes) > 0
 
@@ -89,13 +82,12 @@ class X(object):
     True,
     False,
 ])
-def test_required_plugin_failure(tmpdir, runner_type, required):
+def test_required_plugin_failure(workflow, runner_type, required):
     """
     test required option for plugins
     and check if it fails when is required
     and also check plugin_failed value
     """
-    workflow = mock_workflow(tmpdir)
     assert workflow.plugin_failed is False
     params = (workflow,
               [{"name": "no_such_plugin",
@@ -125,7 +117,7 @@ def test_required_plugin_failure(tmpdir, runner_type, required):
     True,
     False,
 ])
-def test_verify_required_plugins_before_first_run(caplog, tmpdir, runner_type, plugin_type,
+def test_verify_required_plugins_before_first_run(caplog, workflow, runner_type, plugin_type,
                                                   required):
     """
     test plugin availability checks before running any plugins
@@ -138,7 +130,6 @@ def test_verify_required_plugins_before_first_run(caplog, tmpdir, runner_type, p
 
     flexmock(PluginsRunner, load_plugins=lambda x: {
                                         MyPlugin.key: MyPlugin})
-    workflow = mock_workflow(tmpdir)
     params = (workflow,
               [{"name": MyPlugin.key, "required": False},
                {"name": "no_such_plugin", "required": required}])
@@ -156,11 +147,10 @@ def test_verify_required_plugins_before_first_run(caplog, tmpdir, runner_type, p
         assert any(expected_log_message in log.getMessage() for log in caplog.records)
 
 
-def test_check_no_reload(caplog, tmpdir):
+def test_check_no_reload(caplog, workflow):
     """
     test if plugins are not reloaded
     """
-    workflow = mock_workflow(tmpdir)
     this_file = inspect.getfile(MyBsPlugin1)
     expected_log_message = "load file '%s'" % this_file
     BuildStepPluginsRunner(workflow,
@@ -175,14 +165,13 @@ def test_check_no_reload(caplog, tmpdir):
 
 @pytest.mark.parametrize('success1', [True, False])  # noqa
 @pytest.mark.parametrize('success2', [True, False])
-def test_buildstep_phase_build_plugin(caplog, tmpdir, success1, success2):
+def test_buildstep_phase_build_plugin(caplog, workflow, success1, success2):
     """
     plugin runner should stop after first successful plugin
     InappropriateBuildStepError exception isn't critical,
     and won't fail buildstep runner
     unless no plugin finished successfully
     """
-    workflow = mock_workflow(tmpdir)
     flexmock(PluginsRunner, load_plugins=lambda x: {
                                         MyBsPlugin1.key: MyBsPlugin1,
                                         MyBsPlugin2.key: MyBsPlugin2, })
@@ -213,13 +202,12 @@ def test_buildstep_phase_build_plugin(caplog, tmpdir, success1, success2):
 
 
 @pytest.mark.parametrize('success1', [True, False])  # noqa
-def test_buildstep_phase_build_plugin_failing_exception(tmpdir, caplog, success1):
+def test_buildstep_phase_build_plugin_failing_exception(workflow, caplog, success1):
     """
     plugin runner should stop after first successful plugin
     Exception exception is critical,
     and will fail buildstep runner
     """
-    workflow = mock_workflow(tmpdir)
     flexmock(PluginsRunner, load_plugins=lambda x: {
                                         MyBsPlugin1.key: MyBsPlugin1,
                                         MyBsPlugin2.key: MyBsPlugin2, })
@@ -245,12 +233,11 @@ def test_buildstep_phase_build_plugin_failing_exception(tmpdir, caplog, success1
         assert expected_log_message in [log.getMessage() for log in caplog.records]
 
 
-def test_non_buildstep_phase_raises_InappropriateBuildStepError(caplog, tmpdir):  # noqa
+def test_non_buildstep_phase_raises_InappropriateBuildStepError(caplog, workflow):  # noqa
     """
     tests that exception is raised if no buildstep_phase
     but raises InappropriateBuildStepError
     """
-    workflow = mock_workflow(tmpdir)
     flexmock(PluginsRunner, load_plugins=lambda x: {
                                         MyPreBuildPlugin.key: MyPreBuildPlugin})
     runner = PreBuildPluginsRunner(workflow,
@@ -260,12 +247,11 @@ def test_non_buildstep_phase_raises_InappropriateBuildStepError(caplog, tmpdir):
         runner.run()
 
 
-def test_no_appropriate_buildstep_build_plugin(caplog, tmpdir):  # noqa
+def test_no_appropriate_buildstep_build_plugin(caplog, workflow):  # noqa
     """
     test that build fails if there isn't any
     appropriate buildstep plugin (doesn't exist)
     """
-    workflow = mock_workflow(tmpdir)
     flexmock(PluginsRunner, load_plugins=lambda x: {})
     runner = BuildStepPluginsRunner(workflow,
                                     [{"name": MyBsPlugin1.key},
@@ -278,13 +264,12 @@ def test_no_appropriate_buildstep_build_plugin(caplog, tmpdir):  # noqa
 @pytest.mark.parametrize('pluginconf_method, expected', [  # noqa
     ('orchestrator', 'orchestrator'),
 ])
-def test_which_buildstep_plugin_configured(tmpdir, pluginconf_method, expected):
+def test_which_buildstep_plugin_configured(workflow, pluginconf_method, expected):
     """
     test buildstep plugin adjustments.
     if no/empty build_step specified,
     build plugin from source or default will run
     """
-    workflow = mock_workflow(tmpdir)
     expected = [{'name': expected, 'is_allowed_to_fail': False}]
     plugins_conf = pluginconf_method
     if pluginconf_method:

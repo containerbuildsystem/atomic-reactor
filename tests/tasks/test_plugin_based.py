@@ -35,16 +35,17 @@ class TestPluginBasedTask:
     """Tests for the PluginBasedTask class"""
 
     @pytest.fixture
-    def task_with_mocked_deps(self, monkeypatch):
+    def task_with_mocked_deps(self, monkeypatch, build_dir):
         """Create a PluginBasedTask instance with mocked task parameters.
 
         Mock DockerBuildWorkflow accordingly. Return the mocked workflow instance for further
         customization in individual tests.
         """
         expect_source = flexmock()
-        task_params = flexmock(
-            source=expect_source, user_params={"a": "b"}, config_file="config.yaml"
-        )
+        task_params = flexmock(build_dir=build_dir,
+                               source=expect_source,
+                               user_params={"a": "b"},
+                               config_file="config.yaml")
 
         expect_plugins = flexmock()
         monkeypatch.setattr(plugin_based.PluginBasedTask, "plugins_def", expect_plugins)
@@ -55,6 +56,7 @@ class TestPluginBasedTask:
             .should_receive("__init__")
             .once()
             .with_args(
+                build_dir,
                 source=expect_source,
                 plugins=expect_plugins,
                 user_params={"a": "b"},

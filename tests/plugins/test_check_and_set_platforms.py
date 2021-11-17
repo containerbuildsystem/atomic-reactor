@@ -8,15 +8,19 @@ of the BSD license. See the LICENSE file for details.
 
 import os
 import sys
-import yaml
+from pathlib import Path
 
-from atomic_reactor.constants import PLUGIN_CHECK_AND_SET_PLATFORMS_KEY, REPO_CONTAINER_CONFIG
+import pytest
+import yaml
+from flexmock import flexmock
+
+from atomic_reactor.constants import (
+    PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
+    REPO_CONTAINER_CONFIG,
+    DOCKERFILE_FILENAME,
+)
 import atomic_reactor.utils.koji as koji_util
 from atomic_reactor.source import SourceConfig
-
-from flexmock import flexmock
-import pytest
-
 from tests.mock_env import MockEnv
 
 
@@ -76,7 +80,7 @@ def make_reactor_config_map(platforms):
         return {'version': 1, 'koji': {'auth': {}, 'hub_url': 'test'}}
 
 
-def write_container_yaml(tmpdir, platform_exclude='', platform_only=''):
+def write_container_yaml(source_dir: Path, platform_exclude='', platform_only=''):
     platforms_dict = {}
     if platform_exclude != '':
         platforms_dict['platforms'] = {}
@@ -86,21 +90,21 @@ def write_container_yaml(tmpdir, platform_exclude='', platform_only=''):
             platforms_dict['platforms'] = {}
         platforms_dict['platforms']['only'] = platform_only
 
-    container_path = os.path.join(str(tmpdir), REPO_CONTAINER_CONFIG)
+    container_path = os.path.join(source_dir, REPO_CONTAINER_CONFIG)
     with open(container_path, 'w') as f:
         f.write(yaml.safe_dump(platforms_dict))
         f.flush()
 
 
-def mock_env(tmpdir, labels=None):
+def mock_env(workflow, source_dir: Path, labels=None):
     labels = labels or {}
     env = (
-        MockEnv()
+        MockEnv(workflow)
         .for_plugin('prebuild', PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
         .set_scratch(labels.get('scratch', False))
         .set_isolated(labels.get('isolated', False))
     )
-    env.workflow.source = MockSource(tmpdir)
+    env.workflow.source = MockSource(source_dir)
     return env
 
 
@@ -127,11 +131,11 @@ def teardown_function(function):
     ({'x86_64': True, 'ppc64le': True},
      '', '', ['x86_64', 'ppc64le'])
 ])
-def test_check_and_set_platforms(tmpdir, caplog, user_params,
+def test_check_and_set_platforms(workflow, source_dir, caplog,
                                  platforms, platform_exclude, platform_only, result):
-    write_container_yaml(tmpdir, platform_exclude, platform_only)
+    write_container_yaml(source_dir, platform_exclude, platform_only)
 
-    env = mock_env(tmpdir)
+    env = mock_env(workflow, source_dir)
 
     session = mock_session(platforms)
     flexmock(koji_util).should_receive('create_koji_session').and_return(session)
@@ -175,12 +179,12 @@ def test_check_and_set_platforms(tmpdir, caplog, user_params,
     ({'scratch': True}, {'x86_64': True, 'arm64': True, 's390x': True},
      ['x86_64', 'arm64'], 'x86_64', ['x86_64', 'arm64']),
 ])
-def test_check_isolated_or_scratch(tmpdir, caplog, user_params,
+def test_check_isolated_or_scratch(workflow, source_dir, caplog,
                                    labels, platforms, orchestrator_platforms, platform_only,
                                    result):
-    write_container_yaml(tmpdir, platform_only=platform_only)
+    write_container_yaml(source_dir, platform_only=platform_only)
 
-    env = mock_env(tmpdir, labels=labels)
+    env = mock_env(workflow, source_dir, labels=labels)
     if orchestrator_platforms:
         env.set_orchestrator_platforms(platforms=orchestrator_platforms)
 
@@ -216,11 +220,11 @@ def test_check_isolated_or_scratch(tmpdir, caplog, user_params,
     ({'x86_64': True, 'ppc64le': True}, '', ['x86_64', 'ppc64le']),
     ({'x86_64': True, 'ppc64le': True}, 'ppc64le', ['ppc64le']),
 ])
-def test_check_and_set_platforms_no_koji(tmpdir, caplog, user_params,
+def test_check_and_set_platforms_no_koji(workflow, source_dir, caplog,
                                          platforms, platform_only, result):
-    write_container_yaml(tmpdir, platform_only=platform_only)
+    write_container_yaml(source_dir, platform_only=platform_only)
 
-    env = mock_env(tmpdir)
+    env = mock_env(workflow, source_dir)
 
     if platforms:
         env.set_orchestrator_platforms(platforms.keys())
@@ -249,11 +253,12 @@ def test_check_and_set_platforms_no_koji(tmpdir, caplog, user_params,
     ({'x86_64': True, 'ppc64le': True}, 's390x'),
     ({'s390x': True, 'ppc64le': True}, 'x86_64'),
 ])
-def test_check_and_set_platforms_no_platforms_in_limits(tmpdir, caplog, user_params,
-                                                        platforms, platform_only):
-    write_container_yaml(tmpdir, platform_only=platform_only)
+def test_check_and_set_platforms_no_platforms_in_limits(
+    workflow, source_dir, caplog, platforms, platform_only
+):
+    write_container_yaml(source_dir, platform_only=platform_only)
 
-    env = mock_env(tmpdir)
+    env = mock_env(workflow, source_dir)
 
     if platforms:
         env.set_orchestrator_platforms(platforms.keys())
@@ -274,11 +279,11 @@ def test_check_and_set_platforms_no_platforms_in_limits(tmpdir, caplog, user_par
     ('x86_64 ppc64le', '', {'x86_64': True}, ['x86_64']),
     ('x86_64 ppc64le arm64', ['x86_64', 'arm64'], {'x86_64': True}, ['x86_64']),
 ])
-def test_platforms_from_cluster_config(tmpdir, user_params,
+def test_platforms_from_cluster_config(workflow, source_dir,
                                        platforms, platform_only, cluster_platforms, result):
-    write_container_yaml(tmpdir, platform_only=platform_only)
+    write_container_yaml(source_dir, platform_only=platform_only)
 
-    env = mock_env(tmpdir)
+    env = mock_env(workflow, source_dir)
 
     if platforms:
         env.set_orchestrator_platforms(platforms.split())
@@ -305,11 +310,11 @@ def test_platforms_from_cluster_config(tmpdir, user_params,
     (['x86_64', 'ppc64le'], {'x86_64': True}, ['x86_64'], ['ppc64le'], None),
     (['x86_64', 'ppc64le', 's390x'], {'x86_64': True}, ['x86_64'], ['ppc64le', 's390x'], None),
 ])
-def test_disabled_clusters(tmpdir, caplog, user_params, koji_platforms,
+def test_disabled_clusters(workflow, source_dir, caplog, koji_platforms,
                            cluster_platforms, result, skips, fails):
-    write_container_yaml(tmpdir)
+    write_container_yaml(source_dir)
 
-    env = mock_env(tmpdir)
+    env = mock_env(workflow, source_dir)
 
     new_koji_platforms = None
     if koji_platforms:
@@ -349,3 +354,29 @@ def test_disabled_clusters(tmpdir, caplog, user_params, koji_platforms,
         else:
             assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] is None
             assert "No platforms found in koji target" in caplog.text
+
+
+def test_init_root_build_dir(workflow, source_dir):
+    # platform -> enabled
+    platforms = {"x86_64": True, "ppc64le": True}
+
+    env = mock_env(workflow, source_dir)
+    env.set_orchestrator_platforms(iter(platforms.keys()))
+
+    env.set_reactor_config(make_reactor_config_map(platforms))
+
+    runner = env.create_runner()
+
+    # Prepare content of the source directory. All of them must be available in
+    # the build directories.
+    source_dir.joinpath(DOCKERFILE_FILENAME).write_text("FROM fedora:35", "utf-8")
+    write_container_yaml(source_dir)
+
+    runner.run()
+
+    assert workflow.build_dirs.has_sources
+    for platform, file_name in zip(platforms.keys(), [DOCKERFILE_FILENAME, REPO_CONTAINER_CONFIG]):
+        copied_file = workflow.build_dirs.path / platform / file_name
+        assert copied_file.exists()
+        original_content = source_dir.joinpath(file_name).read_text("utf-8")
+        assert original_content == copied_file.read_text("utf-8")

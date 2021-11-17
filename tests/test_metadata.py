@@ -8,7 +8,6 @@ of the BSD license. See the LICENSE file for details.
 
 import pytest
 
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import Plugin, BuildPlugin
 from atomic_reactor.metadata import (
     annotation,
@@ -24,7 +23,7 @@ pytestmark = pytest.mark.usefixtures('user_params')
     (annotation, 'annotations'),
     (label, 'labels')
 ])
-def test_store_metadata(metadata_decorator, metadata_attr):
+def test_store_metadata(metadata_decorator, metadata_attr, workflow):
     @metadata_decorator('foo')
     class BP1(BuildPlugin):
         key = 'bp1'
@@ -39,7 +38,6 @@ def test_store_metadata(metadata_decorator, metadata_attr):
         def run(self):
             return None
 
-    workflow = DockerBuildWorkflow()
     p1 = BP1(workflow)
     p2 = BP2(workflow)
 
@@ -55,7 +53,7 @@ def test_store_metadata(metadata_decorator, metadata_attr):
     (annotation_map, 'annotations'),
     (label_map, 'labels')
 ])
-def test_store_metadata_map(metadata_map_decorator, metadata_attr):
+def test_store_metadata_map(metadata_map_decorator, metadata_attr, workflow):
     @metadata_map_decorator('foo', 'bar')
     class BP1(BuildPlugin):
         key = 'bp1'
@@ -70,7 +68,6 @@ def test_store_metadata_map(metadata_map_decorator, metadata_attr):
         def run(self):
             return None
 
-    workflow = DockerBuildWorkflow()
     p1 = BP1(workflow)
     p2 = BP2(workflow)
 
@@ -100,7 +97,7 @@ def test_store_metadata_wrong_class(metadata_decorator, expected_err_msg):
     (annotation_map, '[annotations] run() method did not return a dict'),
     (label_map, '[labels] run() method did not return a dict')
 ])
-def test_store_metadata_wrong_return_type(metadata_decorator, expected_err_msg):
+def test_store_metadata_wrong_return_type(metadata_decorator, expected_err_msg, workflow):
     @metadata_decorator('foo')
     class BP(BuildPlugin):
         key = 'bp'
@@ -108,7 +105,6 @@ def test_store_metadata_wrong_return_type(metadata_decorator, expected_err_msg):
         def run(self):
             return 1
 
-    workflow = DockerBuildWorkflow()
     p = BP(workflow)
 
     with pytest.raises(TypeError) as exc_info:
@@ -121,7 +117,7 @@ def test_store_metadata_wrong_return_type(metadata_decorator, expected_err_msg):
     (annotation_map, '[annotations] Not found in result: {!r}'.format('bar')),
     (label_map, '[labels] Not found in result: {!r}'.format('bar'))
 ])
-def test_store_metadata_missing_key(metadata_decorator, expected_err_msg):
+def test_store_metadata_missing_key(metadata_decorator, expected_err_msg, workflow):
     @metadata_decorator('foo', 'bar')
     class BP(BuildPlugin):
         key = 'bp'
@@ -129,7 +125,6 @@ def test_store_metadata_missing_key(metadata_decorator, expected_err_msg):
         def run(self):
             return {'foo': 1}
 
-    workflow = DockerBuildWorkflow()
     p = BP(workflow)
 
     with pytest.raises(RuntimeError) as exc_info:
@@ -143,7 +138,7 @@ def test_store_metadata_missing_key(metadata_decorator, expected_err_msg):
     (label, '[labels] Already set: {!r}'.format('foo')),
     (label_map, '[labels] Already set: {!r}'.format('foo'))
 ])
-def test_store_metadata_conflict(metadata_decorator, expected_err_msg):
+def test_store_metadata_conflict(metadata_decorator, expected_err_msg, workflow):
     @metadata_decorator('foo')
     class BP(BuildPlugin):
         key = 'bp'
@@ -151,7 +146,6 @@ def test_store_metadata_conflict(metadata_decorator, expected_err_msg):
         def run(self):
             return {'foo': 1}
 
-    workflow = DockerBuildWorkflow()
     p = BP(workflow)
 
     p.run()
@@ -160,7 +154,7 @@ def test_store_metadata_conflict(metadata_decorator, expected_err_msg):
     assert str(exc_info.value) == expected_err_msg
 
 
-def test_store_metadata_combined():
+def test_store_metadata_combined(workflow):
     @annotation('foo')
     @annotation_map('bar')
     @label('spam')
@@ -171,7 +165,6 @@ def test_store_metadata_combined():
         def run(self):
             return {'bar': 1, 'eggs': 2}
 
-    workflow = DockerBuildWorkflow()
     p = BP(workflow)
 
     p.run()

@@ -10,7 +10,6 @@ of the BSD license. See the LICENSE file for details.
 from textwrap import dedent
 import pytest
 from flexmock import flexmock
-from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.plugins.pre_add_buildargs_in_df import (
     AddBuildargsPlugin)
@@ -18,12 +17,9 @@ from atomic_reactor.util import df_parser
 from tests.stubs import StubSource
 
 
-def prepare(df_path):
-    workflow = DockerBuildWorkflow(source=None)
+def prepare(workflow, df_path: str):
     workflow.source = StubSource()
     flexmock(workflow, df_path=df_path)
-
-    return workflow
 
 
 @pytest.mark.parametrize('buildargs, df_content, df_expected', [
@@ -134,11 +130,13 @@ def prepare(df_path):
         """)
     ),
 ])
-def test_add_buildargs_plugin(tmpdir, caplog, user_params, buildargs, df_content, df_expected):
-    df = df_parser(str(tmpdir))
+def test_add_buildargs_plugin(
+    workflow, source_dir, caplog, buildargs, df_content, df_expected
+):
+    df = df_parser(str(source_dir))
     df.content = df_content
 
-    workflow = prepare(df.dockerfile_path)
+    prepare(workflow, df.dockerfile_path)
     workflow.buildargs = buildargs
 
     runner = PreBuildPluginsRunner(workflow, [{

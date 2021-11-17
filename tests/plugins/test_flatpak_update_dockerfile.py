@@ -5,6 +5,7 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
+from pathlib import Path
 
 from flexmock import flexmock
 
@@ -15,7 +16,6 @@ import os
 import pytest
 import re
 
-from atomic_reactor.inner import DockerBuildWorkflow
 try:
     from atomic_reactor.plugins.pre_flatpak_create_dockerfile import set_flatpak_source_spec
     from atomic_reactor.plugins.pre_flatpak_update_dockerfile import (FlatpakUpdateDockerfilePlugin,
@@ -79,22 +79,21 @@ class MockBuilder(object):
         self.df_path = path
 
 
-def mock_workflow(tmpdir, container_yaml, user_params=None):
+def mock_workflow(workflow, source_dir: Path, container_yaml, user_params=None):
     if user_params is None:
         user_params = USER_PARAMS
-    workflow = DockerBuildWorkflow(source=None)
-    mock_source = MockSource(tmpdir)
+    mock_source = MockSource(str(source_dir))
     flexmock(workflow, source=mock_source)
 
     with open(mock_source.container_yaml_path, "w") as f:
         f.write(container_yaml)
-    workflow.source.config = SourceConfig(str(tmpdir))
+    workflow.source.config = SourceConfig(str(source_dir))
     workflow.user_params = user_params
 
-    df = df_parser(str(tmpdir))
+    df = df_parser(str(source_dir))
     df.content = DF_CONTENT
 
-    workflow.df_dir = str(tmpdir)
+    workflow.df_dir = str(source_dir)
     flexmock(workflow, df_path=df.dockerfile_path)
 
     return workflow
@@ -174,12 +173,12 @@ def mock_odcs_session(workflow, config):
     ('runtime', False, None),
     ('runtime', False, 'branch_mismatch'),
 ])
-def test_flatpak_update_dockerfile(tmpdir, config_name, worker, breakage):
+def test_flatpak_update_dockerfile(workflow, source_dir, config_name, worker, breakage):
     config = CONFIGS[config_name]
 
     container_yaml = config['container_yaml']
 
-    workflow = mock_workflow(tmpdir, container_yaml)
+    workflow = mock_workflow(workflow, source_dir, container_yaml)
 
     assert get_flatpak_compose_info(workflow) is None
     assert get_flatpak_source_info(workflow) is None
@@ -214,10 +213,9 @@ def test_flatpak_update_dockerfile(tmpdir, config_name, worker, breakage):
         # composes run by resolve_composes plugin
         setup_flatpak_composes(workflow, config)
 
-    secrets_path = os.path.join(str(tmpdir), "secret")
-    os.mkdir(secrets_path)
-    with open(os.path.join(secrets_path, "token"), "w") as f:
-        f.write("green_eggs_and_ham")
+    secrets_path = source_dir / "secret"
+    secrets_path.mkdir()
+    secrets_path.joinpath("token").write_text("green_eggs_and_ham", "utf-8")
 
     rcm = {'version': 1,
            'odcs': {'api_url': ODCS_URL,
@@ -300,8 +298,8 @@ def test_flatpak_update_dockerfile(tmpdir, config_name, worker, breakage):
 
 @pytest.mark.skipif(not MODULEMD_AVAILABLE,
                     reason='libmodulemd not available')
-def test_skip_plugin(tmpdir, caplog):
-    workflow = mock_workflow(tmpdir, "", user_params={})
+def test_skip_plugin(workflow, source_dir, caplog):
+    workflow = mock_workflow(workflow, source_dir, "", user_params={})
 
     runner = PreBuildPluginsRunner(
         workflow,

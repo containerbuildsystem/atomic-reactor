@@ -54,8 +54,8 @@ def teardown_function(function):
     sys.modules.pop('pre_pull_base_image', None)
 
 
-def mock_env():
-    return MockEnv().for_plugin("prebuild", PullBaseImagePlugin.key)
+def mock_env(workflow):
+    return MockEnv(workflow).for_plugin("prebuild", PullBaseImagePlugin.key)
 
 
 @pytest.mark.skip(reason="plugin needs rework to not pull and local tag images")
@@ -65,9 +65,9 @@ def mock_env():
     (SCRATCH_FROM, False),
     (BASE_IMAGE_W_REGISTRY, True)
 ])
-def test_pull_base_image_special(add_another_parent, special_image, change_base):
+def test_pull_base_image_special(add_another_parent, special_image, change_base, workflow):
     env = (
-        mock_env()
+        mock_env(workflow)
         .set_user_params(image_tag=special_image)
         .set_orchestrator_platforms(["x86_64"])
     )
@@ -165,12 +165,12 @@ def test_pull_base_image_special(add_another_parent, special_image, change_base)
      # not expected:
      [BASE_IMAGE_W_REGISTRY]),
 ])
-def test_pull_base_image_plugin(user_params, parent_registry, df_base, expected, not_expected,
+def test_pull_base_image_plugin(workflow, parent_registry, df_base, expected, not_expected,
                                 inspect_only, workflow_callback=None,
                                 check_platforms=False, parent_images=None, organization=None,
                                 parent_images_digests=None, expected_digests=None,
                                 pull_registries=None):
-    env = mock_env().set_orchestrator_platforms(["x86_64"])
+    env = mock_env(workflow).set_orchestrator_platforms(["x86_64"])
 
     if parent_images:
         dockerfile_images = parent_images
@@ -254,7 +254,7 @@ def test_pull_base_image_plugin(user_params, parent_registry, df_base, expected,
     'pull_registry1.example.com',
     'pull_registry2.example.com'])
 @pytest.mark.parametrize('organization', [None, 'my_organization'])
-def test_pull_parent_images(builder_registry, organization, inspect_only, user_params):
+def test_pull_parent_images(builder_registry, organization, inspect_only, workflow):
     builder_image = 'builder:image'
     source_registry = 'registy_example.com'
     pull_url_1 = 'pull_registry1.example.com'
@@ -292,7 +292,7 @@ def test_pull_parent_images(builder_registry, organization, inspect_only, user_p
                           content=json.dumps(manifest_list).encode('utf-8'))))
 
     test_pull_base_image_plugin(
-        user_params,
+        workflow,
         source_registry, base_image_name,
         [   # expected to pull
             base_image_name,
@@ -306,12 +306,12 @@ def test_pull_parent_images(builder_registry, organization, inspect_only, user_p
         pull_registries=pull_registries)
 
 
-def test_pull_base_wrong_registry(inspect_only, user_params):
+def test_pull_base_wrong_registry(inspect_only, workflow):
     source_registry = 'different.registry:5000'
     base_image_str = 'some.registry:8888/base:image'
     with pytest.raises(PluginFailedException) as exc:
         test_pull_base_image_plugin(
-            user_params,
+            workflow,
             source_registry, base_image_str, [], [],
             inspect_only=inspect_only
         )
@@ -323,13 +323,13 @@ def test_pull_base_wrong_registry(inspect_only, user_params):
     assert log_msg2 in str(exc.value)
 
 
-def test_pull_parent_wrong_registry(inspect_only, user_params):  # noqa: F811
+def test_pull_parent_wrong_registry(inspect_only, workflow):  # noqa: F811
     source_registry = 'different.registry:5000'
     base_image_str = source_registry + "/base:image"
     parent_images = ["some.registry:8888/builder:image", base_image_str]
     with pytest.raises(PluginFailedException) as exc:
         test_pull_base_image_plugin(
-            user_params,
+            workflow,
             source_registry, base_image_str, [], [],
             inspect_only=inspect_only,
             parent_images=parent_images
@@ -343,13 +343,13 @@ def test_pull_parent_wrong_registry(inspect_only, user_params):  # noqa: F811
     assert log_msg2 in str(exc.value)
 
 
-def test_image_without_registry(inspect_only, user_params):
+def test_image_without_registry(inspect_only, workflow):
     source_registry = 'source.registry:5000'
     base_image_str = 'builder:image'
     parent_images = [base_image_str]
     with pytest.raises(PluginFailedException) as exc:
         test_pull_base_image_plugin(
-            user_params,
+            workflow,
             source_registry, base_image_str, [], [],
             inspect_only=inspect_only,
             parent_images=parent_images
@@ -361,18 +361,18 @@ def test_image_without_registry(inspect_only, user_params):
     assert exc_msg in str(exc.value)
 
 
-def test_pull_base_base_parse(inspect_only, user_params):
+def test_pull_base_base_parse(inspect_only, workflow):
     flexmock(ImageName).should_receive('parse').and_raise(AttributeError)
     with pytest.raises(AttributeError):
         test_pull_base_image_plugin(
-            user_params,
+            workflow,
             LOCALHOST_REGISTRY, BASE_IMAGE, [BASE_IMAGE_W_REGISTRY],
             [BASE_IMAGE_W_LIB_REG],
             inspect_only=inspect_only)
 
 
 @pytest.mark.skip(reason="plugin needs rework to not pull and local tag images")
-def test_pull_base_change_override(monkeypatch, inspect_only, user_params):
+def test_pull_base_change_override(monkeypatch, inspect_only, workflow):
     # OSBS2 TBD: Examine for removal (is this an autorebuild thing?)
     # monkeypatch.setenv("BUILD", json.dumps({
     #     'spec': {
@@ -386,7 +386,7 @@ def test_pull_base_change_override(monkeypatch, inspect_only, user_params):
     #     },
     # }))
     test_pull_base_image_plugin(
-        user_params,
+        workflow,
         LOCALHOST_REGISTRY, 'invalid-image',
         [BASE_IMAGE_W_REGISTRY], [BASE_IMAGE_W_LIB_REG],
         inspect_only=inspect_only)
@@ -397,11 +397,11 @@ def test_pull_base_change_override(monkeypatch, inspect_only, user_params):
     (docker.errors.NotFound, 25, False),
     (RuntimeError, 1, False),
 ])
-def test_retry_pull_base_image(exc, failures, should_succeed):
+def test_retry_pull_base_image(exc, failures, should_succeed, workflow):
     source_registry = 'registry.example.com'
     base_image = '/'.join([source_registry, 'parent-image'])
 
-    env = mock_env().set_dockerfile_images([base_image])
+    env = mock_env(workflow).set_dockerfile_images([base_image])
 
     class MockResponse(object):
         content = ''
@@ -427,12 +427,12 @@ def test_retry_pull_base_image(exc, failures, should_succeed):
 
 
 @pytest.mark.skip(reason="plugin needs rework to not pull and local tag images")
-def test_pull_raises_retry_error(caplog):
+def test_pull_raises_retry_error(workflow, caplog):
     image_name = ImageName.parse(IMAGE_RAISE_RETRYGENERATOREXCEPTION)
     base_image_str = "{}/{}:{}".format(SOURCE_REGISTRY, image_name.repo, 'some')
     source_registry = image_name.registry
 
-    env = mock_env().set_dockerfile_images([base_image_str])
+    env = mock_env(workflow).set_dockerfile_images([base_image_str])
     env.set_reactor_config(
         {'version': 1, 'source_registry': {'url': source_registry, 'insecure': True}}
     )
@@ -454,21 +454,21 @@ class TestValidateBaseImage(object):
         sys.modules.pop('pre_pull_base_image', None)
 
     @pytest.mark.skip(reason="plugin needs rework to not pull and local tag images")
-    def test_manifest_list_verified(self, caplog, user_params):
+    def test_manifest_list_verified(self, workflow, source_dir, caplog):
 
         def workflow_callback(workflow):
             self.prepare(workflow, mock_get_manifest_list=True)
             return workflow
 
         log_message = 'manifest list for all required platforms'
-        test_pull_base_image_plugin(user_params, SOURCE_REGISTRY, BASE_IMAGE,
+        test_pull_base_image_plugin(workflow, SOURCE_REGISTRY, BASE_IMAGE,
                                     [], [], inspect_only=False,
                                     workflow_callback=workflow_callback,
                                     check_platforms=True)
         assert log_message in caplog.text
 
     @pytest.mark.skip(reason="plugin needs rework to not pull and local tag images")
-    def test_expected_platforms_unknown(self, caplog, user_params):
+    def test_expected_platforms_unknown(self, caplog, workflow):
 
         def workflow_callback(workflow):
             self.prepare(workflow, mock_get_manifest_list=True)
@@ -477,7 +477,7 @@ class TestValidateBaseImage(object):
             return workflow
 
         log_message = 'expected platforms are unknown'
-        test_pull_base_image_plugin(user_params, SOURCE_REGISTRY, BASE_IMAGE,
+        test_pull_base_image_plugin(workflow, SOURCE_REGISTRY, BASE_IMAGE,
                                     [], [], inspect_only=False,
                                     workflow_callback=workflow_callback,
                                     check_platforms=True)
@@ -486,7 +486,7 @@ class TestValidateBaseImage(object):
     @pytest.mark.skip(reason="plugin needs rework to not pull and local tag images")
     @pytest.mark.parametrize('has_manifest_list', (True, False))
     @pytest.mark.parametrize('has_v2s2_manifest', (True, False))
-    def test_single_platform_build(self, caplog, user_params, has_manifest_list, has_v2s2_manifest):
+    def test_single_platform_build(self, caplog, workflow, has_manifest_list, has_v2s2_manifest):
 
         class StubResponse(object):
             content = b'stubContent'
@@ -517,7 +517,7 @@ class TestValidateBaseImage(object):
             list_msg = 'Base image is a manifest list for all required platforms'
             v2s2_msg = 'base image has no manifest list'
             log_message = list_msg if has_manifest_list else v2s2_msg
-            test_pull_base_image_plugin(user_params, SOURCE_REGISTRY, BASE_IMAGE,
+            test_pull_base_image_plugin(workflow, SOURCE_REGISTRY, BASE_IMAGE,
                                         [], [], inspect_only=False,
                                         workflow_callback=workflow_callback,
                                         check_platforms=True)
@@ -525,13 +525,13 @@ class TestValidateBaseImage(object):
         else:
             no_manifest_msg = 'Unable to fetch manifest list or v2 schema 2 digest'
             with pytest.raises(PluginFailedException) as exc:
-                test_pull_base_image_plugin(user_params, SOURCE_REGISTRY, BASE_IMAGE,
+                test_pull_base_image_plugin(workflow, SOURCE_REGISTRY, BASE_IMAGE,
                                             [], [], inspect_only=False,
                                             workflow_callback=workflow_callback,
                                             check_platforms=True)
             assert no_manifest_msg in str(exc.value)
 
-    def test_manifest_list_with_no_response(self, user_params):
+    def test_manifest_list_with_no_response(self, workflow):
         def workflow_callback(workflow):
             workflow = self.prepare(workflow, mock_get_manifest_list=False)
             (flexmock(atomic_reactor.util.RegistryClient)
@@ -540,7 +540,7 @@ class TestValidateBaseImage(object):
             return workflow
 
         with pytest.raises(PluginFailedException) as exc_info:
-            test_pull_base_image_plugin(user_params, SOURCE_REGISTRY, BASE_IMAGE,
+            test_pull_base_image_plugin(workflow, SOURCE_REGISTRY, BASE_IMAGE,
                                         [], [],
                                         inspect_only=False,
                                         workflow_callback=workflow_callback,
@@ -553,7 +553,7 @@ class TestValidateBaseImage(object):
         (['amd64'], 'ppc64le'),
         (['ppc64le'], 'amd64'),
     ])
-    def test_manifest_list_missing_arches(self, existing_arches, missing_arches_str, user_params):
+    def test_manifest_list_missing_arches(self, existing_arches, missing_arches_str, workflow):
         def workflow_callback(workflow):
             workflow = self.prepare(workflow, mock_get_manifest_list=False)
             manifest_list = {
@@ -568,7 +568,7 @@ class TestValidateBaseImage(object):
             return workflow
 
         with pytest.raises(PluginFailedException) as exc_info:
-            test_pull_base_image_plugin(user_params, SOURCE_REGISTRY, BASE_IMAGE,
+            test_pull_base_image_plugin(workflow, SOURCE_REGISTRY, BASE_IMAGE,
                                         [], [], inspect_only=False,
                                         workflow_callback=workflow_callback,
                                         check_platforms=True)
@@ -583,7 +583,7 @@ class TestValidateBaseImage(object):
         RetryError,
         Timeout,
     ))
-    def test_manifest_config_raises(self, exception, user_params):
+    def test_manifest_config_raises(self, exception, workflow):
         class MockResponse(object):
             content = ''
             status_code = 408
@@ -606,7 +606,7 @@ class TestValidateBaseImage(object):
             return workflow
 
         with pytest.raises(PluginFailedException) as exc_info:
-            test_pull_base_image_plugin(user_params, SOURCE_REGISTRY, BASE_IMAGE_W_SHA,
+            test_pull_base_image_plugin(workflow, SOURCE_REGISTRY, BASE_IMAGE_W_SHA,
                                         [], [], inspect_only=False,
                                         workflow_callback=workflow_callback,
                                         check_platforms=True)
@@ -617,7 +617,7 @@ class TestValidateBaseImage(object):
         True,
         False,
     ))
-    def test_manifest_config_passes(self, sha_is_manifest_list, user_params):
+    def test_manifest_config_passes(self, sha_is_manifest_list, workflow):
         def workflow_callback(workflow):
             workflow = self.prepare(workflow, mock_get_manifest_list=False)
             release = 'rel1'
@@ -667,13 +667,13 @@ class TestValidateBaseImage(object):
                  .times(2))
             return workflow
 
-        test_pull_base_image_plugin(user_params, SOURCE_REGISTRY, BASE_IMAGE_W_SHA,
+        test_pull_base_image_plugin(workflow, SOURCE_REGISTRY, BASE_IMAGE_W_SHA,
                                     [], [], inspect_only=False,
                                     workflow_callback=workflow_callback,
                                     check_platforms=True)
 
     @pytest.mark.skip(reason="plugin needs rework to not pull and local tag images")
-    def test_manifest_list_doesnt_have_current_platform(self, caplog, user_params):
+    def test_manifest_list_doesnt_have_current_platform(self, caplog, workflow):
         manifest_list = {
             'manifests': [
                 {'platform': {'architecture': 'ppc64le'}, 'digest': 'sha256:654321'},
@@ -705,7 +705,7 @@ class TestValidateBaseImage(object):
              .once())
             return workflow
 
-        test_pull_base_image_plugin(user_params, SOURCE_REGISTRY, BASE_IMAGE_W_SHA,
+        test_pull_base_image_plugin(workflow, SOURCE_REGISTRY, BASE_IMAGE_W_SHA,
                                     [], [], inspect_only=False,
                                     workflow_callback=workflow_callback,
                                     check_platforms=True)
@@ -717,7 +717,7 @@ class TestValidateBaseImage(object):
 
     @pytest.mark.skip(reason="plugin needs rework to not pull and local tag images")
     @pytest.mark.parametrize('fail', (True, False))
-    def test_parent_images_digests_orchestrator(self, caplog, user_params, fail):
+    def test_parent_images_digests_orchestrator(self, caplog, workflow, fail):
         """Testing processing of parent_images_digests at an orchestrator"""
 
         reg_image_no_tag = '{}/{}'.format(SOURCE_REGISTRY, BASE_IMAGE_NAME.to_str(tag=False))
@@ -766,14 +766,14 @@ class TestValidateBaseImage(object):
 
         if fail:
             with pytest.raises(PluginFailedException) as exc:
-                test_pull_base_image_plugin(user_params, SOURCE_REGISTRY, BASE_IMAGE,
+                test_pull_base_image_plugin(workflow, SOURCE_REGISTRY, BASE_IMAGE,
                                             [], [], inspect_only=False,
                                             workflow_callback=workflow_callback,
                                             check_platforms=True,  # orchestrator
                                             )
             assert 'not available for arches' in str(exc.value)
         else:
-            test_pull_base_image_plugin(user_params, SOURCE_REGISTRY, BASE_IMAGE,
+            test_pull_base_image_plugin(workflow, SOURCE_REGISTRY, BASE_IMAGE,
                                         [], [], inspect_only=False,
                                         workflow_callback=workflow_callback,
                                         check_platforms=True,  # orchestrator
@@ -790,7 +790,7 @@ class TestValidateBaseImage(object):
 
     @pytest.mark.skip(reason="plugin needs rework to not pull and local tag images")
     @pytest.mark.parametrize('fail', ('no_expected_type', 'no_digests', False))
-    def test_parent_images_digests_worker(self, caplog, user_params, fail):
+    def test_parent_images_digests_worker(self, caplog, workflow, fail):
         """Testing processing of parent_images_digests at a worker"""
         reg_image_no_tag = '{}/{}'.format(SOURCE_REGISTRY, BASE_IMAGE_NAME.to_str(tag=False))
 
@@ -813,7 +813,7 @@ class TestValidateBaseImage(object):
                 }
             }
 
-        test_pull_base_image_plugin(user_params, SOURCE_REGISTRY, BASE_IMAGE,
+        test_pull_base_image_plugin(workflow, SOURCE_REGISTRY, BASE_IMAGE,
                                     [], [], inspect_only=False,
                                     workflow_callback=workflow_callback,
                                     check_platforms=False,  # worker
