@@ -323,6 +323,8 @@ def get_buildroot():
             'type': 'none',
             'arch': os.uname()[4],
         },
+        'components': [],
+        'tools': [],
     }
 
     return buildroot

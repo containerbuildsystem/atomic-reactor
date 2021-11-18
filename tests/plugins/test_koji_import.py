@@ -409,7 +409,9 @@ def mock_environment(tmpdir, session=None, name=None,
                         'os': 'Red Hat Enterprise Linux Server 7.3 (Maipo)',
                         'arch': 'x86_64'
                     },
-                    'id': 1
+                    'id': 1,
+                    'components': [],
+                    'tools': [],
                 }
             ],
             'metadata_version': 0,
@@ -887,6 +889,8 @@ class TestKojiImport(object):
             'host',
             'content_generator',
             'container',
+            'components',
+            'tools',
         }
 
         host = buildroot['host']
