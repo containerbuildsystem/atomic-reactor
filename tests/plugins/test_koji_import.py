@@ -630,7 +630,7 @@ def os_env(monkeypatch):
 
 def create_runner(tasker, workflow, ssl_certs=False, principal=None,
                   keytab=None, target=None, blocksize=None, reserve_build=False,
-                  upload_plugin_name=KojiImportPlugin.key):
+                  upload_plugin_name=KojiImportPlugin.key, userdata=None):
     args = {
         'url': '/',
     }
@@ -641,6 +641,9 @@ def create_runner(tasker, workflow, ssl_certs=False, principal=None,
 
     if blocksize:
         args['blocksize'] = blocksize
+
+    if userdata:
+        args['userdata'] = userdata
 
     plugins_conf = [
         {'name': upload_plugin_name, 'args': args},
@@ -817,6 +820,39 @@ class TestKojiImport(object):
             assert build_metadata is True
         else:
             assert build_metadata is False
+
+    @pytest.mark.parametrize(('userdata'), [
+        None,
+        {},
+        {'custom': 'userdata'},
+    ])
+    def test_userdata_metadata(self, tmpdir, monkeypatch, os_env, userdata):  # noqa
+        session = MockedClientSession('')
+        tasker, workflow = mock_environment(tmpdir,
+                                            session=session,
+                                            name='ns/name',
+                                            version='1.0',
+                                            release='1')
+        runner = create_runner(tasker, workflow, userdata=userdata)
+
+        monkeypatch.setenv("BUILD", json.dumps({
+            'metadata': {
+                'creationTimestamp': '2015-07-27T09:24:00Z',
+                'namespace': NAMESPACE,
+                'name': BUILD_ID,
+                'labels': {
+                },
+            }
+        }))
+
+        runner.run()
+
+        build_extra_metadata = session.metadata['build']['extra']
+
+        if userdata:
+            assert build_extra_metadata['custom_user_metadata'] == userdata
+        else:
+            assert 'custom_user_metadata' not in build_extra_metadata
 
     @pytest.mark.parametrize(('koji_task_id', 'expect_success'), [
         (12345, True),
@@ -2469,9 +2505,14 @@ class TestKojiImport(object):
         (['OPEN'], False),
         (['FAILED'], True),
     ])
+    @pytest.mark.parametrize(('userdata'), [
+        None,
+        {},
+        {'custom': 'userdata'},
+    ])
     def test_koji_import_success_source(self, tmpdir, caplog, blocksize, os_env, has_config,
                                         verify_media, expect_id, reserved_build, task_states,
-                                        skip_import):
+                                        skip_import, userdata):
         session = MockedClientSession('', task_states=task_states)
         # When target is provided koji build will always be tagged,
         # either by koji_import or koji_tag_build.
@@ -2532,7 +2573,8 @@ class TestKojiImport(object):
 
         runner = create_runner(tasker, workflow, target=target, blocksize=blocksize,
                                reserve_build=reserved_build,
-                               upload_plugin_name=KojiImportSourceContainerPlugin.key)
+                               upload_plugin_name=KojiImportSourceContainerPlugin.key,
+                               userdata=userdata)
         runner.run()
 
         if skip_import:
@@ -2595,6 +2637,11 @@ class TestKojiImport(object):
 
         extra = build['extra']
         assert isinstance(extra, dict)
+
+        if userdata:
+            assert extra['custom_user_metadata'] == userdata
+        else:
+            assert 'custom_user_metadata' not in extra
 
         assert 'osbs_build' in extra
         osbs_build = extra['osbs_build']
