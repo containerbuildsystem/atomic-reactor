@@ -73,6 +73,7 @@ from osbs.exceptions import OsbsValidationException
 from tests.mock_env import MockEnv
 from tests.util import requires_internet
 from tests.stubs import StubSource
+from tests.constants import OSBS_BUILD_LOG_FILENAME
 
 if MOCK:
     from tests.retry_mock import mock_get_retry_session
@@ -1219,34 +1220,26 @@ LogEntry = namedtuple('LogEntry', ['platform', 'line'])
 
 def test_osbs_logs_get_log_files(tmpdir):
     class OSBS(object):
-        def get_build_logs(self, build_id):
-            logs = [LogEntry(None, 'orchestrator'),
-                    LogEntry('x86_64', 'Hurray for bacon: \u2017'),
-                    LogEntry('x86_64', 'line 2')]
+        def get_build_logs(self, pipeline_run_name):
+            logs = {
+                "taskRun1": {"containerA": "log message A", "containerB": "log message B"},
+                "taskRun2": {"containerC": "log message C"},
+            }
             return logs
 
-    metadata = {
-        'x86_64.log': {
-            'checksum': 'c2487bf0142ea344df8b36990b0186be',
-            'checksum_type': 'md5',
-            'filename': 'x86_64.log',
-            'filesize': 29
-        },
-        'orchestrator.log': {
-            'checksum': 'ac9ed4cc35a9a77264ca3a0fb81be117',
-            'checksum_type': 'md5',
-            'filename': 'orchestrator.log',
-            'filesize': 13
-        }
+    osbs_logfile_metadata = {
+        'checksum': '1b6c0f6e47915b0d0d12cc0fc863750a',
+        'checksum_type': 'md5',
+        'filename': OSBS_BUILD_LOG_FILENAME,
+        'filesize': 42
     }
 
     logger = flexmock()
     flexmock(logger).should_receive('error')
     osbs_logs = OSBSLogs(logger)
     osbs = OSBS()
-    output = osbs_logs.get_log_files(osbs, 1)
-    for entry in output:
-        assert entry[1] == metadata[entry[1]['filename']]
+    output = osbs_logs.get_log_files(osbs, 'test-pipeline-run')
+    assert output[0].metadata == osbs_logfile_metadata
 
 
 @pytest.mark.parametrize('raise_error', [

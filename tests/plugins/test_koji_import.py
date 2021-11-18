@@ -54,6 +54,7 @@ from tests.flatpak import (MODULEMD_AVAILABLE,
                            setup_flatpak_source_info)
 from tests.stubs import StubSource
 from tests.util import add_koji_map_in_workflow
+from tests.constants import OSBS_BUILD_LOG_FILENAME
 
 from flexmock import flexmock
 import pytest
@@ -65,7 +66,7 @@ from osbs.utils import ImageName
 LogEntry = namedtuple('LogEntry', ['platform', 'line'])
 
 NAMESPACE = 'mynamespace'
-BUILD_ID = 'build-1'
+PIPELINE_RUN_NAME = 'test-pipeline-run'
 SOURCES_FOR_KOJI_NVR = 'component-release-version'
 SOURCES_SIGNING_INTENT = 'some_intent'
 REMOTE_SOURCE_FILE_FILENAME = 'pnc-sources.tar.gz'
@@ -316,14 +317,15 @@ def mock_environment(tmpdir, session=None, name=None,
     (flexmock(GitSource)
         .should_receive('path')
         .and_return(tmpdir))
-    logs = [LogEntry(None, 'orchestrator')]
 
-    if not source_build:
-        logs.append(LogEntry('x86_64', 'Hurray for bacon: \u2017'))
-        logs.append(LogEntry('x86_64', 'line 2'))
+    logs = {
+        "taskRun1": {"containerA": "log message A", "containerB": "log message B"},
+        "taskRun2": {"containerC": "log message C"},
+    }
+
     (flexmock(OSBS)
         .should_receive('get_build_logs')
-        .with_args(BUILD_ID)
+        .with_args(PIPELINE_RUN_NAME)
         .and_return(logs))
     setattr(workflow, 'source', source)
     setattr(workflow.source, 'lg', X())
@@ -581,7 +583,7 @@ def _user_params(monkeypatch):
     monkeypatch.setattr(DockerBuildWorkflow,
                         '_default_user_params',
                         {'namespace': NAMESPACE,
-                         'pipeline_run_name': BUILD_ID,
+                         'pipeline_run_name': PIPELINE_RUN_NAME,
                          'koji_task_id': MockedClientSession.TAG_TASK_ID,
                          })
 
@@ -1307,15 +1309,9 @@ class TestKojiImport(object):
         build_id = runner.plugins_results[KojiImportPlugin.key]
         assert build_id == "123"
 
-        assert set(session.uploaded_files.keys()) == {'orchestrator.log', 'x86_64.log'}
-        orchestrator_log = session.uploaded_files['orchestrator.log']
-        assert orchestrator_log == b'orchestrator\n'
-        x86_64_log = session.uploaded_files['x86_64.log']
-        assert x86_64_log.decode('utf-8') == dedent("""\
-            Hurray for bacon: \u2017
-            line 2
-        """)
-
+        assert set(session.uploaded_files.keys()) == {OSBS_BUILD_LOG_FILENAME}
+        orchestrator_log = session.uploaded_files[OSBS_BUILD_LOG_FILENAME]
+        assert orchestrator_log == b"log message A\nlog message B\nlog message C\n"
         assert workflow.labels['koji-build-id'] == '123'
 
     def test_koji_import_owner_submitter(self, tmpdir, _user_params):
@@ -2353,10 +2349,10 @@ class TestKojiImport(object):
 
         uploaded_oic_file = 'oci-image-{}.{}.tar.xz'.format(expect_id, os.uname()[4])
         assert set(session.uploaded_files.keys()) == {
-            'orchestrator.log',
+            OSBS_BUILD_LOG_FILENAME,
             uploaded_oic_file,
         }
-        orchestrator_log = session.uploaded_files['orchestrator.log']
-        assert orchestrator_log == b'orchestrator\n'
+        orchestrator_log = session.uploaded_files[OSBS_BUILD_LOG_FILENAME]
+        assert orchestrator_log == b"log message A\nlog message B\nlog message C\n"
 
         assert workflow.labels['koji-build-id'] == '123'

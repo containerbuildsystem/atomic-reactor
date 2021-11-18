@@ -58,6 +58,8 @@ IMPORTED_IMAGE_ID = 'eee28534d167d7b3297eace1fc32c46aabedc40696e48ae04c7654f9747
 
 IMAGE_RAISE_RETRYGENERATOREXCEPTION = 'registry.example.com/non-existing-parent-image'
 
+OSBS_BUILD_LOG_FILENAME = 'osbs_build.log'
+
 REACTOR_CONFIG_MAP = dedent("""\
 version: 1
 koji:
