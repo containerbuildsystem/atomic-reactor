@@ -1442,7 +1442,7 @@ class OSBSLogs(object):
 
         return metadata
 
-    def get_log_files(self, osbs, build_id):
+    def get_log_files(self, osbs, pipeline_run_name):
         """
         Build list of log files
 
@@ -1454,30 +1454,24 @@ class OSBSLogs(object):
 
         # Collect logs from server
         try:
-            logs = osbs.get_build_logs(build_id)
+            logs = osbs.get_build_logs(pipeline_run_name)
         except OsbsException as ex:
             self.log.error("unable to get build logs: %s", ex)
             return output
-        except TypeError:
-            # Older osbs-client has no get_orchestrator_build_logs
-            self.log.error("OSBS client does not support get_orchestrator_build_logs")
-            return output
 
-        platform_logs = {}
-        for entry in logs:
-            platform = entry.platform
-            if platform not in platform_logs:
-                filename = 'orchestrator' if platform is None else platform
-                platform_logs[platform] = NamedTemporaryFile(prefix="%s-%s" %
-                                                             (build_id, filename),
-                                                             suffix=".log", mode='r+b')
-            platform_logs[platform].write((entry.line + '\n').encode('utf-8'))
+        # OSBS2 TBD logs for specific arches for binary builds
+        filename = 'osbs_build'
+        logfile = NamedTemporaryFile(prefix=f"{pipeline_run_name}-{filename}",
+                                     suffix=".log", mode='wb')
 
-        for platform, logfile in platform_logs.items():
-            logfile.flush()
-            filename = 'orchestrator' if platform is None else platform
-            metadata = self.get_log_metadata(logfile.name, "%s.log" % filename)
-            output.append(Output(file=logfile, metadata=metadata))
+        # Correct log order depends on dict iteration order
+        # and on osbs.get_build_logs returning correctly ordered dict
+        for containers in logs.values():
+            for log_message in containers.values():
+                logfile.write((log_message + '\n').encode('utf-8'))
+        logfile.flush()
+        metadata = self.get_log_metadata(logfile.name, f"{filename}.log")
+        output.append(Output(file=logfile, metadata=metadata))
 
         return output
 

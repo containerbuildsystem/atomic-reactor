@@ -122,6 +122,7 @@ class KojiImportBase(ExitPlugin):
         self.koji_task_id = None
         self.session = None
         self.reserve_build = self.workflow.conf.koji.get('reserve_build', False)
+        self.pipeline_run_name = None
 
     def get_output(self, *args):
         # Must be implemented by subclasses
@@ -412,7 +413,7 @@ class KojiImportBase(ExitPlugin):
             return Output(file=logfile, metadata=metadata)
 
         try:
-            self.build_id = self.workflow.user_params['pipeline_run_name']
+            self.pipeline_run_name = self.workflow.user_params['pipeline_run_name']
         except KeyError:
             self.log.error("No pipeline_run_name found")
             raise
@@ -428,7 +429,7 @@ class KojiImportBase(ExitPlugin):
         output, output_file = self.get_output(worker_metadatas, buildroot_id)
         osbs_logs = OSBSLogs(self.log)
         output_files = [add_log_type(add_buildroot_id(md, buildroot_id))
-                        for md in osbs_logs.get_log_files(self.osbs, self.build_id)]
+                        for md in osbs_logs.get_log_files(self.osbs, self.pipeline_run_name)]
 
         output.extend([of.metadata for of in output_files])
         if output_file:
