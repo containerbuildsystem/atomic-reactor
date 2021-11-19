@@ -138,6 +138,7 @@ Data which is placed here includes
    remote sources
 - `build.extra.typeinfo.remote-sources` (map list): Entries with information about
    remote sources
+- `build.custom_user_metadata` (map): Custom userdata
 
 The index map has these entries
 
