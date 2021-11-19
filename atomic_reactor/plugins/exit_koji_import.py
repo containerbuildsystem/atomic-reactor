@@ -23,7 +23,7 @@ from atomic_reactor.plugins.build_orchestrate_build import (get_worker_build_inf
                                                             get_koji_upload_dir)
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.util import (OSBSLogs, get_parent_image_koji_data, get_manifest_media_version,
-                                 is_manifest_list)
+                                 is_manifest_list, map_to_user_params)
 from atomic_reactor.utils.koji import get_buildroot as koji_get_buildroot
 from atomic_reactor.utils.koji import get_output as koji_get_output
 from atomic_reactor.utils.koji import (
@@ -99,8 +99,10 @@ class KojiImportBase(ExitPlugin):
     key = None
     is_allowed_to_fail = False
 
+    args_from_user_params = map_to_user_params("userdata")
+
     def __init__(self, workflow, blocksize=None,
-                 target=None, poll_interval=5):
+                 target=None, poll_interval=5, userdata=None):
         """
         constructor
 
@@ -109,6 +111,7 @@ class KojiImportBase(ExitPlugin):
         :param blocksize: int, blocksize to use for uploading files
         :param target: str, koji target
         :param poll_interval: int, seconds between Koji task status requests
+        :param userdata: dict, custom user data
         """
         super(KojiImportBase, self).__init__(workflow)
 
@@ -123,6 +126,7 @@ class KojiImportBase(ExitPlugin):
         self.session = None
         self.reserve_build = self.workflow.conf.koji.get('reserve_build', False)
         self.pipeline_run_name = None
+        self.userdata = userdata
 
     def get_output(self, *args):
         # Must be implemented by subclasses
@@ -584,8 +588,8 @@ class KojiImportPlugin(KojiImportBase):
     key = PLUGIN_KOJI_IMPORT_PLUGIN_KEY  # type: ignore
 
     def __init__(self, workflow, blocksize=None,
-                 target=None, poll_interval=5):
-        super(KojiImportPlugin, self).__init__(workflow, blocksize, target, poll_interval)
+                 target=None, poll_interval=5, userdata=None):
+        super(KojiImportPlugin, self).__init__(workflow, blocksize, target, poll_interval, userdata)
 
     def set_media_types(self, extra, worker_metadatas):
         media_types = []
@@ -698,6 +702,8 @@ class KojiImportPlugin(KojiImportBase):
             extra['osbs_build']['subtypes'].append(KOJI_SUBTYPE_OP_APPREGISTRY)
         if has_operator_bundle_manifest(self.workflow):
             extra['osbs_build']['subtypes'].append(KOJI_SUBTYPE_OP_BUNDLE)
+        if self.userdata:
+            extra['custom_user_metadata'] = self.userdata
 
     def _update_build(self, build):
         labels = Labels(df_parser(self.workflow.df_path,
@@ -728,9 +734,9 @@ class KojiImportSourceContainerPlugin(KojiImportBase):
     key = PLUGIN_KOJI_IMPORT_SOURCE_CONTAINER_PLUGIN_KEY  # type: ignore
 
     def __init__(self, workflow, blocksize=None,
-                 target=None, poll_interval=5):
+                 target=None, poll_interval=5, userdata=None):
         super(KojiImportSourceContainerPlugin, self).__init__(workflow, blocksize,
-                                                              target, poll_interval)
+                                                              target, poll_interval, userdata)
 
     def get_output(self, worker_metadatas, buildroot_id):
         registry = self.workflow.push_conf.docker_registries[0]
@@ -762,6 +768,8 @@ class KojiImportSourceContainerPlugin(KojiImportBase):
         extra['image']['sources_signing_intent'] = source_result['signing_intent']
         extra['osbs_build']['kind'] = KOJI_KIND_IMAGE_SOURCE_BUILD
         extra['osbs_build']['engine'] = KOJI_SOURCE_ENGINE
+        if self.userdata:
+            extra['custom_user_metadata'] = self.userdata
 
     def _update_build(self, build):
         build.update({
