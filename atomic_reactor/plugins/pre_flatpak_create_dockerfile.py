@@ -12,11 +12,13 @@ results in an image with the actual filesystem tree we care about at
 flatpak_update_dockerfile plugin to have specifics from the composed module.
 """
 
-import os
+from pathlib import Path
+from typing import List
 
+from atomic_reactor.dirs import BuildDir
 from osbs.repo_utils import ModuleSpec
 
-from atomic_reactor.constants import DOCKERFILE_FILENAME, RELATIVE_REPOS_PATH, YUM_REPOS_DIR
+from atomic_reactor.constants import RELATIVE_REPOS_PATH, YUM_REPOS_DIR
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.utils.rpm import rpm_qf_args
 from atomic_reactor.util import is_flatpak_build
@@ -135,19 +137,23 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
 
         # Create the dockerfile
 
-        df_path = os.path.join(self.workflow.df_dir, DOCKERFILE_FILENAME)
-        with open(df_path, 'w') as fp:
-            fp.write(DOCKERFILE_TEMPLATE.format(name=name,
-                                                component=component,
-                                                cleanupscript=FLATPAK_CLEANUPSCRIPT_FILENAME,
-                                                includepkgs=FLATPAK_INCLUDEPKGS_FILENAME,
-                                                stream=module_info.stream.replace('-', '_'),
-                                                base_image=base_image,
-                                                relative_repos_path=RELATIVE_REPOS_PATH,
-                                                rpm_qf_args=rpm_qf_args(),
-                                                yum_repos_dir=YUM_REPOS_DIR))
+        def _create_dockerfile(build_dir: BuildDir) -> List[Path]:
+            content = DOCKERFILE_TEMPLATE.format(name=name,
+                                                 component=component,
+                                                 cleanupscript=FLATPAK_CLEANUPSCRIPT_FILENAME,
+                                                 includepkgs=FLATPAK_INCLUDEPKGS_FILENAME,
+                                                 stream=module_info.stream.replace('-', '_'),
+                                                 base_image=base_image,
+                                                 relative_repos_path=RELATIVE_REPOS_PATH,
+                                                 rpm_qf_args=rpm_qf_args(),
+                                                 yum_repos_dir=YUM_REPOS_DIR)
+            build_dir.dockerfile_path.write_text(content, "utf-8")
+            return [build_dir.dockerfile_path]
 
-        self.workflow.set_df_path(df_path)
+        created_files = self.workflow.build_dirs.for_all_copy(_create_dockerfile)
+
+        dockerfile_path = created_files[0]
+        self.workflow.set_df_path(str(dockerfile_path))
 
         # set source registry and organization
         source_registry_docker_uri = self.workflow.conf.source_registry['uri'].docker_uri
