@@ -13,7 +13,9 @@ import responses
 import os
 import pytest
 import yaml
+from typing import List
 
+from atomic_reactor.dirs import BuildDir
 try:
     from atomic_reactor.plugins.pre_flatpak_create_dockerfile import (get_flatpak_source_spec,
                                                                       FlatpakCreateDockerfilePlugin)
@@ -63,7 +65,9 @@ class MockBuilder(object):
         self.dockerfile_images = DockerfileImages([])
 
 
-def mock_workflow(workflow, source_dir: Path, container_yaml, user_params=None):
+def mock_workflow(
+    workflow, source_dir: Path, container_yaml, platforms: List[str], user_params=None
+):
     mock_source = MockSource(str(source_dir))
     setattr(workflow, 'builder', MockBuilder())
     flexmock(workflow, source=mock_source)
@@ -75,6 +79,9 @@ def mock_workflow(workflow, source_dir: Path, container_yaml, user_params=None):
         f.write(container_yaml)
     workflow.source.config = SourceConfig(str(source_dir))
     workflow.df_dir = str(source_dir)
+    workflow.init_build_dirs(platforms)
+
+    return workflow
 
 
 CONFIGS = build_flatpak_test_configs()
@@ -112,7 +119,8 @@ def test_flatpak_create_dockerfile(workflow, source_dir, config_name, override_b
         data['compose']['modules'] = modules
     container_yaml = yaml.dump(data)
 
-    mock_workflow(workflow, source_dir, container_yaml)
+    platforms = ["x86_64", "s390x"]
+    mock_workflow(workflow, source_dir, container_yaml, platforms)
 
     source_spec = get_flatpak_source_spec(workflow)
     assert source_spec is None
@@ -137,23 +145,24 @@ def test_flatpak_create_dockerfile(workflow, source_dir, config_name, override_b
     else:
         runner.run()
 
-        assert os.path.exists(workflow.df_path)
-        with open(workflow.df_path) as f:
-            df = f.read()
-
-        expect_base_image = override_base_image if override_base_image else base_image
-        assert "FROM " + expect_base_image in df
-        assert 'name="{}"'.format(config['name']) in df
-        assert 'com.redhat.component="{}"'.format(config['component']) in df
-        assert "RUN rm -f /etc/yum.repos.d/*" in df
-        assert "ADD atomic-reactor-repos/* /etc/yum.repos.d/" in df
-
         source_spec = get_flatpak_source_spec(workflow)
         assert source_spec == config['source_spec']
 
+        expect_base_image = override_base_image if override_base_image else base_image
+
+        for platform in platforms:
+            build_dir = BuildDir(workflow.build_dirs.path / platform, platform)
+            df = build_dir.dockerfile_path.read_text("utf-8")
+
+            assert "FROM " + expect_base_image in df
+            assert 'name="{}"'.format(config['name']) in df
+            assert 'com.redhat.component="{}"'.format(config['component']) in df
+            assert "RUN rm -f /etc/yum.repos.d/*" in df
+            assert "ADD atomic-reactor-repos/* /etc/yum.repos.d/" in df
+
 
 def test_skip_plugin(workflow, source_dir, caplog):
-    mock_workflow(workflow, source_dir, "", user_params={})
+    mock_workflow(workflow, source_dir, "", ["x86_64"], user_params={})
 
     base_image = "registry.fedoraproject.org/fedora:latest"
 
