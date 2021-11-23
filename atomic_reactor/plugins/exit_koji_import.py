@@ -101,22 +101,19 @@ class KojiImportBase(ExitPlugin):
 
     args_from_user_params = map_to_user_params("userdata")
 
-    def __init__(self, workflow, blocksize=None,
-                 target=None, poll_interval=5, userdata=None):
+    def __init__(self, workflow, blocksize=None, poll_interval=5, userdata=None):
         """
         constructor
 
         :param workflow: DockerBuildWorkflow instance
 
         :param blocksize: int, blocksize to use for uploading files
-        :param target: str, koji target
         :param poll_interval: int, seconds between Koji task status requests
         :param userdata: dict, custom user data
         """
         super(KojiImportBase, self).__init__(workflow)
 
         self.blocksize = blocksize
-        self.target = target
         self.poll_interval = poll_interval
 
         self.osbs = get_openshift_session(self.workflow.conf,
@@ -587,10 +584,6 @@ class KojiImportPlugin(KojiImportBase):
 
     key = PLUGIN_KOJI_IMPORT_PLUGIN_KEY  # type: ignore
 
-    def __init__(self, workflow, blocksize=None,
-                 target=None, poll_interval=5, userdata=None):
-        super(KojiImportPlugin, self).__init__(workflow, blocksize, target, poll_interval, userdata)
-
     def set_media_types(self, extra, worker_metadatas):
         media_types = []
 
@@ -732,11 +725,6 @@ class KojiImportPlugin(KojiImportBase):
 class KojiImportSourceContainerPlugin(KojiImportBase):
 
     key = PLUGIN_KOJI_IMPORT_SOURCE_CONTAINER_PLUGIN_KEY  # type: ignore
-
-    def __init__(self, workflow, blocksize=None,
-                 target=None, poll_interval=5, userdata=None):
-        super(KojiImportSourceContainerPlugin, self).__init__(workflow, blocksize,
-                                                              target, poll_interval, userdata)
 
     def get_output(self, worker_metadatas, buildroot_id):
         registry = self.workflow.push_conf.docker_registries[0]
