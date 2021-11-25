@@ -10,6 +10,7 @@ import logging
 from pathlib import Path
 
 from atomic_reactor import inner
+from atomic_reactor.dirs import RootBuildDir
 from atomic_reactor.tasks import common
 from atomic_reactor.tasks import PluginsDef
 
@@ -23,13 +24,17 @@ logger = logging.getLogger(__name__)
 class PluginBasedTask(common.Task):
     """Task that executes a predefined list of plugins."""
 
+    def _get_build_dir(self) -> RootBuildDir:
+        """Return the root build directory."""
+        return RootBuildDir(Path(self._params.build_dir))
+
     # Override this in subclasses
     plugins_def: PluginsDef = NotImplemented
 
     def execute(self):
         """Execute the plugins defined in plugins_def."""
         workflow = inner.DockerBuildWorkflow(
-            Path(self._params.build_dir),
+            self._get_build_dir(),
             source=self._params.source,
             plugins=self.plugins_def,
             user_params=self._params.user_params,

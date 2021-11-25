@@ -19,6 +19,13 @@ from atomic_reactor.source import DummySource
 from dockerfile_parse import DockerfileParser
 
 
+@pytest.fixture
+def mock_source(source_dir):
+    source = DummySource("git", "https://git.host/app-operator", workdir=str(source_dir))
+    source.get()
+    return source
+
+
 def test_builddir_failure_on_nonexisting_path():
     with pytest.raises(FileNotFoundError, match="does not exist"):
         BuildDir(Path("some_dir"), "x86_64")
@@ -82,24 +89,18 @@ def test_builddir_get_parsed_dockerfile_with_parent_env(
     assert expected_envs == parsed_df.envs
 
 
-def test_rootbuilddir_require_at_least_one_platform(tmpdir):
-    with pytest.raises(ValueError, match="At least one platform"):
-        RootBuildDir(Path(tmpdir), [])
-
-
-def test_rootbuilddir_copy_sources(tmpdir):
-    platforms = ["x86_64", "ppc64le"]
-    root_path = Path(tmpdir) / "root_builddir"
+def test_rootbuilddir_copy_sources(build_dir, mock_source):
+    root_path = build_dir / "root_builddir"
     root_path.mkdir()
-    root = RootBuildDir(root_path, platforms)
 
-    source_workdir = tmpdir.join("source_workdir").mkdir()
-    dummy_source = DummySource("git", "https://host/git", workdir=str(source_workdir))
+    platforms = ["x86_64", "ppc64le"]
+    root = RootBuildDir(root_path)
+    root.platforms = platforms
+    root._copy_sources(mock_source)
 
-    root.copy_sources(dummy_source)
-
-    dockerfile = Path(dummy_source.get(), DOCKERFILE_FILENAME)
-    original_content = dockerfile.read_text("utf-8")
+    dockerfile = os.path.join(mock_source.path, DOCKERFILE_FILENAME)
+    with open(dockerfile, "r") as f:
+        original_content = f.read()
 
     for platform in platforms:
         copied_dockerfile = root.path / platform / DOCKERFILE_FILENAME
@@ -107,45 +108,45 @@ def test_rootbuilddir_copy_sources(tmpdir):
         assert copied_dockerfile.read_text("utf-8") == original_content
 
 
-def test_rootbuilddir_has_sources_no_builddir_created(tmpdir):
-    root = RootBuildDir(Path(tmpdir), ["x86_64", "s390x"])
+def test_rootbuilddir_has_sources_no_builddir_created(build_dir):
+    root = RootBuildDir(build_dir)
+    root.platforms.append("x86_64")
     assert not root.has_sources
 
 
-def test_rootbuilddir_has_sources_partial_build_dirs(tmpdir):
-    root_path = Path(tmpdir)
-    root_path.joinpath("x86_64").mkdir()
-    root = RootBuildDir(root_path, ["x86_64", "s390x"])
+def test_rootbuilddir_has_sources_partial_build_dirs(build_dir):
+    build_dir.joinpath("x86_64").mkdir()
+    root = RootBuildDir(build_dir)
+    root.platforms = ["x86_64", "s390x"]
     assert not root.has_sources
 
 
-def test_rootbuilddir_has_sources(tmpdir):
-    root_path = Path(tmpdir)
-    root_path.joinpath("x86_64").mkdir()
-    root_path.joinpath("s390x").mkdir()
-    root = RootBuildDir(Path(tmpdir), ["x86_64", "s390x"])
+def test_rootbuilddir_has_sources(build_dir):
+    build_dir.joinpath("x86_64").mkdir()
+    build_dir.joinpath("s390x").mkdir()
+    root = RootBuildDir(build_dir)
+    root.platforms = ["x86_64", "s390x"]
     assert root.has_sources
 
 
-def test_rootbuilddir_get_any_build_dir(tmpdir):
-    root_path = Path(tmpdir)
-    root_path.joinpath("x86_64").mkdir()
-    root_path.joinpath("s390x").mkdir()
-    root = RootBuildDir(root_path, ["x86_64", "s390x"])
+def test_rootbuilddir_get_any_build_dir(build_dir, mock_source):
+    root = RootBuildDir(build_dir)
+    root.init_build_dirs(["x86_64", "s390x"], mock_source)
     build_dir_1 = root.any_build_dir
     build_dir_2 = root.any_build_dir
     assert build_dir_1.path == build_dir_2.path
     assert build_dir_1.platform == build_dir_2.platform
 
 
-def test_rootbuilddir_get_any_build_dir_by_different_platforms_order(tmpdir):
-    root_path = Path(tmpdir)
-    root_path.joinpath("x86_64").mkdir()
-    root_path.joinpath("s390x").mkdir()
-    root = RootBuildDir(root_path, ["x86_64", "s390x"])
+def test_rootbuilddir_get_any_build_dir_by_different_platforms_order(build_dir, mock_source):
+    root = RootBuildDir(build_dir)
+    root.init_build_dirs(["x86_64", "s390x"], mock_source)
     build_dir_1 = root.any_build_dir
-    root = RootBuildDir(root_path, ["s390x", "x86_64"])
+
+    root = RootBuildDir(build_dir)
+    root.init_build_dirs(["s390x", "x86_64"], mock_source)
     build_dir_2 = root.any_build_dir
+
     assert build_dir_1.path == build_dir_2.path
     assert build_dir_1.platform == build_dir_2.platform
 
@@ -158,11 +159,9 @@ def handle_platform(build_dir: BuildDir) -> Any:
     return "the test does not care about this value"
 
 
-def test_rootbuilddir_for_each(tmpdir):
-    root_path = Path(tmpdir)
-    root_path.joinpath("x86_64").mkdir()
-    root_path.joinpath("s390x").mkdir()
-    root = RootBuildDir(root_path, ["x86_64", "s390x"])
+def test_rootbuilddir_for_each(build_dir, mock_source):
+    root = RootBuildDir(build_dir)
+    root.init_build_dirs(["x86_64", "s390x"], mock_source)
     results = root.for_each(handle_platform)
     expected = {
         "x86_64": "handled x86_64",
@@ -177,11 +176,9 @@ def failure_action(build_dir: BuildDir) -> Any:
     return "the test does not care about this value"
 
 
-def test_rootbuilddir_for_each_failure_from_action(tmpdir):
-    root_path = Path(tmpdir)
-    root_path.joinpath("x86_64").mkdir()
-    root_path.joinpath("s390x").mkdir()
-    root = RootBuildDir(root_path, ["x86_64", "s390x"])
+def test_rootbuilddir_for_each_failure_from_action(build_dir, mock_source):
+    root = RootBuildDir(build_dir)
+    root.init_build_dirs(["x86_64", "s390x"], mock_source)
     with pytest.raises(ValueError, match="Error is raised"):
         root.for_each(failure_action)
 
@@ -207,16 +204,12 @@ def create_dockerfile(build_dir: BuildDir) -> Iterable[Path]:
     return [dockerfile, data_json,  unpacked]
 
 
-def test_rootbuilddir_for_all_copy(tmpdir):
-    root_path = Path(tmpdir)
-    build_dir_x86_64 = root_path.joinpath("x86_64")
-    build_dir_x86_64.mkdir()
-    build_dir_s390x = root_path.joinpath("s390x")
-    build_dir_s390x.mkdir()
-
-    root = RootBuildDir(root_path, ["x86_64", "s390x"])
+def test_rootbuilddir_for_all_copy(build_dir, mock_source):
+    root = RootBuildDir(build_dir)
+    root.init_build_dirs(["x86_64", "s390x"], mock_source)
     results = root.for_all_copy(create_dockerfile)
 
+    build_dir_s390x = build_dir.joinpath("s390x")
     expected_created_files = sorted([
         build_dir_s390x / DOCKERFILE_FILENAME,
         build_dir_s390x / "data" / "data.json",
@@ -225,12 +218,12 @@ def test_rootbuilddir_for_all_copy(tmpdir):
 
     assert expected_created_files == sorted(results)
 
-    created_files = expected_created_files + [
+    expected_all_copied_files = expected_created_files + [
         build_dir_s390x / "cachito-1" / "app",
         build_dir_s390x / "cachito-1" / "app" / "main.py",
     ]
 
-    for f in created_files:
+    for f in expected_all_copied_files:
         assert f.is_absolute()
         assert f.exists()
 
@@ -276,10 +269,9 @@ def create_file_build_dir_is_returned_as_created(build_dir: BuildDir) -> Iterabl
     ],
 ])
 def test_rootbuilddir_for_all_copy_invalid_file_path(
-    creation_func: FileCreationFunc, expected_err, tmpdir
+    creation_func: FileCreationFunc, expected_err, build_dir, mock_source
 ):
-    root_path = Path(tmpdir)
-    root_path.joinpath("x86_64").mkdir()
-    root = RootBuildDir(root_path, ["x86_64"])
+    root = RootBuildDir(build_dir)
+    root.init_build_dirs(["x86_64"], mock_source)
     with expected_err:
         root.for_all_copy(creation_func)
