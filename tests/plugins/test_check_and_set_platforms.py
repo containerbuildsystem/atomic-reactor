@@ -374,9 +374,9 @@ def test_init_root_build_dir(workflow, source_dir):
 
     runner.run()
 
-    assert workflow.build_dirs.has_sources
+    assert workflow.build_dir.has_sources
     for platform, file_name in zip(platforms.keys(), [DOCKERFILE_FILENAME, REPO_CONTAINER_CONFIG]):
-        copied_file = workflow.build_dirs.path / platform / file_name
+        copied_file = workflow.build_dir.path / platform / file_name
         assert copied_file.exists()
         original_content = source_dir.joinpath(file_name).read_text("utf-8")
         assert original_content == copied_file.read_text("utf-8")

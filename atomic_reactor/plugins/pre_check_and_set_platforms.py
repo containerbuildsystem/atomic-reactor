@@ -98,6 +98,6 @@ class CheckAndSetPlatformsPlugin(PreBuildPlugin):
             self.log.error("platforms in limits are empty")
             raise RuntimeError("No platforms to build for")
 
-        self.workflow.init_build_dirs(list(final_platforms))
+        self.workflow.build_dir.init_build_dirs(list(final_platforms), self.workflow.source)
 
         return final_platforms

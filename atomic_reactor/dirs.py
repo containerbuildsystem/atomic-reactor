@@ -103,15 +103,13 @@ class RootBuildDir(object):
     +-- x86_64/
     """
 
-    def __init__(self, path: Path, platforms: List[str]) -> None:
+    def __init__(self, path: Path) -> None:
         if not path.exists():
             raise FileNotFoundError(f"Path {path} does not exist.")
         self.path = path
-        if not platforms:
-            raise ValueError("At least one platform must be specified.")
-        self.platforms = sorted(platforms)
+        self.platforms: List[str] = []
 
-    def copy_sources(self, source: Source) -> None:
+    def _copy_sources(self, source: Source) -> None:
         """Create platform-specific build directories from source.
 
         :param source: the original source from where to copy the content into
@@ -134,6 +132,18 @@ class RootBuildDir(object):
             if not self.path.joinpath(platform).exists():
                 return False
         return True
+
+    def init_build_dirs(self, platforms: List[str], source: Source) -> None:
+        """Initialize the root build directory with specific determined platforms.
+
+        :param list[str] platforms: a list of platforms to build for.
+        """
+        if not platforms:
+            raise ValueError("At least one platform must be specified.")
+        self.platforms = sorted(platforms)
+        if self.has_sources:
+            return
+        self._copy_sources(source)
 
     @property
     def any_build_dir(self) -> BuildDir:

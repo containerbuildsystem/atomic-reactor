@@ -7,9 +7,11 @@ of the BSD license. See the LICENSE file for details.
 """
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import ClassVar
 
 from atomic_reactor import source
+from atomic_reactor.dirs import RootBuildDir
 from atomic_reactor.tasks import common
 from atomic_reactor.tasks import plugin_based
 
@@ -49,3 +51,8 @@ class SourceBuildTask(plugin_based.PluginBasedTask):
             {"name": "store_metadata"},
         ],
     )
+
+    def _get_build_dir(self) -> RootBuildDir:
+        build_dir = RootBuildDir(Path(self._params.build_dir))
+        build_dir.init_build_dirs(["noarch"], self._params.source)
+        return build_dir

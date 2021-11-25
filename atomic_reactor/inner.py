@@ -16,9 +16,8 @@ import threading
 import os
 import time
 import re
-from pathlib import Path
 from textwrap import dedent
-from typing import List, Optional
+from typing import List
 
 from atomic_reactor.dirs import RootBuildDir
 from atomic_reactor.plugin import (
@@ -421,7 +420,7 @@ class DockerBuildWorkflow(object):
 
     def __init__(
         self,
-        build_dir: Path,
+        build_dir: RootBuildDir,
         source: Source = None,
         plugins: PluginsDef = None,
         user_params: dict = None,
@@ -430,6 +429,8 @@ class DockerBuildWorkflow(object):
         client_version: str = None,
     ):
         """
+        :param build_dir: a directory holding all the artifacts to build an image.
+        :type build_dir: RootBuildDir
         :param source: where/how to get source code to put in image
         :param plugins: the plugins to be executed in this workflow
         :param user_params: user (and other) params that control various aspects of the build
@@ -437,11 +438,9 @@ class DockerBuildWorkflow(object):
         :param plugin_files: load plugins also from these files
         :param client_version: osbs-client version used to render build json
         """
-        self._build_dir = build_dir
+        self.build_dir = build_dir
 
         self.source = source or DummySource(None, None)
-        # Will be set later to once the platforms are determined for the build.
-        self.build_dirs: Optional[RootBuildDir] = None
         self.plugins = plugins or PluginsDef()
         self.user_params = user_params or self._default_user_params.copy()
 
@@ -580,14 +579,6 @@ class DockerBuildWorkflow(object):
                       FROM ...
                       COPY --from=source <src> <dest>
                     """).format(stmt['content'], stage))
-
-    def init_build_dirs(self, platforms: List[str]) -> None:
-        """Initialize the root build directory with specific determined platforms.
-
-        :param list[str] platforms: a list of platforms to build for.
-        """
-        self.build_dirs = RootBuildDir(self._build_dir, platforms)
-        self.build_dirs.copy_sources(self.source)
 
     def parent_images_to_str(self):
         results = {}

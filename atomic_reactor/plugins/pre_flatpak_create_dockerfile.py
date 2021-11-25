@@ -150,7 +150,7 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
             build_dir.dockerfile_path.write_text(content, "utf-8")
             return [build_dir.dockerfile_path]
 
-        created_files = self.workflow.build_dirs.for_all_copy(_create_dockerfile)
+        created_files = self.workflow.build_dir.for_all_copy(_create_dockerfile)
 
         dockerfile_path = created_files[0]
         self.workflow.set_df_path(str(dockerfile_path))

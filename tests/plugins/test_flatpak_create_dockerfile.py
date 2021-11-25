@@ -79,7 +79,7 @@ def mock_workflow(
         f.write(container_yaml)
     workflow.source.config = SourceConfig(str(source_dir))
     workflow.df_dir = str(source_dir)
-    workflow.init_build_dirs(platforms)
+    workflow.build_dir.init_build_dirs(platforms, workflow.source)
 
     return workflow
 
@@ -151,7 +151,7 @@ def test_flatpak_create_dockerfile(workflow, source_dir, config_name, override_b
         expect_base_image = override_base_image if override_base_image else base_image
 
         for platform in platforms:
-            build_dir = BuildDir(workflow.build_dirs.path / platform, platform)
+            build_dir = BuildDir(workflow.build_dir.path / platform, platform)
             df = build_dir.dockerfile_path.read_text("utf-8")
 
             assert "FROM " + expect_base_image in df

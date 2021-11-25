@@ -12,6 +12,7 @@ import pytest
 from osbs.exceptions import OsbsValidationException
 
 from atomic_reactor import inner
+from atomic_reactor.dirs import RootBuildDir
 from atomic_reactor.tasks import plugin_based
 
 
@@ -50,13 +51,20 @@ class TestPluginBasedTask:
         expect_plugins = flexmock()
         monkeypatch.setattr(plugin_based.PluginBasedTask, "plugins_def", expect_plugins)
 
+        root_build_dir = RootBuildDir(build_dir)
+
+        # Help to verify the RootBuildDir object is passed to the workflow object.
+        (flexmock(plugin_based.PluginBasedTask)
+         .should_receive("_get_build_dir")
+         .and_return(root_build_dir))
+
         mocked_workflow = flexmock(inner.DockerBuildWorkflow)
         (
             mocked_workflow
             .should_receive("__init__")
             .once()
             .with_args(
-                build_dir,
+                root_build_dir,
                 source=expect_source,
                 plugins=expect_plugins,
                 user_params={"a": "b"},
