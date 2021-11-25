@@ -23,7 +23,6 @@
     "git_ref": {"type": "string"},
     "git_uri": {"type": "string"},
     "image_tag": {"type": "string"},
-    "imagestream_name": {"type": "string"},
     "isolated": {"type": "boolean"},
     "kind": {"type": "string"},
     "koji_parent_build": {"type": "string"},

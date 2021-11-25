@@ -16,19 +16,17 @@ import logging
 from datetime import timedelta
 import datetime as dt
 import copy
-import platform
 
 from atomic_reactor.inner import BuildResult
 from atomic_reactor.plugin import BuildStepPlugin
-from atomic_reactor.util import (df_parser, get_manifest_list,
-                                 get_platforms, map_to_user_params)
+from atomic_reactor.util import (df_parser, get_platforms, map_to_user_params)
 from atomic_reactor.utils.koji import generate_koji_upload_dir
 from atomic_reactor.constants import (PLUGIN_ADD_FILESYSTEM_KEY, PLUGIN_BUILD_ORCHESTRATE_KEY)
 from atomic_reactor.config import get_openshift_session
 from osbs.api import OSBS
 from osbs.exceptions import OsbsException
 from osbs.conf import Configuration
-from osbs.utils import Labels, ImageName
+from osbs.utils import Labels
 
 
 ClusterInfo = namedtuple('ClusterInfo', ('cluster', 'platform', 'osbs', 'load'))
@@ -249,10 +247,6 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
     @staticmethod
     def args_from_user_params(user_params: dict) -> dict:
         args = {}
-
-        if not user_params.get("buildroot_is_imagestream") and "build_image" in user_params:
-            args["config_kwargs"] = {"build_from": f"image:{user_params['build_image']}"}
-
         build_kwargs_from_user_params = map_to_user_params(
             "component",
             "git_branch",
@@ -405,11 +399,6 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         # # use from rcm: worker_pipeline_clusters->aarch64[0]->verify_ssl
         # 'verify_ssl': True,
         # }
-
-        if platform in self.build_image_digests:
-            kwargs['build_from'] = 'image:' + self.build_image_digests[platform]
-        else:
-            raise RuntimeError("build_image for platform '%s' not available" % platform)
 
         osbs = self._get_openshift_session(kwargs)
 
@@ -629,107 +618,9 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         else:
             raise RuntimeError("Build kind isn't 'DockerImage' but %s" % build_kind)
 
-    def process_image_from(self, image_from):
-        build_image = None
-        imagestream = None
-
-        if image_from['kind'] == 'DockerImage':
-            build_image = image_from['name']
-        elif image_from['kind'] == 'ImageStreamTag':
-            imagestream = image_from['name']
-        else:
-            raise UnknownKindException
-
-        return build_image, imagestream
-
-    def check_manifest_list(self, build_image, orchestrator_platform, platforms,
-                            current_buildimage):
-        registry_name, image = build_image.split('/', 1)
-        repo, tag = image.rsplit(':', 1)
-
-        registry = ImageName(registry=registry_name, repo=repo, tag=tag)
-        manifest_list = get_manifest_list(registry, registry_name, insecure=True)
-
-        # we don't have manifest list, but we want to build on different platforms
-        if not manifest_list:
-            raise RuntimeError("Buildroot image isn't manifest list,"
-                               " which is needed for specified arch")
-        arch_digests = {}
-        image_name = build_image.rsplit(':', 1)[0]
-
-        manifest_list_dict = manifest_list.json()
-        for manifest in manifest_list_dict['manifests']:
-            arch = manifest['platform']['architecture']
-            arch_digests[arch] = image_name + '@' + manifest['digest']
-
-        arch_to_platform = self.workflow.conf.goarch_to_platform_mapping
-        for arch, image in arch_digests.items():
-            self.build_image_digests[arch_to_platform[arch]] = image
-
-        # orchestrator platform is in manifest list
-        if orchestrator_platform not in self.build_image_digests:
-            raise RuntimeError("Platform for orchestrator '%s' isn't in manifest list"
-                               % orchestrator_platform)
-
-        if ('@sha256:' in current_buildimage and
-                self.build_image_digests[orchestrator_platform] != current_buildimage):
-            raise RuntimeError("Orchestrator is using image digest '%s' which isn't"
-                               " in manifest list" % current_buildimage)
-
-    def get_image_info_from_annotations(self):
-        annotations = get_build_json().get("metadata", {}).get('annotations', {})
-        if 'from' in annotations:
-            scratch_from = json.loads(annotations['from'])
-
-            try:
-                return self.process_image_from(scratch_from)
-            except UnknownKindException as exc:
-                raise RuntimeError(
-                    "Build annotation has unknown 'kind' %s" % scratch_from['kind']
-                ) from exc
-        else:
-            raise RuntimeError("Build wasn't created from BuildConfig and neither"
-                               " has 'from' annotation, which is needed for specified arch")
-
-    def set_build_image(self):
-        """
-        Overrides build_image for worker, to be same as in orchestrator build
-        """
-        current_platform = platform.processor()
-        orchestrator_platform = current_platform or 'x86_64'
-        current_buildimage = self.get_current_buildimage()
-
-        for plat, build_image in self.build_image_override.items():
-            self.log.debug('Overriding build image for %s platform to %s',
-                           plat, build_image)
-            self.build_image_digests[plat] = build_image
-
-        manifest_list_platforms = self.platforms - set(self.build_image_override.keys())
-        if not manifest_list_platforms:
-            self.log.debug('Build image override used for all platforms, '
-                           'skipping build image manifest list checks')
-            return
-
-        # orchestrator platform is same as platform on which we want to built on,
-        # so we can use the same image
-        if manifest_list_platforms == {orchestrator_platform}:
-            self.build_image_digests[orchestrator_platform] = current_buildimage
-            return
-
-        # get image build from build metadata, which is set for direct builds
-        # this is explicitly set by osbs-client, it isn't default OpenShift behaviour
-        # OSBS2 TBD
-        build_image, _ = self.get_image_info_from_annotations()
-
-        # we have build_image with tag, so we can check for manifest list
-        if build_image:
-            self.check_manifest_list(build_image, orchestrator_platform,
-                                     manifest_list_platforms, current_buildimage)
-
     def run(self):
         if not self.platforms:
             raise RuntimeError("No enabled platform to build on")
-        self.set_build_image()
 
         thread_pool = ThreadPool(len(self.platforms))
         result = thread_pool.map_async(self.select_and_start_cluster, self.platforms)
