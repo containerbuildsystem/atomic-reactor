@@ -5,11 +5,14 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
+import subprocess
+from functools import partial
 from pathlib import Path
 
 import pytest
 import requests
 import requests.exceptions
+from atomic_reactor.constants import DOCKERFILE_FILENAME
 from tests.constants import LOCALHOST_REGISTRY_HTTP, DOCKER0_REGISTRY_HTTP, TEST_IMAGE
 from tests.util import uuid_value
 
@@ -87,3 +90,25 @@ def source_dir(tmpdir):
     The directory holding source files and can be passed to the mock Source object.
     """
     return Path(tmpdir.join("source_dir").mkdir())
+
+
+@pytest.fixture
+def local_fake_repo(tmpdir):
+    local_repo = tmpdir.join("app-operator").mkdir()
+    repo_path = str(local_repo)
+    call = partial(subprocess.check_call, cwd=repo_path)
+    dockerfile = local_repo.join(DOCKERFILE_FILENAME)
+    dockerfile.write("FROM scratch")
+    call(["git", "init"])
+    call(["git", "add", DOCKERFILE_FILENAME])
+    call(["git", "config", "user.name", "tester"])
+    call(["git", "config", "user.email", "tester@localhost"])
+    call(["git", "commit", "-m", "initial commit"])
+    # Make more commits in case tests need to inspect history
+    dockerfile.write("RUN dnf install -y httpd", mode="a")
+    call(["git", "commit", "-a", "-m", "install httpd"])
+    dockerfile.write("USER apache", mode="a")
+    call(["git", "commit", "-a", "-m", "set user"])
+    dockerfile.write('CMD ["httpd"]', mode="a")
+    call(["git", "commit", "-a", "-m", "change cmd to httpd"])
+    return repo_path

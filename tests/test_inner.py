@@ -19,7 +19,7 @@ from atomic_reactor.plugin import (PreBuildPlugin, PrePublishPlugin, PostBuildPl
                                    BuildStepPlugin, InappropriateBuildStepError)
 from flexmock import flexmock
 import pytest
-from tests.util import requires_internet, is_string_type
+from tests.util import is_string_type
 from tests.constants import DOCKERFILE_MULTISTAGE_CUSTOM_BAD_PATH
 import inspect
 import signal
@@ -719,7 +719,6 @@ class ExitUsesSource(ExitWatched):
         WatchedMixIn.run(self)
 
 
-@requires_internet
 def test_source_not_removed_for_exit_plugins(build_dir):
     flexmock(DockerfileParser, content='df_content')
     mock_inspect()

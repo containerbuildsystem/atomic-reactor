@@ -14,8 +14,7 @@ from atomic_reactor.source import (
 )
 from osbs.exceptions import OsbsValidationException
 
-from tests.constants import DOCKERFILE_GIT, SOURCE_CONFIG_ERROR_PATH
-from tests.util import requires_internet
+from tests.constants import SOURCE_CONFIG_ERROR_PATH
 
 
 class TestSource(object):
@@ -24,13 +23,18 @@ class TestSource(object):
         assert os.path.exists(s.workdir)
 
 
-@requires_internet
 class TestGitSource(object):
-    def test_checks_out_repo(self):
-        gs = GitSource('git', DOCKERFILE_GIT)
+    @pytest.mark.parametrize("add_git_suffix", [True, False])
+    def test_checks_out_repo(self, local_fake_repo, add_git_suffix):
+        if add_git_suffix:
+            repo_url = local_fake_repo + ".git"
+            os.rename(local_fake_repo, repo_url)
+        else:
+            repo_url = local_fake_repo
+        gs = GitSource('git', repo_url)
         gs.get()
         assert os.path.exists(os.path.join(gs.path, '.git'))
-        assert os.path.basename(gs.path) == 'docker-hello-world'
+        assert os.path.basename(gs.path) == 'app-operator'
         assert gs.commit_id is not None
         assert len(gs.commit_id) == 40  # current git hashes are this long
 
