@@ -63,7 +63,7 @@ from atomic_reactor.util import (LazyGit, figure_out_build_file,
                                  terminal_key_paths,
                                  map_to_user_params,
                                  )
-from tests.constants import (DOCKERFILE_GIT, MOCK, REACTOR_CONFIG_MAP)
+from tests.constants import MOCK, REACTOR_CONFIG_MAP
 import atomic_reactor.util
 from atomic_reactor.utils import imageutil
 from atomic_reactor.constants import INSPECT_CONFIG
@@ -71,7 +71,6 @@ from atomic_reactor.source import SourceConfig
 from osbs.utils import ImageName
 from osbs.exceptions import OsbsValidationException
 from tests.mock_env import MockEnv
-from tests.util import requires_internet
 from tests.stubs import StubSource
 from tests.constants import OSBS_BUILD_LOG_FILENAME
 
@@ -142,9 +141,8 @@ def test_figure_out_build_file(tmpdir, contents, local_path, expected_path, expe
         assert expected_exception in str(e.value)
 
 
-@requires_internet
-def test_lazy_git():
-    lazy_git = LazyGit(git_url=DOCKERFILE_GIT)
+def test_lazy_git(local_fake_repo):
+    lazy_git = LazyGit(git_url=local_fake_repo)
     lazy_git.clone()
     with lazy_git:
         assert lazy_git.git_path is not None
@@ -158,10 +156,9 @@ def test_lazy_git():
         assert len(lazy_git.commit_id) == 40  # current git hashes are this long
 
 
-@requires_internet
-def test_lazy_git_with_tmpdir(tmpdir):
-    t = str(tmpdir.realpath())
-    lazy_git = LazyGit(git_url=DOCKERFILE_GIT, tmpdir=t)
+def test_lazy_git_with_tmpdir(local_fake_repo, tmpdir):
+    t = str(tmpdir.join("lazy-git-tmp-dir").realpath())
+    lazy_git = LazyGit(git_url=local_fake_repo, tmpdir=t)
     lazy_git.clone()
     assert lazy_git._tmpdir == t
     assert lazy_git.git_path is not None

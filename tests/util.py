@@ -7,7 +7,6 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
-import pytest
 import requests
 import uuid
 
@@ -72,9 +71,6 @@ def has_connection():
     except requests.ConnectionError:
         return False
 
-
-# In case we run tests in an environment without internet connection.
-requires_internet = pytest.mark.skipif(not has_connection(), reason="requires internet connection")
 
 FAKE_CSV = '''\
 apiVersion: operators.coreos.com/v1alpha1
