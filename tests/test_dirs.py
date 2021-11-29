@@ -12,8 +12,14 @@ from typing import Any, Iterable
 
 import pytest
 from atomic_reactor.constants import DOCKERFILE_FILENAME
+
 from atomic_reactor.dirs import (
-    BuildDir, DockerfileNotExist, FileCreationFunc, ImageInspectionData, RootBuildDir,
+    BuildDir,
+    BuildDirIsNotInitialized,
+    DockerfileNotExist,
+    FileCreationFunc,
+    ImageInspectionData,
+    RootBuildDir,
 )
 from atomic_reactor.source import DummySource
 from dockerfile_parse import DockerfileParser
@@ -108,9 +114,13 @@ def test_rootbuilddir_copy_sources(build_dir, mock_source):
         assert copied_dockerfile.read_text("utf-8") == original_content
 
 
+def test_rootbuilddir_has_sources_if_build_dirs_not_inited(build_dir):
+    assert not RootBuildDir(build_dir).has_sources
+
+
 def test_rootbuilddir_has_sources_no_builddir_created(build_dir):
     root = RootBuildDir(build_dir)
-    root.platforms.append("x86_64")
+    root.platforms = ["x86_64"]
     assert not root.has_sources
 
 
@@ -136,6 +146,11 @@ def test_rootbuilddir_get_any_build_dir(build_dir, mock_source):
     build_dir_2 = root.any_build_dir
     assert build_dir_1.path == build_dir_2.path
     assert build_dir_1.platform == build_dir_2.platform
+
+
+def test_rootbuilddir_get_any_build_dir_fails_if_build_dirs_not_inited(build_dir):
+    with pytest.raises(BuildDirIsNotInitialized, match="not initialized yet"):
+        print(RootBuildDir(build_dir).any_build_dir)
 
 
 def test_rootbuilddir_get_any_build_dir_by_different_platforms_order(build_dir, mock_source):
@@ -168,6 +183,11 @@ def test_rootbuilddir_for_each(build_dir, mock_source):
         "s390x": {"reserved_build_id": 1000},
     }
     assert expected == results
+
+
+def test_rootbuilddir_for_each_fails_if_build_dirs_not_inited(build_dir, mock_source):
+    with pytest.raises(BuildDirIsNotInitialized, match="not initialized yet"):
+        RootBuildDir(build_dir).for_each(lambda path: None)
 
 
 def failure_action(build_dir: BuildDir) -> Any:
@@ -275,3 +295,8 @@ def test_rootbuilddir_for_all_copy_invalid_file_path(
     root.init_build_dirs(["x86_64"], mock_source)
     with expected_err:
         root.for_all_copy(creation_func)
+
+
+def test_rootbuilddir_for_all_copy_fails_if_build_dirs_not_inited(build_dir):
+    with pytest.raises(BuildDirIsNotInitialized, match="not initialized yet"):
+        RootBuildDir(build_dir).for_all_copy(lambda path: [])
