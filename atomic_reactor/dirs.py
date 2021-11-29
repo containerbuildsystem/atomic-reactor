@@ -24,6 +24,13 @@ class DockerfileNotExist(Exception):
     """Dockerfile does not exist."""
 
 
+class BuildDirIsNotInitialized(Exception):
+    """Build directories are not initialized."""
+
+    def __init__(self, msg: Optional[str] = None):
+        super().__init__(msg or "Build directory is not initialized yet.")
+
+
 class BuildDir(object):
     """Representing a directory which is specific to a platform."""
 
@@ -107,7 +114,7 @@ class RootBuildDir(object):
         if not path.exists():
             raise FileNotFoundError(f"Path {path} does not exist.")
         self.path = path
-        self.platforms: List[str] = []
+        self.platforms: Optional[List[str]] = None
 
     def _copy_sources(self, source: Source) -> None:
         """Create platform-specific build directories from source.
@@ -128,6 +135,8 @@ class RootBuildDir(object):
             False is returned.
         :rtype: bool
         """
+        if not self.platforms:
+            return False
         for platform in self.platforms:
             if not self.path.joinpath(platform).exists():
                 return False
@@ -138,8 +147,6 @@ class RootBuildDir(object):
 
         :param list[str] platforms: a list of platforms to build for.
         """
-        if not platforms:
-            raise ValueError("At least one platform must be specified.")
         self.platforms = sorted(platforms)
         if self.has_sources:
             return
@@ -156,6 +163,8 @@ class RootBuildDir(object):
         :return: a source directory.
         :rtype: BuildDir
         """
+        if not self.has_sources:
+            raise BuildDirIsNotInitialized()
         platform: str = self.platforms[0]
         return BuildDir(self.path / platform, platform)
 
@@ -180,6 +189,8 @@ class RootBuildDir(object):
             function which is called for that platform.
         :rtype: dict[str, any]
         """
+        if not self.has_sources:
+            raise BuildDirIsNotInitialized()
         results: Dict[str, Any] = {}
         for platform in self.platforms:
             build_dir = BuildDir(self.path / platform, platform)
@@ -202,6 +213,9 @@ class RootBuildDir(object):
         :return: the list of absolute paths of the created files.
         :rtype: list[pathlib.Path]
         """
+        if not self.has_sources:
+            raise BuildDirIsNotInitialized()
+
         first_platform: str = self.platforms[0]
         build_dir = self.path / first_platform
         created_files = action(BuildDir(build_dir, first_platform))
