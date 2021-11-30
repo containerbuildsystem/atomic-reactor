@@ -174,10 +174,10 @@ def handle_platform(build_dir: BuildDir) -> Any:
     return "the test does not care about this value"
 
 
-def test_rootbuilddir_for_each(build_dir, mock_source):
+def test_rootbuilddir_for_each_platform(build_dir, mock_source):
     root = RootBuildDir(build_dir)
     root.init_build_dirs(["x86_64", "s390x"], mock_source)
-    results = root.for_each(handle_platform)
+    results = root.for_each_platform(handle_platform)
     expected = {
         "x86_64": "handled x86_64",
         "s390x": {"reserved_build_id": 1000},
@@ -187,7 +187,7 @@ def test_rootbuilddir_for_each(build_dir, mock_source):
 
 def test_rootbuilddir_for_each_fails_if_build_dirs_not_inited(build_dir, mock_source):
     with pytest.raises(BuildDirIsNotInitialized, match="not initialized yet"):
-        RootBuildDir(build_dir).for_each(lambda path: None)
+        RootBuildDir(build_dir).for_each_platform(lambda path: None)
 
 
 def failure_action(build_dir: BuildDir) -> Any:
@@ -196,11 +196,11 @@ def failure_action(build_dir: BuildDir) -> Any:
     return "the test does not care about this value"
 
 
-def test_rootbuilddir_for_each_failure_from_action(build_dir, mock_source):
+def test_rootbuilddir_for_each_platform_failure_from_action(build_dir, mock_source):
     root = RootBuildDir(build_dir)
     root.init_build_dirs(["x86_64", "s390x"], mock_source)
     with pytest.raises(ValueError, match="Error is raised"):
-        root.for_each(failure_action)
+        root.for_each_platform(failure_action)
 
 
 def create_dockerfile(build_dir: BuildDir) -> Iterable[Path]:
@@ -224,10 +224,10 @@ def create_dockerfile(build_dir: BuildDir) -> Iterable[Path]:
     return [dockerfile, data_json,  unpacked]
 
 
-def test_rootbuilddir_for_all_copy(build_dir, mock_source):
+def test_rootbuilddir_for_all_platforms_copy(build_dir, mock_source):
     root = RootBuildDir(build_dir)
     root.init_build_dirs(["x86_64", "s390x"], mock_source)
-    results = root.for_all_copy(create_dockerfile)
+    results = root.for_all_platforms_copy(create_dockerfile)
 
     build_dir_s390x = build_dir.joinpath("s390x")
     expected_created_files = sorted([
@@ -288,15 +288,15 @@ def create_file_build_dir_is_returned_as_created(build_dir: BuildDir) -> Iterabl
         pytest.raises(ValueError, match="should not be added as a created"),
     ],
 ])
-def test_rootbuilddir_for_all_copy_invalid_file_path(
+def test_rootbuilddir_for_all_platforms_copy_invalid_file_path(
     creation_func: FileCreationFunc, expected_err, build_dir, mock_source
 ):
     root = RootBuildDir(build_dir)
     root.init_build_dirs(["x86_64"], mock_source)
     with expected_err:
-        root.for_all_copy(creation_func)
+        root.for_all_platforms_copy(creation_func)
 
 
-def test_rootbuilddir_for_all_copy_fails_if_build_dirs_not_inited(build_dir):
+def test_rootbuilddir_for_all_platforms_copy_fails_if_build_dirs_not_inited(build_dir):
     with pytest.raises(BuildDirIsNotInitialized, match="not initialized yet"):
-        RootBuildDir(build_dir).for_all_copy(lambda path: [])
+        RootBuildDir(build_dir).for_all_platforms_copy(lambda path: [])

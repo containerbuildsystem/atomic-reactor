@@ -168,7 +168,7 @@ class RootBuildDir(object):
         platform: str = self.platforms[0]
         return BuildDir(self.path / platform, platform)
 
-    def for_each(self, action: Callable[[BuildDir], Any]) -> Dict[str, Any]:
+    def for_each_platform(self, action: Callable[[BuildDir], Any]) -> Dict[str, Any]:
         """Apply an action on every platform-specific directory.
 
         The action callable will be applied to the platform-specific
@@ -197,7 +197,7 @@ class RootBuildDir(object):
             results[platform] = action(build_dir)
         return results
 
-    def for_all_copy(self, action: FileCreationFunc) -> List[Path]:
+    def for_all_platforms_copy(self, action: FileCreationFunc) -> List[Path]:
         """Ensure created files are present in all platform-specific directories.
 
         ``for_all_copy`` accepts either absolute or relative path returned from
