@@ -87,7 +87,6 @@ You can either get the build image from Dockerhub or create it yourself.
 - [Plugins](https://github.com/containerbuildsystem/atomic-reactor/blob/master/docs/plugins.md)
 - [Plugin development](https://github.com/containerbuildsystem/atomic-reactor/blob/master/docs/plugin_development.md)
 - [API](https://github.com/containerbuildsystem/atomic-reactor/blob/master/docs/api.md)
-- [Build JSON](https://github.com/containerbuildsystem/atomic-reactor/blob/master/docs/build_json.md)
 
 [coveralls status badge]: https://coveralls.io/repos/containerbuildsystem/atomic-reactor/badge.svg?branch=master
 [coveralls status link]: https://coveralls.io/r/containerbuildsystem/atomic-reactor?branch=master
