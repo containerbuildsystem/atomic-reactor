@@ -76,6 +76,7 @@ class BinaryExitTask(plugin_based.PluginBasedTask):
         exit=[
             {"name": "verify_media", "required": False},
             {"name": "koji_import"},
+            {"name": "push_floating_tags"},
             {"name": "koji_tag_build"},
             {"name": "store_metadata"},
             {"name": "sendmail"},
