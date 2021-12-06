@@ -13,7 +13,11 @@ from typing import Dict, Any, List, Callable, Iterable, Optional
 
 from dockerfile_parse import DockerfileParser
 
-from atomic_reactor.constants import DOCKERFILE_FILENAME
+from atomic_reactor.constants import (
+    DOCKERFILE_FILENAME,
+    EXPORTED_COMPRESSED_IMAGE_NAME_TEMPLATE,
+    EXPORTED_SQUASHED_IMAGE_NAME,
+)
 from atomic_reactor.source import Source
 from atomic_reactor.types import ImageInspectionData
 
@@ -39,6 +43,16 @@ class BuildDir(object):
             raise FileNotFoundError(f"Build directory {path} does not exist.")
         self.path = path
         self.platform = platform
+        self.exported_squashed_image: Path = self.path / EXPORTED_SQUASHED_IMAGE_NAME
+
+    def exported_compressed_image(self, ext: str) -> Path:
+        """Return the filename of an exported compressed image.
+
+        :param str ext: the extension of the filename for a specific type of compress algorithm.
+        :return: the absolute path to the file. Nothing is created in the filesystem.
+        :rtype: pathlib.Path
+        """
+        return self.path / EXPORTED_COMPRESSED_IMAGE_NAME_TEMPLATE.format(ext)
 
     @property
     def dockerfile_path(self) -> Path:
@@ -115,6 +129,20 @@ class RootBuildDir(object):
             raise FileNotFoundError(f"Path {path} does not exist.")
         self.path = path
         self.platforms: Optional[List[str]] = None
+
+    @property
+    def source_container_sources_dir(self) -> Path:
+        """The directory holding sources for building a source container."""
+        path: Path = self.path / "sources"
+        path.mkdir(exist_ok=True)
+        return path
+
+    @property
+    def source_container_output_dir(self) -> Path:
+        """The directory holding the output from bsi for a source container build."""
+        path: Path = self.path / "output"
+        path.mkdir(exist_ok=True)
+        return path
 
     def _copy_sources(self, source: Source) -> None:
         """Create platform-specific build directories from source.
