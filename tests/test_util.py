@@ -497,7 +497,7 @@ def test_registry_create_from_config(workflow, registry, reactor_config, matched
                 dockercfg_path=matched_registry['dockercfg_path'],
                 access=access))
 
-    RegistrySession.create_from_config(workflow, registry, access)
+    RegistrySession.create_from_config(workflow.conf, registry, access)
 
 
 @pytest.mark.parametrize('registry, reactor_config, error', [
@@ -536,7 +536,7 @@ def test_registry_create_from_config_errors(workflow, registry, reactor_config, 
     workflow.conf.conf = reactor_config
 
     with pytest.raises(RuntimeError) as exc_info:
-        RegistrySession.create_from_config(workflow, registry)
+        RegistrySession.create_from_config(workflow.conf, registry)
 
     assert str(exc_info.value) == error
 
