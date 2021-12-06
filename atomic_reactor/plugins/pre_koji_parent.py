@@ -313,7 +313,7 @@ class KojiParentPlugin(PreBuildPlugin):
         """
         client = self.registry_clients.get(registry)
         if client is None:
-            session = RegistrySession.create_from_config(self.workflow, registry=registry)
+            session = RegistrySession.create_from_config(self.workflow.conf, registry=registry)
             client = RegistryClient(session)
             self.registry_clients[registry] = client
         return client

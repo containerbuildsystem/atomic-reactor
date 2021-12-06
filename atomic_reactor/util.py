@@ -615,14 +615,14 @@ class RegistrySession(object):
         self.session = get_retrying_requests_session()
 
     @classmethod
-    def create_from_config(cls, workflow, registry=None, access=None):
+    def create_from_config(cls, config, registry=None, access=None):
         """
         Create a session for the specified registry based on configuration in reactor config map.
 
         If the registry is configured in source_registry or pull_registries,
         use that configuration. Otherwise an error is thrown.
 
-        :param workflow: DockerBuildWorkflow, contains configuration for registries
+        :param config: Configuration, contains configuration for registries
         :param registry: str, registry to create session for (as hostname[:port], no http(s))
                          If not specified, the default source_registry will be used
         :param access: List of actions this session is allowed to perform, e.g. ('push', 'pull')
@@ -630,10 +630,10 @@ class RegistrySession(object):
         :return: RegistrySession for the specified registry
         """
         try:
-            source_registry = workflow.conf.source_registry
+            source_registry = config.source_registry
         except KeyError:
             source_registry = None
-        pull_registries = workflow.conf.pull_registries
+        pull_registries = config.pull_registries
 
         if source_registry:
             pull_registries.append(source_registry)
