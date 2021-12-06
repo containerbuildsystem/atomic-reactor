@@ -7,6 +7,7 @@ of the BSD license. See the LICENSE file for details.
 """
 import os
 import shutil
+from pathlib import Path
 
 import koji
 import tarfile
@@ -134,23 +135,19 @@ class FetchSourcesPlugin(PreBuildPlugin):
         :param download_dir: str, directory where to download content
         :return: str, paths to directory with downloaded sources
         """
-        workdir = os.path.join(self.workflow.source.workdir, 'sources')
-        os.makedirs(workdir, exist_ok=True)
-        dest_dir = os.path.join(workdir, download_dir)
-        if not os.path.exists(dest_dir):
-            os.makedirs(dest_dir)
+        dest_dir: Path = self.workflow.build_dir.source_container_sources_dir / download_dir
+        dest_dir.mkdir(parents=True, exist_ok=True)
 
         req_session = get_retrying_requests_session()
         for source in sources:
-            subdir = os.path.join(dest_dir, source.get('subdir', ''))
+            subdir: Path = dest_dir / source.get('subdir', '')
+            subdir.mkdir(parents=True, exist_ok=True)
             checksums = source.get('checksums', {})
-            if not os.path.exists(subdir):
-                os.makedirs(subdir)
             download_url(source['url'], subdir, insecure=insecure,
                          session=req_session, dest_filename=source.get('dest'),
                          expected_checksums=checksums)
 
-        return dest_dir
+        return str(dest_dir)
 
     def set_koji_image_build_data(self):
         build_identifier = self.koji_build_nvr or self.koji_build_id
