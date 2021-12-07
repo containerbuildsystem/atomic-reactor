@@ -1559,7 +1559,6 @@ def test_get_platforms_in_limits(tmpdir, platforms, config_dict, result, valid, 
     (('v2_list',), MEDIA_TYPE_DOCKER_V2_SCHEMA1, True),
     (('v2_list',), MEDIA_TYPE_DOCKER_V2_SCHEMA2, False),
     (tuple(), None, True),
-    (None, None, True),
 ])
 def test_get_inspect_for_image(insecure, found_versions, type_in_list, will_raise):
     image_with_reg = 'localhost.com/not-used.com/spam:latest'
@@ -1604,19 +1603,21 @@ def test_get_inspect_for_image(insecure, found_versions, type_in_list, will_rais
 
     v2_list_json = {'manifests': [{'mediaType': type_in_list, 'digest': 12345}]}
     v2_list_response = flexmock(json=lambda: v2_list_json, status_code=200)
+
     v1_json = {'history': [{'v1Compatibility': json.dumps(inspect_data)}]}
     v1_response = flexmock(json=lambda: v1_json, status_code=200)
-    v2_response = None
+
+    v2_json = {'config': {'digest': config_digest}}
+    v2_response = flexmock(json=lambda: v2_json, status_code=200)
 
     return_list = {}
-    if found_versions:
-        for version in found_versions:
-            if version == 'v1':
-                return_list[version] = v1_response
-            elif version == 'v2':
-                return_list[version] = v2_response
-            elif version == 'v2_list':
-                return_list[version] = v2_list_response
+    for version in found_versions:
+        if version == 'v1':
+            return_list[version] = v1_response
+        elif version == 'v2':
+            return_list[version] = v2_response
+        elif version == 'v2_list':
+            return_list[version] = v2_list_response
 
     (flexmock(atomic_reactor.util.RegistryClient)
      .should_receive('get_all_manifests')
@@ -1629,11 +1630,18 @@ def test_get_inspect_for_image(insecure, found_versions, type_in_list, will_rais
         assert error_msg in str(e.value)
 
     else:
-        if found_versions and ('v2' in found_versions or 'v2_list' in found_versions):
+        if 'v2_list' in found_versions:
             (flexmock(atomic_reactor.util.RegistryClient)
              .should_receive('get_config_and_id_from_registry')
              .and_return(inspect_data, config_digest)
              .once())
+        elif 'v2' in found_versions:
+            (flexmock(atomic_reactor.util.RegistryClient)
+             .should_receive('_blob_config_by_digest')
+             .with_args(image, config_digest)
+             .and_return(inspect_data)
+             .once())
+
         inspected = get_inspect_for_image(image, image.registry, insecure)
         assert inspected == expect_inspect
 
