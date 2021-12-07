@@ -852,9 +852,6 @@ class RegistryClient(object):
         :return: dict of inspected image
         """
         all_man_digests = self.get_all_manifests(image)
-        blob_config = None
-        config_digest = None
-        image_inspect = {}
 
         # we have manifest list (get digest for 1st platform)
         if 'v2_list' in all_man_digests:
@@ -869,12 +866,13 @@ class RegistryClient(object):
                                                                               version='v2')
         # get config for v2 digest
         elif 'v2' in all_man_digests:
-            blob_config, config_digest = self.get_config_and_id_from_registry(image,
-                                                                              image.tag,
-                                                                              version='v2')
+            v2_json = all_man_digests['v2'].json()
+            config_digest = v2_json['config']['digest']
+            blob_config = self._blob_config_by_digest(image, config_digest)
         # read config from v1
         elif 'v1' in all_man_digests:
             v1_json = all_man_digests['v1'].json()
+            config_digest = None  # no way to get useful config digest for v1 images
             blob_config = json.loads(v1_json['history'][0]['v1Compatibility'])
         else:
             raise RuntimeError("Image {image_name} not found: No v2 schema 1 image, "
@@ -894,9 +892,11 @@ class RegistryClient(object):
             raise RuntimeError("Image {image_name}: Couldn't get inspect data "
                                "from digest config".format(image_name=image))
 
-        # set Id, which isn't in config blob
-        # Won't be set for v1,as for that image has to be pulled
-        image_inspect['Id'] = config_digest
+        image_inspect = {
+            # set Id, which isn't in config blob
+            # Won't be set for v1,as for that image has to be pulled
+            'Id': config_digest,
+        }
         # only v2 has rootfs, not v1
         if 'rootfs' in blob_config:
             image_inspect['RootFS'] = blob_config['rootfs']
@@ -905,6 +905,11 @@ class RegistryClient(object):
             image_inspect[new_key] = blob_config[old_key]
 
         return image_inspect
+
+    def _blob_config_by_digest(self, image: ImageName, config_digest: str) -> dict:
+        config_response = query_registry(self._session, image, digest=config_digest, is_blob=True)
+        blob_config = config_response.json()
+        return blob_config
 
     def get_config_and_id_from_registry(self, image, digest, version='v2'):
         """Return image config by digest
@@ -915,15 +920,11 @@ class RegistryClient(object):
 
         :return: dict, versions mapped to their digest
         """
-        response = query_registry(
-            self._session, image, digest=digest, version=version)
+        response = query_registry(self._session, image, digest=digest, version=version)
         manifest_config = response.json()
+
         config_digest = manifest_config['config']['digest']
-
-        config_response = query_registry(
-            self._session, image, digest=config_digest, version=version, is_blob=True)
-
-        blob_config = config_response.json()
+        blob_config = self._blob_config_by_digest(image, config_digest)
 
         context = '/'.join([x for x in [image.namespace, image.repo] if x])
         tag = image.tag
