@@ -901,8 +901,8 @@ class RegistryClient(object):
             'Id': config_digest,
         }
         # only v2 has rootfs, not v1
-        if 'rootfs' in blob_config:
-            image_inspect['RootFS'] = blob_config['rootfs']
+        if rootfs := blob_config.get('rootfs'):
+            image_inspect['RootFS'] = {'Type': rootfs['type'], 'Layers': rootfs['diff_ids']}
 
         for old_key, new_key in config_2_inspect.items():
             image_inspect[new_key] = blob_config[old_key]
