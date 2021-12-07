@@ -844,26 +844,25 @@ class RegistryClient(object):
 
         return digests
 
-    def get_inspect_for_image(self, image):
+    def get_inspect_for_image(self, image: ImageName, arch: Optional[str] = None) -> dict:
         """Return inspect for image.
 
-        :param image: ImageName, the remote image to inspect
+        :param image: The remote image to inspect
+        :param arch: The architecture of the image to inspect. If not specified, will inspect any
+            architecture. If an architecture *is* specified and cannot be inspected (e.g. no such
+            arch in the manifest list, or the image is not a list and doesn't have the right
+            architecture), the method will fail. Uses GOARCH names (e.g. amd64, not x86_64).
 
         :return: dict of inspected image
         """
         all_man_digests = self.get_all_manifests(image)
 
-        # we have manifest list (get digest for 1st platform)
+        # we have manifest list
         if 'v2_list' in all_man_digests:
-            man_list_json = all_man_digests['v2_list'].json()
-            if man_list_json['manifests'][0]['mediaType'] != MEDIA_TYPE_DOCKER_V2_SCHEMA2:
-                raise RuntimeError('Image {image_name}: v2 schema 1 '
-                                   'in manifest list'.format(image_name=image))
-
-            v2_digest = man_list_json['manifests'][0]['digest']
-            blob_config, config_digest = self.get_config_and_id_from_registry(image,
-                                                                              v2_digest,
-                                                                              version='v2')
+            manifest_list = all_man_digests['v2_list'].json()
+            blob_config, config_digest = self._config_and_id_from_manifest_list(
+                image, manifest_list, arch
+            )
         # get config for v2 digest
         elif 'v2' in all_man_digests:
             v2_json = all_man_digests['v2'].json()
@@ -889,8 +888,12 @@ class RegistryClient(object):
         }
 
         if not blob_config:
-            raise RuntimeError("Image {image_name}: Couldn't get inspect data "
-                               "from digest config".format(image_name=image))
+            raise RuntimeError(f"Image {image}: Couldn't get inspect data from digest config")
+        if arch and blob_config['architecture'] != arch:
+            raise RuntimeError(
+                f"Image {image}: Has architecture {blob_config['architecture']}, "
+                f"which does not match specified architecture {arch}"
+            )
 
         image_inspect = {
             # set Id, which isn't in config blob
@@ -910,6 +913,42 @@ class RegistryClient(object):
         config_response = query_registry(self._session, image, digest=config_digest, is_blob=True)
         blob_config = config_response.json()
         return blob_config
+
+    def _config_and_id_from_manifest_list(
+        self, image: ImageName, manifest_list: dict, arch: Optional[str]
+    ) -> Tuple[dict, str]:
+        """Get the config blob and image ID from the manifest list.
+
+        If no architecture is specified, inspect the first image in the list. Otherwise, check
+        that the list has exactly one image matching the specified architecture and inspect that
+        image.
+        """
+        manifests = manifest_list["manifests"]
+        if not manifests:
+            logger.error("Empty manifest list: %r", manifest_list)
+            raise RuntimeError(f"Image {image}: Manifest list is empty")
+
+        if not arch:
+            manifest = manifests[0]
+        else:
+            arch_manifests = [
+                m for m in manifests if m.get("platform", {}).get("architecture") == arch
+            ]
+            if len(arch_manifests) != 1:
+                logger.error(
+                    "Expected one %s manifest in manifest list, got %r", arch, arch_manifests
+                )
+                raise RuntimeError(
+                    f"Image {image}: Expected exactly one manifest for {arch} architecture in "
+                    f"manifest list, got {len(arch_manifests)}"
+                )
+            manifest = arch_manifests[0]
+
+        if manifest["mediaType"] != MEDIA_TYPE_DOCKER_V2_SCHEMA2:
+            raise RuntimeError(f"Image {image}: v2 schema 1 in manifest list")
+
+        v2_digest = manifest["digest"]
+        return self.get_config_and_id_from_registry(image, v2_digest, version='v2')
 
     def get_config_and_id_from_registry(self, image, digest, version='v2'):
         """Return image config by digest
@@ -1157,7 +1196,7 @@ def get_all_manifests(image, registry, insecure=False, dockercfg_path=None,
     return registry_client.get_all_manifests(image, versions=versions)
 
 
-def get_inspect_for_image(image, registry, insecure=False, dockercfg_path=None):
+def get_inspect_for_image(image, registry, insecure=False, dockercfg_path=None, arch=None):
     """Return inspect for image.
 
     :param image: ImageName, the remote image to inspect
@@ -1165,12 +1204,13 @@ def get_inspect_for_image(image, registry, insecure=False, dockercfg_path=None):
                           https:// will be used
     :param insecure: bool, when True registry's cert is not verified
     :param dockercfg_path: str, dirname of .dockercfg location
+    :param arch: str, see RegistryClient.get_inspect_for_image
 
     :return: dict of inspected image
     """
     registry_session = RegistrySession(registry, insecure=insecure, dockercfg_path=dockercfg_path)
     registry_client = RegistryClient(registry_session)
-    return registry_client.get_inspect_for_image(image)
+    return registry_client.get_inspect_for_image(image, arch=arch)
 
 
 def get_config_and_id_from_registry(image, registry, digest, insecure=False,

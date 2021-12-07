@@ -1545,6 +1545,29 @@ def test_get_platforms_in_limits(tmpdir, platforms, config_dict, result, valid, 
         assert final_platforms == set(platforms)
 
 
+MOCK_INSPECT_DATA = {
+    'created': 'create_time',
+    'os': 'os version',
+    'container_config': 'container config',
+    'architecture': 'arch',
+    'docker_version': 'docker version',
+    'config': 'conf',
+    'rootfs': 'some roots'
+}
+MOCK_CONFIG_DIGEST = '987654321'
+
+MOCK_EXPECT_INSPECT = {
+    'Created': 'create_time',
+    'Os': 'os version',
+    'ContainerConfig': 'container config',
+    'Architecture': 'arch',
+    'DockerVersion': 'docker version',
+    'Config': 'conf',
+    'RootFS': 'some roots',
+    'Id': MOCK_CONFIG_DIGEST
+}
+
+
 @pytest.mark.parametrize('insecure', [True, False])
 @pytest.mark.parametrize(('found_versions', 'type_in_list', 'will_raise'), [
     (('v1', 'v2', 'v2_list'), MEDIA_TYPE_DOCKER_V2_SCHEMA1, True),
@@ -1574,27 +1597,10 @@ def test_get_inspect_for_image(insecure, found_versions, type_in_list, will_rais
         raise_exception = RuntimeError
         error_msg = 'Image {image_name}: v2 schema 1 in manifest list'.format(image_name=image)
 
-    inspect_data = {
-        'created': 'create_time',
-        'os': 'os version',
-        'container_config': 'container config',
-        'architecture': 'arch',
-        'docker_version': 'docker version',
-        'config': 'conf',
-        'rootfs': 'some roots'
-    }
-    config_digest = 987654321
+    inspect_data = MOCK_INSPECT_DATA.copy()
+    config_digest = MOCK_CONFIG_DIGEST
+    expect_inspect = MOCK_EXPECT_INSPECT.copy()
 
-    expect_inspect = {
-        'Created': 'create_time',
-        'Os': 'os version',
-        'ContainerConfig': 'container config',
-        'Architecture': 'arch',
-        'DockerVersion': 'docker version',
-        'Config': 'conf',
-        'RootFS': 'some roots',
-        'Id': config_digest
-    }
     if found_versions == ('v1', ):
         config_digest = None
         expect_inspect.pop('RootFS')
@@ -1644,6 +1650,135 @@ def test_get_inspect_for_image(insecure, found_versions, type_in_list, will_rais
 
         inspected = get_inspect_for_image(image, image.registry, insecure)
         assert inspected == expect_inspect
+
+
+@pytest.mark.parametrize("n_matches", [0, 1, 2])
+def test_get_inspect_for_image_specific_arch(n_matches, caplog):
+    """Test that choosing the specified architecture from a manifest list works as expected."""
+    armv6_v2_digest = "123456"
+    armv7_v2_digest = "987654"
+    s390x_v2_digest = "abcdef"
+
+    def manifest_in_list(arch, digest, variant=None):
+        manifest = {
+            "mediaType": MEDIA_TYPE_DOCKER_V2_SCHEMA2,
+            "digest": digest,
+            "platform": {"architecture": arch},
+        }
+        if variant:
+            manifest["platform"]["variant"] = variant
+        return manifest
+
+    all_manifests = {
+        "v2_list": flexmock(
+            json=lambda: {
+                "manifests": [
+                    manifest_in_list("arm", armv6_v2_digest, variant="v6"),
+                    manifest_in_list("arm", armv7_v2_digest, variant="v7"),
+                    manifest_in_list("s390x", s390x_v2_digest),
+                ],
+            },
+            status_code=200,
+        ),
+    }
+    (flexmock(atomic_reactor.util.RegistryClient)
+     .should_receive("get_all_manifests")
+     .and_return(all_manifests)
+     .once())
+
+    image = ImageName.parse("example.org/foo/bar:latest")
+
+    if n_matches == 1:
+        want_arch = "s390x"
+        expect_log = None
+        expect_error_message = None
+    elif n_matches == 0:
+        want_arch = "ppc64le"
+        expect_log = "Expected one ppc64le manifest in manifest list, got []"
+        expect_error_message = (
+            "Expected exactly one manifest for ppc64le architecture in manifest list, got 0"
+        )
+    elif n_matches == 2:
+        want_arch = "arm"
+        arm_manifests = [
+            manifest_in_list("arm", armv6_v2_digest, variant="v6"),
+            manifest_in_list("arm", armv7_v2_digest, variant="v7"),
+        ]
+        expect_log = f"Expected one arm manifest in manifest list, got {arm_manifests}"
+        expect_error_message = (
+            "Expected exactly one manifest for arm architecture in manifest list, got 2"
+        )
+    else:
+        assert False, f"the test doesn't work for {n_matches} matches"
+
+    if expect_error_message:
+        with pytest.raises(RuntimeError, match=expect_error_message):
+            get_inspect_for_image(image, image.registry, arch=want_arch)
+
+        assert expect_log in caplog.text
+        return
+
+    # else (success):
+    inspect_data = {**MOCK_INSPECT_DATA, "architecture": want_arch}
+    config_digest = MOCK_CONFIG_DIGEST
+    expect_inspect = {**MOCK_EXPECT_INSPECT, "Architecture": want_arch}
+
+    (flexmock(atomic_reactor.util.RegistryClient)
+     .should_receive("get_config_and_id_from_registry")
+     # this is the important part - config must be queried by the s390x digest
+     .with_args(image, s390x_v2_digest, version="v2")
+     .and_return(inspect_data, config_digest)
+     .once())
+
+    assert get_inspect_for_image(image, image.registry, arch=want_arch) == expect_inspect
+
+
+def test_get_inspect_for_image_empty_manifest_list(caplog):
+    all_manifests = {
+        "v2_list": flexmock(
+            json=lambda: {"manifests": []},
+            status_code=200,
+        ),
+    }
+    (flexmock(atomic_reactor.util.RegistryClient)
+     .should_receive("get_all_manifests")
+     .and_return(all_manifests)
+     .once())
+
+    image = ImageName.parse("example.org/foo/bar:latest")
+
+    with pytest.raises(RuntimeError, match="Manifest list is empty"):
+        get_inspect_for_image(image, image.registry)
+
+    assert f"Empty manifest list: {all_manifests['v2_list'].json()}" in caplog.text
+
+
+def test_get_inspect_for_image_wrong_arch():
+    """Test that an error is raised when inspecting a non-list image for the wrong architecture."""
+    all_manifests = {
+        "v2": flexmock(
+            json=lambda: {"config": {"digest": MOCK_CONFIG_DIGEST}},
+            status_code=200,
+        ),
+    }
+    (flexmock(atomic_reactor.util.RegistryClient)
+     .should_receive("get_all_manifests")
+     .and_return(all_manifests)
+     .once())
+
+    image = ImageName.parse("example.org/foo/bar:latest")
+    inspect_data = {**MOCK_INSPECT_DATA, "architecture": "amd64"}
+
+    (flexmock(atomic_reactor.util.RegistryClient)
+     .should_receive('_blob_config_by_digest')
+     .and_return(inspect_data)
+     .once())
+
+    with pytest.raises(
+        RuntimeError,
+        match="Has architecture amd64, which does not match specified architecture s390x",
+    ):
+        get_inspect_for_image(image, image.registry, arch="s390x")
 
 
 def test_dump_stacktraces(capfd):
