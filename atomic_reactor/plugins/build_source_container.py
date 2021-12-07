@@ -8,10 +8,14 @@ of the BSD license. See the LICENSE file for details.
 import os
 import shutil
 import subprocess
+from pathlib import Path
 
 from atomic_reactor.inner import BuildResult
-from atomic_reactor.constants import (PLUGIN_SOURCE_CONTAINER_KEY, EXPORTED_SQUASHED_IMAGE_NAME,
-                                      IMAGE_TYPE_DOCKER_ARCHIVE, PLUGIN_FETCH_SOURCES_KEY)
+from atomic_reactor.constants import (
+    IMAGE_TYPE_DOCKER_ARCHIVE,
+    PLUGIN_FETCH_SOURCES_KEY,
+    PLUGIN_SOURCE_CONTAINER_KEY,
+)
 from atomic_reactor.plugin import BuildStepPlugin
 from atomic_reactor.util import get_exported_image_metadata
 from atomic_reactor.utils import retries
@@ -25,8 +29,8 @@ class SourceContainerPlugin(BuildStepPlugin):
 
     key = PLUGIN_SOURCE_CONTAINER_KEY
 
-    def export_image(self, image_output_dir):
-        output_path = os.path.join(self.workflow.source.workdir, EXPORTED_SQUASHED_IMAGE_NAME)
+    def export_image(self, image_output_dir: Path) -> str:
+        output_path = self.workflow.build_dir.any_build_dir.exported_squashed_image
 
         cmd = ['skopeo', 'copy']
         source_img = 'oci:{}'.format(image_output_dir)
@@ -39,9 +43,9 @@ class SourceContainerPlugin(BuildStepPlugin):
             self.log.error("failed to save docker-archive :\n%s", e.output)
             raise
 
-        img_metadata = get_exported_image_metadata(output_path, IMAGE_TYPE_DOCKER_ARCHIVE)
+        img_metadata = get_exported_image_metadata(str(output_path), IMAGE_TYPE_DOCKER_ARCHIVE)
         self.workflow.exported_image_sequence.append(img_metadata)
-        return output_path
+        return str(output_path)
 
     def split_remote_sources_to_subdirs(self, remote_source_data_dir):
         """Splits remote source archives to subdirs"""
@@ -87,8 +91,8 @@ class SourceContainerPlugin(BuildStepPlugin):
         if maven_source_exists and not os.listdir(maven_source_data_dir):
             self.log.warning("Maven source directory '%s' is empty", maven_source_data_dir)
 
-        image_output_dir = os.path.join(self.workflow.source.workdir, 'output')
-        os.makedirs(image_output_dir, exist_ok=True)
+        image_output_dir: Path = self.workflow.build_dir.source_container_output_dir
+        image_output_dir.mkdir(exist_ok=True)
         cmd = ['bsi', '-d']
         drivers = set()
 
