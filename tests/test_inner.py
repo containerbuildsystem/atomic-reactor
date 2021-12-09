@@ -1052,9 +1052,8 @@ def test_no_base_image(build_dir, source_dir):
     dfp = df_parser(str(source_dir))
     dfp.content = "# no FROM\nADD spam /eggs"
 
-    workflow._df_path = dfp.dockerfile_path
     with pytest.raises(RuntimeError) as exc:
-        workflow.set_df_path(str(source_dir))
+        workflow.reset_dockerfile_images(str(source_dir))
     assert "no base image specified" in str(exc.value)
 
 

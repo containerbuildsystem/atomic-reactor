@@ -188,6 +188,9 @@ def mock_env(workflow, tmpdir, platform='x86_64', base_layers=0,
     # Ensure to succeed in reading the content_sets.yml
     env.workflow.source.get_build_file_path = lambda: (str(tmpdir), str(tmpdir))
 
+    # TEMP solution until the plugin is updated to read Dockerfiles from build dirs
+    env.workflow._df_path = str(tmpdir)
+
     return env.create_runner()
 
 
@@ -253,7 +256,6 @@ def test_add_image_content_manifest(workflow, requests_mock, tmpdir, caplog,
     if manifest_file_exists:
         tmpdir.join(manifest_file).write("")
     runner = mock_env(workflow, tmpdir, platform, base_layers)
-    runner.workflow.set_df_path(dfp.dockerfile_path)
     runner.workflow.df_dir = str(tmpdir)
     if manifest_file_exists:
         with pytest.raises(PluginFailedException):
@@ -294,7 +296,6 @@ def test_fetch_maven_artifacts_no_pnc_config(workflow, requests_mock, tmpdir, ca
 
     with pytest.raises(PluginFailedException):
         runner = mock_env(workflow, tmpdir, r_c_m_override=r_c_m)
-        runner.workflow.set_df_path(dfp.dockerfile_path)
         runner.run()
 
     msg = 'No PNC configuration found in reactor config map'
@@ -321,7 +322,6 @@ def test_none_remote_source_icm_url(workflow, requests_mock, tmpdir, caplog,
     dfp = util.df_parser(str(tmpdir))
     dfp.content = df_content
     runner = mock_env(workflow, tmpdir, platform, base_layers, remote_sources=None)
-    runner.workflow.set_df_path(dfp.dockerfile_path)
     runner.workflow.df_dir = str(tmpdir)
     expected_output = deepcopy(ICM_MINIMAL_DICT)
     expected_output['image_contents'].append({'purl': PNC_ARTIFACT['purl']})
@@ -356,7 +356,6 @@ def test_no_pnc_artifacts(workflow, requests_mock, tmpdir, caplog, content_sets,
     dfp = util.df_parser(str(tmpdir))
     dfp.content = df_content
     runner = mock_env(workflow, tmpdir, platform, base_layers, pnc_artifacts=False)
-    runner.workflow.set_df_path(dfp.dockerfile_path)
     runner.workflow.df_dir = str(tmpdir)
     expected_output = deepcopy(ICM_DICT)
     expected_output['image_contents'] = expected_output['image_contents'][:-1]
