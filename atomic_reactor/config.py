@@ -9,7 +9,12 @@ of the BSD license. See the LICENSE file for details.
 from copy import deepcopy
 from atomic_reactor.utils.cachito import CachitoAPI
 from atomic_reactor.constants import REACTOR_CONFIG_ENV_NAME
-from atomic_reactor.util import (read_yaml, read_yaml_from_file_path, DefaultKeyDict)
+from atomic_reactor.util import (
+    read_yaml,
+    read_yaml_from_file_path,
+    DefaultKeyDict,
+    DockerfileImages,
+)
 from osbs.utils import RegistryURI
 
 import logging
@@ -263,17 +268,15 @@ class Configuration(object):
 
         logger.info("reading config content %s", self.conf)
 
-    def set_workflow_based_on_config(self, workflow):
+    def update_dockerfile_images_from_config(self, dockerfile_images: DockerfileImages) -> None:
         """
-        Sets attributes in workflow based on config
+        Set source registry and organization in dockerfile images.
         """
-
-        # set source registry and organization
-        if workflow.dockerfile_images:
+        # only update if there are any actual images (not just 'scratch')
+        if dockerfile_images:
             source_registry_docker_uri = self.source_registry['uri'].docker_uri
             organization = self.registries_organization
-            workflow.dockerfile_images.set_source_registry(source_registry_docker_uri,
-                                                           organization)
+            dockerfile_images.set_source_registry(source_registry_docker_uri, organization)
 
     def _get_cluster_configuration(self):
         all_cluster_configs = {}

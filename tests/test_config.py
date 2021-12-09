@@ -1381,24 +1381,22 @@ build_env_vars:
             with pytest.raises(OsbsValidationException):
                 read_yaml(config, 'schemas/config.json')
 
-    @pytest.mark.parametrize(('dockerfile_images', 'organization'), [
+    @pytest.mark.parametrize(('images_exist', 'organization'), [
         (True, None),
         (True, 'organization'),
         (False, None),
         (False, 'organization'),
     ])
-    def test_set_source_registry(
-        self, workflow, source_dir, dockerfile_images, organization, user_params
-    ):
+    def test_update_dockerfile_images_from_config(self, tmp_path, images_exist, organization):
         config = REQUIRED_CONFIG
 
         if organization:
             config += "\nregistries_organization: " + organization
 
-        config_yaml = source_dir / 'config.yaml'
+        config_yaml = tmp_path / 'config.yaml'
         config_yaml.write_text(dedent(config), "utf-8")
 
-        if dockerfile_images:
+        if images_exist:
             parent_images = ['parent:latest', 'base:latest']
             if organization:
                 expect_images = [ImageName.parse('source_registry.com/organization/base:latest'),
@@ -1409,17 +1407,16 @@ build_env_vars:
         else:
             parent_images = []
 
-        if parent_images:
-            workflow.dockerfile_images = DockerfileImages(parent_images)
+        dockerfile_images = DockerfileImages(parent_images)
 
         conf = Configuration(config_path=str(config_yaml))
-        conf.set_workflow_based_on_config(workflow)
+        conf.update_dockerfile_images_from_config(dockerfile_images)
 
-        if dockerfile_images:
-            assert len(workflow.dockerfile_images) == 2
-            assert workflow.dockerfile_images.keys() == expect_images
+        if images_exist:
+            assert len(dockerfile_images) == 2
+            assert dockerfile_images.keys() == expect_images
         else:
-            assert not workflow.dockerfile_images
+            assert not dockerfile_images
 
 
 def test_ensure_odcsconfig_does_not_modify_original_signing_intents():

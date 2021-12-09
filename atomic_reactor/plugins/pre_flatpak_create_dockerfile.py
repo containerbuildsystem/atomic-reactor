@@ -153,10 +153,4 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
         created_files = self.workflow.build_dir.for_all_platforms_copy(_create_dockerfile)
 
         dockerfile_path = created_files[0]
-        self.workflow.set_df_path(str(dockerfile_path))
-
-        # set source registry and organization
-        source_registry_docker_uri = self.workflow.conf.source_registry['uri'].docker_uri
-        organization = self.workflow.conf.registries_organization
-        self.workflow.dockerfile_images.set_source_registry(source_registry_docker_uri,
-                                                            organization)
+        self.workflow.reset_dockerfile_images(str(dockerfile_path))

@@ -516,16 +516,15 @@ class DockerBuildWorkflow(object):
         # OSBS2 TBD
         self.parent_images_digests = {}
 
+        # openshift in configuration needs namespace, it was reading it from get_builds_json()
+        # we should have it in user_params['namespace']
+        self.conf = Configuration(config_path=reactor_config_path)
+
         # If the Dockerfile will be entirely generated from the container.yaml
         # (in the Flatpak case, say), then a plugin needs to create the Dockerfile
         # and set the base image
         if build_file_path.endswith(DOCKERFILE_FILENAME):
-            self.set_df_path(build_file_path)
-
-        # openshift in configuration needs namespace, it was reading it from get_builds_json()
-        # we should have it in user_params['namespace']
-        self.conf = Configuration(config_path=reactor_config_path)
-        self.conf.set_workflow_based_on_config(self)
+            self.reset_dockerfile_images(build_file_path)
 
     @property
     def df_path(self):
@@ -534,13 +533,32 @@ class DockerBuildWorkflow(object):
 
         return self._df_path
 
-    def set_df_path(self, path):
-        self._df_path = path
+    def reset_dockerfile_images(self, path: str) -> None:
+        """Given a new Dockerfile path, (re)set all the mutable state that relates to it.
+
+        Workflow keeps a dockerfile_images object, which corresponds to the parent images in
+        the Dockerfile. This object and the actual Dockerfile are both mutable (and plugins
+        frequently mutate them). It is the responsibility of every plugin to make the changes
+        in such a way that the actual parent images and their in-memory representation do not
+        get out of sync.
+
+        For extreme cases such as plugins creating an entirely new Dockerfile (e.g.
+        flatpak_create_dockerfile), this method *must* be used to replace the existing
+        dockerfile_images object with a new one and re-apply some mutations.
+        """
+        self._df_path = path  # OSBS2 TBD: delete this
+
+        new_dockerfile_images = self._parse_dockerfile_images(path)
+        self.conf.update_dockerfile_images_from_config(new_dockerfile_images)
+
+        self.dockerfile_images = new_dockerfile_images
+
+    def _parse_dockerfile_images(self, path: str) -> DockerfileImages:
         dfp = df_parser(path)
         if dfp.baseimage is None:
             raise RuntimeError("no base image specified in Dockerfile")
 
-        self.dockerfile_images = DockerfileImages(dfp.parent_images)
+        dockerfile_images = DockerfileImages(dfp.parent_images)
         logger.debug("base image specified in dockerfile = '%s'", dfp.baseimage)
         logger.debug("parent images specified in dockerfile = '%s'", dfp.parent_images)
 
@@ -579,6 +597,8 @@ class DockerBuildWorkflow(object):
                       FROM ...
                       COPY --from=source <src> <dest>
                     """).format(stmt['content'], stage))
+
+        return dockerfile_images
 
     def parent_images_to_str(self):
         results = {}
