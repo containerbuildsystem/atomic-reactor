@@ -24,7 +24,6 @@ from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.exit_store_metadata import StoreMetadataPlugin
 from atomic_reactor.util import LazyGit, ManifestDigest, df_parser, DockerfileImages
-from atomic_reactor.utils import imageutil
 import pytest
 from tests.constants import (LOCALHOST_REGISTRY, DOCKER0_REGISTRY, TEST_IMAGE, TEST_IMAGE_NAME,
                              INPUT_IMAGE)
@@ -84,7 +83,7 @@ def prepare(workflow, docker_registries=None):
         r.digests["namespace/image:asd123"] = ManifestDigest(v1=DIGEST_NOT_USED,
                                                              v2=DIGEST2)
 
-    flexmock(imageutil).should_receive('base_image_inspect').and_return({'Id': '01234567'})
+    flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return({'Id': '01234567'})
     workflow.build_logs = [
         "a", "b",
     ]

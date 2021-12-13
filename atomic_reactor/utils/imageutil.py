@@ -93,17 +93,6 @@ class ImageUtil:
 # OSBS2 TBD
 
 
-def get_inspect_for_image(image):
-    # util.get_inspect_for_image(image, registry, insecure=False, dockercfg_path=None)
-    # or use skopeo
-    # insecure = self.pull_registries[base_image.registry]['insecure']
-    # dockercfg_path = self.pull_registries[base_image.registry]['dockercfg_path']
-    # self._base_image_inspect =\
-    #     atomic_reactor.util.get_inspect_for_image(base_image, base_image.registry, insecure,
-    # dockercfg_path)
-    return {}
-
-
 def get_image_history(image):
     # get image history with skopeo / registry api
     return []
@@ -111,12 +100,6 @@ def get_image_history(image):
 
 def inspect_built_image():
     # get output image final/arch specific from somewhere
-    # and call get_inspect_for_image
-    return {}
-
-
-def base_image_inspect():
-    # get base image from workflow.dockerfile_images
     # and call get_inspect_for_image
     return {}
 

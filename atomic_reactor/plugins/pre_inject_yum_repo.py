@@ -16,7 +16,6 @@ from atomic_reactor.constants import YUM_REPOS_DIR, RELATIVE_REPOS_PATH, INSPECT
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import df_parser
 from atomic_reactor.utils.yum import YumRepo
-from atomic_reactor.utils import imageutil
 
 
 class InjectYumRepoPlugin(PreBuildPlugin):
@@ -29,9 +28,9 @@ class InjectYumRepoPlugin(PreBuildPlugin):
             return user
 
         if not self.workflow.dockerfile_images.base_from_scratch:
-            # OSBS2 TBD
-            inspect = imageutil.base_image_inspect()
-            user = inspect.get(INSPECT_CONFIG).get('User')
+            # OSBS2 TBD: decide if we need to inspect a specific arch
+            inspect = self.workflow.imageutil.base_image_inspect()
+            user = inspect.get(INSPECT_CONFIG, {}).get('User')
             if user:
                 return f'USER {user}'
 

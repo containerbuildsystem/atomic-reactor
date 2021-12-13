@@ -22,7 +22,6 @@ from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import (base_image_is_scratch, df_parser, read_yaml,
                                  read_content_sets, map_to_user_params
                                  )
-from atomic_reactor.utils import imageutil
 from atomic_reactor.utils.pnc import PNCUtil
 
 
@@ -126,8 +125,8 @@ class AddImageContentManifestPlugin(PreBuildPlugin):
             #     *always* have 2 layers
             self._layer_index = 1
         if not base_image_is_scratch(self.dfp.baseimage):
-            # OSBS2 TBD
-            inspect = imageutil.base_image_inspect()
+            # OSBS2 TBD: decide if we need to inspect a specific arch
+            inspect = self.workflow.imageutil.base_image_inspect()
             self._layer_index = len(inspect[INSPECT_ROOTFS][INSPECT_ROOTFS_LAYERS])
         return self._layer_index
 

@@ -11,7 +11,6 @@ to the more specific names given by the builder.
 """
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import df_parser, base_image_is_scratch
-from atomic_reactor.utils import imageutil
 
 
 class BaseImageMismatch(RuntimeError):
@@ -92,8 +91,9 @@ class ChangeFromPlugin(PreBuildPlugin):
                 new_parents.append(df_img)
                 continue
             local_image = self.workflow.dockerfile_images[df_img]
-            # OSBS2 TBD
-            inspection = imageutil.get_inspect_for_image(local_image)
+            # OSBS2 TBD: we don't want to map images to Ids anymore,
+            #   but to manifest list digests instead
+            inspection = self.workflow.imageutil.get_inspect_for_image(local_image)
 
             try:
                 parent_image_ids[df_img] = inspection['Id']

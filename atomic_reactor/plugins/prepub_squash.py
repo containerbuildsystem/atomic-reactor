@@ -14,7 +14,6 @@ from atomic_reactor.constants import EXPORTED_SQUASHED_IMAGE_NAME, IMAGE_TYPE_DO
 from atomic_reactor.plugin import PrePublishPlugin
 from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.util import get_exported_image_metadata, is_flatpak_build
-from atomic_reactor.utils import imageutil
 from docker_squash.squash import Squash
 
 __all__ = ('PrePublishSquashPlugin', )
@@ -74,10 +73,13 @@ class PrePublishSquashPlugin(PrePublishPlugin):
         if from_base and from_layer is None:
             if not self.workflow.dockerfile_images.base_from_scratch:
                 try:
-                    # OSBS2 TBD
-                    base_image_id = imageutil.base_image_inspect()['Id']
+                    # OSBS2 TBD: this entire plugin will be deleted
+                    base_image_id = self.workflow.imageutil.base_image_inspect()['Id']
                 except KeyError:
-                    self.log.error("Missing Id in inspection: '%s'", imageutil.base_image_inspect())
+                    self.log.error(
+                        "Missing Id in inspection: '%s'",
+                        self.workflow.imageutil.base_image_inspect(),
+                    )
                     raise
                 self.log.info("will squash from base-image: '%s'", base_image_id)
                 self.from_layer = base_image_id

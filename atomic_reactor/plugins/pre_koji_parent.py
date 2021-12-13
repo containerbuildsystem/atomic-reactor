@@ -15,7 +15,6 @@ from atomic_reactor.util import (
     base_image_is_custom, get_manifest_media_type, is_scratch_build,
     get_platforms, RegistrySession, RegistryClient
 )
-from atomic_reactor.utils import imageutil
 from copy import copy
 from osbs.utils import Labels
 
@@ -83,8 +82,8 @@ class KojiParentPlugin(PreBuildPlugin):
                 self.workflow.dockerfile_images.custom_base_image):
             self._base_image_nvr = self.detect_parent_image_nvr(
                 self.workflow.dockerfile_images.base_image,
-                # OSBS2 TBD
-                inspect_data=imageutil.base_image_inspect(),
+                # OSBS2 TBD: decide if we need to inspect a specific arch
+                inspect_data=self.workflow.imageutil.base_image_inspect(),
             )
 
         manifest_mismatches = []
@@ -253,8 +252,8 @@ class KojiParentPlugin(PreBuildPlugin):
         """
 
         if inspect_data is None:
-            # OSBS2 TBD
-            inspect_data = imageutil.get_inspect_for_image(image_name)
+            # OSBS2 TBD: decide if we need to inspect a specific arch
+            inspect_data = self.workflow.imageutil.get_inspect_for_image(image_name)
         labels = Labels(inspect_data[INSPECT_CONFIG].get('Labels', {}))
 
         label_names = [Labels.LABEL_TYPE_COMPONENT, Labels.LABEL_TYPE_VERSION,

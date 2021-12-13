@@ -16,7 +16,6 @@ from atomic_reactor.constants import INSPECT_CONFIG
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.plugins.pre_hide_files import HideFilesPlugin
 from atomic_reactor.util import df_parser
-from atomic_reactor.utils import imageutil
 
 
 @pytest.mark.usefixtures('user_params')
@@ -247,7 +246,7 @@ class TestHideFilesPlugin(object):
         flexmock(workflow, df_path=df_path)
 
         for parent in parent_images or []:
-            (flexmock(imageutil)
+            (flexmock(workflow.imageutil)
              .should_receive('get_inspect_for_image')
              .with_args(parent)
              .and_return({INSPECT_CONFIG: {'User': inherited_user}}))

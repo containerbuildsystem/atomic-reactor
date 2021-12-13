@@ -60,7 +60,6 @@ from atomic_reactor.constants import INSPECT_CONFIG
 from atomic_reactor.util import (df_parser,
                                  label_to_string,
                                  LabelFormatter)
-from atomic_reactor.utils import imageutil
 from osbs.utils import Labels
 import json
 import datetime
@@ -278,8 +277,8 @@ class AddLabelsPlugin(PreBuildPlugin):
             base_image_labels = {}
         else:
             try:
-                # OSBS2 TBD
-                config = imageutil.base_image_inspect()[INSPECT_CONFIG]
+                # OSBS2 TBD: inspect the correct architecture
+                config = self.workflow.imageutil.base_image_inspect()[INSPECT_CONFIG]
             except KeyError as exc:
                 message = "base image was not inspected"
                 self.log.error(message)

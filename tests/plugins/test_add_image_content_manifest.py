@@ -21,7 +21,6 @@ from tests.mock_env import MockEnv
 from tests.utils.test_cachito import CACHITO_URL, CACHITO_REQUEST_ID
 
 from atomic_reactor import util
-from atomic_reactor.utils import imageutil
 from atomic_reactor.constants import INSPECT_ROOTFS, INSPECT_ROOTFS_LAYERS, PLUGIN_FETCH_MAVEN_KEY
 from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.pre_add_image_content_manifest import AddImageContentManifestPlugin
@@ -182,7 +181,7 @@ def mock_env(workflow, tmpdir, platform='x86_64', base_layers=0,
             'prebuild', PLUGIN_FETCH_MAVEN_KEY, {'pnc_artifact_ids': [PNC_ARTIFACT['id']]}
         )
     tmpdir.join('cert').write('')
-    flexmock(imageutil).should_receive('base_image_inspect').and_return(inspection_data)
+    flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return(inspection_data)
     env.workflow.user_params['platform'] = platform
 
     # Ensure to succeed in reading the content_sets.yml

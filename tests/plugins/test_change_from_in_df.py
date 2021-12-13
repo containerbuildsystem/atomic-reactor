@@ -12,7 +12,6 @@ from flexmock import flexmock
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_change_from_in_df import ChangeFromPlugin
 from atomic_reactor.util import df_parser, DockerfileImages
-from atomic_reactor.utils import imageutil
 from osbs.utils import ImageName
 from tests.stubs import StubSource
 from textwrap import dedent
@@ -70,7 +69,7 @@ def test_update_base_image(tmpdir, workflow, base_image):
                              df_path=dfp.dockerfile_path,
                              df_images=dfp.parent_images)
     workflow.dockerfile_images[base_image] = local_tag
-    (flexmock(imageutil)
+    (flexmock(workflow.imageutil)
      .should_receive('get_inspect_for_image')
      .with_args(local_tag)
      .and_return(dict(Id=base_str)))
@@ -91,7 +90,7 @@ def test_update_base_image_inspect_broken(tmpdir, workflow, caplog):
                              df_path=dfp.dockerfile_path,
                              df_images=dfp.parent_images)
     workflow.dockerfile_images['base:image'] = local_tag
-    (flexmock(imageutil)
+    (flexmock(workflow.imageutil)
      .should_receive('get_inspect_for_image')
      .with_args(local_tag)
      .and_return(dict(no_id="here")))
@@ -262,7 +261,7 @@ def test_update_parent_images(df_content, expected_df_content, tmpdir, workflow)
 
     for image_name, image_id in img_ids.items():
         print(image_name)
-        (flexmock(imageutil)
+        (flexmock(workflow.imageutil)
          .should_receive('get_inspect_for_image')
          .with_args(ImageName.parse(image_name))
          .and_return(dict(Id=image_id)))
