@@ -29,7 +29,6 @@ from atomic_reactor.inner import TagConf, PushConf, BuildResult
 from atomic_reactor.util import (ManifestDigest, DockerfileImages,
                                  get_manifest_media_version, get_manifest_media_type,
                                  graceful_chain_get)
-from atomic_reactor.utils import imageutil
 from atomic_reactor.source import GitSource, PathSource
 from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI_TAR,
                                       PLUGIN_GENERATE_MAVEN_METADATA_KEY,
@@ -275,7 +274,6 @@ def mock_environment(workflow, source_dir: Path, session=None, name=None,
 
     mock_reactor_config(workflow)
     workflow.user_params['scratch'] = scratch
-    base_image_id = '123456parent-id'
 
     workflow.source = StubSource()
     if yum_repourls:
@@ -283,7 +281,7 @@ def mock_environment(workflow, source_dir: Path, session=None, name=None,
     workflow.image_id = '123456imageid'
     workflow.dockerfile_images = DockerfileImages(['Fedora:22'])
 
-    flexmock(imageutil).should_receive('base_image_inspect').and_return({'ParentId': base_image_id})
+    flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return({})
     setattr(workflow, 'tag_conf', TagConf())
     setattr(workflow, 'reserved_build_id ', None)
     setattr(workflow, 'reserved_token', None)

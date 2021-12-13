@@ -10,6 +10,7 @@ from pathlib import Path
 from textwrap import dedent
 
 import pytest
+from flexmock import flexmock
 
 from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.pre_check_user_settings import CheckUserSettingsPlugin
@@ -112,6 +113,8 @@ def mock_env(workflow, source_dir: Path, labels=None, flatpak=False, dockerfile_
     dfp = df_parser(str(source_dir))
     env.workflow._df_path = str(source_dir)
     env.workflow.dockerfile_images = DockerfileImages([] if flatpak else dfp.parent_images)
+
+    flexmock(env.workflow.imageutil).should_receive("base_image_inspect").and_return({})
 
     return env.create_runner()
 

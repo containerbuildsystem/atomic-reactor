@@ -16,7 +16,6 @@ from atomic_reactor.inner import BuildResult
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.post_tag_from_config import TagFromConfigPlugin
 from atomic_reactor.util import df_parser
-from atomic_reactor.utils import imageutil
 from atomic_reactor.constants import INSPECT_CONFIG
 from tests.constants import IMPORTED_IMAGE_ID
 
@@ -116,7 +115,7 @@ def test_tag_parse(workflow, floating_tags, unique_tags, primary_tags, expected)
             'Env': {'parentrelease': '7.4.1'},
         }
     }
-    flexmock(imageutil).should_receive('base_image_inspect').and_return(base_inspect)
+    flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return(base_inspect)
 
     if unique_tags is not None and primary_tags is not None and floating_tags is not None:
         input_tags = {
