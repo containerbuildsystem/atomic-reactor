@@ -18,7 +18,6 @@ from atomic_reactor.plugin import PrePublishPluginsRunner, PluginFailedException
 from atomic_reactor.plugins import exit_remove_built_image
 from atomic_reactor.plugins.prepub_squash import PrePublishSquashPlugin
 from atomic_reactor.util import DockerfileImages
-from atomic_reactor.utils import imageutil
 from docker_squash.squash import Squash
 
 
@@ -37,7 +36,7 @@ def workflow(workflow):
     workflow.dockerfile_images = DockerfileImages(['Fedora:22'])
     workflow.image_id = 'image_id'
     flexmock(workflow, image='image')
-    (flexmock(imageutil)
+    (flexmock(workflow.imageutil)
         .should_receive('base_image_inspect')
         .and_return({'Id': BASE_IMAGE_ID}))
     return workflow

@@ -13,7 +13,6 @@ from atomic_reactor.util import df_parser, DockerfileImages
 from atomic_reactor.source import VcsInfo
 from atomic_reactor.constants import INSPECT_CONFIG
 from atomic_reactor import start_time as atomic_reactor_start_time
-from atomic_reactor.utils import imageutil
 import datetime
 import re
 import json
@@ -174,7 +173,7 @@ def test_add_labels_plugin(tmpdir, workflow, df_content, labels_conf_base, label
     df.content = df_content
 
     flexmock(workflow, df_path=df.dockerfile_path)
-    flexmock(imageutil).should_receive('base_image_inspect').and_return(labels_conf_base)
+    flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return(labels_conf_base)
     workflow.dockerfile_images = DockerfileImages(df.parent_images)
     flexmock(workflow, source=MockSource())
 
@@ -219,7 +218,7 @@ def test_add_labels(tmpdir, workflow, release, use_reactor):
     df = df_parser(str(tmpdir))
     df.content = DF_CONTENT
 
-    flexmock(imageutil).should_receive('base_image_inspect').and_return(LABELS_CONF_BASE)
+    flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return(LABELS_CONF_BASE)
     workflow.dockerfile_images = DockerfileImages(df.parent_images)
     flexmock(workflow, df_path=df.dockerfile_path)
     flexmock(workflow, source=MockSource())
@@ -274,7 +273,7 @@ def test_add_labels_plugin_generated(tmpdir, workflow, auto_label, value_re_part
     df.content = DF_CONTENT
 
     flexmock(workflow, df_path=df.dockerfile_path)
-    flexmock(imageutil).should_receive('base_image_inspect').and_return(LABELS_CONF_BASE)
+    flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return(LABELS_CONF_BASE)
     workflow.dockerfile_images = DockerfileImages(df.parent_images)
     flexmock(workflow, source=MockSource())
 
@@ -381,7 +380,7 @@ def test_add_labels_aliases(tmpdir, workflow, caplog, df_old_as_plugin_arg, df_n
     df.content = df_content
 
     flexmock(workflow, df_path=df.dockerfile_path)
-    flexmock(imageutil).should_receive('base_image_inspect').and_return(base_labels)
+    flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return(base_labels)
     workflow.dockerfile_images = DockerfileImages(df.parent_images)
     flexmock(workflow, source=MockSource())
 
@@ -454,7 +453,7 @@ def test_add_labels_equal_aliases(tmpdir, workflow, caplog, base_l, df_l, expect
     df.content = df_content
 
     flexmock(workflow, df_path=df.dockerfile_path)
-    flexmock(imageutil).should_receive('base_image_inspect').and_return(base_labels)
+    flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return(base_labels)
     workflow.dockerfile_images = DockerfileImages(df.parent_images)
     flexmock(workflow, source=MockSource())
 
@@ -529,7 +528,7 @@ def test_add_labels_equal_aliases2(tmpdir, workflow, caplog, base_l, df_l, expec
     df.content = df_content
 
     flexmock(workflow, df_path=df.dockerfile_path)
-    flexmock(imageutil).should_receive('base_image_inspect').and_return(base_labels)
+    flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return(base_labels)
     workflow.dockerfile_images = DockerfileImages(df.parent_images)
     flexmock(workflow, source=MockSource())
 
@@ -608,7 +607,7 @@ def test_dont_overwrite_if_in_dockerfile(tmpdir, workflow, label_names, dont_ove
     df.content = df_content
 
     flexmock(workflow, df_path=df.dockerfile_path)
-    flexmock(imageutil).should_receive('base_image_inspect').and_return(labels_conf_base)
+    flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return(labels_conf_base)
     workflow.dockerfile_images = DockerfileImages(df.parent_images)
     flexmock(workflow, source=MockSource())
 
@@ -658,7 +657,7 @@ def test_url_label(tmpdir, workflow, url_format, info_url):
     df.content = DF_CONTENT_LABELS
 
     flexmock(workflow, df_path=df.dockerfile_path)
-    flexmock(imageutil).should_receive('base_image_inspect').and_return(base_labels)
+    flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return(base_labels)
     workflow.dockerfile_images = DockerfileImages(df.parent_images)
     flexmock(workflow, source=MockSource())
 
@@ -713,7 +712,7 @@ def test_add_labels_plugin_explicit(tmpdir, workflow, auto_label, labels_docker,
     df.content = labels_docker
 
     flexmock(workflow, df_path=df.dockerfile_path)
-    flexmock(imageutil).should_receive('base_image_inspect').and_return(labels_base)
+    flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return(labels_base)
     workflow.dockerfile_images = DockerfileImages(df.parent_images)
     flexmock(workflow, source=MockSource())
 
@@ -747,7 +746,7 @@ def test_add_labels_base_image(tmpdir, workflow, parent, should_fail, caplog, re
     df.content = "FROM {}\n".format(parent)
 
     flexmock(workflow, df_path=df.dockerfile_path)
-    flexmock(imageutil).should_receive('base_image_inspect').and_return({})
+    flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return({})
     workflow.dockerfile_images = DockerfileImages(df.parent_images)
     flexmock(workflow, source=MockSource())
 
@@ -822,7 +821,7 @@ def test_release_label(tmpdir, workflow, caplog, base_new, df_new, plugin_new,
     df.content = df_content
 
     flexmock(workflow, df_path=df.dockerfile_path)
-    flexmock(imageutil).should_receive('base_image_inspect').and_return(base_labels)
+    flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return(base_labels)
     workflow.dockerfile_images = DockerfileImages(df.parent_images)
     flexmock(workflow, source=MockSource(release_env))
 

@@ -9,7 +9,6 @@ import os
 
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import df_parser
-from atomic_reactor.utils import imageutil
 from atomic_reactor.constants import INSPECT_CONFIG, SCRATCH_FROM
 
 
@@ -91,9 +90,9 @@ class HideFilesPlugin(PreBuildPlugin):
         if parent_image_id == SCRATCH_FROM:
             return
 
-        # OSBS2 TBD
-        inspect = imageutil.get_inspect_for_image(parent_image_id)
-        inherited_user = inspect.get(INSPECT_CONFIG).get('User', '')
+        # OSBS2 TBD: decide if we need to inspect a specific arch
+        inspect = self.workflow.imageutil.get_inspect_for_image(parent_image_id)
+        inherited_user = inspect.get(INSPECT_CONFIG, {}).get('User', '')
 
         if inherited_user:
             add_start_lines.append('USER root')

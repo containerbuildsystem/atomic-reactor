@@ -18,7 +18,6 @@ from atomic_reactor.plugins.pre_add_yum_repo_by_url import AddYumRepoByUrlPlugin
 from atomic_reactor.plugins.pre_inject_yum_repo import InjectYumRepoPlugin
 from atomic_reactor.util import df_parser, sha256sum, DockerfileImages
 from atomic_reactor.utils.yum import YumRepo
-from atomic_reactor.utils import imageutil
 from flexmock import flexmock
 from tests.stubs import StubSource
 
@@ -33,7 +32,7 @@ def prepare(workflow, df_path, df_dir, inherited_user=''):
     workflow.source = StubSource()
     inspect_data = {INSPECT_CONFIG: {'User': inherited_user}}
     flexmock(workflow, df_path=df_path)
-    flexmock(imageutil).should_receive('base_image_inspect').and_return(inspect_data)
+    flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return(inspect_data)
     workflow.df_dir = df_dir
     workflow.dockerfile_images = DockerfileImages(df_parser(df_path).parent_images)
     return workflow

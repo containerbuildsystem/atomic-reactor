@@ -29,7 +29,6 @@ from atomic_reactor.constants import (DEFAULT_DOWNLOAD_BLOCK_SIZE, PROG,
                                       KOJI_RETRY_INTERVAL, KOJI_OFFLINE_RETRY_INTERVAL)
 from atomic_reactor.util import (Output, get_image_upload_filename,
                                  get_checksums, get_manifest_media_type)
-from atomic_reactor.utils import imageutil
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 
 logger = logging.getLogger(__name__)
@@ -461,8 +460,8 @@ def get_output(workflow, buildroot_id, pullspec, platform, source_build=False, l
         image_id = workflow.image_id
         parent_id = None
         if not workflow.dockerfile_images.base_from_scratch:
-            # OSBS2 TBD
-            parent_id = imageutil.base_image_inspect()['Id']
+            # OSBS2 TBD: inspect the correct architecture
+            parent_id = workflow.imageutil.base_image_inspect()['Id']
 
         layer_sizes = workflow.layer_sizes
 

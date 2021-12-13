@@ -10,7 +10,6 @@ from atomic_reactor.constants import INSPECT_CONFIG
 from atomic_reactor.plugins.pre_distribution_scope import (DistributionScopePlugin,
                                                            DisallowedDistributionScope)
 from atomic_reactor.util import DockerfileImages
-from atomic_reactor.utils import imageutil
 from flexmock import flexmock
 import logging
 import os
@@ -18,27 +17,27 @@ import pytest
 
 
 class TestDistributionScope(object):
-    def instantiate_plugin(self, tmpdir, parent_labels, current_scope, base_from_scratch=False):
-        workflow = flexmock()
-        filename = os.path.join(str(tmpdir), 'Dockerfile')
+    def instantiate_plugin(self, workflow, parent_labels, current_scope, base_from_scratch=False):
+        filename = os.path.join(workflow.source.workdir, 'Dockerfile')
         with open(filename, 'wt') as df:
             df.write('FROM scratch\n')
             if current_scope:
                 df.write('LABEL distribution-scope={}\n'.format(current_scope))
 
-        setattr(workflow, 'df_path', filename)
+        # TEMP solution until the plugin is updated to read Dockerfiles from build dirs
+        workflow._df_path = filename
 
         if not base_from_scratch:
-            (flexmock(imageutil)
+            (flexmock(workflow.imageutil)
                 .should_receive('base_image_inspect')
                 .and_return({INSPECT_CONFIG: {'Labels': parent_labels}}))
         else:
-            flexmock(imageutil).should_receive('base_image_inspect').and_return({})
+            flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return({})
 
         dockerfile_images = DockerfileImages([])
         if base_from_scratch:
             dockerfile_images = DockerfileImages(['scratch'])
-        setattr(workflow, 'dockerfile_images', dockerfile_images)
+        workflow.dockerfile_images = dockerfile_images
 
         plugin = DistributionScopePlugin(workflow)
         plugin.log = logging.getLogger('plugin')
@@ -57,10 +56,10 @@ class TestDistributionScope(object):
         ('private', 'restricted', False),
         ('private', 'public', False),
     ])
-    def test_distribution_scope_allowed(self, tmpdir, base_from_scratch, parent_scope,
+    def test_distribution_scope_allowed(self, workflow, base_from_scratch, parent_scope,
                                         current_scope, allowed, caplog):
         caplog.set_level(logging.ERROR, logger='atomic_reactor')
-        plugin = self.instantiate_plugin(tmpdir,
+        plugin = self.instantiate_plugin(workflow,
                                          {'distribution-scope': parent_scope},
                                          current_scope,
                                          base_from_scratch=base_from_scratch)
@@ -83,8 +82,8 @@ class TestDistributionScope(object):
             assert caplog.records
 
     @pytest.mark.parametrize('current_scope', [None, 'private'])
-    def test_imported_parent_distribution_scope(self, tmpdir, caplog, current_scope):
-        plugin = self.instantiate_plugin(tmpdir, None, current_scope)
+    def test_imported_parent_distribution_scope(self, workflow, caplog, current_scope):
+        plugin = self.instantiate_plugin(workflow, None, current_scope)
         with caplog.at_level(logging.ERROR, logger='atomic_reactor'):
             plugin.run()
 
@@ -92,8 +91,8 @@ class TestDistributionScope(object):
         assert not caplog.records
 
     @pytest.mark.parametrize('current_scope', [None, 'private'])
-    def test_invalid_parent_distribution_scope(self, tmpdir, caplog, current_scope):
-        plugin = self.instantiate_plugin(tmpdir,
+    def test_invalid_parent_distribution_scope(self, workflow, caplog, current_scope):
+        plugin = self.instantiate_plugin(workflow,
                                          {'distribution-scope': 'invalid-choice'},
                                          current_scope)
         with caplog.at_level(logging.WARNING, logger='atomic_reactor'):
@@ -104,8 +103,8 @@ class TestDistributionScope(object):
                 assert 'invalid label' in caplog.text
 
     @pytest.mark.parametrize('parent_scope', [None, 'private'])
-    def test_invalid_current_distribution_scope(self, tmpdir, caplog, parent_scope):
-        plugin = self.instantiate_plugin(tmpdir,
+    def test_invalid_current_distribution_scope(self, workflow, caplog, parent_scope):
+        plugin = self.instantiate_plugin(workflow,
                                          {'distribution-scope': parent_scope},
                                          'invalid-choice')
         with caplog.at_level(logging.WARNING, logger='atomic_reactor'):

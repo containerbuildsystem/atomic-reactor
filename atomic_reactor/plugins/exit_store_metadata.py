@@ -17,7 +17,6 @@ from atomic_reactor.constants import (PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
                                       SCRATCH_FROM)
 from atomic_reactor.config import get_openshift_session
 from atomic_reactor.plugin import ExitPlugin
-from atomic_reactor.utils import imageutil
 
 
 class StoreMetadataPlugin(ExitPlugin):
@@ -220,8 +219,8 @@ class StoreMetadataPlugin(ExitPlugin):
                     not self.workflow.dockerfile_images.base_from_scratch):
                 base_image_name = base_image
                 try:
-                    # OSBS2 TBD
-                    base_image_id = imageutil.base_image_inspect().get('Id', "")
+                    # OSBS2 TBD: we probably don't need this and many other annotations anymore
+                    base_image_id = self.workflow.imageutil.base_image_inspect().get('Id', "")
                 except KeyError:
                     base_image_id = ""
             else:

@@ -18,7 +18,6 @@ from atomic_reactor.constants import (
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_koji_parent import KojiParentPlugin
 from atomic_reactor.util import get_manifest_media_type, DockerfileImages
-from atomic_reactor.utils import imageutil
 from osbs.utils import ImageName
 from flexmock import flexmock
 from tests.util import add_koji_map_in_workflow
@@ -80,8 +79,8 @@ def workflow(workflow, source_dir):
     workflow.dockerfile_images = DockerfileImages(['base:latest'])
     workflow.dockerfile_images['base:latest'] = ImageName.parse('base:stubDigest')
     base_inspect = {INSPECT_CONFIG: {'Labels': BASE_IMAGE_LABELS.copy()}}
-    flexmock(imageutil).should_receive('base_image_inspect').and_return(base_inspect)
-    flexmock(imageutil).should_receive('get_inspect_for_image').and_return(base_inspect)
+    flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return(base_inspect)
+    flexmock(workflow.imageutil).should_receive('get_inspect_for_image').and_return(base_inspect)
     workflow.parent_images_digests = {'base:latest': {V2_LIST: 'stubDigest'}}
     return workflow
 
@@ -162,7 +161,7 @@ class TestKojiParent(object):
         assert 'state is DELETED, not COMPLETE' in str(exc_info.value)
 
     def test_base_image_not_inspected(self, workflow, koji_session):  # noqa
-        flexmock(imageutil).should_receive('base_image_inspect').and_return({})
+        flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return({})
         with pytest.raises(PluginFailedException) as exc_info:
             self.run_plugin_with_args(workflow)
         assert 'KeyError' in str(exc_info.value)
@@ -191,8 +190,8 @@ class TestKojiParent(object):
             del base_inspect[INSPECT_CONFIG]['Labels'][label]
             del parent_inspect[INSPECT_CONFIG]['Labels'][label]
 
-        flexmock(imageutil).should_receive('base_image_inspect').and_return(base_inspect)
-        (flexmock(imageutil)
+        flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return(base_inspect)
+        (flexmock(workflow.imageutil)
          .should_receive('get_inspect_for_image')
          .with_args(base_tag)
          .and_return(parent_inspect))
@@ -259,7 +258,7 @@ class TestKojiParent(object):
             labels = {'com.redhat.component': name, 'version': version, 'release': release}
             image_inspects[img] = {INSPECT_CONFIG: dict(Labels=labels)}
 
-            (flexmock(imageutil)
+            (flexmock(workflow.imageutil)
              .should_receive('get_inspect_for_image')
              .with_args(parent_images[ImageName.parse(img)])
              .and_return(image_inspects[img]))
@@ -278,7 +277,7 @@ class TestKojiParent(object):
         elif special_base == 'custom':
             dockerfile_images.append('koji/image-build')
         else:
-            (flexmock(imageutil)
+            (flexmock(workflow.imageutil)
              .should_receive('base_image_inspect')
              .and_return(image_inspects['base']))
 
@@ -378,7 +377,9 @@ class TestKojiParent(object):
         labels = {'com.redhat.component': name, 'version': version, 'release': release}
         image_inspect = {INSPECT_CONFIG: dict(Labels=labels)}
 
-        flexmock(imageutil).should_receive('get_inspect_for_image').and_return(image_inspect)
+        (flexmock(workflow.imageutil)
+         .should_receive('get_inspect_for_image')
+         .and_return(image_inspect))
         if manifest_list:
             response = flexmock(content=json.dumps(manifest_list))
         else:
@@ -581,7 +582,9 @@ class TestKojiParent(object):
         labels = {'com.redhat.component': name, 'version': version, 'release': release}
 
         image_inspect = {INSPECT_CONFIG: {'Labels': labels}}
-        flexmock(imageutil).should_receive('get_inspect_for_image').and_return(image_inspect)
+        (flexmock(workflow.imageutil)
+         .should_receive('get_inspect_for_image')
+         .and_return(image_inspect))
 
         if manifest_list:
             response = flexmock(content=json.dumps(manifest_list))
