@@ -49,7 +49,6 @@ from atomic_reactor.constants import (DOCKERFILE_FILENAME, REPO_CONTAINER_CONFIG
                                       USER_CONFIG_FILES, REPO_FETCH_ARTIFACTS_KOJI)
 
 from atomic_reactor.auth import HTTPRegistryAuth
-from atomic_reactor.utils import imageutil
 
 from dockerfile_parse import DockerfileParser
 
@@ -1278,8 +1277,9 @@ def df_parser(df_path, workflow=None, cache_content=False, env_replace=True, par
         # the workflow for the parent_env
 
         try:
-            # OSBS2 TBD
-            parent_config = imageutil.base_image_inspect()[INSPECT_CONFIG]
+            # OSBS2 TBD: this entire function should eventually be removed and all of its uses
+            #   replaced with BuildDir.dockerfile_with_parent_env()
+            parent_config = workflow.imageutil.base_image_inspect()[INSPECT_CONFIG]
         except (AttributeError, TypeError, KeyError):
             logger.debug("base image unable to be inspected")
         else:

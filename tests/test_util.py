@@ -65,7 +65,6 @@ from atomic_reactor.util import (LazyGit, figure_out_build_file,
                                  )
 from tests.constants import MOCK, REACTOR_CONFIG_MAP
 import atomic_reactor.util
-from atomic_reactor.utils import imageutil
 from atomic_reactor.constants import INSPECT_CONFIG
 from atomic_reactor.source import SourceConfig
 from osbs.utils import ImageName
@@ -1029,7 +1028,7 @@ def test_df_parser_parent_env_wf(tmpdir, workflow, caplog, env_arg):
         """)
     env_conf = {INSPECT_CONFIG: {"Env": env_arg}}
     workflow.source = StubSource()
-    flexmock(imageutil).should_receive('base_image_inspect').and_return(env_conf)
+    flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return(env_conf)
     df = df_parser(str(tmpdir), workflow=workflow)
     df.content = df_content
 

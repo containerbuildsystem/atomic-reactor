@@ -9,6 +9,7 @@ of the BSD license. See the LICENSE file for details.
 Script for building docker image. This is expected to run inside container.
 """
 
+import functools
 import json
 import logging
 import signal
@@ -551,6 +552,7 @@ class DockerBuildWorkflow(object):
         new_dockerfile_images = self._parse_dockerfile_images(path)
         self.conf.update_dockerfile_images_from_config(new_dockerfile_images)
 
+        self.imageutil.set_dockerfile_images(new_dockerfile_images)
         self.dockerfile_images = new_dockerfile_images
 
     def _parse_dockerfile_images(self, path: str) -> DockerfileImages:
@@ -599,6 +601,16 @@ class DockerBuildWorkflow(object):
                     """).format(stmt['content'], stage))
 
         return dockerfile_images
+
+    @functools.cached_property
+    def imageutil(self) -> imageutil.ImageUtil:
+        """Get an ImageUtil instance.
+
+        The property is lazy, subsequent calls will return the same instance. This is important
+        for performance reasons (ImageUtil caches registry queries, a new instance would not have
+        the cache).
+        """
+        return imageutil.ImageUtil(self.dockerfile_images, self.conf)
 
     def parent_images_to_str(self):
         results = {}
