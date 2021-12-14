@@ -47,7 +47,7 @@ koji==1.26.1
     # via -r requirements.in
 krb5==0.2.0
     # via pyspnego
-osbs-client @ git+https://github.com/containerbuildsystem/osbs-client@0b31d08cc4c35f4088cb80c0c1c97cf4fc6a0d2c
+osbs-client @ git+https://github.com/containerbuildsystem/osbs-client@3c028f79d2ce38524449509a5abfe08073d3135f
     # via -r requirements.in
 pycairo==1.20.1
     # via pygobject
