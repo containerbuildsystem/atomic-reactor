@@ -91,7 +91,7 @@ def make_user_config(operator_config):
     return config
 
 
-def mock_env(workflow, repo_dir, orchestrator, user_config=None, site_config=None,
+def mock_env(workflow, repo_dir, user_config=None, site_config=None,
              df_base='scratch', df_operator_label=True,
              replacement_pullspecs=None, add_to_config=None,
              write_container_yaml=True, operator_csv_modifications_url=None):
@@ -100,7 +100,6 @@ def mock_env(workflow, repo_dir, orchestrator, user_config=None, site_config=Non
 
     :param repo_dir: pylint fixture,
     :type repo_dir: pathlib.Path
-    :param orchestrator: is the plugin running in orchestrator?
     :param user_config: container.yaml operator_manifest config
     :param site_config: reactor-config-map operator_manifests config
     :param df_base: base image in Dockerfile, non-scratch should fail
@@ -123,9 +122,6 @@ def mock_env(workflow, repo_dir, orchestrator, user_config=None, site_config=Non
                 'operator_csv_modifications_url': operator_csv_modifications_url,
             })
         .set_reactor_config(reactor_config))
-
-    if orchestrator:
-        env.make_orchestrator()
 
     if write_container_yaml:
         with open(repo_dir / 'container.yaml', 'w') as f:
@@ -295,33 +291,25 @@ def get_user_config(manifests_dir, repo_replacements=None, enable_digest_pinning
 
 
 class TestPinOperatorDigest(object):
-    def _get_worker_arg(self, workflow):
-        return get_build_kwarg(workflow, "operator_bundle_replacement_pullspecs")
-
-    @pytest.mark.parametrize('orchestrator', [True, False])
-    def test_run_only_for_operator_bundle_label(self, orchestrator, workflow, source_dir, caplog):
-        runner = mock_env(workflow, source_dir, orchestrator=orchestrator, df_operator_label=False,
+    def test_run_only_for_operator_bundle_label(self, workflow, source_dir, caplog):
+        runner = mock_env(workflow, source_dir, df_operator_label=False,
                           write_container_yaml=False)
         runner.run()
         assert "Not an operator manifest bundle build, skipping plugin" in caplog.text
 
-    @pytest.mark.parametrize('orchestrator', [True, False])
-    def test_missing_site_config(self, orchestrator, workflow, source_dir, caplog):
-        runner = mock_env(workflow, source_dir,
-                          orchestrator=orchestrator,
-                          write_container_yaml=False)
+    def test_missing_site_config(self, workflow, source_dir, caplog):
+        runner = mock_env(workflow, source_dir, write_container_yaml=False)
         runner.run()
 
         msg = "operator_manifests configuration missing in reactor config map, aborting"
         assert msg in caplog.text
         assert "Looking for operator CSV files" not in caplog.text
 
-    @pytest.mark.parametrize('orchestrator', [True, False])
-    def test_missing_user_config(self, orchestrator, workflow, source_dir):
+    def test_missing_user_config(self, workflow, source_dir):
         # make sure plugin is not skipped because of missing site config
         site_config = get_site_config()
 
-        runner = mock_env(workflow, source_dir, orchestrator=orchestrator, site_config=site_config,
+        runner = mock_env(workflow, source_dir, site_config=site_config,
                           write_container_yaml=False)
 
         with pytest.raises(PluginFailedException) as exc_info:
@@ -329,16 +317,15 @@ class TestPinOperatorDigest(object):
         msg = "operator_manifests configuration missing in container.yaml"
         assert msg in str(exc_info.value)
 
-    @pytest.mark.parametrize('orchestrator', [True, False])
     @pytest.mark.parametrize('manifests_dir, symlinks', [
         ('foo', {'foo': '/tmp/foo'}),
     ])
     def test_manifests_dir_not_subdir_of_repo(self, manifests_dir, symlinks,
-                                              orchestrator, workflow, source_dir):
+                                              workflow, source_dir):
         # make sure plugin is not skipped because of missing site config
         site_config = get_site_config()
         user_config = get_user_config(manifests_dir)
-        runner = mock_env(workflow, source_dir, orchestrator,
+        runner = mock_env(workflow, source_dir,
                           site_config=site_config, user_config=user_config)
 
         # make symlinks
@@ -358,7 +345,7 @@ class TestPinOperatorDigest(object):
         ['csv1.yaml', 'csv2.yaml']
     ])
     @pytest.mark.parametrize('skip_all', [True, False])
-    def test_orchestrator_no_pullspecs(self, workflow, source_dir, caplog, filepaths, skip_all):
+    def test_no_pullspecs(self, workflow, source_dir, caplog, filepaths, skip_all):
         manifests_dir = source_dir.joinpath(OPERATOR_MANIFESTS_DIR)
         manifests_dir.mkdir()
         for path in filepaths:
@@ -367,7 +354,7 @@ class TestPinOperatorDigest(object):
         user_config = get_user_config(OPERATOR_MANIFESTS_DIR, skip_all=skip_all)
         site_config = get_site_config(skip_all_allow_list=[PKG_NAME])
 
-        runner = mock_env(workflow, source_dir, orchestrator=True, user_config=user_config,
+        runner = mock_env(workflow, source_dir, user_config=user_config,
                           site_config=site_config)
 
         if len(filepaths) > 1:
@@ -391,7 +378,6 @@ class TestPinOperatorDigest(object):
         for f in csv_files:
             assert str(f) in caplog_text
         assert "No pullspecs found" in caplog_text
-        assert self._get_worker_arg(runner.workflow) is None
 
         expected = {
             'custom_csv_modifications_applied': False,
@@ -402,15 +388,14 @@ class TestPinOperatorDigest(object):
         }
         assert result['pin_operator_digest'] == expected
 
-    @pytest.mark.parametrize('orchestrator', [True, False])
-    def test_fail_without_csv(self, workflow, source_dir, orchestrator):
+    def test_fail_without_csv(self, workflow, source_dir):
         """CSV file is mandatory part of operator, fail if it's not present"""
         manifests_dir = source_dir.joinpath(OPERATOR_MANIFESTS_DIR)
         manifests_dir.mkdir()
         user_config = get_user_config(OPERATOR_MANIFESTS_DIR)
         site_config = get_site_config()
 
-        runner = mock_env(workflow, source_dir, orchestrator=orchestrator,
+        runner = mock_env(workflow, source_dir,
                           user_config=user_config, site_config=site_config)
 
         with pytest.raises(PluginFailedException) as exc_info:
@@ -418,7 +403,7 @@ class TestPinOperatorDigest(object):
 
         assert "Missing ClusterServiceVersion in operator manifests" in str(exc_info.value)
 
-    def test_orchestrator_disallowed_registry(self, workflow, source_dir):
+    def test_disallowed_registry(self, workflow, source_dir):
         pullspecs = ['allowed-registry/ns/foo:1', 'disallowed-registry/ns/bar:2']
         manifests_dir = source_dir.joinpath(OPERATOR_MANIFESTS_DIR)
         manifests_dir.mkdir()
@@ -427,7 +412,7 @@ class TestPinOperatorDigest(object):
         user_config = get_user_config(OPERATOR_MANIFESTS_DIR)
         site_config = get_site_config(allowed_registries=['allowed-registry'])
 
-        runner = mock_env(workflow, source_dir, orchestrator=True, user_config=user_config,
+        runner = mock_env(workflow, source_dir, user_config=user_config,
                           site_config=site_config)
 
         with pytest.raises(PluginFailedException) as exc_info:
@@ -435,7 +420,7 @@ class TestPinOperatorDigest(object):
         msg = "Registry not allowed: disallowed-registry (in disallowed-registry/ns/bar:2)"
         assert msg in str(exc_info.value)
 
-    def test_orchestrator_raise_error_if_csv_has_both_related_images_and_related_env_vars(
+    def test_raise_error_if_csv_has_both_related_images_and_related_env_vars(
         self, workflow, source_dir, caplog
     ):
         manifests_dir = source_dir.joinpath(OPERATOR_MANIFESTS_DIR)
@@ -448,7 +433,7 @@ class TestPinOperatorDigest(object):
         user_config = get_user_config(OPERATOR_MANIFESTS_DIR)
         site_config = get_site_config()
 
-        runner = mock_env(workflow, source_dir, orchestrator=True, user_config=user_config,
+        runner = mock_env(workflow, source_dir, user_config=user_config,
                           site_config=site_config)
 
         with pytest.raises(PluginFailedException) as exc_info:
@@ -462,8 +447,9 @@ class TestPinOperatorDigest(object):
         )
         assert expected in str(exc_info.value)
 
+    @pytest.mark.parametrize('ocp_44', [True, False])
     @responses.activate
-    def test_orchestrator(self, workflow, source_dir, caplog):
+    def test_pin_operator_digest(self, ocp_44, workflow, source_dir, caplog):
         pullspecs = [
             # registry.private.example.com: do not replace registry or repos
             'registry.private.example.com/ns/foo@sha256:1',  # -> no change
@@ -486,6 +472,26 @@ class TestPinOperatorDigest(object):
             'private-registry': 'public-registry',
             'old-registry': 'new-registry',
         }
+        replacement_pullspecs = {
+            'registry.private.example.com/ns/foo:1': 'registry.private.example.com/ns/foo@sha256:1',
+            # registry.private.example.com/ns/foo@sha256:1 - no change
+            'weird-registry/ns/bar@sha256:2': 'weird-registry/new-bar@sha256:2',
+            'weird-registry/ns/bar:1': 'weird-registry/new-bar@sha256:2',
+            'private-registry/ns/baz@sha256:3': 'public-registry/ns/baz@sha256:3',
+            'private-registry/ns/baz:1': 'public-registry/ns/baz@sha256:3',
+            'old-registry/ns/spam@sha256:4': 'new-registry/new-ns/new-spam@sha256:4',
+            'old-registry/ns/spam:1': 'new-registry/new-ns/new-spam@sha256:4',
+        }
+        replaced_pullspecs = [
+            'registry.private.example.com/ns/foo@sha256:1',
+            'registry.private.example.com/ns/foo@sha256:1',
+            'weird-registry/new-bar@sha256:2',
+            'weird-registry/new-bar@sha256:2',
+            'public-registry/ns/baz@sha256:3',
+            'public-registry/ns/baz@sha256:3',
+            'new-registry/new-ns/new-spam@sha256:4',
+            'new-registry/new-ns/new-spam@sha256:4',
+        ]
         site_replace_repos = {
             'old-registry': {
                 'spam-package': ['new-ns/new-spam']
@@ -511,7 +517,7 @@ class TestPinOperatorDigest(object):
 
         manifests_dir = source_dir.joinpath(OPERATOR_MANIFESTS_DIR)
         manifests_dir.mkdir()
-        f = mock_operator_csv(manifests_dir, 'csv.yaml', pullspecs)
+        f = mock_operator_csv(manifests_dir, 'csv.yaml', pullspecs, for_ocp_44=ocp_44)
         pre_content = f.read_text("utf-8")
 
         mock_package_mapping_files(site_replace_repos)
@@ -527,13 +533,17 @@ class TestPinOperatorDigest(object):
             {'url': 'https://weird-registry'},
         ]}
 
-        runner = mock_env(workflow, source_dir, orchestrator=True, user_config=user_config,
-                          site_config=site_config, add_to_config=pull_registries)
+        # this a reference file, make sure it does not get touched by putting it in parent dir
+        reference = mock_operator_csv(source_dir, 'csv1.yaml', replaced_pullspecs,
+                                      for_ocp_44=ocp_44, with_related_images=True)
 
+        runner = mock_env(workflow, source_dir, site_config=site_config,
+                          add_to_config=pull_registries, user_config=user_config,
+                          replacement_pullspecs=replacement_pullspecs)
         result = runner.run()
 
         post_content = f.read_text("utf-8")
-        assert pre_content == post_content  # worker does the replacement, not orchestrator
+        assert pre_content == post_content
 
         caplog_text = "\n".join(rec.message for rec in caplog.records)
 
@@ -567,18 +577,6 @@ class TestPinOperatorDigest(object):
             'weird-registry/ns/bar@sha256:2 -> weird-registry/new-bar@sha256:2'
         )
         assert replacements_log in caplog_text
-
-        replacement_pullspecs = {
-            'registry.private.example.com/ns/foo:1': 'registry.private.example.com/ns/foo@sha256:1',
-            # registry.private.example.com/ns/foo@sha256:1 - no change
-            'weird-registry/ns/bar@sha256:2': 'weird-registry/new-bar@sha256:2',
-            'weird-registry/ns/bar:1': 'weird-registry/new-bar@sha256:2',
-            'private-registry/ns/baz@sha256:3': 'public-registry/ns/baz@sha256:3',
-            'private-registry/ns/baz:1': 'public-registry/ns/baz@sha256:3',
-            'old-registry/ns/spam@sha256:4': 'new-registry/new-ns/new-spam@sha256:4',
-            'old-registry/ns/spam:1': 'new-registry/new-ns/new-spam@sha256:4',
-        }
-        assert self._get_worker_arg(runner.workflow) == replacement_pullspecs
 
         expected_result = {
             'custom_csv_modifications_applied': False,
@@ -633,12 +631,28 @@ class TestPinOperatorDigest(object):
         }
 
         assert result['pin_operator_digest'] == expected_result
+        replaced_csv = os.path.join(runner.workflow.source.manifests_dir, 'csv.yaml')
+        with open(replaced_csv, 'r') as f:
+            content = f.read()
+            expected_content = reference.read_text("utf-8")
+            assert content == expected_content
+
+        caplog_text = "\n".join(rec.message for rec in caplog.records)
+
+        assert f'Found operator CSV file: {replaced_csv}' in caplog_text
+        assert str(reference) not in caplog_text
+
+        assert f'Replacing pullspecs in {replaced_csv}' in caplog_text
+        assert f'Creating relatedImages section in {replaced_csv}' in caplog_text
+
+        assert 'Replacing pullspecs in {}'.format(reference) not in caplog_text
+        assert 'Creating relatedImages section in {}'.format(reference) not in caplog_text
 
     @pytest.mark.parametrize('pin_digest', [True, False])
     @pytest.mark.parametrize('replace_repo', [True, False])
     @pytest.mark.parametrize('replace_registry', [True, False])
-    def test_orchestrator_replacement_opt_out(self, pin_digest, replace_repo, replace_registry,
-                                              workflow, source_dir, caplog):
+    def test_replacement_opt_out(self, pin_digest, replace_repo, replace_registry,
+                                 workflow, source_dir, caplog):
         original = '{}/ns/foo:1'.format(SOURCE_REGISTRY_URI)
         replaced = ImageName.parse(original)
 
@@ -679,7 +693,7 @@ class TestPinOperatorDigest(object):
                                       enable_registry_replacements=replace_registry)
         site_config = get_site_config(registry_post_replace=registry_post_replace)
 
-        runner = mock_env(workflow, source_dir, orchestrator=True, user_config=user_config,
+        runner = mock_env(workflow, source_dir, user_config=user_config,
                           site_config=site_config)
         result = runner.run()
 
@@ -695,15 +709,12 @@ class TestPinOperatorDigest(object):
 
         if not any([pin_digest, replace_repo, replace_registry]):
             assert "All replacement features disabled" in caplog.text
-            assert self._get_worker_arg(runner.workflow) == {}
-        else:
-            assert self._get_worker_arg(runner.workflow) == {original: replaced.to_str()}
 
         # plugin must always retun pullspecs
         assert result['pin_operator_digest']['related_images']['pullspecs']
 
     @pytest.mark.parametrize('has_envs', [True, False])
-    def test_worker_exclude_csvs(self, workflow, source_dir, caplog, has_envs):
+    def test_exclude_csvs(self, workflow, source_dir, caplog, has_envs):
         # Worker does not care if there is a conflict between relatedImages
         # and RELATED_IMAGE_* env vars, orchestrator should have caught this already
         manifests_dir = source_dir.joinpath(OPERATOR_MANIFESTS_DIR)
@@ -714,64 +725,13 @@ class TestPinOperatorDigest(object):
         original_content = csv.read_text("utf-8")
 
         user_config = get_user_config(OPERATOR_MANIFESTS_DIR)
-
-        runner = mock_env(workflow, source_dir, orchestrator=False, site_config=get_site_config(),
+        runner = mock_env(workflow, source_dir, site_config=get_site_config(),
                           user_config=user_config)
         runner.run()
 
         assert "Replacing pullspecs" not in caplog.text
         assert "Creating relatedImages section" not in caplog.text
         assert csv.read_text("utf-8") == original_content
-
-    @pytest.mark.parametrize('ocp_44', [True, False])
-    def test_worker(self, ocp_44, workflow, source_dir, caplog):
-        pullspecs = [
-            'keep-registry/ns/foo',
-            'replace-registry/ns/bar:1',
-            'keep-registry/ns/spam@sha256:123456',
-            'replace-registry/ns/eggs@sha256:654321',
-        ]
-        replacement_pullspecs = {
-            'keep-registry/ns/foo:latest': 'keep-registry/ns/foo@sha256:abcdef',
-            'replace-registry/ns/bar:1': 'new-registry/ns/bar@sha256:fedcba',
-            'replace-registry/ns/eggs@sha256:654321': 'new-registry/ns/eggs@sha256:654321',
-        }
-        replaced_pullspecs = [
-            'keep-registry/ns/foo@sha256:abcdef',
-            'new-registry/ns/bar@sha256:fedcba',
-            'keep-registry/ns/spam@sha256:123456',
-            'new-registry/ns/eggs@sha256:654321',
-        ]
-
-        # manifests_dir = tmpdir.mkdir('manifests')
-        manifests_dir = source_dir.joinpath(OPERATOR_MANIFESTS_DIR)
-        manifests_dir.mkdir()
-        mock_operator_csv(manifests_dir, 'csv1.yaml', pullspecs, for_ocp_44=ocp_44)
-
-        # this a reference file, make sure it does not get touched by putting it in parent dir
-        reference = mock_operator_csv(source_dir, 'csv2.yaml', replaced_pullspecs,
-                                      for_ocp_44=ocp_44, with_related_images=True)
-
-        user_config = get_user_config(OPERATOR_MANIFESTS_DIR)
-
-        runner = mock_env(workflow, source_dir, orchestrator=False, site_config=get_site_config(),
-                          user_config=user_config, replacement_pullspecs=replacement_pullspecs)
-        runner.run()
-
-        replaced_csv = os.path.join(runner.workflow.source.manifests_dir, 'csv1.yaml')
-        with open(replaced_csv, 'r') as f:
-            assert f.read() == reference.read_text("utf-8")
-
-        caplog_text = "\n".join(rec.message for rec in caplog.records)
-
-        assert f'Found operator CSV file: {replaced_csv}' in caplog_text
-        assert str(reference) not in caplog_text
-
-        assert f'Replacing pullspecs in {replaced_csv}' in caplog_text
-        assert f'Creating relatedImages section in {replaced_csv}' in caplog_text
-
-        assert 'Replacing pullspecs in {}'.format(reference) not in caplog_text
-        assert 'Creating relatedImages section in {}'.format(reference) not in caplog_text
 
     def test_return_pullspecs_in_related_images(self, workflow, source_dir):
         """
@@ -788,7 +748,7 @@ class TestPinOperatorDigest(object):
         manifests_dir.mkdir()
         mock_operator_csv(manifests_dir, 'csv1.yaml', pullspecs, with_related_images=True)
 
-        runner = mock_env(workflow, source_dir, orchestrator=True,
+        runner = mock_env(workflow, source_dir,
                           user_config=get_user_config(OPERATOR_MANIFESTS_DIR),
                           site_config=get_site_config())
         result = runner.run()
@@ -814,7 +774,6 @@ class TestPinOperatorDigest(object):
             sorted(got_pullspecs_metadata['pullspecs'], key=str)
         )
 
-    @pytest.mark.parametrize('orchestrator', [True, False])
     @pytest.mark.parametrize('has_related_images', [True, False])
     @pytest.mark.parametrize('pull_specs, has_related_image_envs', [
         ([], False),
@@ -822,7 +781,7 @@ class TestPinOperatorDigest(object):
         (['foo'], False),
     ])
     @pytest.mark.parametrize('skip_all_allow_list', [None, [PKG_NAME]])
-    def test_skip_all(self, workflow, source_dir, caplog, orchestrator, has_related_images,
+    def test_skip_all(self, workflow, source_dir, caplog, has_related_images,
                       pull_specs, has_related_image_envs, skip_all_allow_list):
         manifest_dir = source_dir.joinpath(OPERATOR_MANIFESTS_DIR)
         manifest_dir.mkdir()
@@ -832,13 +791,13 @@ class TestPinOperatorDigest(object):
 
         user_config = get_user_config(OPERATOR_MANIFESTS_DIR, skip_all=True)
 
-        runner = mock_env(workflow, source_dir, orchestrator=orchestrator,
+        runner = mock_env(workflow, source_dir,
                           site_config=get_site_config(skip_all_allow_list=skip_all_allow_list),
                           user_config=user_config)
 
         has_skip_log_entry = True
 
-        if not skip_all_allow_list or (not has_related_images and pull_specs and orchestrator):
+        if not skip_all_allow_list or (not has_related_images and pull_specs):
 
             with pytest.raises(PluginFailedException) as exc_info:
                 runner.run()
@@ -854,10 +813,7 @@ class TestPinOperatorDigest(object):
             runner.run()
 
         if has_skip_log_entry:
-            if orchestrator:
-                assert "skip_all defined for operator manifests" in caplog.text
-            else:
-                assert "skip_all defined, not running on worker" in caplog.text
+            assert "skip_all defined for operator manifests" in caplog.text
 
 
 class TestPullspecReplacer(object):
@@ -1095,7 +1051,7 @@ class TestOperatorCSVModifications:
         )
 
         runner = mock_env(
-            workflow, source_dir, orchestrator=True,
+            workflow, source_dir,
             user_config=user_config,
             site_config=site_config,
             operator_csv_modifications_url=test_url
@@ -1185,7 +1141,6 @@ class TestOperatorCSVModifications:
 
         runner = mock_env(
             workflow, source_dir,
-            orchestrator=True,
             user_config=user_config,
             site_config=site_config,
             operator_csv_modifications_url=test_url,
@@ -1219,7 +1174,6 @@ class TestOperatorCSVModifications:
 
         runner = mock_env(
             workflow, source_dir,
-            orchestrator=True,
             user_config=user_config,
             site_config=site_config,
             operator_csv_modifications_url=test_url
@@ -1469,7 +1423,6 @@ class TestOperatorCSVModifications:
 
         runner = mock_env(
             workflow, source_dir,
-            orchestrator=False,
             user_config=user_config,
             site_config=site_config,
             operator_csv_modifications_url=test_url

@@ -1,5 +1,5 @@
 """
-Copyright (c) 2020 Red Hat, Inc
+Copyright (c) 2021 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -26,7 +26,6 @@ from osbs.utils.yaml import (
     load_schema,
     validate_with_schema,
 )
-from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
 from atomic_reactor.utils.operator import OperatorManifest
 from atomic_reactor.utils.retries import get_retrying_requests_session
 
@@ -35,17 +34,13 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
     """
     Plugin runs for operator manifest bundle builds.
 
-    When running in orchestrator:
     - finds container pullspecs in operator ClusterServiceVersion files
     - computes replacement pullspecs:
         - replaces tags with manifest list digests
         - replaces repos (and namespaces) based on operator_manifests.repo_replacements
           configuration in container.yaml and r-c-m*
         - replaces registries based on operator_manifests.registry_post_replace in r-c-m*
-
-    When running in a worker:
-    - receives replacement pullspec mapping computed by orchestrator
-    - replaces pullspecs in ClusterServiceVersion files based on said mapping
+    - replaces pullspecs in ClusterServiceVersion files based on replacement pullspec mapping
     - creates relatedImages sections in ClusterServiceVersion files
 
     Files that already have a relatedImages section are excluded.
@@ -57,24 +52,19 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
     is_allowed_to_fail = False
 
     args_from_user_params = map_to_user_params(
-        "replacement_pullspecs:operator_bundle_replacement_pullspecs",
         "operator_csv_modifications_url",
     )
 
-    def __init__(self, workflow, replacement_pullspecs=None,
-                 operator_csv_modifications_url=None):
+    def __init__(self, workflow, operator_csv_modifications_url=None):
         """
         Initialize pin_operator_digests plugin
 
         :param workflow: DockerBuildWorkflow instance
-        :param replacement_pullspecs: Dict[str, str], computed in orchestrator,
-                                      provided to workers by osbs-client
         :param operator_csv_modifications_url: str, URL to JSON file with operator
                                       CSV modifications
         """
         super(PinOperatorDigestsPlugin, self).__init__(workflow)
         self.user_config = workflow.source.config.operator_manifests
-        self.replacement_pullspecs = replacement_pullspecs or {}
         self.operator_csv_modifications_url = operator_csv_modifications_url
 
         site_config = self.workflow.conf.operator_manifests
@@ -188,50 +178,18 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
         """
         Run pin_operator_digest plugin
         """
-        if self.should_run():
-            if self.operator_csv_modifications_url:
-                self.log.info(
-                    "Operator CSV modification URL specified: %s",
-                    self.operator_csv_modifications_url
-                )
+        if not self.should_run():
+            return
 
-            if self.is_in_orchestrator():
-                return self.run_in_orchestrator()
-            else:
-                return self.run_in_worker()
+        if self.operator_csv_modifications_url:
+            self.log.info(
+                "Operator CSV modification URL specified: %s",
+                self.operator_csv_modifications_url
+            )
 
-    def should_run(self):
-        """
-        Determine if this is an operator manifest bundle build
+        operator_manifest = self._get_operator_manifest()
+        replacement_pullspecs = {}
 
-        :return: bool, should plugin run?
-        """
-        if not has_operator_bundle_manifest(self.workflow):
-            self.log.info("Not an operator manifest bundle build, skipping plugin")
-            return False
-        if not self.workflow.conf.operator_manifests:
-            msg = "operator_manifests configuration missing in reactor config map, aborting"
-            self.log.warning(msg)
-            return False
-        return True
-
-    def run_in_orchestrator(self):
-        """
-        Run plugin in orchestrator. Find all image pullspecs,
-        compute their replacements and set build arg for worker.
-
-        Exclude CSVs which already have a relatedImages section.
-
-        Returns operator metadata in format
-        related_images:
-          pullspecs:  # list of all related_images_pullspecs
-            - original: <original-pullspec1>  # original pullspec in CSV file
-              new: <new pullspec>   # new pullspec computed by this plugin
-              pinned: <bool>  # plugin pinned tag to digest
-              replaced: <bool>  # plugin modified pullspec (repo/registry/tag changed)
-            - original: ........
-          created_by_osbs: <bool>
-        """
         related_images_metadata = {
             'pullspecs': [],
             'created_by_osbs': True,
@@ -241,8 +199,8 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
             'custom_csv_modifications_applied': bool(self.operator_csv_modifications_url)
         }
 
-        operator_manifest = self._get_operator_manifest()
         should_skip = self._skip_all()
+
         if should_skip:
             self.log.warning("skip_all defined for operator manifests")
 
@@ -267,35 +225,21 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
         else:
             if pullspecs:
                 replacement_pullspecs = self._get_replacement_pullspecs(pullspecs)
-                self._set_worker_arg(replacement_pullspecs)
                 related_images_metadata['pullspecs'] = replacement_pullspecs
             else:
                 # no pullspecs don't create relatedImages section
                 related_images_metadata['created_by_osbs'] = False
 
-        return operator_manifests_metadata
-
-    def run_in_worker(self):
-        """
-        Run plugin in worker. Replace image pullspecs based on replacements
-        computed in orchestrator, then create relatedImages sections in CSVs.
-
-        Exclude CSVs which already have a relatedImages section.
-        """
-        operator_manifest = self._get_operator_manifest()
-
-        if self._skip_all():
-            self.log.warning("skip_all defined, not running on worker")
-            return
+        if should_skip:
+            return operator_manifests_metadata
 
         replacement_pullspecs = {
-            ImageName.parse(old): ImageName.parse(new)
-            for old, new in self.replacement_pullspecs.items()
+            repl['original']: repl['new']
+            for repl in replacement_pullspecs
+            if repl['replaced']
         }
 
         operator_csv = operator_manifest.csv
-        if not operator_csv:
-            raise RuntimeError("Missing ClusterServiceVersion in operator manifests")
 
         self.log.info("Updating operator CSV file")
         if not operator_csv.has_related_images():
@@ -317,6 +261,23 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
             operator_csv.dump()
         else:
             self.log.warning("%s has a relatedImages section, skipping", operator_csv.path)
+
+        return operator_manifests_metadata
+
+    def should_run(self):
+        """
+        Determine if this is an operator manifest bundle build
+
+        :return: bool, should plugin run?
+        """
+        if not has_operator_bundle_manifest(self.workflow):
+            self.log.info("Not an operator manifest bundle build, skipping plugin")
+            return False
+        if not self.workflow.conf.operator_manifests:
+            msg = "operator_manifests configuration missing in reactor config map, aborting"
+            self.log.warning(msg)
+            return False
+        return True
 
     def _skip_all(self):
         skip_all = self.user_config.get("skip_all", False)
@@ -557,15 +518,6 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
             self.log.warning("User disabled registry replacements")
 
         return pin_digest, replace_repo, replace_registry
-
-    def _set_worker_arg(self, replacement_pullspecs):
-        arg = {
-            str(repl['original']): str(repl['new'])
-            for repl in replacement_pullspecs
-            if repl['replaced']
-        }
-        # OSBS2 TBD: `override_build_kwarg` is imported from build_orchestrate_build
-        override_build_kwarg(self.workflow, "operator_bundle_replacement_pullspecs", arg)
 
 
 _KEEP = object()
