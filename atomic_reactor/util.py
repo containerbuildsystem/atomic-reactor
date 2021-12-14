@@ -1460,7 +1460,7 @@ class OSBSLogs(object):
             return output
 
         # OSBS2 TBD logs for specific arches for binary builds
-        filename = 'osbs_build'
+        filename = 'osbs-build'
         logfile = NamedTemporaryFile(prefix=f"{pipeline_run_name}-{filename}",
                                      suffix=".log", mode='wb')
 
