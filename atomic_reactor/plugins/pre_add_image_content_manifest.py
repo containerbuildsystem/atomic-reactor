@@ -19,9 +19,7 @@ from atomic_reactor.constants import (IMAGE_BUILD_INFO_DIR, INSPECT_ROOTFS,
                                       PLUGIN_FETCH_MAVEN_KEY)
 from atomic_reactor.config import get_cachito_session
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.util import (base_image_is_scratch, df_parser, read_yaml,
-                                 read_content_sets, map_to_user_params
-                                 )
+from atomic_reactor.util import df_parser, read_yaml, read_content_sets, map_to_user_params
 from atomic_reactor.utils.pnc import PNCUtil
 
 
@@ -120,13 +118,19 @@ class AddImageContentManifestPlugin(PreBuildPlugin):
 
     @property
     def layer_index(self):
-        if self._layer_index is None:
-            # Default layer index is 1, because base and 'FROM scratch' images
-            #     *always* have 2 layers
-            self._layer_index = 1
-        if not base_image_is_scratch(self.dfp.baseimage):
-            # OSBS2 TBD: decide if we need to inspect a specific arch
-            inspect = self.workflow.imageutil.base_image_inspect()
+        if self._layer_index is not None:
+            return self._layer_index
+
+        # OSBS2 TBD: decide if we need to inspect a specific arch
+        inspect = self.workflow.imageutil.base_image_inspect()
+        if not inspect:
+            # Base images ('FROM koji/image-build') and 'FROM scratch' images do not have any
+            #   base image. When building with `podman build --squash`, such images get squashed
+            #   to only 1 layer => the layer index in this case is 0 (the first and only layer).
+
+            # OSBS2 TBD: this is only true for build tasks that behave like `podman build --squash`
+            self._layer_index = 0
+        else:
             self._layer_index = len(inspect[INSPECT_ROOTFS][INSPECT_ROOTFS_LAYERS])
         return self._layer_index
 

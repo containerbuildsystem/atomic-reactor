@@ -148,11 +148,16 @@ def mock_get_icm(requests_mock):
 def mock_env(workflow, tmpdir, platform='x86_64', base_layers=0,
              remote_sources=REMOTE_SOURCES, r_c_m_override=None, pnc_artifacts=True,
              ):  # pylint: disable=W0102
-    inspection_data = {
-        INSPECT_ROOTFS: {
-            INSPECT_ROOTFS_LAYERS: list(range(base_layers))
+
+    if base_layers > 0:
+        inspection_data = {
+            INSPECT_ROOTFS: {
+                INSPECT_ROOTFS_LAYERS: list(range(base_layers))
+            }
         }
-    }
+    else:
+        inspection_data = {}
+
     if r_c_m_override is None:
         r_c_m = {
             'version': 1,
@@ -265,7 +270,7 @@ def test_add_image_content_manifest(workflow, requests_mock, tmpdir, caplog,
     expected_output = deepcopy(ICM_DICT)
     if content_sets:
         expected_output['content_sets'] = CONTENT_SETS[platform]
-    expected_output['metadata']['image_layer_index'] = base_layers if base_layers else 1
+    expected_output['metadata']['image_layer_index'] = base_layers if base_layers else 0
     runner.run()
     assert dfp.content == expected_df
     output_file = os.path.join(str(tmpdir), manifest_file)
