@@ -23,6 +23,7 @@ import uuid
 import yaml
 import string
 import signal
+import tarfile
 from collections import namedtuple
 from copy import deepcopy
 from base64 import b64decode
@@ -1992,3 +1993,21 @@ def graceful_chain_del(d, *args):
         del d[args[-1]]
     except (IndexError, KeyError):
         pass
+
+
+def create_tar_gz_archive(file_name: str, file_content: str):
+    """Create tar.gz archive with a single file with a specific content
+
+    :param str file_name: Name of the file packed in archive
+    :param str file_content: File content string
+    :return: Absolute path to the file archive
+    """
+
+    with tempfile.NamedTemporaryFile('wb', suffix='.tar.gz', delete=False) as f:
+        with tarfile.open(fileobj=f, mode='w:gz') as tar:
+            data = file_content.encode('utf-8')
+            info = tarfile.TarInfo(name=file_name)
+            info.size = len(data)
+            tar.addfile(tarinfo=info, fileobj=io.BytesIO(data))
+
+    return tar.name
