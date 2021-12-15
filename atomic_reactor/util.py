@@ -49,6 +49,7 @@ from atomic_reactor.constants import (DOCKERFILE_FILENAME, REPO_CONTAINER_CONFIG
                                       USER_CONFIG_FILES, REPO_FETCH_ARTIFACTS_KOJI)
 
 from atomic_reactor.auth import HTTPRegistryAuth
+from atomic_reactor.types import ImageInspectionData
 
 from dockerfile_parse import DockerfileParser
 
@@ -843,7 +844,9 @@ class RegistryClient(object):
 
         return digests
 
-    def get_inspect_for_image(self, image: ImageName, arch: Optional[str] = None) -> dict:
+    def get_inspect_for_image(
+        self, image: ImageName, arch: Optional[str] = None
+    ) -> ImageInspectionData:
         """Return inspect for image.
 
         :param image: The remote image to inspect

@@ -13,6 +13,7 @@ from osbs.utils import ImageName
 
 from atomic_reactor import config
 from atomic_reactor import util
+from atomic_reactor.types import ImageInspectionData
 
 
 def image_is_inspectable(image: Union[str, ImageName]) -> bool:
@@ -42,7 +43,7 @@ class ImageUtil:
 
     def get_inspect_for_image(
         self, image: Union[str, ImageName], platform: Optional[str] = None
-    ) -> dict:
+    ) -> ImageInspectionData:
         """Inspect an image. Should mainly be used to inspect parent images.
 
         The image must be inspectable, passing a non-inspectable image is an error.
@@ -60,7 +61,7 @@ class ImageUtil:
         goarch = self._conf.platform_to_goarch_mapping[platform]
         return self._cached_inspect_image(str(image), goarch)
 
-    def base_image_inspect(self, platform: Optional[str] = None) -> dict:
+    def base_image_inspect(self, platform: Optional[str] = None) -> ImageInspectionData:
         """Inspect the base image (the parent image for the final build stage).
 
         If the base image is scratch or custom, return an empty dict.
@@ -75,7 +76,9 @@ class ImageUtil:
         return self.get_inspect_for_image(base_image, platform)
 
     @functools.lru_cache(maxsize=None)
-    def _cached_inspect_image(self, image: str, goarch: Optional[str] = None) -> dict:
+    def _cached_inspect_image(
+        self, image: str, goarch: Optional[str] = None
+    ) -> ImageInspectionData:
         # Important: this method must take the image name as a string, not an ImageName.
         #   The functools cache decorator maps inputs to outputs in a dict. While the
         #   ImageName object *is* hashable, it is also mutable, which can lead to very
