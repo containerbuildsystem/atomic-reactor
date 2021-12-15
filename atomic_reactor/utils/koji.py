@@ -28,7 +28,8 @@ from atomic_reactor.constants import (DEFAULT_DOWNLOAD_BLOCK_SIZE, PROG,
                                       KOJI_MAX_RETRIES,
                                       KOJI_RETRY_INTERVAL, KOJI_OFFLINE_RETRY_INTERVAL)
 from atomic_reactor.util import (Output, get_image_upload_filename,
-                                 get_checksums, get_manifest_media_type)
+                                 get_checksums, get_manifest_media_type,
+                                 create_tar_gz_archive)
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 
 logger = logging.getLogger(__name__)
@@ -329,7 +330,7 @@ def get_buildroot():
     return buildroot
 
 
-def get_image_output(workflow, image_id, arch):
+def get_image_output(workflow, image_id, arch, pullspec):
     """
     Create the output for the image
 
@@ -339,12 +340,16 @@ def get_image_output(workflow, image_id, arch):
     :return: tuple, (metadata dict, Output instance)
 
     """
-    saved_image = workflow.exported_image_sequence[-1].get('path')
     image_name = get_image_upload_filename(workflow.exported_image_sequence[-1],
                                            image_id, arch)
 
-    metadata = get_output_metadata(saved_image, image_name)
-    output = Output(file=open(saved_image), metadata=metadata)
+    readme_content = ('Archive is just a placeholder for the koji archive, if you need the '
+                      f'content you can use pullspec of the built image: {pullspec}')
+    archive_path = create_tar_gz_archive(file_name='README', file_content=readme_content)
+    logger.info('Archive for metadata created: %s', archive_path)
+
+    metadata = get_output_metadata(archive_path, image_name)
+    output = Output(file=open(archive_path), metadata=metadata)
 
     return metadata, output
 
@@ -475,7 +480,7 @@ def get_output(workflow, buildroot_id, pullspec, platform, source_build=False, l
     repositories, typed_digests = get_repositories_and_digests(workflow, pullspec)
 
     tags = set(image.tag for image in workflow.tag_conf.images)
-    metadata, output = get_image_output(workflow, image_id, platform)
+    metadata, output = get_image_output(workflow, image_id, platform, pullspec)
 
     metadata.update({
         'arch': arch,
