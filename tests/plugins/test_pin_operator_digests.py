@@ -1349,7 +1349,7 @@ class TestOperatorCSVModifications:
                                             'spec': {
                                                 'containers': [{
                                                     'name': 'foo-1',
-                                                    'image': 'myimage:v1.2.2'
+                                                    'image': 'myimage:v1.2.700'
                                                 }]
                                             }
                                         }
@@ -1357,7 +1357,7 @@ class TestOperatorCSVModifications:
                                 }]
                             }
                         },
-                        'relatedImages': [{'name': 'foo-1', 'image': 'myimage:v1.2.2'}],
+                        'relatedImages': [{'name': 'foo-1', 'image': 'myimage:v1.2.700'}],
                         'skips': ['1.2.3'],
                     }
                 },
@@ -1384,7 +1384,7 @@ class TestOperatorCSVModifications:
                                             'spec': {
                                                 'containers': [{
                                                     'name': 'foo-1',
-                                                    'image': 'myimage:v1.2.2'
+                                                    'image': 'myimage:v1.2.700'
                                                 }]
                                             }
                                         }
@@ -1392,7 +1392,7 @@ class TestOperatorCSVModifications:
                                 }]
                             }
                         },
-                        'relatedImages': [{'name': 'foo-1', 'image': 'myimage:v1.2.2'}],
+                        'relatedImages': [{'name': 'foo-1', 'image': 'myimage:v1.2.700'}],
                     }
                 },
                 id='update_only'
