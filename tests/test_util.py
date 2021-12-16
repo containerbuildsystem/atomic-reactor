@@ -11,6 +11,7 @@ import json
 import logging
 import os
 import tempfile
+import tarfile
 import pytest
 import requests
 from requests.exceptions import HTTPError, RetryError
@@ -62,6 +63,7 @@ from atomic_reactor.util import (LazyGit, figure_out_build_file,
                                  has_operator_bundle_manifest, DockerfileImages,
                                  terminal_key_paths,
                                  map_to_user_params,
+                                 create_tar_gz_archive,
                                  )
 from tests.constants import MOCK, REACTOR_CONFIG_MAP
 import atomic_reactor.util
@@ -2083,3 +2085,26 @@ def test_map_to_user_params():
         "arg_none": None,
     }
     assert get_args(user_params) == {"arg1": 1, "arg2": 2}
+
+
+def test_create_tar_gz_archive(tmpdir):
+    """Unittest for create_tar_gz_archive method"""
+
+    tmpdir_path = str(tmpdir.realpath())
+    test_file = 'foo'
+    content = 'bar'
+    archive_path = create_tar_gz_archive(file_name=test_file, file_content=content)
+
+    with tarfile.open(archive_path) as tar:
+
+        assert len(tar.getnames()) == 1, 'Tar archive does not contain 1 file'
+        assert tar.getnames()[0] == test_file, f'Tar archive does not contain {test_file} file'
+
+        tar.extractall(tmpdir_path)
+        extracted_file = os.path.join(tmpdir_path, test_file)
+
+        with open(extracted_file) as f:
+            assert f.read() == content, f'Extracted file does not contain {content} string'
+
+    os.remove(extracted_file)
+    os.remove(archive_path)
