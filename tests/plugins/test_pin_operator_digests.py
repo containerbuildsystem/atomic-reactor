@@ -713,18 +713,16 @@ class TestPinOperatorDigest(object):
         # plugin must always retun pullspecs
         assert result['pin_operator_digest']['related_images']['pullspecs']
 
-    @pytest.mark.parametrize('has_envs', [True, False])
-    def test_exclude_csvs(self, workflow, source_dir, caplog, has_envs):
-        # Worker does not care if there is a conflict between relatedImages
-        # and RELATED_IMAGE_* env vars, orchestrator should have caught this already
+    def test_exclude_csvs(self, workflow, source_dir, caplog):
         manifests_dir = source_dir.joinpath(OPERATOR_MANIFESTS_DIR)
         manifests_dir.mkdir()
         csv = mock_operator_csv(manifests_dir, 'csv.yaml', ['foo'],
                                 with_related_images=True,
-                                with_related_image_envs=has_envs)
+                                with_related_image_envs=False)
         original_content = csv.read_text("utf-8")
 
         user_config = get_user_config(OPERATOR_MANIFESTS_DIR)
+
         runner = mock_env(workflow, source_dir, site_config=get_site_config(),
                           user_config=user_config)
         runner.run()
