@@ -7,7 +7,7 @@ flatpak-module-tools >= 0.11;python_version>="3.9"
 jsonschema
 PyYAML
 ruamel.yaml
-git+https://github.com/containerbuildsystem/osbs-client@3c028f79d2ce38524449509a5abfe08073d3135f#egg=osbs-client
+git+https://github.com/containerbuildsystem/osbs-client@5d930f226093c2710c2e0c3e38eee50f3ded7304#egg=osbs-client
 # cannot build cryptography with rust for version >= 3.5
 cryptography < 3.5
 requests
