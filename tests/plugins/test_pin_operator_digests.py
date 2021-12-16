@@ -1060,25 +1060,44 @@ class TestOperatorCSVModifications:
 
         assert exc_msg in str(exc_info.value)
 
-    @pytest.mark.parametrize('pull_specs,exc_msg', [
+    @pytest.mark.parametrize('pull_specs, modification_specs, exc_msg', [
         # case: missing definitions
         (
             ["missing:v5.6"],
+            [
+                {
+                    "original": "myimage:v1.2.2",
+                    "new": "myimage:v1.2.700",
+                    "pinned": False,
+                },
+            ],
             "Provided operator CSV modifications misses following pullspecs: missing:v5.6"
         ),
         # case: extra definitions
         (
-            ["myimage:v1.2.2", "yet-another-image:123"],
-            ("Provided operator CSV modifications misses following pullspecs: "
-             "yet-another-image:123")
+            ["myimage:v1.2.2"],
+            [
+                {
+                    "original": "myimage:v1.2.2",
+                    "new": "myimage:v1.2.700",
+                    "pinned": False,
+                },
+                {
+                    "original": "yet-another-image:123",
+                    "new": "myimage:v1.2.700",
+                    "pinned": False,
+                },
+            ],
+            "Provided operator CSV modifications defines extra pullspecs: yet-another-image:123"
         ),
     ])
     @responses.activate
-    def test_pullspecs_replacements_errors(self, workflow, source_dir, pull_specs, exc_msg):
+    def test_pullspecs_replacements_errors(self, workflow, source_dir, pull_specs,
+                                           modification_specs, exc_msg):
         """Plugin should fail when CSV modifications doesn't meet expectations"""
         test_url = "https://example.com/modifications.json"
         modification_data = {
-            "pullspec_replacements": PULLSPEC_REPLACEMENTS
+            "pullspec_replacements": modification_specs
         }
         responses.add(responses.GET, test_url, json=modification_data)
 
