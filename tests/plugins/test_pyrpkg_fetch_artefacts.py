@@ -6,12 +6,15 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 import subprocess
+from pathlib import Path
 
 import pytest
 
 from atomic_reactor.dirs import BuildDir
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
-from atomic_reactor.plugins.pre_pyrpkg_fetch_artefacts import DistgitFetchArtefactsPlugin
+from atomic_reactor.plugins.pre_pyrpkg_fetch_artefacts import (
+    DistgitFetchArtefactsPlugin, EXPLODED_SOURCES_FILE,
+)
 from osbs.utils import ImageName
 from tests.stubs import StubSource
 from flexmock import flexmock
@@ -31,11 +34,27 @@ class X(object):
 
 @pytest.fixture
 def workflow(workflow):
+    Path(workflow.source.path, EXPLODED_SOURCES_FILE).write_text(
+        "https://git.host/ns/api.git 123456\n"
+        "https://git.host/ns/operator  789012\n",
+        encoding="utf-8",
+    )
     workflow.build_dir.init_build_dirs(["x86_64", "ppc64le"], workflow.source)
     return workflow
 
 
-def test_distgit_fetch_artefacts_plugin(workflow):  # noqa
+@pytest.mark.parametrize(
+    'has_exploded_sources,has_invalid_source_repo_line,missing_exploded_source_file',
+    [
+        [True, False, False],
+        [True, True, False],
+        [True, False, True],
+        [False, None, None],
+    ],
+)
+def test_distgit_fetch_artefacts_plugin(
+    has_exploded_sources, has_invalid_source_repo_line, missing_exploded_source_file, workflow
+):  # noqa
     sources_cmd = 'fedpkg sources'
     workflow.conf.conf['sources_command'] = sources_cmd
 
@@ -46,6 +65,13 @@ def test_distgit_fetch_artefacts_plugin(workflow):  # noqa
     expected_check_call_cmd = sources_cmd.split()
     expected_check_call_cmd.append('--outdir')
     expected_check_call_cmd.append(str(expected_sources_outdir))
+
+    if has_exploded_sources:
+        if has_invalid_source_repo_line:
+            with working_build_dir.joinpath(EXPLODED_SOURCES_FILE).open('a') as f:
+                f.write('https://git.host/ns/webapp.git sha256 123456')
+    else:
+        working_build_dir.joinpath(EXPLODED_SOURCES_FILE).unlink()
 
     expected_sources_files = (
         ("logo.png", b"image"),
@@ -58,6 +84,10 @@ def test_distgit_fetch_artefacts_plugin(workflow):  # noqa
         # These sources files must be downloaded
         for filename, data in expected_sources_files:
             expected_sources_outdir.joinpath(filename).write_bytes(data)
+        if has_exploded_sources:
+            working_build_dir.joinpath('api-123456.tar.gz').write_bytes(b'')
+            if not missing_exploded_source_file:
+                working_build_dir.joinpath('operator-789012.tar.gz').write_bytes(b'')
 
     (flexmock(subprocess)
      .should_receive('check_call')
@@ -70,6 +100,20 @@ def test_distgit_fetch_artefacts_plugin(workflow):  # noqa
             'name': DistgitFetchArtefactsPlugin.key,
         }]
     )
+
+    if has_exploded_sources:
+        if has_invalid_source_repo_line:
+            with pytest.raises(
+                PluginFailedException, match=f'Invalid line in {EXPLODED_SOURCES_FILE}'
+            ):
+                runner.run()
+            return
+
+        if missing_exploded_source_file:
+            with pytest.raises(PluginFailedException, match='Cannot find the sources file'):
+                runner.run()
+            return
+
     runner.run()
 
     def _assert(build_dir: BuildDir):
