@@ -309,28 +309,6 @@ class TestPinOperatorDigest(object):
         msg = "operator_manifests configuration missing in container.yaml"
         assert msg in str(exc_info.value)
 
-    @pytest.mark.parametrize('manifests_dir, symlinks', [
-        ('foo', {'foo': '/tmp/foo'}),
-    ])
-    def test_manifests_dir_not_subdir_of_repo(self, manifests_dir, symlinks,
-                                              workflow, build_dir):
-        # make sure plugin is not skipped because of missing site config
-        site_config = get_site_config()
-        user_config = get_user_config(manifests_dir)
-        runner = mock_env(workflow, build_dir,
-                          site_config=site_config, user_config=user_config)
-
-        # make symlinks
-        for rel_dest, src in (symlinks or {}).items():
-            dest = os.path.join(runner.workflow.source.path, rel_dest)
-            pathlib.Path(src).mkdir(exist_ok=True)
-            os.symlink(src, str(dest))
-
-        with pytest.raises(PluginFailedException) as exc_info:
-            runner.run()
-
-        assert "manifests_dir points outside of cloned repo" in str(exc_info.value)
-
     @pytest.mark.parametrize('filepaths', [
         ['csv1.yaml'],
         ['csv2.yaml'],
