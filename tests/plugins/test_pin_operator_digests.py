@@ -25,8 +25,6 @@ from atomic_reactor.constants import (
     PLUGIN_PIN_OPERATOR_DIGESTS_KEY,
 )
 from atomic_reactor.plugin import PluginFailedException
-from atomic_reactor.plugins.build_orchestrate_build import (OrchestrateBuildPlugin,
-                                                            WORKSPACE_KEY_OVERRIDE_KWARGS)
 from atomic_reactor.plugins.pre_pin_operator_digest import (
     PinOperatorDigestsPlugin,
     PullspecReplacer,
@@ -237,17 +235,6 @@ def mock_inspect_query(pullspec, labels, times=1):
         .with_args(image)
         .and_return(inspect)
         .times(times))
-
-
-def get_build_kwarg(workflow, k, platform=None):
-    """
-    Get build-kwarg override
-    """
-    key = OrchestrateBuildPlugin.key
-
-    workspace = workflow.plugin_workspace.get(key, {})
-    override_kwargs = workspace.get(WORKSPACE_KEY_OVERRIDE_KWARGS, {})
-    return override_kwargs.get(platform, {}).get(k)
 
 
 def get_site_config(allowed_registries=None, registry_post_replace=None, repo_replacements=None,
