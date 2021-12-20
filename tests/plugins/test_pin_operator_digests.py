@@ -11,6 +11,7 @@ import io
 import os
 import pathlib
 
+from atomic_reactor.dirs import RootBuildDir
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap
 
@@ -47,6 +48,8 @@ from tests.mock_env import MockEnv
 
 PKG_LABEL = 'com.redhat.component'
 PKG_NAME = 'test-package'
+
+PLATFORMS = ['x86_64', 'ppc64le', 'aarch64', 'arm64']
 
 
 yaml = YAML()
@@ -128,6 +131,8 @@ def mock_env(workflow, repo_dir, user_config=None, site_config=None,
     mock_dockerfile(repo_dir, df_base, df_operator_label)
 
     env.workflow.source = PathSource('path', str(repo_dir))
+    env.workflow.build_dir = RootBuildDir(repo_dir)
+    env.workflow.build_dir.init_build_dirs(PLATFORMS, env.workflow.source)
 
     # NOTE: is this path correct?
     env.workflow._df_path = str(repo_dir)
@@ -278,25 +283,25 @@ def get_user_config(manifests_dir, repo_replacements=None, enable_digest_pinning
 
 
 class TestPinOperatorDigest(object):
-    def test_run_only_for_operator_bundle_label(self, workflow, source_dir, caplog):
-        runner = mock_env(workflow, source_dir, df_operator_label=False,
+    def test_run_only_for_operator_bundle_label(self, workflow, build_dir, caplog):
+        runner = mock_env(workflow, build_dir, df_operator_label=False,
                           write_container_yaml=False)
         runner.run()
         assert "Not an operator manifest bundle build, skipping plugin" in caplog.text
 
-    def test_missing_site_config(self, workflow, source_dir, caplog):
-        runner = mock_env(workflow, source_dir, write_container_yaml=False)
+    def test_missing_site_config(self, workflow, build_dir, caplog):
+        runner = mock_env(workflow, build_dir, write_container_yaml=False)
         runner.run()
 
         msg = "operator_manifests configuration missing in reactor config map, aborting"
         assert msg in caplog.text
         assert "Looking for operator CSV files" not in caplog.text
 
-    def test_missing_user_config(self, workflow, source_dir):
+    def test_missing_user_config(self, workflow, build_dir):
         # make sure plugin is not skipped because of missing site config
         site_config = get_site_config()
 
-        runner = mock_env(workflow, source_dir, site_config=site_config,
+        runner = mock_env(workflow, build_dir, site_config=site_config,
                           write_container_yaml=False)
 
         with pytest.raises(PluginFailedException) as exc_info:
@@ -308,11 +313,11 @@ class TestPinOperatorDigest(object):
         ('foo', {'foo': '/tmp/foo'}),
     ])
     def test_manifests_dir_not_subdir_of_repo(self, manifests_dir, symlinks,
-                                              workflow, source_dir):
+                                              workflow, build_dir):
         # make sure plugin is not skipped because of missing site config
         site_config = get_site_config()
         user_config = get_user_config(manifests_dir)
-        runner = mock_env(workflow, source_dir,
+        runner = mock_env(workflow, build_dir,
                           site_config=site_config, user_config=user_config)
 
         # make symlinks
@@ -332,8 +337,8 @@ class TestPinOperatorDigest(object):
         ['csv1.yaml', 'csv2.yaml']
     ])
     @pytest.mark.parametrize('skip_all', [True, False])
-    def test_no_pullspecs(self, workflow, source_dir, caplog, filepaths, skip_all):
-        manifests_dir = source_dir.joinpath(OPERATOR_MANIFESTS_DIR)
+    def test_no_pullspecs(self, workflow, build_dir, caplog, filepaths, skip_all):
+        manifests_dir = build_dir.joinpath(OPERATOR_MANIFESTS_DIR)
         manifests_dir.mkdir()
         for path in filepaths:
             mock_operator_csv(manifests_dir, path, [])
@@ -341,7 +346,7 @@ class TestPinOperatorDigest(object):
         user_config = get_user_config(OPERATOR_MANIFESTS_DIR, skip_all=skip_all)
         site_config = get_site_config(skip_all_allow_list=[PKG_NAME])
 
-        runner = mock_env(workflow, source_dir, user_config=user_config,
+        runner = mock_env(workflow, build_dir, user_config=user_config,
                           site_config=site_config)
 
         if len(filepaths) > 1:
@@ -355,11 +360,11 @@ class TestPinOperatorDigest(object):
 
         caplog_text = "\n".join(rec.message for rec in caplog.records)
 
-        source_path = runner.workflow.source.path
-        assert f"Looking for operator CSV files in {source_path}" in caplog_text
+        build_dir_path = runner.workflow.build_dir.path
+        assert f"Looking for operator CSV files in {build_dir_path}" in caplog_text
         assert "Found operator CSV file:" in caplog_text
         csv_files = [
-            os.path.join(runner.workflow.source.manifests_dir, path)
+            os.path.join(runner.workflow.source.config.operator_manifests['manifests_dir'], path)
             for path in filepaths
         ]
         for f in csv_files:
@@ -375,14 +380,14 @@ class TestPinOperatorDigest(object):
         }
         assert result['pin_operator_digest'] == expected
 
-    def test_fail_without_csv(self, workflow, source_dir):
+    def test_fail_without_csv(self, workflow, build_dir):
         """CSV file is mandatory part of operator, fail if it's not present"""
-        manifests_dir = source_dir.joinpath(OPERATOR_MANIFESTS_DIR)
+        manifests_dir = build_dir.joinpath(OPERATOR_MANIFESTS_DIR)
         manifests_dir.mkdir()
         user_config = get_user_config(OPERATOR_MANIFESTS_DIR)
         site_config = get_site_config()
 
-        runner = mock_env(workflow, source_dir,
+        runner = mock_env(workflow, build_dir,
                           user_config=user_config, site_config=site_config)
 
         with pytest.raises(PluginFailedException) as exc_info:
@@ -390,16 +395,16 @@ class TestPinOperatorDigest(object):
 
         assert "Missing ClusterServiceVersion in operator manifests" in str(exc_info.value)
 
-    def test_disallowed_registry(self, workflow, source_dir):
+    def test_disallowed_registry(self, workflow, build_dir):
         pullspecs = ['allowed-registry/ns/foo:1', 'disallowed-registry/ns/bar:2']
-        manifests_dir = source_dir.joinpath(OPERATOR_MANIFESTS_DIR)
+        manifests_dir = build_dir.joinpath(OPERATOR_MANIFESTS_DIR)
         manifests_dir.mkdir()
         mock_operator_csv(manifests_dir, 'csv.yaml', pullspecs)
 
         user_config = get_user_config(OPERATOR_MANIFESTS_DIR)
         site_config = get_site_config(allowed_registries=['allowed-registry'])
 
-        runner = mock_env(workflow, source_dir, user_config=user_config,
+        runner = mock_env(workflow, build_dir, user_config=user_config,
                           site_config=site_config)
 
         with pytest.raises(PluginFailedException) as exc_info:
@@ -408,9 +413,9 @@ class TestPinOperatorDigest(object):
         assert msg in str(exc_info.value)
 
     def test_raise_error_if_csv_has_both_related_images_and_related_env_vars(
-        self, workflow, source_dir, caplog
+        self, workflow, build_dir, caplog
     ):
-        manifests_dir = source_dir.joinpath(OPERATOR_MANIFESTS_DIR)
+        manifests_dir = build_dir.joinpath(OPERATOR_MANIFESTS_DIR)
         manifests_dir.mkdir()
         csv = mock_operator_csv(manifests_dir,
                                 'csv.yaml', ['foo'],
@@ -420,13 +425,15 @@ class TestPinOperatorDigest(object):
         user_config = get_user_config(OPERATOR_MANIFESTS_DIR)
         site_config = get_site_config()
 
-        runner = mock_env(workflow, source_dir, user_config=user_config,
+        runner = mock_env(workflow, build_dir, user_config=user_config,
                           site_config=site_config)
 
         with pytest.raises(PluginFailedException) as exc_info:
             runner.run()
 
-        csv = os.path.join(runner.workflow.source.manifests_dir, csv.name)
+        csv = os.path.join(runner.workflow.build_dir.any_build_dir.path,
+                           runner.workflow.source.config.operator_manifests['manifests_dir'],
+                           csv.name)
         expected = (
             f"Both relatedImages and RELATED_IMAGE_* env vars present in {csv}. "
             f"Please remove the relatedImages section, it will be reconstructed "
@@ -436,7 +443,7 @@ class TestPinOperatorDigest(object):
 
     @pytest.mark.parametrize('ocp_44', [True, False])
     @responses.activate
-    def test_pin_operator_digest(self, ocp_44, workflow, source_dir, caplog):
+    def test_pin_operator_digest(self, ocp_44, workflow, build_dir, caplog):
         pullspecs = [
             # registry.private.example.com: do not replace registry or repos
             'registry.private.example.com/ns/foo@sha256:1',  # -> no change
@@ -502,7 +509,7 @@ class TestPinOperatorDigest(object):
         mock_inspect_query('weird-registry/ns/bar@sha256:2', {PKG_LABEL: 'bar-package'}, times=2)
         mock_inspect_query('old-registry/ns/spam@sha256:4', {PKG_LABEL: 'spam-package'}, times=2)
 
-        manifests_dir = source_dir.joinpath(OPERATOR_MANIFESTS_DIR)
+        manifests_dir = build_dir.joinpath(OPERATOR_MANIFESTS_DIR)
         manifests_dir.mkdir()
         f = mock_operator_csv(manifests_dir, 'csv.yaml', pullspecs, for_ocp_44=ocp_44)
         pre_content = f.read_text("utf-8")
@@ -521,10 +528,10 @@ class TestPinOperatorDigest(object):
         ]}
 
         # this a reference file, make sure it does not get touched by putting it in parent dir
-        reference = mock_operator_csv(source_dir, 'csv1.yaml', replaced_pullspecs,
+        reference = mock_operator_csv(build_dir, 'csv1.yaml', replaced_pullspecs,
                                       for_ocp_44=ocp_44, with_related_images=True)
 
-        runner = mock_env(workflow, source_dir, site_config=site_config,
+        runner = mock_env(workflow, build_dir, site_config=site_config,
                           add_to_config=pull_registries, user_config=user_config,
                           replacement_pullspecs=replacement_pullspecs)
         result = runner.run()
@@ -618,7 +625,10 @@ class TestPinOperatorDigest(object):
         }
 
         assert result['pin_operator_digest'] == expected_result
-        replaced_csv = os.path.join(runner.workflow.source.manifests_dir, 'csv.yaml')
+        replaced_csv = os.path.join(runner.workflow.build_dir.any_build_dir.path,
+                                    runner.workflow.source.config.operator_manifests[
+                                        "manifests_dir"],
+                                    'csv.yaml')
         with open(replaced_csv, 'r') as f:
             content = f.read()
             expected_content = reference.read_text("utf-8")
@@ -639,11 +649,11 @@ class TestPinOperatorDigest(object):
     @pytest.mark.parametrize('replace_repo', [True, False])
     @pytest.mark.parametrize('replace_registry', [True, False])
     def test_replacement_opt_out(self, pin_digest, replace_repo, replace_registry,
-                                 workflow, source_dir, caplog):
+                                 workflow, build_dir, caplog):
         original = '{}/ns/foo:1'.format(SOURCE_REGISTRY_URI)
         replaced = ImageName.parse(original)
 
-        manifest_dir = source_dir.joinpath(OPERATOR_MANIFESTS_DIR)
+        manifest_dir = build_dir.joinpath(OPERATOR_MANIFESTS_DIR)
         manifest_dir.mkdir()
         mock_operator_csv(manifest_dir, 'csv.yaml', [original])
 
@@ -680,7 +690,7 @@ class TestPinOperatorDigest(object):
                                       enable_registry_replacements=replace_registry)
         site_config = get_site_config(registry_post_replace=registry_post_replace)
 
-        runner = mock_env(workflow, source_dir, user_config=user_config,
+        runner = mock_env(workflow, build_dir, user_config=user_config,
                           site_config=site_config)
         result = runner.run()
 
@@ -700,8 +710,8 @@ class TestPinOperatorDigest(object):
         # plugin must always retun pullspecs
         assert result['pin_operator_digest']['related_images']['pullspecs']
 
-    def test_exclude_csvs(self, workflow, source_dir, caplog):
-        manifests_dir = source_dir.joinpath(OPERATOR_MANIFESTS_DIR)
+    def test_exclude_csvs(self, workflow, build_dir, caplog):
+        manifests_dir = build_dir.joinpath(OPERATOR_MANIFESTS_DIR)
         manifests_dir.mkdir()
         csv = mock_operator_csv(manifests_dir, 'csv.yaml', ['foo'],
                                 with_related_images=True,
@@ -710,7 +720,7 @@ class TestPinOperatorDigest(object):
 
         user_config = get_user_config(OPERATOR_MANIFESTS_DIR)
 
-        runner = mock_env(workflow, source_dir, site_config=get_site_config(),
+        runner = mock_env(workflow, build_dir, site_config=get_site_config(),
                           user_config=user_config)
         runner.run()
 
@@ -718,7 +728,7 @@ class TestPinOperatorDigest(object):
         assert "Creating relatedImages section" not in caplog.text
         assert csv.read_text("utf-8") == original_content
 
-    def test_return_pullspecs_in_related_images(self, workflow, source_dir):
+    def test_return_pullspecs_in_related_images(self, workflow, build_dir):
         """
         Ensure the pullspecs listed in spec.relatedImages are returned if a CSV
         file has such a section
@@ -729,11 +739,11 @@ class TestPinOperatorDigest(object):
             # should be returned directly without any change.
             'registry.r.c/project/bar:20200901',
         ]
-        manifests_dir = source_dir.joinpath(OPERATOR_MANIFESTS_DIR)
+        manifests_dir = build_dir.joinpath(OPERATOR_MANIFESTS_DIR)
         manifests_dir.mkdir()
         mock_operator_csv(manifests_dir, 'csv1.yaml', pullspecs, with_related_images=True)
 
-        runner = mock_env(workflow, source_dir,
+        runner = mock_env(workflow, build_dir,
                           user_config=get_user_config(OPERATOR_MANIFESTS_DIR),
                           site_config=get_site_config())
         result = runner.run()
@@ -766,9 +776,9 @@ class TestPinOperatorDigest(object):
         (['foo'], False),
     ])
     @pytest.mark.parametrize('skip_all_allow_list', [None, [PKG_NAME]])
-    def test_skip_all(self, workflow, source_dir, caplog, has_related_images,
+    def test_skip_all(self, workflow, build_dir, caplog, has_related_images,
                       pull_specs, has_related_image_envs, skip_all_allow_list):
-        manifest_dir = source_dir.joinpath(OPERATOR_MANIFESTS_DIR)
+        manifest_dir = build_dir.joinpath(OPERATOR_MANIFESTS_DIR)
         manifest_dir.mkdir()
         mock_operator_csv(manifest_dir, 'csv.yaml', pull_specs,
                           with_related_images=has_related_images,
@@ -776,7 +786,7 @@ class TestPinOperatorDigest(object):
 
         user_config = get_user_config(OPERATOR_MANIFESTS_DIR, skip_all=True)
 
-        runner = mock_env(workflow, source_dir,
+        runner = mock_env(workflow, build_dir,
                           site_config=get_site_config(skip_all_allow_list=skip_all_allow_list),
                           user_config=user_config)
 
@@ -965,14 +975,14 @@ class TestPullspecReplacer(object):
     ])
     @responses.activate
     def test_replace_repo_failure(self, image, site_replacements, user_replacements,
-                                  inspect_labels, exc_msg, workflow, source_dir):
+                                  inspect_labels, exc_msg, workflow, build_dir):
         image = ImageName.parse(image)
 
         mock_package_mapping_files(site_replacements)
         mock_inspect_query(image, inspect_labels)
 
         site_config = get_site_config(repo_replacements=site_replacements)
-        user_config = get_user_config(manifests_dir=str(source_dir),
+        user_config = get_user_config(manifests_dir=str(build_dir),
                                       repo_replacements=user_replacements)
 
         self.mock_workflow(workflow, site_config)
@@ -1022,10 +1032,10 @@ class TestOperatorCSVModifications:
     """Test suite for user modifications for Operator CSV file"""
 
     def _test_assert_error(
-        self, *, workflow, source_dir: pathlib.Path, test_url, pull_specs, exc_msg,
+        self, *, workflow, build_dir: pathlib.Path, test_url, pull_specs, exc_msg,
         operator_csv_modifications_allowed_attributes=None,
     ):
-        manifests_dir = source_dir.joinpath(OPERATOR_MANIFESTS_DIR)
+        manifests_dir = build_dir.joinpath(OPERATOR_MANIFESTS_DIR)
         manifests_dir.mkdir()
         mock_operator_csv(manifests_dir, 'csv.yaml', pull_specs)
 
@@ -1036,7 +1046,7 @@ class TestOperatorCSVModifications:
         )
 
         runner = mock_env(
-            workflow, source_dir,
+            workflow, build_dir,
             user_config=user_config,
             site_config=site_config,
             operator_csv_modifications_url=test_url
@@ -1079,7 +1089,7 @@ class TestOperatorCSVModifications:
         ),
     ])
     @responses.activate
-    def test_pullspecs_replacements_errors(self, workflow, source_dir, pull_specs,
+    def test_pullspecs_replacements_errors(self, workflow, build_dir, pull_specs,
                                            modification_specs, exc_msg):
         """Plugin should fail when CSV modifications doesn't meet expectations"""
         test_url = "https://example.com/modifications.json"
@@ -1090,14 +1100,14 @@ class TestOperatorCSVModifications:
 
         self._test_assert_error(
             workflow=workflow,
-            source_dir=source_dir,
+            build_dir=build_dir,
             test_url=test_url,
             pull_specs=pull_specs,
             exc_msg=exc_msg,
         )
 
     @responses.activate
-    def test_fetch_modifications_http_error(self, workflow, source_dir):
+    def test_fetch_modifications_http_error(self, workflow, build_dir):
         """Test if HTTP error during fetching is properly described to user"""
         test_url = "https://example.com/modifications.json"
         exc_msg = f"Failed to fetch the operator CSV modification JSON from {test_url}"
@@ -1105,13 +1115,13 @@ class TestOperatorCSVModifications:
 
         self._test_assert_error(
             workflow=workflow,
-            source_dir=source_dir,
+            build_dir=build_dir,
             test_url=test_url,
             pull_specs=['mytestimage:v5'],
             exc_msg=exc_msg)
 
     @responses.activate
-    def test_fetch_modifications_json_error(self, workflow, source_dir):
+    def test_fetch_modifications_json_error(self, workflow, build_dir):
         """Test if JSON decoding failure properly described to user"""
         test_url = "https://example.com/modifications.json"
         exc_msg = f"Failed to parse operator CSV modification JSON from {test_url}"
@@ -1119,21 +1129,21 @@ class TestOperatorCSVModifications:
 
         self._test_assert_error(
             workflow=workflow,
-            source_dir=source_dir,
+            build_dir=build_dir,
             test_url=test_url,
             pull_specs=['mytestimage:v5'],
             exc_msg=exc_msg
         )
 
     @responses.activate
-    def test_csv_has_related_images(self, workflow, source_dir):
+    def test_csv_has_related_images(self, workflow, build_dir):
         """Modifications must fail if RelatedImages section exists"""
         test_url = "https://example.com/modifications.json"
         modification_data = {
             "pullspec_replacements": PULLSPEC_REPLACEMENTS
         }
         responses.add(responses.GET, test_url, json=modification_data)
-        manifests_dir = source_dir.joinpath(OPERATOR_MANIFESTS_DIR)
+        manifests_dir = build_dir.joinpath(OPERATOR_MANIFESTS_DIR)
         manifests_dir.mkdir()
         mock_operator_csv(
             manifests_dir, 'csv.yaml', ['mytestimage:v6'],
@@ -1144,7 +1154,7 @@ class TestOperatorCSVModifications:
         site_config = get_site_config()
 
         runner = mock_env(
-            workflow, source_dir,
+            workflow, build_dir,
             user_config=user_config,
             site_config=site_config,
             operator_csv_modifications_url=test_url,
@@ -1161,7 +1171,7 @@ class TestOperatorCSVModifications:
         assert exc_msg in str(exc_info.value)
 
     @responses.activate
-    def test_pullspecs_replacements(self, workflow, source_dir):
+    def test_pullspecs_replacements(self, workflow, build_dir):
         """Test if pullspecs are properly replaced"""
         test_url = "https://example.com/modifications.json"
         modification_data = {
@@ -1169,7 +1179,7 @@ class TestOperatorCSVModifications:
         }
         responses.add(responses.GET, test_url, json=modification_data)
 
-        manifests_dir = source_dir.joinpath(OPERATOR_MANIFESTS_DIR)
+        manifests_dir = build_dir.joinpath(OPERATOR_MANIFESTS_DIR)
         manifests_dir.mkdir()
         mock_operator_csv(manifests_dir, 'csv.yaml', ['myimage:v1.2.2'])
 
@@ -1177,7 +1187,7 @@ class TestOperatorCSVModifications:
         site_config = get_site_config()
 
         runner = mock_env(
-            workflow, source_dir,
+            workflow, build_dir,
             user_config=user_config,
             site_config=site_config,
             operator_csv_modifications_url=test_url
@@ -1269,7 +1279,7 @@ class TestOperatorCSVModifications:
                 validate_with_schema(data, schema)
 
     @responses.activate
-    def test_duplicated_pullspec_replacements(self, workflow, source_dir):
+    def test_duplicated_pullspec_replacements(self, workflow, build_dir):
         """Fail when duplicated pullspecs are detected"""
         test_pullspec = "thesameimage:v1"
         test_url = "https://example.com/modifications.json"
@@ -1283,7 +1293,7 @@ class TestOperatorCSVModifications:
 
         self._test_assert_error(
             workflow=workflow,
-            source_dir=source_dir,
+            build_dir=build_dir,
             test_url=test_url,
             pull_specs=[test_pullspec],
             exc_msg=f"Provided CSV modifications contain duplicated "
@@ -1308,7 +1318,7 @@ class TestOperatorCSVModifications:
         )
     ])
     @responses.activate
-    def test_not_allowed_attributes_for_modifications(self, workflow, source_dir, mods, exc_msg):
+    def test_not_allowed_attributes_for_modifications(self, workflow, build_dir, mods, exc_msg):
         """Test if not allowed attributes causes expected error"""
         test_pullspec = "thesameimage:v1"
         test_url = "https://example.com/modifications.json"
@@ -1322,7 +1332,7 @@ class TestOperatorCSVModifications:
 
         self._test_assert_error(
             workflow=workflow,
-            source_dir=source_dir,
+            build_dir=build_dir,
             test_url=test_url,
             pull_specs=[test_pullspec],
             exc_msg=exc_msg,
@@ -1404,7 +1414,7 @@ class TestOperatorCSVModifications:
          ]
     )
     @responses.activate
-    def test_other_metadata_replacements_pass(self, workflow, source_dir, mods, allowed_attrs,
+    def test_other_metadata_replacements_pass(self, workflow, build_dir, mods, allowed_attrs,
                                               expected_final_csv):
         csv_yaml = 'csv.yaml'
         pullspecs = ['myimage:v1.2.2']
@@ -1416,7 +1426,7 @@ class TestOperatorCSVModifications:
 
         responses.add(responses.GET, test_url, json=modification_data)
 
-        manifests_dir = source_dir.joinpath(OPERATOR_MANIFESTS_DIR)
+        manifests_dir = build_dir.joinpath(OPERATOR_MANIFESTS_DIR)
         manifests_dir.mkdir()
         mock_operator_csv(manifests_dir, csv_yaml, pullspecs)
 
@@ -1426,13 +1436,13 @@ class TestOperatorCSVModifications:
         )
 
         runner = mock_env(
-            workflow, source_dir,
+            workflow, build_dir,
             user_config=user_config,
             site_config=site_config,
             operator_csv_modifications_url=test_url
         )
 
-        pytest_tmp_dir = runner.workflow.source.source_path
+        pytest_tmp_dir = runner.workflow.build_dir.any_build_dir.path
 
         runner.run()
 

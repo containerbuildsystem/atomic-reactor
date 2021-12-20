@@ -91,19 +91,6 @@ class Source(object):
     def workdir(self):
         return self._workdir
 
-    @property
-    def manifests_dir(self):
-        if self.config.operator_manifests is None:
-            raise RuntimeError("operator_manifests configuration missing in container.yaml")
-        repo_dir = os.path.realpath(self.path)
-        manifests_dir = os.path.realpath(os.path.join(
-            repo_dir,
-            self.config.operator_manifests["manifests_dir"]
-        ))
-        if not manifests_dir.startswith(repo_dir):
-            raise RuntimeError("manifests_dir points outside of cloned repository")
-        return manifests_dir
-
     def get(self):
         """Run this to get source and save it to `workdir` or a newly created workdir."""
         raise NotImplementedError('Must override in subclasses!')
