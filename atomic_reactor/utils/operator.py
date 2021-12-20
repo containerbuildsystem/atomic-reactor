@@ -9,7 +9,9 @@ import os
 import re
 import logging
 from collections import OrderedDict
+from pathlib import Path
 
+from atomic_reactor.dirs import BuildDir
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 
@@ -570,7 +572,7 @@ class OperatorCSV(object):
     # Annotation keys that are expected to contain pullspecs
     _known_annotation_keys = ("containerImage",)
 
-    def __init__(self, path, data, pullspec_heuristic=default_pullspec_heuristic):
+    def __init__(self, path, data, pullspec_heuristic=default_pullspec_heuristic, **kwargs):
         """
         Initialize an OperatorCSV
 
@@ -585,6 +587,7 @@ class OperatorCSV(object):
         self.path = path
         self.data = data
         self._pullspec_heuristic = pullspec_heuristic
+        self.repo_dir = kwargs.get('repo_dir', None)
 
     @property
     def checksum(self):
@@ -603,11 +606,15 @@ class OperatorCSV(object):
             data = yaml.load(f)
             return cls(path, data, **kwargs)
 
-    def dump(self):
+    def dump(self, build_dir: BuildDir = None):
         """
         Write data to file (preserves comments)
         """
-        with open(self.path, "w") as f:
+        if build_dir:
+            path = Path(str(self.path).replace(str(self.repo_dir), str(build_dir.path)))
+        else:
+            path = self.path
+        with open(path, "w") as f:
             yaml.dump(self.data, f)
 
     def has_related_images(self):

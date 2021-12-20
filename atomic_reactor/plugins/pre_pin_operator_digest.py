@@ -7,6 +7,7 @@ of the BSD license. See the LICENSE file for details.
 """
 
 import logging
+import os.path
 
 from osbs.utils import Labels, ImageName
 
@@ -258,7 +259,7 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
                 operator_csv.modifications_update(
                     operator_csv_modifications.get('update', {}))
 
-            operator_csv.dump()
+            self.workflow.build_dir.for_each_platform(operator_csv.dump)
         else:
             self.log.warning("%s has a relatedImages section, skipping", operator_csv.path)
 
@@ -302,9 +303,13 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
                                "bundles".format(component))
 
     def _get_operator_manifest(self):
-        manifests_dir = self.workflow.source.manifests_dir
-        self.log.info("Looking for operator CSV files in %s", manifests_dir)
-        operator_manifest = OperatorManifest.from_directory(manifests_dir)
+        if self.workflow.source.config.operator_manifests is None:
+            raise RuntimeError("operator_manifests configuration missing in container.yaml")
+        self.log.info("Looking for operator CSV files in %s", self.workflow.build_dir.path)
+        manifests_dir = self.workflow.source.config.operator_manifests["manifests_dir"]
+        kwargs = {'repo_dir': self.workflow.build_dir.any_build_dir.path}
+        operator_manifest = OperatorManifest.from_directory(
+            os.path.join(self.workflow.build_dir.any_build_dir.path, manifests_dir), **kwargs)
         self.log.info("Found operator CSV file: %s", operator_manifest.csv.path)
 
         return operator_manifest
