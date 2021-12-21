@@ -147,10 +147,9 @@ containing the Dockerfile.
     to create the underlying filesystem base image. Once task is completed, the
     built filesystem image is imported into docker and its ID is used as the
     FROM value
-- **pull_base_image**
+- **check_base_image**
   - Status: Enabled
-  - The image named in the FROM line of the Dockerfile is pulled and its docker
-    image ID noted
+  - The image named in the FROM line of the Dockerfile is checked
 - **bump_release**
   - Status: Enabled
   - In order to support automated rebuilds, this plugin is tasked with

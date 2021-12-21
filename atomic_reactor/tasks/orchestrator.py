@@ -26,7 +26,7 @@ class OrchestratorTask(plugin_based.PluginBasedTask):
             {"name": "check_and_set_platforms", "required": False},
             {"name": "flatpak_create_dockerfile"},
             {"name": "inject_parent_image"},
-            {"name": "pull_base_image", "args": {"check_platforms": True, "inspect_only": True}},
+            {"name": "check_base_image"},
             {"name": "koji_parent"},
             {"name": "resolve_composes"},
             {"name": "add_filesystem"},
