@@ -26,7 +26,7 @@ class WorkerTask(plugin_based.PluginBasedTask):
             {"name": "flatpak_update_dockerfile"},
             {"name": "add_filesystem"},
             {"name": "inject_parent_image"},
-            {"name": "pull_base_image", "args": {"check_platforms": False}},
+            {"name": "check_base_image"},
             {"name": "add_flatpak_labels"},
             {"name": "add_labels_in_dockerfile"},
             {"name": "change_from_in_dockerfile"},

@@ -64,7 +64,7 @@ class ChangeFromPlugin(PreBuildPlugin):
         self.log.info("parent_images '%s'", self.workflow.dockerfile_images.keys())
         unresolved = [key for key, val in self.workflow.dockerfile_images.items() if not val]
         if unresolved:
-            # this would generally mean pull_base_image didn't run and/or
+            # this would generally mean check_base_image didn't run and/or
             # custom plugins modified parent_images; treat it as an error.
             raise ParentImageUnresolved("Parent image(s) unresolved: {}".format(unresolved))
 
