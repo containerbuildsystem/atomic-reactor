@@ -1,20 +1,21 @@
 """
-Copyright (c) 2018 Red Hat, Inc
+Copyright (c) 2018-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
+from textwrap import dedent
+
 import pytest
 from flexmock import flexmock
+from osbs.utils import ImageName
 
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_change_from_in_df import ChangeFromPlugin
 from atomic_reactor.util import df_parser, DockerfileImages
-from osbs.utils import ImageName
 from tests.stubs import StubSource
-from textwrap import dedent
 
 pytestmark = pytest.mark.usefixtures('user_params')
 
@@ -40,11 +41,11 @@ def mock_workflow(workflow, df_path=None, df_images=None):
 
 def run_plugin(workflow):
     result = PreBuildPluginsRunner(
-       workflow,
-       [{
-          'name': ChangeFromPlugin.key,
-          'args': {},
-       }]
+        workflow,
+        [{
+            'name': ChangeFromPlugin.key,
+            'args': {},
+        }]
     ).run()
 
     return result[ChangeFromPlugin.key]
@@ -69,42 +70,15 @@ def test_update_base_image(tmpdir, workflow, base_image):
                              df_path=dfp.dockerfile_path,
                              df_images=dfp.parent_images)
     workflow.dockerfile_images[base_image] = local_tag
-    (flexmock(workflow.imageutil)
-     .should_receive('get_inspect_for_image')
-     .with_args(local_tag)
-     .and_return(dict(Id=base_str)))
 
     run_plugin(workflow)
     expected_df = df_content.format(base_str)
     assert dfp.content == expected_df
 
 
-def test_update_base_image_inspect_broken(tmpdir, workflow, caplog):
-    """exercise code branch where the base image inspect comes back without an Id"""
-    df_content = "FROM base:image"
-    dfp = df_parser(str(tmpdir))
-    dfp.content = df_content
-    image_str = "base@sha256:1234"
-    local_tag = ImageName.parse(image_str)
-    workflow = mock_workflow(workflow,
-                             df_path=dfp.dockerfile_path,
-                             df_images=dfp.parent_images)
-    workflow.dockerfile_images['base:image'] = local_tag
-    (flexmock(workflow.imageutil)
-     .should_receive('get_inspect_for_image')
-     .with_args(local_tag)
-     .and_return(dict(no_id="here")))
-
-    with pytest.raises(PluginFailedException) as exc:
-        run_plugin(workflow)
-    assert "raised an exception: NoIdInspection" in str(exc.value)
-    assert dfp.content == df_content  # nothing changed
-    assert "missing in inspection" in caplog.text
-
-
-@pytest.mark.parametrize(('df_content, expected_df_content'), [
+@pytest.mark.parametrize('df_content, expected_df_content', [
     (
-        dedent("""\
+            dedent("""\
             FROM first:parent AS builder1
             CMD build /spam/eggs
             FROM second:parent AS builder2
@@ -113,18 +87,18 @@ def test_update_base_image_inspect_broken(tmpdir, workflow, caplog):
             COPY --from=builder1 /spam/eggs /bin/eggs
             COPY --from=builder2 /vikings /bin/vikings
         """),
-        dedent("""\
-            FROM id:1 AS builder1
+            dedent("""\
+            FROM first@sha256:12345 AS builder1
             CMD build /spam/eggs
-            FROM id:2 AS builder2
+            FROM second@sha256:12345 AS builder2
             CMD build /vikings
-            FROM id:3
+            FROM monty@sha256:12345
             COPY --from=builder1 /spam/eggs /bin/eggs
             COPY --from=builder2 /vikings /bin/vikings
         """),
     ),
     (
-        dedent("""\
+            dedent("""\
             FROM first:parent AS builder1
             CMD build /spam/eggs
             FROM second:parent AS builder2
@@ -135,20 +109,20 @@ def test_update_base_image_inspect_broken(tmpdir, workflow, caplog):
             FROM koji/image-build
             CMD build /custom
         """),
-        dedent("""\
-            FROM id:1 AS builder1
+            dedent("""\
+            FROM first@sha256:12345 AS builder1
             CMD build /spam/eggs
-            FROM id:2 AS builder2
+            FROM second@sha256:12345 AS builder2
             CMD build /vikings
-            FROM id:3
+            FROM monty@sha256:12345
             COPY --from=builder1 /spam/eggs /bin/eggs
             COPY --from=builder2 /vikings /bin/vikings
-            FROM id:3
+            FROM monty@sha256:12345
             CMD build /custom
         """),
     ),
     (
-        dedent("""\
+            dedent("""\
             FROM first:parent AS builder1
             CMD build /spam/eggs
             FROM second:parent AS builder2
@@ -159,20 +133,20 @@ def test_update_base_image_inspect_broken(tmpdir, workflow, caplog):
             COPY --from=builder1 /spam/eggs /bin/eggs
             COPY --from=builder2 /vikings /bin/vikings
         """),
-        dedent("""\
-            FROM id:1 AS builder1
+            dedent("""\
+            FROM first@sha256:12345 AS builder1
             CMD build /spam/eggs
-            FROM id:2 AS builder2
+            FROM second@sha256:12345 AS builder2
             CMD build /vikings
-            FROM id:3
+            FROM monty@sha256:12345
             CMD build /custom
-            FROM id:3
+            FROM monty@sha256:12345
             COPY --from=builder1 /spam/eggs /bin/eggs
             COPY --from=builder2 /vikings /bin/vikings
         """),
     ),
     (
-        dedent("""\
+            dedent("""\
             FROM first:parent AS builder1
             CMD build /spam/eggs
             FROM second:parent AS builder2
@@ -183,20 +157,20 @@ def test_update_base_image_inspect_broken(tmpdir, workflow, caplog):
             COPY --from=builder1 /spam/eggs /bin/eggs
             COPY --from=builder2 /vikings /bin/vikings
         """),
-        dedent("""\
-            FROM id:1 AS builder1
+            dedent("""\
+            FROM first@sha256:12345 AS builder1
             CMD build /spam/eggs
-            FROM id:2 AS builder2
+            FROM second@sha256:12345 AS builder2
             CMD build /vikings
             FROM scratch
             CMD build /from_scratch
-            FROM id:3
+            FROM monty@sha256:12345
             COPY --from=builder1 /spam/eggs /bin/eggs
             COPY --from=builder2 /vikings /bin/vikings
         """),
     ),
     (
-        dedent("""\
+            dedent("""\
             FROM first:parent AS builder1
             CMD build /spam/eggs
             FROM second:parent AS builder2
@@ -209,16 +183,50 @@ def test_update_base_image_inspect_broken(tmpdir, workflow, caplog):
             FROM scratch
             CMD build /from_scratch2
         """),
-        dedent("""\
-            FROM id:1 AS builder1
+            dedent("""\
+            FROM first@sha256:12345 AS builder1
             CMD build /spam/eggs
-            FROM id:2 AS builder2
+            FROM second@sha256:12345 AS builder2
             CMD build /vikings
             FROM scratch
             CMD build /from_scratch
-            FROM id:3
+            FROM monty@sha256:12345
             COPY --from=builder1 /spam/eggs /bin/eggs
             COPY --from=builder2 /vikings /bin/vikings
+            FROM scratch
+            CMD build /from_scratch2
+        """),
+    ),
+    (
+            dedent("""\
+            FROM first:parent AS builder1
+            CMD build /spam/eggs
+            FROM second:parent AS builder2
+            CMD build /vikings
+            FROM some.registry.io/third:parent AS builder3
+            CMD build /romans
+            FROM scratch
+            CMD build /from_scratch
+            FROM monty
+            COPY --from=builder1 /spam/eggs /bin/eggs
+            COPY --from=builder2 /vikings /bin/vikings
+            COPY --from=builder3 /romans /bin/romans
+            FROM scratch
+            CMD build /from_scratch2
+        """),
+            dedent("""\
+            FROM first@sha256:12345 AS builder1
+            CMD build /spam/eggs
+            FROM second@sha256:12345 AS builder2
+            CMD build /vikings
+            FROM some.registry.io/third@sha256:12345 AS builder3
+            CMD build /romans
+            FROM scratch
+            CMD build /from_scratch
+            FROM monty@sha256:12345
+            COPY --from=builder1 /spam/eggs /bin/eggs
+            COPY --from=builder2 /vikings /bin/vikings
+            COPY --from=builder3 /romans /bin/romans
             FROM scratch
             CMD build /from_scratch2
         """),
@@ -229,24 +237,22 @@ def test_update_parent_images(df_content, expected_df_content, tmpdir, workflow)
     dfp = df_parser(str(tmpdir))
     dfp.content = df_content
 
-    # maps from dockerfile image to unique tag and then to ID
+    # maps from dockerfile image to image with manifest digest
     first = ImageName.parse("first:parent")
     second = ImageName.parse("second:parent")
+    third = ImageName.parse("some.registry.io/third:parent")
     monty = ImageName.parse("monty")
     custom = ImageName.parse("koji/image-build")
-    build1 = ImageName.parse('build-name:1')
-    build2 = ImageName.parse('build-name:2')
-    build3 = ImageName.parse('build-name:3')
-    pimgs = {
+    build1 = ImageName.parse('first@sha256:12345')
+    build2 = ImageName.parse('second@sha256:12345')
+    build3 = ImageName.parse('monty@sha256:12345')
+    build4 = ImageName.parse('some.registry.io/third@sha256:12345')
+    parent_images = {
         first: build1,
         second: build2,
+        third: build4,
         monty: build3,
         custom: build3,
-    }
-    img_ids = {
-        'build-name:1': 'id:1',
-        'build-name:2': 'id:2',
-        'build-name:3': 'id:3',
     }
 
     workflow = mock_workflow(workflow,
@@ -257,14 +263,7 @@ def test_update_parent_images(df_content, expected_df_content, tmpdir, workflow)
         if parent == 'scratch':
             continue
         parent_in = ImageName.parse(parent)
-        workflow.dockerfile_images[parent] = pimgs[parent_in]
-
-    for image_name, image_id in img_ids.items():
-        print(image_name)
-        (flexmock(workflow.imageutil)
-         .should_receive('get_inspect_for_image')
-         .with_args(ImageName.parse(image_name))
-         .and_return(dict(Id=image_id)))
+        workflow.dockerfile_images[parent] = parent_images[parent_in]
 
     original_base = workflow.dockerfile_images.base_image
     run_plugin(workflow)
