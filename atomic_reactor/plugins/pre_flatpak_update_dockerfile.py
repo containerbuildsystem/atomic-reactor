@@ -1,5 +1,5 @@
 """
-Copyright (c) 2017 Red Hat, Inc
+Copyright (c) 2017-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -8,13 +8,11 @@ of the BSD license. See the LICENSE file for details.
 
 Updates the Dockerfile created by pre_flatpak_create_dockerfile with
 information from a module compose created by pre_resolve_composes.
-
-When this plugin runs in a worker build, the composes from pre_resolve_composes
-are passed in via the compose_ids parameter, and looked up again in ODCS.
 """
-
+import functools
 import os
 
+from atomic_reactor.dirs import BuildDir
 from flatpak_module_tools.flatpak_builder import FlatpakSourceInfo, FlatpakBuilder, ModuleInfo
 
 import gi
@@ -28,13 +26,13 @@ from gi.repository import Modulemd
 from osbs.repo_utils import ModuleSpec
 
 from atomic_reactor.constants import PLUGIN_RESOLVE_COMPOSES_KEY
-from atomic_reactor.config import get_koji_session, get_odcs_session
+from atomic_reactor.config import get_koji_session
 from atomic_reactor.utils.koji import get_koji_module_build
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.pre_flatpak_create_dockerfile import (FLATPAK_INCLUDEPKGS_FILENAME,
                                                                   FLATPAK_CLEANUPSCRIPT_FILENAME,
                                                                   get_flatpak_source_spec)
-from atomic_reactor.util import df_parser, is_flatpak_build, map_to_user_params
+from atomic_reactor.util import is_flatpak_build, map_to_user_params
 
 
 # ODCS API constant
@@ -98,27 +96,14 @@ class FlatpakUpdateDockerfilePlugin(PreBuildPlugin):
 
     args_from_user_params = map_to_user_params("compose_ids")
 
-    def __init__(self, workflow, compose_ids=tuple()):
+    def __init__(self, workflow):
         """
         constructor
 
         :param workflow: DockerBuildWorkflow instance
-        :param compose_ids: compose_ids forwarded from the orchestrator build
         """
         # call parent constructor
         super(FlatpakUpdateDockerfilePlugin, self).__init__(workflow)
-
-        self.compose_ids = compose_ids
-
-    def _load_composes(self):
-        odcs_client = get_odcs_session(self.workflow.conf)
-        self.log.info(odcs_client)
-
-        composes = []
-        for compose_id in self.compose_ids:
-            composes.append(odcs_client.wait_for_compose(compose_id))
-
-        return composes
 
     def _resolve_modules(self, modules):
         koji_session = get_koji_session(self.workflow.conf)
@@ -167,16 +152,7 @@ class FlatpakUpdateDockerfilePlugin(PreBuildPlugin):
         main_module = ModuleSpec.from_str(source_spec)
 
         resolve_comp_result = self.workflow.prebuild_results.get(PLUGIN_RESOLVE_COMPOSES_KEY)
-        if resolve_comp_result:
-            # In the orchestrator, we can get the compose info directly from
-            # the resolve_composes plugin
-            composes = resolve_comp_result['composes']
-        else:
-            # But in a worker, resolve_composes doesn't run, so we have
-            # to load the compose info ourselves
-            assert self.compose_ids
-
-            composes = self._load_composes()
+        composes = resolve_comp_result['composes']
 
         for compose_info in composes:
             if compose_info['source_type'] != SOURCE_TYPE_MODULE:
@@ -204,6 +180,43 @@ class FlatpakUpdateDockerfilePlugin(PreBuildPlugin):
                                         module_spec.profile)
         set_flatpak_source_info(self.workflow, source_info)
 
+    def update_dockerfile(self, builder, compose_info, build_dir: BuildDir):
+        # Update the dockerfile
+
+        # We need to enable all the modules other than the platform pseudo-module
+        enable_modules_str = ' '.join(builder.get_enable_modules())
+
+        install_packages_str = ' '.join(builder.get_install_packages())
+
+        replacements = {
+            '@ENABLE_MODULES@': enable_modules_str,
+            '@INSTALL_PACKAGES@': install_packages_str,
+            '@RELEASE@': compose_info.main_module.version,
+        }
+
+        dockerfile = build_dir.dockerfile
+        content = dockerfile.content
+
+        # Perform the substitutions; simple approach - should be efficient enough
+        for old, new in replacements.items():
+            content = content.replace(old, new)
+
+        dockerfile.content = content
+
+    def create_includepkgs_file_and_cleanupscript(self, builder, build_dir: BuildDir):
+        # Create a file describing which packages from the base yum repositories are included
+        includepkgs = builder.get_includepkgs()
+        includepkgs_path = build_dir.path / FLATPAK_INCLUDEPKGS_FILENAME
+        with open(includepkgs_path, 'w') as f:
+            f.write('includepkgs = ' + ','.join(includepkgs) + '\n')
+
+        # Create the cleanup script
+        cleanupscript = build_dir.path / FLATPAK_CLEANUPSCRIPT_FILENAME
+        with open(cleanupscript, 'w') as f:
+            f.write(builder.get_cleanup_script())
+        os.chmod(cleanupscript, 0o0500)
+        return [includepkgs_path, cleanupscript]
+
     def run(self):
         """
         run the plugin
@@ -222,40 +235,9 @@ class FlatpakUpdateDockerfilePlugin(PreBuildPlugin):
 
         builder.precheck()
 
-        # Update the dockerfile
+        flatpak_update = functools.partial(self.update_dockerfile, builder, compose_info)
+        self.workflow.build_dir.for_each_platform(flatpak_update)
 
-        # We need to enable all the modules other than the platform pseudo-module
-        enable_modules_str = ' '.join(builder.get_enable_modules())
-
-        install_packages_str = ' '.join(builder.get_install_packages())
-
-        replacements = {
-            '@ENABLE_MODULES@': enable_modules_str,
-            '@INSTALL_PACKAGES@': install_packages_str,
-            '@RELEASE@': compose_info.main_module.version,
-        }
-
-        dockerfile = df_parser(self.workflow.df_path, workflow=self.workflow)
-        content = dockerfile.content
-
-        # Perform the substitutions; simple approach - should be efficient enough
-        for old, new in replacements.items():
-            content = content.replace(old, new)
-
-        dockerfile.content = content
-
-        # Create a file describing which packages from the base yum repositories are included
-
-        includepkgs = builder.get_includepkgs()
-        includepkgs_path = os.path.join(self.workflow.df_dir,
-                                        FLATPAK_INCLUDEPKGS_FILENAME)
-        with open(includepkgs_path, 'w') as f:
-            f.write('includepkgs = ' + ','.join(includepkgs) + '\n')
-
-        # Create the cleanup script
-
-        cleanupscript = os.path.join(self.workflow.df_dir,
-                                     FLATPAK_CLEANUPSCRIPT_FILENAME)
-        with open(cleanupscript, 'w') as f:
-            f.write(builder.get_cleanup_script())
-        os.chmod(cleanupscript, 0o0500)
+        create_files = functools.partial(self.create_includepkgs_file_and_cleanupscript,
+                                         builder)
+        self.workflow.build_dir.for_all_platforms_copy(create_files)

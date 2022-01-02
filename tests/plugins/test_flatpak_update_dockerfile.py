@@ -1,5 +1,5 @@
 """
-Copyright (c) 2017 Red Hat, Inc
+Copyright (c) 2017-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -24,10 +24,8 @@ try:
 except ImportError:
     pass
 
-from atomic_reactor.utils.odcs import ODCSClient
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.source import VcsInfo, SourceConfig
-from atomic_reactor.util import df_parser
 from osbs.utils import ImageName
 
 from tests.constants import (FLATPAK_GIT, FLATPAK_SHA1)
@@ -79,22 +77,20 @@ class MockBuilder(object):
         self.df_path = path
 
 
-def mock_workflow(workflow, source_dir: Path, container_yaml, user_params=None):
+def mock_workflow(workflow, build_dir: Path, container_yaml, user_params=None, platforms=None):
     if user_params is None:
         user_params = USER_PARAMS
-    mock_source = MockSource(str(source_dir))
+    mock_source = MockSource(str(build_dir))
     flexmock(workflow, source=mock_source)
 
     with open(mock_source.container_yaml_path, "w") as f:
         f.write(container_yaml)
-    workflow.source.config = SourceConfig(str(source_dir))
+    workflow.source.config = SourceConfig(str(build_dir))
     workflow.user_params = user_params
-
-    df = df_parser(str(source_dir))
-    df.content = DF_CONTENT
-
-    workflow.df_dir = str(source_dir)
-    flexmock(workflow, df_path=df.dockerfile_path)
+    if not platforms:
+        platforms = ['x86_64']
+    Path(workflow.source.path, "Dockerfile").write_text(DF_CONTENT)
+    workflow.build_dir.init_build_dirs(platforms, workflow.source)
 
     return workflow
 
@@ -155,30 +151,21 @@ def mock_koji_session(config):
         .and_return(session))
 
 
-def mock_odcs_session(workflow, config):
-    for compose in config['odcs_composes']:
-        (flexmock(ODCSClient)
-         .should_receive('wait_for_compose')
-         .with_args(compose['id'])
-         .and_return(compose))
-
-
 @responses.activate  # noqa
 @pytest.mark.skipif(not MODULEMD_AVAILABLE,
                     reason='libmodulemd not available')
-@pytest.mark.parametrize('config_name,worker,breakage', [
-    ('app', False, None),
-    ('app', True, None),
-    ('app', False, 'no_compose'),
-    ('runtime', False, None),
-    ('runtime', False, 'branch_mismatch'),
+@pytest.mark.parametrize('config_name,breakage', [
+    ('app', None),
+    ('app', 'no_compose'),
+    ('runtime', None),
+    ('runtime', 'branch_mismatch'),
 ])
-def test_flatpak_update_dockerfile(workflow, source_dir, config_name, worker, breakage):
+def test_flatpak_update_dockerfile(workflow, build_dir, config_name, breakage):
     config = CONFIGS[config_name]
 
     container_yaml = config['container_yaml']
 
-    workflow = mock_workflow(workflow, source_dir, container_yaml)
+    workflow = mock_workflow(workflow, build_dir, container_yaml)
 
     assert get_flatpak_compose_info(workflow) is None
     assert get_flatpak_source_info(workflow) is None
@@ -202,18 +189,10 @@ def test_flatpak_update_dockerfile(workflow, source_dir, config_name, worker, br
 
     set_flatpak_source_spec(workflow, config['source_spec'])
 
-    args = {
-    }
+    # composes run by resolve_composes plugin
+    setup_flatpak_composes(workflow, config)
 
-    if worker:
-        # composes resolved in the parent, compose IDs passed in
-        mock_odcs_session(workflow, config)
-        args['compose_ids'] = [c['id'] for c in config['odcs_composes']]
-    else:
-        # composes run by resolve_composes plugin
-        setup_flatpak_composes(workflow, config)
-
-    secrets_path = source_dir / "secret"
+    secrets_path = build_dir / "secret"
     secrets_path.mkdir()
     secrets_path.joinpath("token").write_text("green_eggs_and_ham", "utf-8")
 
@@ -243,7 +222,6 @@ def test_flatpak_update_dockerfile(workflow, source_dir, config_name, worker, br
         workflow,
         [{
             'name': FlatpakUpdateDockerfilePlugin.key,
-            'args': args
         }]
     )
 
@@ -254,9 +232,8 @@ def test_flatpak_update_dockerfile(workflow, source_dir, config_name, worker, br
     else:
         runner.run()
 
-        assert os.path.exists(workflow.df_path)
-        with open(workflow.df_path) as f:
-            df = f.read()
+        assert os.path.exists(workflow.build_dir.any_platform.dockerfile_path)
+        df = workflow.build_dir.any_platform.dockerfile.content
 
         m = re.search(r'module enable\s*(.*?)\s*$', df, re.MULTILINE)
         assert m
@@ -267,7 +244,8 @@ def test_flatpak_update_dockerfile(workflow, source_dir, config_name, worker, br
         else:
             assert enabled_modules == ['flatpak-runtime:f28']
 
-        includepkgs_path = os.path.join(workflow.df_dir, 'atomic-reactor-includepkgs')
+        includepkgs_path = os.path.join(workflow.build_dir.any_platform.path,
+                                        'atomic-reactor-includepkgs')
         assert os.path.exists(includepkgs_path)
         with open(includepkgs_path) as f:
             includepkgs = f.read()
@@ -275,7 +253,7 @@ def test_flatpak_update_dockerfile(workflow, source_dir, config_name, worker, br
             if config_name == 'app':
                 assert 'eog-0:3.28.3-1.module_2123+73a9ef6f.x86_64' in includepkgs
 
-        assert os.path.exists(os.path.join(workflow.df_dir, 'cleanup.sh'))
+        assert os.path.exists(os.path.join(workflow.build_dir.any_platform.path, 'cleanup.sh'))
 
         compose_info = get_flatpak_compose_info(workflow)
         assert compose_info.source_spec == config['source_spec']
@@ -298,8 +276,8 @@ def test_flatpak_update_dockerfile(workflow, source_dir, config_name, worker, br
 
 @pytest.mark.skipif(not MODULEMD_AVAILABLE,
                     reason='libmodulemd not available')
-def test_skip_plugin(workflow, source_dir, caplog):
-    workflow = mock_workflow(workflow, source_dir, "", user_params={})
+def test_skip_plugin(workflow, build_dir, caplog):
+    workflow = mock_workflow(workflow, build_dir, "", user_params={})
 
     runner = PreBuildPluginsRunner(
         workflow,
