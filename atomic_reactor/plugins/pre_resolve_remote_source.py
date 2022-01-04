@@ -1,5 +1,5 @@
 """
-Copyright (c) 2019 Red Hat, Inc
+Copyright (c) 2019-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -8,17 +8,17 @@ of the BSD license. See the LICENSE file for details.
 import os.path
 from collections import Counter
 
+from atomic_reactor.config import get_koji_session, get_cachito_session
 from atomic_reactor.constants import (
     PLUGIN_RESOLVE_REMOTE_SOURCE,
     REMOTE_SOURCE_DIR,
     REMOTE_SOURCE_JSON_FILENAME,
     REMOTE_SOURCE_TARBALL_FILENAME,
 )
-from atomic_reactor.config import get_koji_session, get_cachito_session
-from atomic_reactor.utils.koji import get_koji_task_owner
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
 from atomic_reactor.util import is_scratch_build, map_to_user_params
+from atomic_reactor.utils.koji import get_koji_task_owner
 
 
 class ResolveRemoteSourcePlugin(PreBuildPlugin):
