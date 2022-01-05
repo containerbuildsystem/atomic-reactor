@@ -306,9 +306,13 @@ def mock_cachito_api_multiple_remote_sources(workflow, user=KOJI_TASK_OWNER):
 
     (
         flexmock(CachitoAPI)
-        .should_receive("assemble_download_url")
-        .with_args(CACHITO_SOURCE_REQUEST)
-        .and_return(CACHITO_REQUEST_DOWNLOAD_URL)
+        .should_receive("download_sources")
+        .with_args(
+            CACHITO_SOURCE_REQUEST,
+            dest_dir=str(workflow._tmpdir),
+            dest_filename="remote-source-gomod.tar.gz",
+        )
+        .and_return(expected_dowload_path(workflow, "gomod"))
         .ordered()
     )
 
@@ -324,19 +328,11 @@ def mock_cachito_api_multiple_remote_sources(workflow, user=KOJI_TASK_OWNER):
         flexmock(CachitoAPI)
         .should_receive("download_sources")
         .with_args(
-            CACHITO_SOURCE_REQUEST,
+            SECOND_CACHITO_SOURCE_REQUEST,
             dest_dir=str(workflow._tmpdir),
-            dest_filename="remote-source-gomod.tar.gz",
+            dest_filename="remote-source-pip.tar.gz",
         )
-        .and_return(expected_dowload_path(workflow))
-        .ordered()
-    )
-
-    (
-        flexmock(CachitoAPI)
-        .should_receive("assemble_download_url")
-        .with_args(SECOND_CACHITO_SOURCE_REQUEST)
-        .and_return(SECOND_CACHITO_REQUEST_DOWNLOAD_URL)
+        .and_return(expected_dowload_path(workflow, "pip"))
         .ordered()
     )
 
@@ -350,13 +346,17 @@ def mock_cachito_api_multiple_remote_sources(workflow, user=KOJI_TASK_OWNER):
 
     (
         flexmock(CachitoAPI)
-        .should_receive("download_sources")
-        .with_args(
-            SECOND_CACHITO_SOURCE_REQUEST,
-            dest_dir=str(workflow._tmpdir),
-            dest_filename="remote-source-pip.tar.gz",
-        )
-        .and_return(expected_dowload_path(workflow))
+        .should_receive("assemble_download_url")
+        .with_args(CACHITO_REQUEST_ID)
+        .and_return(CACHITO_REQUEST_DOWNLOAD_URL)
+        .ordered()
+    )
+
+    (
+        flexmock(CachitoAPI)
+        .should_receive("assemble_download_url")
+        .with_args(SECOND_CACHITO_REQUEST_ID)
+        .and_return(SECOND_CACHITO_REQUEST_DOWNLOAD_URL)
         .ordered()
     )
 
@@ -389,7 +389,7 @@ def mock_cachito_api(workflow, user=KOJI_TASK_OWNER, source_request=None,
 
     (flexmock(CachitoAPI)
         .should_receive('assemble_download_url')
-        .with_args(source_request)
+        .with_args(CACHITO_REQUEST_ID)
         .and_return(CACHITO_REQUEST_DOWNLOAD_URL))
 
     (flexmock(CachitoAPI)
@@ -404,8 +404,13 @@ def mock_koji(user=KOJI_TASK_OWNER):
     flexmock(koji_util).should_receive('get_koji_task_owner').and_return({'name': user})
 
 
-def expected_dowload_path(workflow):
-    return str(workflow._tmpdir / 'source.tar.gz')
+def expected_dowload_path(workflow, remote_source_name=None):
+    if remote_source_name:
+        filename = f'remote-source-{remote_source_name}.tar.gz'
+    else:
+        filename = 'remote-source.tar.gz'
+
+    return str(workflow._tmpdir / filename)
 
 
 def setup_function(*args):
@@ -718,7 +723,7 @@ def test_allow_multiple_remote_sources(workflow, allow_multiple_remote_sources):
                 },
                 "remote_source_tarball": {
                     "filename": first_remote_tarball_filename,
-                    "path": expected_dowload_path(workflow),
+                    "path": expected_dowload_path(workflow, "gomod"),
                 },
             },
             {
@@ -730,7 +735,7 @@ def test_allow_multiple_remote_sources(workflow, allow_multiple_remote_sources):
                 },
                 "remote_source_tarball": {
                     "filename": second_remote_tarball_filename,
-                    "path": expected_dowload_path(workflow),
+                    "path": expected_dowload_path(workflow, "pip"),
                 },
             },
         ]

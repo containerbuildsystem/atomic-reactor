@@ -7,6 +7,9 @@ of the BSD license. See the LICENSE file for details.
 """
 import os.path
 from collections import Counter
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Optional, List, Dict
 
 from atomic_reactor.config import get_koji_session, get_cachito_session
 from atomic_reactor.constants import (
@@ -18,6 +21,38 @@ from atomic_reactor.constants import (
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import is_scratch_build, map_to_user_params
 from atomic_reactor.utils.koji import get_koji_task_owner
+
+
+@dataclass(frozen=True)
+class RemoteSource:
+    """Represents a processed remote source.
+
+    id: the ID of the Cachito request for this remote source
+    name: the name that identifies this remote source (if multiple remote sources were used)
+    json_data: subset of the JSON representation of the Cachito request (source_request_to_json)
+    build_args: environment variables for this remote source
+    tarball_path: the path of the tarball downloaded from Cachito
+    """
+
+    id: int
+    name: Optional[str]
+    json_data: dict
+    build_args: Dict[str, str]
+    tarball_path: Path
+
+    @classmethod
+    def tarball_filename(cls, name: Optional[str]):
+        if name:
+            return f"remote-source-{name}.tar.gz"
+        else:
+            return REMOTE_SOURCE_TARBALL_FILENAME
+
+    @classmethod
+    def json_filename(cls, name: Optional[str]):
+        if name:
+            return f"remote-source-{name}.json"
+        else:
+            return REMOTE_SOURCE_JSON_FILENAME
 
 
 class ResolveRemoteSourcePlugin(PreBuildPlugin):
@@ -89,10 +124,19 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
             raise ValueError('Cachito dependency replacements are not allowed '
                              'for multiple remote sources')
 
-        processed_remote_sources = []
-        remote_sources_output = []
+        processed_remote_sources = self.process_remote_sources()
+        return [
+            self.remote_source_to_output(remote_source)
+            for remote_source in processed_remote_sources
+        ]
+
+    def process_remote_sources(self) -> List[RemoteSource]:
+        """Process remote source requests and return information about the processed sources."""
         user = self.get_koji_user()
         self.log.info('Using user "%s" for cachito request', user)
+
+        processed_remote_sources = []
+
         if self.multiple_remote_sources_params:
             self.verify_multiple_remote_sources_names_are_unique()
 
@@ -110,8 +154,7 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
                 for name, request in open_requests.items()
             }
             for name, request in completed_requests.items():
-                self.process_request(request, name, processed_remote_sources,
-                                     remote_sources_output)
+                processed_remote_sources.append(self.process_request(request, name))
 
         else:
             open_request = self.cachito_session.request_sources(
@@ -120,20 +163,19 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
                     **self.single_remote_source_params
             )
             completed_request = self.cachito_session.wait_for_request(open_request)
-            self.process_request(completed_request, None, processed_remote_sources,
-                                 remote_sources_output)
+            processed_remote_sources.append(self.process_request(completed_request, None))
 
-        return remote_sources_output
+        return processed_remote_sources
 
-    def get_buildargs(self, remote_source):
+    def get_buildargs(self, request_id: int, remote_source_name: Optional[str]) -> Dict[str, str]:
         build_args = {}
-        env_vars = self.cachito_session.get_request_env_vars(remote_source['request_id'])
+        env_vars = self.cachito_session.get_request_env_vars(request_id)
 
         for env_var, value_info in env_vars.items():
             build_arg_value = value_info['value']
             kind = value_info['kind']
             if kind == 'path':
-                name = remote_source['name'] or ''
+                name = remote_source_name or ''
                 build_arg_value = os.path.join(REMOTE_SOURCE_DIR, name, value_info['value'])
                 self.log.debug(
                     'Setting the Cachito environment variable "%s" to the absolute path "%s"',
@@ -196,43 +238,40 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
             raise ValueError(f'Provided remote sources parameters contain '
                              f'non unique names: {duplicate_names}')
 
-    def process_request(self, source_request, name, processed_remote_sources,
-                        remote_sources_output):
-
-        remote_source = {
-            "build_args": None,
-            "configs": source_request.get("configuration_files"),
-            "request_id": source_request["id"],
-            "url": self.cachito_session.assemble_download_url(source_request),
-            "name": name,
-        }
-        remote_source["build_args"] = self.get_buildargs(remote_source)
-        processed_remote_sources.append(remote_source)
-
-        if name:
-            tarball_filename = f"remote-source-{name}.tar.gz"
-            json_filename = f"remote-source-{name}.json"
-        else:
-            tarball_filename = REMOTE_SOURCE_TARBALL_FILENAME
-            json_filename = REMOTE_SOURCE_JSON_FILENAME
-
+    def process_request(self, source_request: dict, name: Optional[str]) -> RemoteSource:
+        """Download the tarball for a request and return info about the processed remote source."""
+        tarball_filename = RemoteSource.tarball_filename(name)
         tarball_dest_path = self.cachito_session.download_sources(
             source_request,
             dest_dir=self.workflow.source.workdir,
             dest_filename=tarball_filename,
         )
-        remote_source_json = self.source_request_to_json(source_request)
 
-        remote_source_out = {
-            "name": remote_source["name"],
-            "url": remote_source["url"],
+        build_args = self.get_buildargs(source_request["id"], name)
+
+        remote_source = RemoteSource(
+            id=source_request["id"],
+            name=name,
+            json_data=self.source_request_to_json(source_request),
+            build_args=build_args,
+            tarball_path=Path(tarball_dest_path),
+        )
+        return remote_source
+
+    def remote_source_to_output(self, remote_source: RemoteSource) -> dict:
+        """Convert a processed remote source to a dict to be used as output of this plugin."""
+        download_url = self.cachito_session.assemble_download_url(remote_source.id)
+        json_filename = RemoteSource.json_filename(remote_source.name)
+
+        return {
+            "name": remote_source.name,
+            "url": download_url,
             "remote_source_json": {
-                "json": remote_source_json,
+                "json": remote_source.json_data,
                 "filename": json_filename,
             },
             "remote_source_tarball": {
-                "filename": tarball_filename,
-                "path": tarball_dest_path,
+                "filename": remote_source.tarball_path.name,
+                "path": str(remote_source.tarball_path),
             },
         }
-        remote_sources_output.append(remote_source_out)
