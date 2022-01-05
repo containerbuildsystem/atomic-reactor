@@ -1,5 +1,5 @@
 """
-Copyright (c) 2019 Red Hat, Inc
+Copyright (c) 2019-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -22,8 +22,6 @@ from atomic_reactor.constants import (
     REMOTE_SOURCE_JSON_FILENAME,
 )
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
-from atomic_reactor.plugins.build_orchestrate_build import (
-    WORKSPACE_KEY_OVERRIDE_KWARGS, OrchestrateBuildPlugin)
 from atomic_reactor.plugins.pre_resolve_remote_source import ResolveRemoteSourcePlugin
 from atomic_reactor.source import SourceConfig
 
@@ -316,6 +314,14 @@ def mock_cachito_api_multiple_remote_sources(workflow, user=KOJI_TASK_OWNER):
 
     (
         flexmock(CachitoAPI)
+        .should_receive("get_request_env_vars")
+        .with_args(CACHITO_SOURCE_REQUEST["id"])
+        .and_return(CACHITO_ENV_VARS_JSON)
+        .ordered()
+    )
+
+    (
+        flexmock(CachitoAPI)
         .should_receive("download_sources")
         .with_args(
             CACHITO_SOURCE_REQUEST,
@@ -336,6 +342,14 @@ def mock_cachito_api_multiple_remote_sources(workflow, user=KOJI_TASK_OWNER):
 
     (
         flexmock(CachitoAPI)
+        .should_receive("get_request_env_vars")
+        .with_args(SECOND_CACHITO_SOURCE_REQUEST["id"])
+        .and_return(SECOND_CACHITO_ENV_VARS_JSON)
+        .ordered()
+    )
+
+    (
+        flexmock(CachitoAPI)
         .should_receive("download_sources")
         .with_args(
             SECOND_CACHITO_SOURCE_REQUEST,
@@ -343,22 +357,6 @@ def mock_cachito_api_multiple_remote_sources(workflow, user=KOJI_TASK_OWNER):
             dest_filename="remote-source-pip.tar.gz",
         )
         .and_return(expected_dowload_path(workflow))
-        .ordered()
-    )
-
-    (
-        flexmock(CachitoAPI)
-        .should_receive("get_request_env_vars")
-        .with_args(CACHITO_SOURCE_REQUEST["id"])
-        .and_return(CACHITO_ENV_VARS_JSON)
-        .ordered()
-    )
-
-    (
-        flexmock(CachitoAPI)
-        .should_receive("get_request_env_vars")
-        .with_args(SECOND_CACHITO_SOURCE_REQUEST["id"])
-        .and_return(SECOND_CACHITO_ENV_VARS_JSON)
         .ordered()
     )
 
@@ -816,14 +814,6 @@ def run_plugin_with_args(workflow, dependency_replacements=None, expect_error=No
     results = runner.run()[ResolveRemoteSourcePlugin.key]
 
     if expect_result:
-
         assert results == expected_plugin_results
-
-        # A result means the plugin was enabled and executed successfully.
-        # Let's verify the expected side effects.
-        orchestrator_build_workspace = workflow.plugin_workspace[OrchestrateBuildPlugin.key]
-        worker_params = orchestrator_build_workspace[WORKSPACE_KEY_OVERRIDE_KWARGS][None]
-
-        assert worker_params["remote_sources"] == expected_worker_params
 
     return results
