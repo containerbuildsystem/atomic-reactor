@@ -23,6 +23,13 @@ spec:
   steps:
     - name: build-source-container-image
       image: $(params.OSBS_IMAGE)
+      resources:
+        requests:
+          memory: 3000Mi
+          cpu: 500m
+        limits:
+          memory: 8600Mi
+          cpu: 1300m
       script: >
         atomic-reactor -v task
         --user-params="$(params.USER_PARAMS)"
