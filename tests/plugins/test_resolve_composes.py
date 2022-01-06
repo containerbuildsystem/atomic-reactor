@@ -1,42 +1,39 @@
 """
-Copyright (c) 2017, 2019 Red Hat, Inc
+Copyright (c) 2017-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
-import re
-from pathlib import Path
-
-import koji
+import logging
 import os
-import responses
+import re
 import sys
 import time
+from collections import defaultdict
 from copy import deepcopy
+from datetime import datetime, timedelta
+from pathlib import Path
+from textwrap import dedent
+
+import koji
+import pytest
+import responses
+import yaml
+from flexmock import flexmock
 
 from atomic_reactor.constants import (
     PLUGIN_KOJI_PARENT_KEY,
     BASE_IMAGE_KOJI_BUILD, DOCKERFILE_FILENAME
 )
-from atomic_reactor.source import SourceConfig
-from atomic_reactor.utils.odcs import ODCSClient, construct_compose_url
 from atomic_reactor.plugin import PluginFailedException
-from atomic_reactor.plugins.build_orchestrate_build import (WORKSPACE_KEY_OVERRIDE_KWARGS,
-                                                            OrchestrateBuildPlugin)
 from atomic_reactor.plugins.pre_resolve_composes import (ResolveComposesPlugin,
                                                          ODCS_DATETIME_FORMAT, UNPUBLISHED_REPOS)
-
-import yaml
-from datetime import datetime, timedelta
-from flexmock import flexmock
+from atomic_reactor.source import SourceConfig
+from atomic_reactor.utils.odcs import ODCSClient, construct_compose_url
 from tests.mock_env import MockEnv
 from tests.util import add_koji_map_in_workflow
-from textwrap import dedent
-
-import logging
-import pytest
 
 KOJI_HUB = 'http://koji.com/hub'
 
@@ -307,6 +304,8 @@ class TestResolveComposes(object):
                              repo_provided, inherit_parent, scratch, isolated, allow_inherit,
                              compose_defined, ids, caplog):
         arches = ['ppc64le', 'x86_64']
+        odcs_with_arches = ODCS_COMPOSE.copy()
+        odcs_with_arches['arches'] = ' '.join(arches)
         workflow = mocked_env.workflow
         if inherit_parent and compose_defined:
             repo_config = dedent("""\
@@ -351,26 +350,23 @@ class TestResolveComposes(object):
                     sigkeys=sigkeys,
                     arches=arches)
                 .once()
-                .and_return(ODCS_COMPOSE))
+                .and_return(odcs_with_arches))
 
             (flexmock(ODCSClient)
                 .should_receive('wait_for_compose')
                 .with_args(ODCS_COMPOSE_ID)
-                .and_return(ODCS_COMPOSE))
+                .and_return(odcs_with_arches))
 
         compose_ids = []
-        current_repourl = ["http://example.com/current.repo"]
-        expected_yum_repourls = []
-        if repo_provided:
-            expected_yum_repourls = list(current_repourl)
+        current_repourls = ["http://example.com/current.repo"]
+        expected_yum_repourls = defaultdict(list)
         if not ids and compose_defined:
-            expected_yum_repourls.append(ODCS_COMPOSE['result_repofile'])
-        if allow_inherit and parent_repourls:
-            expected_yum_repourls.append(parent_repo)
+            for arch in arches:
+                expected_yum_repourls[arch].append(odcs_with_arches['result_repofile'])
 
         if ids:
             for compose_id in range(3, 6):
-                compose = ODCS_COMPOSE.copy()
+                compose = odcs_with_arches.copy()
                 compose['id'] = compose_id
                 compose['result_repofile'] = ODCS_COMPOSE_REPO + '/odcs-{}.repo'.format(compose_id)
 
@@ -381,40 +377,46 @@ class TestResolveComposes(object):
                     .and_return(compose))
 
                 compose_ids.append(compose_id)
-                expected_yum_repourls.append(compose['result_repofile'])
+                for arch in arches:
+                    expected_yum_repourls[arch].append(compose['result_repofile'])
 
         if allow_inherit and parent_compose:
             for compose_id in parent_compose_ids:
-                compose = ODCS_COMPOSE.copy()
+                compose = odcs_with_arches.copy()
                 compose['id'] = compose_id
                 compose['result_repofile'] = ODCS_COMPOSE_REPO + '/odcs-{}.repo'.format(compose_id)
 
                 (flexmock(ODCSClient)
-                    .should_receive('wait_for_compose')
-                    .once()
-                    .with_args(compose_id)
-                    .and_return(compose))
-                expected_yum_repourls.append(compose['result_repofile'])
+                 .should_receive('wait_for_compose')
+                 .once()
+                 .with_args(compose_id)
+                 .and_return(compose))
+                for arch in arches:
+                    expected_yum_repourls[arch].append(compose['result_repofile'])
+
+        if repo_provided:
+            for arch in expected_yum_repourls or arches:
+                expected_yum_repourls[arch].extend(current_repourls)
+
+        if allow_inherit and parent_repourls:
+            for arch in expected_yum_repourls or arches:
+                expected_yum_repourls[arch].append(parent_repo)
 
         mocked_env.set_check_platforms_result(arches)
 
         plugin_args = {}
         if repo_provided:
-            plugin_args['repourls'] = current_repourl
+            plugin_args['repourls'] = current_repourls
         if ids:
             plugin_args['compose_ids'] = compose_ids
 
-        self.run_plugin_with_args(mocked_env, plugin_args, check_for_default_id=False)
+        results = self.run_plugin_with_args(mocked_env, plugin_args)
 
-        archspecific_repuruls = self.get_override_yum_repourls(workflow)
-        nonearch_repourls = self.get_override_yum_repourls(workflow, arch=None)
+        yum_repurls = results.get('yum_repourls') or {}
 
-        if compose_defined or ids or (parent_compose and allow_inherit):
-            assert set(archspecific_repuruls) == set(expected_yum_repourls)
-        else:
-            print(f"nonearch :         {nonearch_repourls}")
-            print(f"expected :         {expected_yum_repourls}")
-            assert set(nonearch_repourls) == set(expected_yum_repourls)
+        for k, v in expected_yum_repourls.items():
+            assert k in yum_repurls
+            assert sorted(yum_repurls[k]) == sorted(v)
 
         if allow_inherit and parent_compose:
             for parent_id in parent_compose_ids:
@@ -422,7 +424,7 @@ class TestResolveComposes(object):
 
         all_yum_repourls = []
         if repo_provided:
-            all_yum_repourls = list(current_repourl)
+            all_yum_repourls = list(current_repourls)
         if allow_inherit and parent_repourls:
             all_yum_repourls.append(parent_repo)
             assert 'Inheriting yum repo http://example.com/parent.repo' in caplog.text
@@ -1061,7 +1063,11 @@ class TestResolveComposes(object):
             plugin_args['compose_ids'] = arg_compose_ids
 
         plugin_result = self.run_plugin_with_args(mocked_env, plugin_args)
+        yum_repourls = defaultdict(list)
+        yum_repourls[ODCS_COMPOSE_DEFAULT_ARCH].append(ODCS_COMPOSE['result_repofile'])
         expected_result = {
+            'include_koji_repo': False,
+            'yum_repourls': yum_repourls,
             'signing_intent': expected_si,
             'signing_intent_overridden': overridden,
             'composes': [odcs_compose],
@@ -1295,12 +1301,15 @@ class TestResolveComposes(object):
     def test_inject_yum_repos_from_new_compose(self, mocked_env):
         mock_odcs_client_start_compose()
         mock_odcs_client_wait_for_compose()
-        self.run_plugin_with_args(mocked_env)
-        assert self.get_override_yum_repourls(mocked_env.workflow) == [ODCS_COMPOSE_REPOFILE]
+        results = self.run_plugin_with_args(mocked_env)
+        yum_repourls = results.get('yum_repourls') or {}
+        expected_yum_repourls = defaultdict(list)
+        expected_yum_repourls[ODCS_COMPOSE_DEFAULT_ARCH].append(ODCS_COMPOSE_REPOFILE)
+        assert yum_repourls == expected_yum_repourls
 
     def test_inject_yum_repos_from_existing_composes(self, mocked_env):
         compose_ids = []
-        expected_yum_repourls = []
+        expected_yum_repourls = defaultdict(list)
 
         for compose_id in range(3):
             compose = ODCS_COMPOSE.copy()
@@ -1314,16 +1323,17 @@ class TestResolveComposes(object):
                 .and_return(compose))
 
             compose_ids.append(compose_id)
-            expected_yum_repourls.append(compose['result_repofile'])
+            expected_yum_repourls[ODCS_COMPOSE_DEFAULT_ARCH].append(compose['result_repofile'])
 
         (flexmock(ODCSClient)
             .should_receive('start_compose')
             .never())
 
         plugin_args = {'compose_ids': compose_ids}
-        self.run_plugin_with_args(mocked_env, plugin_args)
+        results = self.run_plugin_with_args(mocked_env, plugin_args)
+        yum_repourls = results.get('yum_repourls') or {}
 
-        assert self.get_override_yum_repourls(mocked_env.workflow) == expected_yum_repourls
+        assert yum_repourls == expected_yum_repourls
 
     def test_abort_when_odcs_config_missing(self, caplog, mocked_env):
         # Clear out default reactor config
@@ -1353,9 +1363,10 @@ class TestResolveComposes(object):
         self.run_plugin_with_args(mocked_env, plugin_args, expect_error=expect_error)
 
     def run_plugin_with_args(self, mocked_env, plugin_args=None,
-                             expect_error=None,
-                             platforms=None, is_pulp=None,
-                             check_for_default_id=True, with_target=True):
+                             expect_error=None, platforms=None,
+                             is_pulp=None, with_target=True):
+        if platforms is None:
+            platforms = ODCS_COMPOSE_DEFAULT_ARCH_LIST
         plugin_args = plugin_args or {}
         plugin_args.setdefault('odcs_url', ODCS_URL)
         if with_target:
@@ -1383,27 +1394,16 @@ class TestResolveComposes(object):
             return
 
         results = runner.run()[ResolveComposesPlugin.key]
-        if results:
-            platforms = ODCS_COMPOSE_DEFAULT_ARCH_LIST if platforms is None else platforms
-            for platform in platforms:
-                yum_repourls = self.get_override_yum_repourls(workflow, platform)
-                # Koji tag compose is present in each one
-                if check_for_default_id:
-                    assert ODCS_COMPOSE['result_repofile'] in yum_repourls
-                if is_pulp:
-                    pulp_repo = ODCS_COMPOSE_REPO + '/pulp_compose-' + platform
-                    assert pulp_repo in yum_repourls
-            yum_repourls = self.get_override_yum_repourls(workflow, None)
-            if platforms:
-                assert yum_repourls is None
-            else:
-                assert ODCS_COMPOSE['result_repofile'] in yum_repourls
-            assert set(results.keys()) == {
-                'signing_intent', 'signing_intent_overridden', 'composes'
-            }
-        else:
-            assert self.get_override_yum_repourls(workflow) is None
-            assert results is None
+        yum_repourls = results['yum_repourls']
+        for platform in platforms:
+            if is_pulp:
+                pulp_repo = ODCS_COMPOSE_REPO + '/pulp_compose-' + platform
+                assert pulp_repo in yum_repourls[platform]
+        assert set(results.keys()) == {
+            'signing_intent', 'signing_intent_overridden', 'composes',
+            'yum_repourls', 'include_koji_repo'
+        }
+
         return results
 
     @pytest.mark.parametrize('content_sets_content, expect_error', [
@@ -1435,15 +1435,15 @@ class TestResolveComposes(object):
         self.run_plugin_with_args(mocked_env, expect_error=expect_error)
 
     @pytest.mark.parametrize('parent_repourls,modules,packages,content_sets,expect_include_repo', [
-        (True, True, False, None, None),
+        (True, True, False, None, False),
         (False, True, False, None, True),
-        (False, True, True, None, None),
-        (True, True, True, None, None),
-        (False, False, True, None, None),
+        (False, True, True, None, False),
+        (True, True, True, None, False),
+        (False, False, True, None, False),
         (False, True, False, '{}', True),
-        (True, True, True, '{}', None),
-        (False, False, False, 'x86_64: ["spam-rpms"]', None),
-        (True, True, True, 'x86_64: ["spam-rpms"]', None),
+        (True, True, True, '{}', False),
+        (False, False, False, 'x86_64: ["spam-rpms"]', False),
+        (True, True, True, 'x86_64: ["spam-rpms"]', False),
     ])
     def test_include_koji_repo(self, mocked_env, parent_repourls, modules,
                                packages, content_sets, expect_include_repo):
@@ -1505,23 +1505,12 @@ class TestResolveComposes(object):
                 .with_args(compose_pulp_id)
                 .and_return(custom_pulp_compose))
 
-        self.run_plugin_with_args(mocked_env)
+        results = self.run_plugin_with_args(mocked_env)
 
-        workflow = mocked_env.workflow
-        assert self.get_override_yum_repourls(workflow) is not None
-        include_koji_repo = (workflow.plugin_workspace
-                             .get(OrchestrateBuildPlugin.key, {})
-                             .get(WORKSPACE_KEY_OVERRIDE_KWARGS, {})
-                             .get(None, {})
-                             .get('include_koji_repo'))
+        yum_repourls = results.get('yum_repourls') or {}
+        assert yum_repourls
+        include_koji_repo = results.get('include_koji_repo')
         assert include_koji_repo == expect_include_repo
-
-    def get_override_yum_repourls(self, workflow, arch=ODCS_COMPOSE_DEFAULT_ARCH):
-        return (workflow.plugin_workspace
-                .get(OrchestrateBuildPlugin.key, {})
-                .get(WORKSPACE_KEY_OVERRIDE_KWARGS, {})
-                .get(arch, {})
-                .get('yum_repourls'))
 
     def test_skip_adjust_composes_for_inheritance_if_image_is_based_on_scratch(
             self, mocked_env, caplog):
