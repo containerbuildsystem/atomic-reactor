@@ -11,6 +11,7 @@ import json
 import logging
 import requests
 import time
+from typing import List, Dict
 
 from atomic_reactor.constants import REMOTE_SOURCE_TARBALL_FILENAME
 from atomic_reactor.download import download_url
@@ -202,7 +203,7 @@ class CachitoAPI(object):
             return request['id']
         raise ValueError('Unexpected request type: {}'.format(request))
 
-    def get_request_env_vars(self, rid):
+    def get_request_env_vars(self, rid: int) -> Dict[str, Dict[str, str]]:
         """Get the environment variables from endpoint /requests/$id/environment-variables
 
         :param int rid: the Cachito request id whose environment variables will
@@ -210,7 +211,7 @@ class CachitoAPI(object):
         :return: a mapping containing the environment variables. For example:
             ``{"GOCACHE": {"kind": "path", "value": "deps/gomod"}, ...}``.
         :rtype: dict[str, dict[str, str]]
-        :raises: TypeError if the server does not response a JSON data to be
+        :raises: ValueError if the server does not response a JSON data to be
             parsed.
         :raises: HTTP error raised from the underlying requests library in any
             case of the request cannot be completed.
@@ -225,13 +226,35 @@ class CachitoAPI(object):
                    f'but the response contains: {resp.content}.')
             raise ValueError(msg) from exc
 
-    def get_image_content_manifest(self, request_ids):
+    def get_request_config_files(self, rid: int) -> List[Dict[str, str]]:
+        """Get the configuration files from endpoint /requests/$id/configuration-files
+
+        :param int rid: the Cachito request id whose configuration files will be returned.
+        :return: a list of configuration files. For example:
+            ``[{"path": "app/.npmrc", "type": "base64", "content": "<base64 encoded content>"}]``.
+        :rtype: list[dict[str, str]]
+        :raises: ValueError if the server does not response a JSON data to be
+            parsed.
+        :raises: HTTP error raised from the underlying requests library in any
+            case of the request cannot be completed.
+        """
+        endpoint = f'{self.api_url}/api/v1/requests/{rid}/configuration-files'
+        resp = self.session.get(endpoint)
+        resp.raise_for_status()
+        try:
+            return resp.json()
+        except Exception as exc:
+            msg = (f'JSON data is expected from Cachito endpoint {endpoint}, '
+                   f'but the response contains: {resp.content}.')
+            raise ValueError(msg) from exc
+
+    def get_image_content_manifest(self, request_ids: List[int]) -> dict:
         """
         Get the image content manifest from endpoint /content-manifest
         :param list[int] request_ids: cachito request ids
         :return: image content manifest data
         :rtype: dict
-        :raises: TypeError if the server does not response a JSON data to be
+        :raises: ValueError if the server does not response a JSON data to be
             parsed.
         :raises: HTTP error raised from the underlying requests library in any
             case of the request cannot be completed.
