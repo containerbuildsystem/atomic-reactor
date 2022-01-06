@@ -339,3 +339,30 @@ def test_non_json_data_for_get_request_env_vars():
     session = CachitoAPI(CACHITO_URL)
     with pytest.raises(ValueError, match=r'JSON data.*something wrong'):
         session.get_request_env_vars(CACHITO_REQUEST_ID)
+
+
+@responses.activate
+def test_get_request_config_files():
+    config_files = [
+        {"path": "app/.npmrc", "type": "base64", "content": "<base64 encoded content>"},
+    ]
+    responses.add(
+        responses.GET,
+        f'{CACHITO_URL}/api/v1/requests/{CACHITO_REQUEST_ID}/configuration-files',
+        json=config_files,
+    )
+
+    session = CachitoAPI(CACHITO_URL)
+    assert config_files == session.get_request_config_files(CACHITO_REQUEST_ID)
+
+
+@responses.activate
+def test_non_json_data_for_get_request_config_files():
+    responses.add(
+        responses.GET,
+        f'{CACHITO_URL}/api/v1/requests/{CACHITO_REQUEST_ID}/configuration-files',
+        body='something wrong',
+    )
+    session = CachitoAPI(CACHITO_URL)
+    with pytest.raises(ValueError, match=r'JSON data.*something wrong'):
+        session.get_request_config_files(CACHITO_REQUEST_ID)
