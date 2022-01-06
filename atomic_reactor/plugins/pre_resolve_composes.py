@@ -1,25 +1,24 @@
 """
-Copyright (c) 2017 Red Hat, Inc
+Copyright (c) 2017-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
+from collections import defaultdict
 from copy import deepcopy
 from datetime import datetime, timedelta
-from collections import defaultdict
 
-from atomic_reactor import util
-from atomic_reactor.utils.odcs import WaitComposeToFinishTimeout
 from osbs.repo_utils import ModuleSpec
 
+from atomic_reactor import util
+from atomic_reactor.config import get_koji_session, get_odcs_session
 from atomic_reactor.constants import (PLUGIN_KOJI_PARENT_KEY,
                                       PLUGIN_RESOLVE_COMPOSES_KEY,
                                       BASE_IMAGE_KOJI_BUILD)
-from atomic_reactor.config import get_koji_session, get_odcs_session
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.plugins.build_orchestrate_build import override_build_kwarg
 from atomic_reactor.util import get_platforms, is_isolated_build, is_scratch_build
+from atomic_reactor.utils.odcs import WaitComposeToFinishTimeout
 
 ODCS_DATETIME_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
 MINIMUM_TIME_TO_EXPIRE = timedelta(hours=2).total_seconds()
@@ -79,6 +78,9 @@ class ResolveComposesPlugin(PreBuildPlugin):
         self.plugin_result = self.workflow.prebuild_results.get(PLUGIN_KOJI_PARENT_KEY)
         self.all_compose_ids = list(self.compose_ids)
         self.parent_compose_ids = []
+        self.include_koji_repo = False
+        self.yum_repourls = defaultdict(list)
+        self.architectures = get_platforms(self.workflow) or []
 
     def run(self):
         if self.allow_inheritance():
@@ -88,10 +90,10 @@ class ResolveComposesPlugin(PreBuildPlugin):
         try:
             self.read_configs()
         except SkipResolveComposesPlugin as abort_exc:
-            # OSBS2 TBD: `override_build_kwarg` is imported from build_orchestrate_build
-            override_build_kwarg(self.workflow, 'yum_repourls', self.repourls, None)
             self.log.info('Aborting plugin execution: %s', abort_exc)
-            return
+            for arch in self.architectures:
+                self.yum_repourls[arch].extend(self.repourls)
+            return self.make_result()
 
         self.adjust_compose_config()
         self.request_compose_if_needed()
@@ -329,58 +331,46 @@ class ResolveComposesPlugin(PreBuildPlugin):
         self.compose_config.set_signing_intent(signing_intent['name'])
 
     def forward_composes(self):
-        repos_by_arch = defaultdict(list)
-        # set overrides by arch if arches are available
         for compose_info in self.composes_info:
             result_repofile = compose_info['result_repofile']
             try:
                 arches = compose_info['arches']
             except KeyError:
-                repos_by_arch[None].append(result_repofile)
+                self.yum_repourls['noarch'].append(result_repofile)
             else:
                 for arch in arches.split():
-                    repos_by_arch[arch].append(result_repofile)
+                    self.yum_repourls[arch].append(result_repofile)
 
         # we should almost never have a None entry from composes,
         # but we can have yum_repos added, so if we do, we need to merge
         # it with all other repos.
-        if self.repourls:
-            repos_by_arch[None].extend(self.repourls)
-        try:
-            noarch_repos = repos_by_arch.pop(None)
-        except KeyError:
-            pass
-        else:
-            for repos in repos_by_arch.values():
-                repos.extend(noarch_repos)
-
-        for arch, repofiles in repos_by_arch.items():
-            # OSBS2 TBD: `override_build_kwarg` is imported from build_orchestrate_build
-            override_build_kwarg(self.workflow, 'yum_repourls', repofiles, arch)
-
-        # Only set the None override if there are no other repos
-        if not repos_by_arch:
-            # OSBS2 TBD: `override_build_kwarg` is imported from build_orchestrate_build
-            override_build_kwarg(self.workflow, 'yum_repourls', noarch_repos, None)
+        self.yum_repourls['noarch'].extend(self.repourls)
+        if 'noarch' in self.yum_repourls:
+            noarch_repos = self.yum_repourls.pop('noarch')
+            for arch in self.yum_repourls:
+                self.yum_repourls[arch].extend(noarch_repos)
 
         # If we don't think the set of packages available from the user-supplied repourls,
         # inherited repourls, and composed repositories is complete, set the 'include_koji_repo'
         # kwarg so that the so that the 'yum_repourls' kwarg that we just set doesn't
         # result in the 'koji' plugin being omitted.
         if not self.has_complete_repos:
-            # OSBS2 TBD: `override_build_kwarg` is imported from build_orchestrate_build
-            override_build_kwarg(self.workflow, 'include_koji_repo', True)
-
-        # So that plugins like flatpak_update_dockerfile can get information about the composes
-        # OSBS2 TBD: `override_build_kwarg` is imported from build_orchestrate_build
-        override_build_kwarg(self.workflow, 'compose_ids', self.all_compose_ids)
+            self.include_koji_repo = True
 
     def make_result(self):
+        signing_intent = None
+        signing_intent_overridden = False
+        if self.compose_config:
+            signing_intent = self.compose_config.signing_intent['name']
+            signing_intent_overridden = self.compose_config.has_signing_intent_changed()
         result = {
             'composes': self.composes_info,
-            'signing_intent': self.compose_config.signing_intent['name'],
-            'signing_intent_overridden': self.compose_config.has_signing_intent_changed(),
+            'yum_repourls': self.yum_repourls,
+            'include_koji_repo': self.include_koji_repo,
+            'signing_intent': signing_intent,
+            'signing_intent_overridden': signing_intent_overridden,
         }
+
         self.log.debug('plugin result: %s', result)
         return result
 
