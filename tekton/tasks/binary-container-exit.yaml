@@ -23,6 +23,13 @@ spec:
   steps:
     - name: binary-container-exit
       image: $(params.OSBS_IMAGE)
+      resources:
+        requests:
+          memory: 300Mi
+          cpu: 250m
+        limits:
+          memory: 600Mi
+          cpu: 395m
       script: >
         atomic-reactor -v task
         --user-params="$(params.USER_PARAMS)"
