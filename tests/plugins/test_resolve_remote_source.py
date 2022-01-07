@@ -425,6 +425,18 @@ def teardown_function(*args):
     sys.modules.pop('pre_resolve_remote_source', None)
 
 
+def test_source_request_to_json_missing_optional_keys(workflow):
+    p = ResolveRemoteSourcePlugin(workflow)
+
+    source_request = {
+        "repo": REMOTE_SOURCE_REPO,
+        "ref": REMOTE_SOURCE_REF,
+        "packages": [],
+    }
+    # test that missing optional keys are ignored as expected
+    assert p.source_request_to_json(source_request) == source_request
+
+
 @pytest.mark.parametrize('scratch', (True, False))
 @pytest.mark.parametrize('dr_strs, dependency_replacements',
                          ((None, None),
