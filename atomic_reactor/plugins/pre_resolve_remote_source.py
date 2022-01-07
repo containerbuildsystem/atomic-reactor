@@ -209,7 +209,7 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
             self.log.exception(msg)
             raise ValueError(msg) from exc
 
-        data.update({k: source_request.get(k, []) for k in optional})
+        data.update({k: source_request[k] for k in optional if k in source_request})
 
         return data
 
