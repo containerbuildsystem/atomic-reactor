@@ -1,10 +1,11 @@
 """
-Copyright (c) 2016 Red Hat, Inc
+Copyright (c) 2016-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
+import functools
 from configparser import ConfigParser
 from io import StringIO
 
@@ -13,17 +14,18 @@ from textwrap import dedent
 import re
 import os
 
+from atomic_reactor.dirs import BuildDir
+
 from atomic_reactor.constants import (DEFAULT_DOWNLOAD_BLOCK_SIZE, PLUGIN_ADD_FILESYSTEM_KEY,
                                       PLUGIN_RESOLVE_COMPOSES_KEY)
 from atomic_reactor.config import get_koji_session
 from atomic_reactor.plugin import PreBuildPlugin, BuildCanceledException
-from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.utils.koji import TaskWatcher, stream_task_output
 from atomic_reactor.utils.yum import YumRepo
-from atomic_reactor.util import get_platforms, df_parser, base_image_is_custom, map_to_user_params
+from atomic_reactor.util import get_platforms, base_image_is_custom, map_to_user_params
 from atomic_reactor.metadata import label_map
 from atomic_reactor import util
-from osbs.utils import Labels, ImageName
+from osbs.utils import Labels
 
 
 @label_map('filesystem-koji-task-id')
@@ -36,9 +38,10 @@ class AddFilesystemPlugin(PreBuildPlugin):
     creating the base image:
     https://docs.pagure.org/koji/image_build/
 
-    Once image build task is complete the tarball is downloaded and
-    it's imported into docker. This creates a new image. The existing
-    FROM instruction value is replaced with the ID of this new image.
+    Once image build task is complete the tarball is downloaded.
+    The existing FROM instruction value is replaced with a
+    FROM scratch and ADD <filesystem> <to_image> for Dockerfile
+    of each platform.
 
     The "FROM" instruction should be in the following format:
         FROM koji/image-build[:image-build-conf]
@@ -72,37 +75,30 @@ class AddFilesystemPlugin(PreBuildPlugin):
         ''')
 
     args_from_user_params = map_to_user_params(
-        "from_task_id:filesystem_koji_task_id",
         "repos:yum_repourls",
-        "architecture:platform",
         "koji_target",
     )
 
-    def __init__(self, workflow, from_task_id=None, poll_interval=5,
-                 blocksize=DEFAULT_DOWNLOAD_BLOCK_SIZE,
-                 repos=None, architecture=None, koji_target=None):
+    def __init__(self, workflow, poll_interval=5, blocksize=DEFAULT_DOWNLOAD_BLOCK_SIZE,
+                 repos=None, koji_target=None):
         """
         :param workflow: DockerBuildWorkflow instance
-        :param from_task_id: int, use existing Koji image task ID
         :param poll_interval: int, seconds between polling Koji while waiting
                               for task completion
-        :param blocksize: int, chunk size for streaming files from koji
+        :param blocksize: int, chunk size for downloading files from koji
         :param repos: list<str>: list of yum repo URLs to be used during
                       base filesystem creation. First value will also
                       be used as install_tree. Only baseurl value is used
                       from each repo file.
-        :param architecture: str, arch to build on (worker)
         :param koji_target: str, koji target name
         """
         # call parent constructor
         super(AddFilesystemPlugin, self).__init__(workflow)
 
-        self.from_task_id = from_task_id
         self.poll_interval = poll_interval
         self.blocksize = blocksize
         self.repos = repos or []
         self.architectures = get_platforms(self.workflow)
-        self.architecture = architecture
         self.scratch = util.is_scratch_build(self.workflow)
         self.koji_target = koji_target
         self.session = None
@@ -165,7 +161,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
 
         :param config: ConfigParser object
         """
-        labels = Labels(df_parser(self.workflow.df_path).labels)
+        labels = Labels(self.workflow.build_dir.any_platform.dockerfile.labels)
         for config_key, label in (
             ('name', Labels.LABEL_TYPE_COMPONENT),
             ('version', Labels.LABEL_TYPE_VERSION),
@@ -192,8 +188,6 @@ class AddFilesystemPlugin(PreBuildPlugin):
 
         if self.architectures:
             config.set('image-build', 'arches', ','.join(self.architectures))
-        elif self.architecture:
-            config.set('image-build', 'arches', self.architecture)
         # else just use what was provided by the user in image-build.conf
 
         config_str = StringIO()
@@ -238,21 +232,9 @@ class AddFilesystemPlugin(PreBuildPlugin):
 
         return image_name, args, {'opts': opts}
 
-    def get_filesystem_regex(self, image_name):
-        prefix = image_name
-        if self.architecture:
-            prefix = '{}.*{}'.format(prefix, self.architecture)
-
-        pattern = (r'{}.*(\.tar|\.tar\.gz|\.tar\.bz2|\.tar\.xz)$'
-                   .format(prefix))
-        filesystem_regex = re.compile(pattern, re.IGNORECASE)
-
-        return filesystem_regex
-
     def build_filesystem(self, image_build_conf):
         # Image build conf file should be in the same folder as Dockerfile
-        build_file_dir = self.workflow.source.get_build_file_path()[1]
-        image_build_conf = os.path.join(build_file_dir, image_build_conf)
+        image_build_conf = self.workflow.build_dir.any_platform.path / image_build_conf
         if not os.path.exists(image_build_conf):
             raise RuntimeError('Image build configuration file not found: {}'
                                .format(image_build_conf))
@@ -262,12 +244,8 @@ class AddFilesystemPlugin(PreBuildPlugin):
         if self.scratch:
             kwargs['opts']['scratch'] = True
 
-        filesystem_regex = self.get_filesystem_regex(image_name)
-        if self.from_task_id:
-            task_id = self.from_task_id
-        else:
-            task_id = self.session.buildImageOz(*args, **kwargs)
-        return task_id, filesystem_regex
+        task_id = self.session.buildImageOz(*args, **kwargs)
+        return task_id, image_name
 
     def find_filesystem(self, task_id, filesystem_regex):
         for f in self.session.listTaskOutput(task_id):
@@ -284,36 +262,28 @@ class AddFilesystemPlugin(PreBuildPlugin):
 
         return None
 
-    def download_filesystem(self, task_id, filesystem_regex):
+    def download_filesystem(self, task_id, filesystem_regex, build_dir: BuildDir):
         found = self.find_filesystem(task_id, filesystem_regex)
         if found is None:
             raise RuntimeError('Filesystem not found as task output: {}'
                                .format(filesystem_regex.pattern))
         task_id, file_name = found
 
-        self.log.info('Streaming filesystem: %s from task ID: %s',
+        self.log.info('Downloading filesystem: %s from task ID: %s',
                       file_name, task_id)
 
-        contents = stream_task_output(self.session, task_id, file_name,
-                                      self.blocksize)
+        file_path = build_dir.path / file_name
+        if file_path.exists():
+            raise RuntimeError(f'Filesystem {file_name} already exists at {file_path}')
 
-        return contents
+        with open(file_path, 'w') as f:
+            for chunk in stream_task_output(self.session, task_id, file_name, self.blocksize):
+                f.write(chunk)
 
-    def import_base_image(self, filesystem):
-        # import won't be needed anymore as we will substitue FROM koji/image-build
-        # with FROM scratch; ADD <filesystem_content>
-        # OBS2 TBD
-        # result = self.tasker.import_image_from_stream(filesystem)
-        result = {'status': None}
-        # Response not deserialized:
-        #   https://github.com/docker/docker-py/issues/1060
-        self.log.info('import base image result: %s', result)
-        # result = json.loads(result)
-        result = {'status': None}
-        return result['status']
+        return file_name
 
     def run_image_task(self, image_build_conf):
-        task_id, filesystem_regex = self.build_filesystem(image_build_conf)
+        task_id, image_name = self.build_filesystem(image_build_conf)
 
         task = TaskWatcher(self.session, task_id, self.poll_interval)
         try:
@@ -336,22 +306,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
             raise RuntimeError('image task, {}, failed: {}'
                                .format(task_id, task_result))
 
-        return task_id, filesystem_regex
-
-    def stream_filesystem(self, task_id, filesystem_regex):
-        filesystem = self.download_filesystem(task_id, filesystem_regex)
-
-        new_parent_image = self.import_base_image(filesystem)
-        new_imagename = ImageName.parse(new_parent_image)
-
-        for parent in self.workflow.dockerfile_images:
-            if base_image_is_custom(parent.to_str()):
-                self.workflow.dockerfile_images[parent] = new_imagename
-                break
-
-        defer_removal(self.workflow, new_parent_image)
-
-        return new_parent_image
+        return task_id, image_name
 
     def get_image_build_conf(self):
         image_build_conf = None
@@ -374,6 +329,42 @@ class AddFilesystemPlugin(PreBuildPlugin):
             self.log.info('adding repo file from compose: %s', compose_info['result_repofile'])
             self.repos.append(compose_info['result_repofile'])
 
+    def _add_filesystem_to_dockerfile(self, file_name, build_dir: BuildDir):
+        """
+        Put an ADD instruction into the Dockerfile (to include the filesystem
+        into the container image to be built)
+        """
+        content = 'ADD {0} /\n'.format(file_name)
+        lines = build_dir.dockerfile.lines
+        # as we insert elements we have to keep track of the increment for inserting
+        offset = 1
+
+        for item in build_dir.dockerfile.structure:
+            if item['instruction'] == 'FROM' and base_image_is_custom(item['value'].split()[0]):
+                lines.insert(item['endline']+offset, content)
+                offset += 1
+
+        build_dir.dockerfile.lines = lines
+        new_parents = []
+
+        for image in build_dir.dockerfile.parent_images:
+            if base_image_is_custom(image):
+                new_parents.append('scratch')
+            else:
+                new_parents.append(image)
+
+        build_dir.dockerfile.parent_images = new_parents
+        self.log.info('added "%s" as image filesystem', file_name)
+
+    def inject_filesystem(self, task_id, image_name, build_dir: BuildDir):
+        prefix = '{}.*{}'.format(image_name, build_dir.platform)
+
+        pattern = (r'{}.*(\.tar|\.tar\.gz|\.tar\.bz2|\.tar\.xz)$'
+                   .format(prefix))
+        filesystem_regex = re.compile(pattern, re.IGNORECASE)
+        file_name = self.download_filesystem(task_id, filesystem_regex, build_dir)
+        self._add_filesystem_to_dockerfile(file_name, build_dir)
+
     def run(self):
         if not self.workflow.dockerfile_images.custom_parent_image:
             self.log.info('Nothing to do for non-custom base images')
@@ -385,13 +376,12 @@ class AddFilesystemPlugin(PreBuildPlugin):
 
         self.session = get_koji_session(self.workflow.conf)
 
-        task_id, filesystem_regex = self.run_image_task(image_build_conf)
+        task_id, image_name = self.run_image_task(image_build_conf)
 
-        new_base_image = None
-        if not self.is_in_orchestrator():
-            new_base_image = self.stream_filesystem(task_id, filesystem_regex)
+        inject_filesystem_call = functools.partial(self.inject_filesystem, task_id, image_name)
+
+        self.workflow.build_dir.for_each_platform(inject_filesystem_call)
 
         return {
-            'base-image-id': new_base_image,
             'filesystem-koji-task-id': task_id,
         }
