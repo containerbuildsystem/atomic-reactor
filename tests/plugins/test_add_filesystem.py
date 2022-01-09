@@ -1,17 +1,19 @@
 """
-Copyright (c) 2016, 2018, 2019 Red Hat, Inc
+Copyright (c) 2016-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
+import functools
 from pathlib import Path
 from textwrap import dedent
+
+from atomic_reactor.dirs import BuildDir
 from flexmock import flexmock
 
 import koji
 import pytest
-import os.path
 import responses
 import logging
 
@@ -22,10 +24,9 @@ from atomic_reactor.util import df_parser, DockerfileImages
 from atomic_reactor.source import VcsInfo
 from atomic_reactor.constants import (DOCKERFILE_FILENAME, PLUGIN_ADD_FILESYSTEM_KEY,
                                       PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
-                                      PLUGIN_BUILD_ORCHESTRATE_KEY,
                                       PLUGIN_RESOLVE_COMPOSES_KEY)
 import atomic_reactor.utils.koji as koji_util
-from tests.constants import (DOCKERFILE_GIT, DOCKERFILE_SHA1, MOCK, IMPORTED_IMAGE_ID)
+from tests.constants import (DOCKERFILE_GIT, DOCKERFILE_SHA1, MOCK)
 if MOCK:
     from tests.retry_mock import mock_get_retry_session
 
@@ -50,9 +51,9 @@ pytestmark = pytest.mark.usefixtures('user_params')
 
 
 class MockSource(object):
-    def __init__(self, source_dir: Path):
-        self.dockerfile_path = str(source_dir / DOCKERFILE_FILENAME)
-        self.path = str(source_dir)
+    def __init__(self, build_dir: Path):
+        self.dockerfile_path = str(build_dir / DOCKERFILE_FILENAME)
+        self.path = str(build_dir)
 
     def get_build_file_path(self):
         return self.dockerfile_path, self.path
@@ -70,7 +71,6 @@ class X(object):
 def mock_koji_session(scratch=False, image_task_fail=False,
                       throws_build_cancelled=False,
                       error_on_build_cancelled=False,
-                      download_filesystem=True,
                       get_task_result_mock=None,
                       arches=None):
 
@@ -84,9 +84,6 @@ def mock_koji_session(scratch=False, image_task_fail=False,
 
         if arches:
             assert set(args[2]) == set(arches)
-
-        if not download_filesystem:
-            return None
 
         return FILESYSTEM_TASK_ID
 
@@ -112,10 +109,12 @@ def mock_koji_session(scratch=False, image_task_fail=False,
     session.should_receive('getTaskChildren').and_return([
         {'id': 1234568},
     ])
-    if download_filesystem:
-        session.should_receive('downloadTaskOutput').and_return('tarball-contents')
-    else:
-        session.should_receive('downloadTaskOutput').never()
+    contents = 'tarball-contents'
+    expectation = session.should_receive('downloadTaskOutput')
+    for chunk in contents:
+        expectation = expectation.and_return(chunk)
+    # Empty content to simulate end of stream.
+    expectation.and_return('')
     session.should_receive('krb_login').and_return(True)
 
     if throws_build_cancelled:
@@ -136,8 +135,13 @@ def mock_koji_session(scratch=False, image_task_fail=False,
         .and_return(session))
 
 
-def mock_image_build_file(source_dir: Path, contents=None):
-    file_path = os.path.join(source_dir, 'image-build.conf')
+def mock_image_build_file(workflow, contents=None):
+    def write_image_build_file(file_contents, build_dir: BuildDir):
+        path = build_dir.path / 'image-build.conf'
+        with open(path, 'w') as f:
+            f.write(dedent(file_contents))
+            f.flush()
+        return [path]
 
     if contents is None:
         contents = dedent("""\
@@ -161,35 +165,30 @@ def mock_image_build_file(source_dir: Path, contents=None):
             ova_option_1 = ova_option_1_value
             """)
 
-    with open(file_path, 'w') as f:
-        f.write(dedent(contents))
-        f.flush()
-
-    return file_path
+    write_image_build_file_call = functools.partial(write_image_build_file, contents)
+    return workflow.build_dir.for_all_platforms_copy(write_image_build_file_call)
 
 
-def mock_workflow(workflow, source_dir: Path, dockerfile=DEFAULT_DOCKERFILE,
-                  scratch=False, for_orchestrator=False):
+def mock_workflow(workflow, build_dir: Path, dockerfile=DEFAULT_DOCKERFILE,
+                  platforms=None, scratch=False):
     workflow.user_params['scratch'] = scratch
-    mock_source = MockSource(source_dir)
-    df = df_parser(str(source_dir))
-    df.content = dockerfile
+    workflow.source = MockSource(build_dir)
+    if not platforms:
+        platforms = ['x86_64']
+    workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(platforms)
+    with open(workflow.source.dockerfile_path, 'w') as f:
+        f.write(dockerfile)
+    workflow.build_dir.init_build_dirs(platforms, workflow.source)
+    df = df_parser(str(build_dir))
     workflow.dockerfile_images = DockerfileImages(df.parent_images)
-    workflow.source = mock_source
-    flexmock(workflow, df_path=df.dockerfile_path)
     mock_get_retry_session()
 
-    if for_orchestrator:
-        workflow.buildstep_plugins_conf = [{'name': PLUGIN_BUILD_ORCHESTRATE_KEY}]
 
-
-def create_plugin_instance(workflow, source_dir: Path, kwargs=None, scratch=False,  # noqa
-                           architectures=None, koji_target=KOJI_TARGET,
+def create_plugin_instance(workflow, build_dir: Path, kwargs=None, scratch=False,  # noqa
+                           platforms=None, koji_target=KOJI_TARGET,
                            dockerfile=DEFAULT_DOCKERFILE):
-    mock_workflow(workflow, source_dir, dockerfile=dockerfile, scratch=scratch)
-
-    if architectures:
-        workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(architectures)
+    mock_workflow(workflow, build_dir, dockerfile=dockerfile, scratch=scratch,
+                  platforms=platforms)
 
     if kwargs is None:
         kwargs = {}
@@ -210,13 +209,71 @@ def make_and_store_reactor_config_map(workflow, additional_koji=None):
     workflow.conf.conf = reactor_map
 
 
-@pytest.mark.skip(reason="plugin has to be reworked as it won't be importing image anymore")
 @pytest.mark.parametrize('scratch', [True, False])
-def test_add_filesystem_plugin_generated(workflow, source_dir, scratch):
-    mock_workflow(workflow, source_dir, scratch=scratch)
-    task_id = FILESYSTEM_TASK_ID
+@pytest.mark.parametrize(('dockerfile', 'expected_dockerfile'), [
+    # single-stage dockerfile with a custom image
+    (dedent('''\
+     FROM koji/image-build
+     RUN dnf install -y python-django
+     '''),
+     dedent('''\
+     FROM scratch
+     ADD {} {}
+     RUN dnf install -y python-django
+     ''')
+     ),
+    # single-stage dockerfile with a custom image and alias
+    (dedent('''\
+     FROM koji/image-build AS imported_image
+     RUN dnf install -y python-django
+     '''),
+     dedent('''\
+     FROM scratch AS imported_image
+     ADD {} {}
+     RUN dnf install -y python-django
+     ''')
+     ),
+    # multistage dockerfile with a custom image
+    (dedent('''\
+     FROM koji/image-build
+     RUN dnf install -y python-django
+     FROM test
+     RUN dnf install -b uwlg
+     '''),
+     dedent('''\
+     FROM scratch
+     ADD {} {}
+     RUN dnf install -y python-django
+     FROM test
+     RUN dnf install -b uwlg
+     ''')
+     ),
+    # multistage dockerfile with multiple custom images
+    (dedent('''
+     FROM koji/image-build
+     RUN dnf install -y python-django
+     FROM koji/image-build
+     RUN dnf install -y uwlg
+     '''),
+     dedent('''
+     FROM scratch
+     ADD {} {}
+     RUN dnf install -y python-django
+     FROM scratch
+     ADD {} {}
+     RUN dnf install -y uwlg
+     ''')
+     )
+])
+def test_add_filesystem_plugin_generated(workflow, build_dir, scratch, dockerfile,
+                                         expected_dockerfile, caplog):
+    mock_workflow(workflow, build_dir, scratch=scratch, dockerfile=dockerfile)
     mock_koji_session(scratch=scratch)
-    mock_image_build_file(source_dir)
+    mock_image_build_file(workflow)
+    image_name = 'fedora-23-1.0.x86_64.tar.gz'
+    expected_dockerfile = expected_dockerfile.replace('ADD {} {}\n',
+                                                      f'ADD {image_name} '
+                                                      '/\n')
 
     make_and_store_reactor_config_map(workflow, {'root_url': '', 'auth': {}})
 
@@ -224,31 +281,36 @@ def test_add_filesystem_plugin_generated(workflow, source_dir, scratch):
         workflow,
         [{
             'name': PLUGIN_ADD_FILESYSTEM_KEY,
-            'args': {
-                'from_task_id': task_id,
-                'architecture': 'x86_64'
-            }
+            'args': {}
         }]
     )
 
     expected_results = {
-        'base-image-id': IMPORTED_IMAGE_ID,
         'filesystem-koji-task-id': FILESYSTEM_TASK_ID,
     }
+
     results = runner.run()
     plugin_result = results[PLUGIN_ADD_FILESYSTEM_KEY]
-    assert 'base-image-id' in plugin_result
     assert 'filesystem-koji-task-id' in plugin_result
     assert plugin_result == expected_results
     assert workflow.labels['filesystem-koji-task-id'] == FILESYSTEM_TASK_ID
+    msg = f'added "{image_name}" as image filesystem'
+    assert msg in caplog.text
+    assert workflow.build_dir.any_platform.dockerfile.content == expected_dockerfile
 
 
-@pytest.mark.skip(reason="plugin has to be reworked as it won't be importing image anymore")
 @pytest.mark.parametrize('scratch', [True, False])
-def test_add_filesystem_plugin_legacy(workflow, source_dir, scratch):
-    mock_workflow(workflow, source_dir, scratch=scratch)
+def test_add_filesystem_plugin_legacy(workflow, build_dir, scratch, caplog):
+    mock_workflow(workflow, build_dir, scratch=scratch)
+    workflow.prebuild_results[PLUGIN_RESOLVE_COMPOSES_KEY] = {'composes': []}
     mock_koji_session(scratch=scratch)
-    mock_image_build_file(source_dir)
+    mock_image_build_file(workflow)
+    image_name = 'fedora-23-1.0.x86_64.tar.gz'
+    expected_dockerfile_content = dedent(f"""\
+        FROM scratch
+        ADD {image_name} /
+        RUN dnf install -y python-django
+    """)
 
     make_and_store_reactor_config_map(workflow, {'root_url': '', 'auth': {}})
 
@@ -262,9 +324,11 @@ def test_add_filesystem_plugin_legacy(workflow, source_dir, scratch):
 
     results = runner.run()
     plugin_result = results[PLUGIN_ADD_FILESYSTEM_KEY]
-    assert 'base-image-id' in plugin_result
-    assert plugin_result['base-image-id'] == IMPORTED_IMAGE_ID
     assert 'filesystem-koji-task-id' in plugin_result
+    assert workflow.labels['filesystem-koji-task-id'] == FILESYSTEM_TASK_ID
+    msg = f'added "{image_name}" as image filesystem'
+    assert msg in caplog.text
+    assert workflow.build_dir.any_platform.dockerfile.content == expected_dockerfile_content
 
 
 @pytest.mark.parametrize(('base_image', 'type_match'), [
@@ -273,15 +337,15 @@ def test_add_filesystem_plugin_legacy(workflow, source_dir, scratch):
     ('spam/bacon', False),
     ('SpAm/BaCon  \n', False),
 ])
-def test_base_image_type(workflow, source_dir, base_image, type_match):
-    plugin = create_plugin_instance(workflow, source_dir)
+def test_base_image_type(workflow, build_dir, base_image, type_match):
+    plugin = create_plugin_instance(workflow, build_dir)
     assert plugin.is_image_build_type(base_image) == type_match
 
 
-def test_image_build_file_parse(workflow, source_dir):  # noqa
-    plugin = create_plugin_instance(workflow, source_dir)
-    file_name = mock_image_build_file(source_dir)
-    image_name, config, opts = plugin.parse_image_build_config(file_name)
+def test_image_build_file_parse(workflow, build_dir):  # noqa
+    plugin = create_plugin_instance(workflow, build_dir)
+    file_paths = mock_image_build_file(workflow)
+    image_name, config, opts = plugin.parse_image_build_config(file_paths[0])
     assert image_name == 'fedora-23'
     assert config == [
         'fedora-23',
@@ -303,8 +367,8 @@ def test_image_build_file_parse(workflow, source_dir):  # noqa
     }
 
 
-def test_missing_yum_repourls(workflow, source_dir):  # noqa
-    plugin = create_plugin_instance(workflow, source_dir, {'repos': None})
+def test_missing_yum_repourls(workflow, build_dir):  # noqa
+    plugin = create_plugin_instance(workflow, build_dir, {'repos': None})
     image_build_conf = dedent("""\
         [image-build]
         version = 1.0
@@ -314,9 +378,9 @@ def test_missing_yum_repourls(workflow, source_dir):  # noqa
         ksversion = FEDORA23
         """)
 
-    file_name = mock_image_build_file(source_dir, contents=image_build_conf)
+    file_paths = mock_image_build_file(workflow, contents=image_build_conf)
     with pytest.raises(ValueError) as exc:
-        plugin.parse_image_build_config(file_name)
+        plugin.parse_image_build_config(file_paths[0])
     assert 'install_tree cannot be empty' in str(exc.value)
 
 
@@ -326,7 +390,7 @@ def test_missing_yum_repourls(workflow, source_dir):  # noqa
     (False, False),
 ])
 @pytest.mark.parametrize('raise_error', [True, False])
-def test_image_task_failure(workflow, source_dir, build_cancel, error_during_cancel,
+def test_image_task_failure(workflow, build_dir, build_cancel, error_during_cancel,
                             raise_error, caplog):
     task_result = 'task-result'
 
@@ -334,20 +398,23 @@ def test_image_task_failure(workflow, source_dir, build_cancel, error_during_can
         if raise_error:
             raise RuntimeError(task_result)
         return task_result
-    mock_workflow(workflow, source_dir)
+    mock_workflow(workflow, build_dir)
+    workflow.prebuild_results[PLUGIN_RESOLVE_COMPOSES_KEY] = {'composes': []}
     mock_koji_session(image_task_fail=True,
                       throws_build_cancelled=build_cancel,
                       error_on_build_cancelled=error_during_cancel,
                       get_task_result_mock=_mockGetTaskResult)
-    mock_image_build_file(source_dir)
+    mock_image_build_file(workflow)
 
     make_and_store_reactor_config_map(workflow, {'root_url': '', 'auth': {}})
+
+    workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = ['x86_64']
 
     runner = PreBuildPluginsRunner(
         workflow,
         [{
             'name': PLUGIN_ADD_FILESYSTEM_KEY,
-            'args': {'architectures': ['x86_64']}
+            'args': {}
         }]
     )
 
@@ -366,17 +433,15 @@ def test_image_task_failure(workflow, source_dir, build_cancel, error_during_can
         if error_during_cancel:
             # We're checking last but one message, as the last one is
             # 'plugin 'add_filesystem' raised an exception'
-            assert "Exception while canceling a task (ignored): Exception: "\
-                in caplog.records[-2].message
+            assert "Exception while canceling a task (ignored): Exception: " \
+                   in caplog.records[-2].message
         else:
             msg = "task %s canceled" % FILESYSTEM_TASK_ID
             assert msg in [x.message for x in caplog.records]
 
 
-# with a task_id is the new standard, None is legacy-mode support
-@pytest.mark.parametrize('task_id', [FILESYSTEM_TASK_ID, None])
 @pytest.mark.parametrize(('resolve_compose', 'yum_repos'), [
-    (None, None),
+    ({'composes': []}, []),
     ({'composes': [{'result_repofile': 'http://odcs-compose.com/compose1.repo'}]},
      ['http://odcs-compose.com/$arch/compose1.repo']),
     ({'composes': [{'result_repofile': 'http://odcs-compose.com/compose1.repo'},
@@ -385,7 +450,7 @@ def test_image_task_failure(workflow, source_dir, build_cancel, error_during_can
       'http://odcs-compose.com/$arch/compose2.repo']),
 ])
 @responses.activate
-def test_image_build_defaults(workflow, source_dir, task_id, resolve_compose, yum_repos):
+def test_image_build_defaults(workflow, build_dir, resolve_compose, yum_repos):
     repos = [
         'http://install-tree.com/fedora23.repo',
         'http://repo.com/fedora/os',
@@ -413,9 +478,8 @@ def test_image_build_defaults(workflow, source_dir, task_id, resolve_compose, yu
                     [compose2]
                     baseurl = http://odcs-compose.com/$basearch/compose2.repo
                     """))
-    plugin = create_plugin_instance(workflow, source_dir, {'repos': repos, 'from_task_id': task_id})
-    if resolve_compose:
-        plugin.workflow.prebuild_results[PLUGIN_RESOLVE_COMPOSES_KEY] = resolve_compose
+    plugin = create_plugin_instance(workflow, build_dir, {'repos': repos})
+    plugin.workflow.prebuild_results[PLUGIN_RESOLVE_COMPOSES_KEY] = resolve_compose
 
     image_build_conf = dedent("""\
         [image-build]
@@ -426,9 +490,9 @@ def test_image_build_defaults(workflow, source_dir, task_id, resolve_compose, yu
         ksversion = FEDORA23
         """)
 
-    file_name = mock_image_build_file(source_dir, contents=image_build_conf)
+    file_paths = mock_image_build_file(workflow, contents=image_build_conf)
     plugin.update_repos_from_composes()
-    image_name, config, opts = plugin.parse_image_build_config(file_name)
+    image_name, config, opts = plugin.parse_image_build_config(file_paths[0])
     assert image_name == 'default-name'
     assert config == [
         'default-name',
@@ -456,7 +520,7 @@ def test_image_build_defaults(workflow, source_dir, task_id, resolve_compose, yu
     }
 
 
-def test_image_build_dockerfile_defaults(workflow, source_dir):
+def test_image_build_dockerfile_defaults(workflow, build_dir):
     """Test if default name and version are taken from the Dockerfile"""
     image_build_conf = dedent("""\
         [image-build]
@@ -473,9 +537,9 @@ def test_image_build_dockerfile_defaults(workflow, source_dir):
         ksversion = FEDORA23
         kickstart = fedora-23.ks
         """)
-    plugin = create_plugin_instance(workflow, source_dir, dockerfile=DOCKERFILE_WITH_LABELS)
-    file_name = mock_image_build_file(source_dir, contents=image_build_conf)
-    image_name, config, _ = plugin.parse_image_build_config(file_name)
+    plugin = create_plugin_instance(workflow, build_dir, dockerfile=DOCKERFILE_WITH_LABELS)
+    file_paths = mock_image_build_file(workflow, contents=image_build_conf)
+    image_name, config, _ = plugin.parse_image_build_config(file_paths[0])
     assert image_name == 'testproject'  # from Dockerfile
     assert config == [
         'testproject',  # from Dockerfile
@@ -486,17 +550,18 @@ def test_image_build_dockerfile_defaults(workflow, source_dir):
     ]
 
 
-@pytest.mark.parametrize(('architectures', 'architecture'), [
-    (None, None),
-    (['x86_64', 'aarch64', 'ppc64le'], None),
-    (None, 'x86_64'),
+@pytest.mark.parametrize('platforms', [
+    None,
+    ['x86_64', 'aarch64', 'ppc64le'],
 ])
 @responses.activate
-def test_image_build_overwrites(workflow, source_dir, architectures, architecture):
+def test_image_build_overwrites(workflow, build_dir, platforms):
     repos = [
         'http://default-install-tree.com/fedora23',
         'http://default-repo.com/fedora/os.repo',
     ]
+    if not platforms:
+        platforms = ['i386', 'i486']
     responses.add(responses.GET, 'http://default-install-tree.com/fedora23',
                   body=dedent("""\
                     [fedora-23]
@@ -507,10 +572,7 @@ def test_image_build_overwrites(workflow, source_dir, architectures, architectur
                     [fedora-os]
                     baseurl = http://default-repo.com/fedora/$basearch/os.repo
                     """))
-    plugin = create_plugin_instance(workflow, source_dir, {
-        'repos': repos,
-        'architecture': architecture
-    }, architectures=architectures)
+    plugin = create_plugin_instance(workflow, build_dir, {'repos': repos}, platforms=platforms)
     image_build_conf = dedent("""\
         [image-build]
         name = my-name
@@ -532,15 +594,10 @@ def test_image_build_overwrites(workflow, source_dir, architectures, architectur
         create_docker_metadata = Maybe
         """)
 
-    file_name = mock_image_build_file(source_dir, contents=image_build_conf)
-    image_name, config, opts = plugin.parse_image_build_config(file_name)
+    file_paths = mock_image_build_file(workflow, contents=image_build_conf)
+    image_name, config, opts = plugin.parse_image_build_config(file_paths[0])
     assert image_name == 'my-name'
-    if architectures:
-        config_arch = architectures
-    elif architecture:
-        config_arch = [architecture]
-    else:
-        config_arch = ['i386', 'i486']
+    config_arch = platforms
 
     # Sort architectures for comparsion
     config[2] = sorted(config[2])
@@ -567,12 +624,12 @@ def test_image_build_overwrites(workflow, source_dir, architectures, architectur
 
 
 @responses.activate
-def test_extract_base_url_many_base_urls(workflow, source_dir):  # noqa
+def test_extract_base_url_many_base_urls(workflow, build_dir):  # noqa
     repos = [
         'http://default-install-tree.com/fedora23',
         'http://default-repo.com/fedora/os.repo',
     ]
-    architectures = 'x86_64'
+    platforms = ['x86_64']
     responses.add(responses.GET, 'http://default-install-tree.com/fedora23',
                   body=dedent("""\
                     [fedora-23]
@@ -593,63 +650,50 @@ def test_extract_base_url_many_base_urls(workflow, source_dir):  # noqa
         "http://default-install-tree.com/$basearch/fedora23",
         "http://default-repo.com/fedora/$basearch/os.repo"
     ]
-    plugin = create_plugin_instance(workflow, source_dir, {
-        'repos': repos,
-        'architecture': None
-    }, architectures=architectures)
+    plugin = create_plugin_instance(workflow, build_dir, {'repos': repos}, platforms=platforms)
     for repo_url in repos:
         assert sorted(plugin.extract_base_url(repo_url)) == sorted(expected_base_urls)
 
 
 @responses.activate
-def test_extract_base_url_bad_repo_config(workflow, source_dir):  # noqa
+def test_extract_base_url_bad_repo_config(workflow, build_dir):  # noqa
     repos = [
         'http://default-install-tree.com/fedora23',
         'http://default-repo.com/fedora/os.repo',
     ]
-    architectures = 'x86_64'
+    platforms = ['x86_64']
     responses.add(responses.GET, 'http://default-install-tree.com/fedora23',
                   body="This is not right")
     responses.add(responses.GET, 'http://default-repo.com/fedora/os.repo',
                   body="Its not even wrong")
-    plugin = create_plugin_instance(workflow, source_dir, {
-        'repos': repos,
-        'architecture': None
-    }, architectures=architectures)
+    plugin = create_plugin_instance(workflow, build_dir, {'repos': repos}, platforms=platforms)
     for repo_url in repos:
         assert plugin.extract_base_url(repo_url) == []
 
 
-def test_build_filesystem_missing_conf(workflow, source_dir):  # noqa
-    plugin = create_plugin_instance(workflow, source_dir)
+def test_build_filesystem_missing_conf(workflow, build_dir):  # noqa
+    plugin = create_plugin_instance(workflow, build_dir)
     with pytest.raises(RuntimeError) as exc:
         plugin.build_filesystem('image-build.conf')
     assert 'Image build configuration file not found' in str(exc.value)
 
 
-@pytest.mark.parametrize(('prefix', 'architecture', 'suffix'), [
-    ('fedora-23-spam-', None, '.tar'),
-    ('fedora-23-spam-', 'x86_64', '.tar.gz'),
-    ('fedora-23-spam-', 'aarch64', '.tar.bz2'),
-    ('fedora-23-spam-', None, '.tar.xz'),
+@pytest.mark.parametrize(('prefix', 'suffix'), [
+    ('fedora-23-spam-', '.tar'),
+    ('fedora-23-spam-', '.tar.gz'),
+    ('fedora-23-spam-', '.tar.bz2'),
+    ('fedora-23-spam-', '.tar.xz'),
 ])
-def test_build_filesystem_from_task_id(workflow, source_dir, prefix, architecture, suffix):
-    task_id = 987654321
-    pattern = '{}{}{}'.format(prefix, architecture, suffix)
-    plugin = create_plugin_instance(workflow, source_dir, {
-        'from_task_id': task_id,
-        'architecture': architecture,
-    })
+def test_build_filesystem_from_task_id(workflow, build_dir, prefix, suffix):
+    plugin = create_plugin_instance(workflow, build_dir)
     plugin.session = flexmock()
-    mock_image_build_file(source_dir)
-    task_id, filesystem_regex = plugin.build_filesystem('image-build.conf')
-    assert task_id == task_id
-    match = filesystem_regex.match(pattern)
-    assert match is not None
-    assert match.group(0) == pattern
+    plugin.session.should_receive('buildImageOz').and_return(FILESYSTEM_TASK_ID)
+    mock_image_build_file(workflow)
+    task_id, file_name = plugin.build_filesystem('image-build.conf')
+    assert task_id == FILESYSTEM_TASK_ID
+    assert file_name == 'fedora-23'
 
 
-@pytest.mark.skip(reason="plugin has to be reworked as it won't be importing image anymore")
 @pytest.mark.parametrize(('parents', 'skip_plugin'), [
     (('koji/image-build',), False),
     (('non-custom-image',), True),
@@ -659,22 +703,29 @@ def test_build_filesystem_from_task_id(workflow, source_dir, prefix, architectur
     (('non-custom-image', 'koji/image-build:wont_be_used', 'koji/image-build', 'non-custom-image'),
      False),
 ])
-@pytest.mark.parametrize(('architecture', 'architectures', 'download_filesystem'), [
-    ('x86_64', None, True),
-    (None, ['x86_64'], False),
-    ('x86_64', ['x86_64', 'aarch64'], False),
-    (None, None, True),
+@pytest.mark.parametrize('platforms', [
+    (['x86_64']),
+    (['x86_64']),
+    (['x86_64', 'aarch64']),
+    (['x86_64', 'aarch64']),
 ])
-def test_image_download(workflow, source_dir, parents, skip_plugin, architecture,
-                        architectures, download_filesystem, caplog):
-    mock_workflow(workflow, source_dir, for_orchestrator=architectures is not None)
+def test_image_download(workflow, build_dir, parents, skip_plugin,
+                        platforms, caplog):
+    mock_workflow(workflow, build_dir)
     workflow.dockerfile_images = DockerfileImages(parents)
+    workflow.prebuild_results[PLUGIN_RESOLVE_COMPOSES_KEY] = {'composes': []}
     if not skip_plugin:
-        mock_koji_session(download_filesystem=download_filesystem)
-    mock_image_build_file(source_dir)
+        mock_koji_session()
+    mock_image_build_file(workflow)
+    image_name = 'fedora-23-1.0.x86_64.tar.gz'
+    expected_dockerfile_content = dedent(f"""\
+        FROM scratch
+        ADD {image_name} /
+        RUN dnf install -y python-django
+    """)
 
-    if architectures:
-        workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(architectures)
+    if platforms:
+        workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(platforms)
 
     make_and_store_reactor_config_map(workflow, {'root_url': '', 'auth': {}})
 
@@ -682,9 +733,7 @@ def test_image_download(workflow, source_dir, parents, skip_plugin, architecture
         workflow,
         [{
             'name': PLUGIN_ADD_FILESYSTEM_KEY,
-            'args': {
-                'architecture': architecture,
-            }
+            'args': {}
         }]
     )
 
@@ -697,21 +746,18 @@ def test_image_download(workflow, source_dir, parents, skip_plugin, architecture
         assert plugin_result is None
         return
 
-    assert 'base-image-id' in plugin_result
     assert 'filesystem-koji-task-id' in plugin_result
 
-    if download_filesystem:
-        assert plugin_result['base-image-id'] == IMPORTED_IMAGE_ID
-        assert plugin_result['filesystem-koji-task-id'] == FILESYSTEM_TASK_ID
-    else:
-        assert plugin_result['base-image-id'] is None
-        assert plugin_result['filesystem-koji-task-id'] is None
+    assert plugin_result['filesystem-koji-task-id'] == FILESYSTEM_TASK_ID
+    msg = f'added "{image_name}" as image filesystem'
+    assert msg in caplog.text
+    assert workflow.build_dir.any_platform.dockerfile.content == expected_dockerfile_content
 
 
-@pytest.mark.parametrize(('koji_target'), [None, '', 'guest-fedora-23-docker'])
+@pytest.mark.parametrize('koji_target', [None, '', 'guest-fedora-23-docker'])
 @responses.activate
-def test_image_build_overwrites_target(workflow, source_dir, koji_target):
-    plugin = create_plugin_instance(workflow, source_dir, koji_target=koji_target)
+def test_image_build_overwrites_target(workflow, build_dir, koji_target):
+    plugin = create_plugin_instance(workflow, build_dir, koji_target=koji_target)
     image_build_conf = dedent("""\
         [image-build]
         name = my-name
@@ -720,8 +766,8 @@ def test_image_build_overwrites_target(workflow, source_dir, koji_target):
         install_tree = http://install-tree.com/$arch/fedora23/
         """)
 
-    file_name = mock_image_build_file(source_dir, contents=image_build_conf)
-    _, config, _ = plugin.parse_image_build_config(file_name)
+    file_paths = mock_image_build_file(workflow, contents=image_build_conf)
+    _, config, _ = plugin.parse_image_build_config(file_paths[0])
     assert config == [
         'my-name',
         '1.0',
@@ -731,8 +777,8 @@ def test_image_build_overwrites_target(workflow, source_dir, koji_target):
     ]
 
 
-def test_no_target_set(workflow, source_dir):
-    plugin = create_plugin_instance(workflow, source_dir, koji_target='')
+def test_no_target_set(workflow, build_dir):
+    plugin = create_plugin_instance(workflow, build_dir, koji_target='')
     image_build_conf = dedent("""\
         [image-build]
         name = my-name
@@ -740,7 +786,7 @@ def test_no_target_set(workflow, source_dir):
         install_tree = http://install-tree.com/$arch/fedora23/
         """)
 
-    file_name = mock_image_build_file(source_dir, contents=image_build_conf)
+    file_paths = mock_image_build_file(workflow, contents=image_build_conf)
     with pytest.raises(ValueError) as exc:
-        plugin.parse_image_build_config(file_name)
+        plugin.parse_image_build_config(file_paths[0])
     assert 'target cannot be empty' in str(exc.value)
