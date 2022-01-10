@@ -16,6 +16,7 @@ from atomic_reactor.cli import parser, task
 BUILD_DIR = "/build"
 CONTEXT_DIR = "/context"
 REQUIRED_COMMON_ARGS = ["--build-dir", BUILD_DIR, "--context-dir", CONTEXT_DIR]
+REQUIRED_PLATFORM_FOR_BINARY_BUILD = ["--platform", "x86_64"]
 
 SOURCE_URI = "git://example.org/namespace/repo"
 
@@ -27,6 +28,10 @@ EXPECTED_ARGS = {
     "config_file": constants.REACTOR_CONFIG_FULL_PATH,
     "user_params": None,
     "user_params_file": None,
+}
+EXPECTED_ARGS_BINARY_CONTAINER_BUILD = {
+    **EXPECTED_ARGS,
+    "platform": "x86_64",
 }
 
 
@@ -55,8 +60,9 @@ def test_parse_args_version(capsys):
             {**EXPECTED_ARGS, "func": task.binary_container_prebuild},
         ),
         (
-            ["task", *REQUIRED_COMMON_ARGS, "binary-container-build"],
-            {**EXPECTED_ARGS, "func": task.binary_container_build},
+            ["task", *REQUIRED_COMMON_ARGS, "binary-container-build",
+             *REQUIRED_PLATFORM_FOR_BINARY_BUILD],
+            {**EXPECTED_ARGS_BINARY_CONTAINER_BUILD, "func": task.binary_container_build},
         ),
         (
             ["task", *REQUIRED_COMMON_ARGS, "binary-container-postbuild"],
@@ -90,8 +96,10 @@ def test_parse_args_version(capsys):
             {**EXPECTED_ARGS, "config_file": "config.yaml", "func": task.binary_container_prebuild},
         ),
         (
-            ["task", *REQUIRED_COMMON_ARGS, "--config-file=config.yaml", "binary-container-build"],
-            {**EXPECTED_ARGS, "config_file": "config.yaml", "func": task.binary_container_build},
+            ["task", *REQUIRED_COMMON_ARGS, "--config-file=config.yaml",
+             "binary-container-build", *REQUIRED_PLATFORM_FOR_BINARY_BUILD],
+            {**EXPECTED_ARGS_BINARY_CONTAINER_BUILD, "config_file": "config.yaml",
+             "func": task.binary_container_build},
         ),
         (
             ["task", *REQUIRED_COMMON_ARGS, "--config-file=config.yaml",

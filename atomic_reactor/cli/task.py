@@ -6,7 +6,7 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 from atomic_reactor.tasks.binary import BinaryBuildTask, BinaryExitTask, \
-    BinaryPostBuildTask, BinaryPreBuildTask
+    BinaryPostBuildTask, BinaryPreBuildTask, BinaryBuildTaskParams
 from atomic_reactor.tasks.clone import CloneTask
 from atomic_reactor.tasks.common import TaskParams
 from atomic_reactor.tasks.orchestrator import OrchestratorTask, OrchestratorTaskParams
@@ -69,7 +69,7 @@ def binary_container_build(task_args: dict):
 
     :param task_args: CLI arguments for a binary-container-build task
     """
-    params = TaskParams.from_cli_args(task_args)
+    params = BinaryBuildTaskParams.from_cli_args(task_args)
     task = BinaryBuildTask(params)
     return task.execute()
 
