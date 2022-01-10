@@ -508,20 +508,12 @@ def test_resolve_remote_source(workflow, scratch, dr_strs, dependency_replacemen
             },
         },
     ]
-    expected_worker_params = [{
-        'build_args': expected_build_args,
-        'configs': CACHITO_REQUEST_CONFIG_URL,
-        'request_id': CACHITO_REQUEST_ID,
-        'url': CACHITO_REQUEST_DOWNLOAD_URL,
-        'name': None,
-    }]
 
     run_plugin_with_args(
         workflow,
         dependency_replacements=dr_strs,
         expect_error=err,
         expected_plugin_results=expected_plugin_results,
-        expected_worker_params=expected_worker_params
     )
 
 
@@ -572,15 +564,7 @@ def test_no_koji_user(workflow, caplog):
             },
         },
     ]
-    expected_worker_params = [{
-        'build_args': CACHITO_BUILD_ARGS,
-        'configs': CACHITO_REQUEST_CONFIG_URL,
-        'request_id': CACHITO_REQUEST_ID,
-        'url': CACHITO_REQUEST_DOWNLOAD_URL,
-        'name': None,
-    }]
-    run_plugin_with_args(workflow, expected_plugin_results=expected_plugin_results,
-                         expected_worker_params=expected_worker_params)
+    run_plugin_with_args(workflow, expected_plugin_results=expected_plugin_results)
     assert log_msg in caplog.text
 
 
@@ -658,16 +642,8 @@ def test_bad_build_metadata(workflow, task_id, log_entry, caplog):
             },
         },
     ]
-    expected_worker_params = [{
-        'build_args': CACHITO_BUILD_ARGS,
-        'configs': CACHITO_REQUEST_CONFIG_URL,
-        'request_id': CACHITO_REQUEST_ID,
-        'url': CACHITO_REQUEST_DOWNLOAD_URL,
-        'name': None,
-    }]
 
-    run_plugin_with_args(workflow, expected_plugin_results=expected_plugin_results,
-                         expected_worker_params=expected_worker_params)
+    run_plugin_with_args(workflow, expected_plugin_results=expected_plugin_results)
     assert log_entry in caplog.text
     assert 'unknown_user' in caplog.text
 
@@ -725,16 +701,6 @@ def test_allow_multiple_remote_sources(workflow, allow_multiple_remote_sources):
         result = run_plugin_with_args(workflow, expect_result=False, expect_error=err_msg)
         assert result is None
     else:
-        cachito_build_args = {
-            'GO111MODULE': 'on',
-            'GOPATH': f'/remote-source/{first_remote_source_name}/deps/gomod',
-            'GOCACHE': f'/remote-source/{first_remote_source_name}/deps/gomod',
-        }
-
-        second_cachito_build_args = {
-            'PIP_CERT': f'/remote-source/{second_remote_source_name}/app/package-index-ca.pem',
-            'PIP_INDEX_URL': 'http://example-pip-index.url/stuff'
-        }
         expected_plugin_results = [
             {
                 "name": first_remote_source_name,
@@ -761,25 +727,8 @@ def test_allow_multiple_remote_sources(workflow, allow_multiple_remote_sources):
                 },
             },
         ]
-        expected_worker_params = [
-            {
-                "build_args": cachito_build_args,
-                "configs": CACHITO_REQUEST_CONFIG_URL,
-                "request_id": CACHITO_REQUEST_ID,
-                "url": CACHITO_REQUEST_DOWNLOAD_URL,
-                "name": first_remote_source_name,
-            },
-            {
-                "build_args": second_cachito_build_args,
-                "configs": SECOND_CACHITO_REQUEST_CONFIG_URL,
-                "request_id": SECOND_CACHITO_REQUEST_ID,
-                "url": SECOND_CACHITO_REQUEST_DOWNLOAD_URL,
-                "name": second_remote_source_name,
-            },
-        ]
 
-        run_plugin_with_args(workflow, expected_plugin_results=expected_plugin_results,
-                             expected_worker_params=expected_worker_params)
+        run_plugin_with_args(workflow, expected_plugin_results=expected_plugin_results)
 
 
 def test_multiple_remote_sources_non_unique_names(workflow):
@@ -821,8 +770,7 @@ def test_multiple_remote_sources_non_unique_names(workflow):
 
 
 def run_plugin_with_args(workflow, dependency_replacements=None, expect_error=None,
-                         expect_result=True, expected_plugin_results=None,
-                         expected_worker_params=None):
+                         expect_result=True, expected_plugin_results=None):
     runner = PreBuildPluginsRunner(
         workflow,
         [
