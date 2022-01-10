@@ -5,7 +5,11 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
+import base64
+import functools
 import os.path
+import shlex
+import tarfile
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,13 +17,17 @@ from typing import Optional, List, Dict
 
 from atomic_reactor.config import get_koji_session, get_cachito_session
 from atomic_reactor.constants import (
+    CACHITO_ENV_ARG_ALIAS,
+    CACHITO_ENV_FILENAME,
     PLUGIN_RESOLVE_REMOTE_SOURCE,
     REMOTE_SOURCE_DIR,
     REMOTE_SOURCE_JSON_FILENAME,
     REMOTE_SOURCE_TARBALL_FILENAME,
 )
+from atomic_reactor.dirs import BuildDir
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import is_scratch_build, map_to_user_params
+from atomic_reactor.utils.cachito import CFG_TYPE_B64
 from atomic_reactor.utils.koji import get_koji_task_owner
 
 
@@ -65,6 +73,7 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
 
     key = PLUGIN_RESOLVE_REMOTE_SOURCE
     is_allowed_to_fail = False
+    REMOTE_SOURCE = "unpacked_remote_sources"
 
     args_from_user_params = map_to_user_params("dependency_replacements")
 
@@ -125,6 +134,8 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
                              'for multiple remote sources')
 
         processed_remote_sources = self.process_remote_sources()
+        self.inject_remote_sources(processed_remote_sources)
+
         return [
             self.remote_source_to_output(remote_source)
             for remote_source in processed_remote_sources
@@ -166,6 +177,52 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
             processed_remote_sources.append(self.process_request(completed_request, None))
 
         return processed_remote_sources
+
+    def inject_remote_sources(self, remote_sources: List[RemoteSource]) -> None:
+        """Inject processed remote sources into build dirs and add build args to workflow."""
+        inject_sources = functools.partial(self.inject_into_build_dir, remote_sources)
+        self.workflow.build_dir.for_all_platforms_copy(inject_sources)
+
+        # For single remote_source workflow, inject all build args directly
+        if self.single_remote_source_params:
+            self.workflow.buildargs.update(remote_sources[0].build_args)
+
+        self.add_general_buildargs()
+
+    def inject_into_build_dir(
+        self, remote_sources: List[RemoteSource], build_dir: BuildDir,
+    ) -> List[Path]:
+        """Inject processed remote sources into a build directory.
+
+        For each remote source, create a dedicated directory, unpack the downloaded tarball
+        into it and inject the configuration files and an environment file.
+
+        Return a list of the newly created directories.
+        """
+        created_dirs = []
+
+        for remote_source in remote_sources:
+            dest_dir = build_dir.path.joinpath(self.REMOTE_SOURCE, remote_source.name or "")
+
+            if dest_dir.exists():
+                raise RuntimeError(
+                    f"Conflicting path {dest_dir.relative_to(build_dir.path)} already exists "
+                    "in the dist-git repository"
+                )
+
+            dest_dir.mkdir(parents=True)
+            created_dirs.append(dest_dir)
+
+            with tarfile.open(remote_source.tarball_path) as tf:
+                tf.extractall(dest_dir)
+
+            config_files = self.cachito_session.get_request_config_files(remote_source.id)
+            self.generate_cachito_config_files(dest_dir, config_files)
+
+            # Create cachito.env file with environment variables received from cachito request
+            self.generate_cachito_env_file(dest_dir, remote_source.build_args)
+
+        return created_dirs
 
     def get_buildargs(self, request_id: int, remote_source_name: Optional[str]) -> Dict[str, str]:
         build_args = {}
@@ -277,3 +334,58 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
                 "path": str(remote_source.tarball_path),
             },
         }
+
+    def generate_cachito_config_files(self, dest_dir: Path, config_files: List[dict]) -> None:
+        """Inject cachito provided configuration files
+
+        :param dest_dir: destination directory for config files
+        :param config_files: configuration files from cachito
+        """
+        for config in config_files:
+            config_path = dest_dir / config['path']
+            if config['type'] == CFG_TYPE_B64:
+                data = base64.b64decode(config['content'])
+                config_path.write_bytes(data)
+            else:
+                err_msg = "Unknown cachito configuration file data type '{}'".format(config['type'])
+                raise ValueError(err_msg)
+
+            config_path.chmod(0o444)
+
+    def generate_cachito_env_file(self, dest_dir: Path, build_args: Dict[str, str]) -> None:
+        """
+        Generate cachito.env file with exported environment variables received from
+        cachito request.
+
+        :param dest_dir: destination directory for env file
+        :param build_args: build arguments to set
+        """
+        self.log.info('Creating %s file with environment variables '
+                      'received from cachito request', CACHITO_ENV_FILENAME)
+
+        # Use dedicated dir in container build workdir for cachito.env
+        abs_path = dest_dir / CACHITO_ENV_FILENAME
+        with open(abs_path, 'w') as f:
+            f.write('#!/bin/bash\n')
+            for env_var, value in build_args.items():
+                f.write('export {}={}\n'.format(env_var, shlex.quote(value)))
+
+    def add_general_buildargs(self) -> None:
+        """Adds general build arguments
+
+        To copy the sources into the build image, Dockerfile should contain
+        COPY $REMOTE_SOURCE $REMOTE_SOURCE_DIR
+        or COPY $REMOTE_SOURCES $REMOTE_SOURCES_DIR
+        """
+        if self.multiple_remote_sources_params:
+            args_for_dockerfile_to_add = {
+                'REMOTE_SOURCES': self.REMOTE_SOURCE,
+                'REMOTE_SOURCES_DIR': REMOTE_SOURCE_DIR,
+            }
+        else:
+            args_for_dockerfile_to_add = {
+                'REMOTE_SOURCE': self.REMOTE_SOURCE,
+                'REMOTE_SOURCE_DIR': REMOTE_SOURCE_DIR,
+                CACHITO_ENV_ARG_ALIAS: os.path.join(REMOTE_SOURCE_DIR, CACHITO_ENV_FILENAME),
+            }
+        self.workflow.buildargs.update(args_for_dockerfile_to_add)
