@@ -6,7 +6,15 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
+from dataclasses import dataclass
 from atomic_reactor.tasks import plugin_based
+from atomic_reactor.tasks.common import TaskParams
+
+
+@dataclass(frozen=True)
+class BinaryBuildTaskParams(TaskParams):
+    """Binary container build task parameters"""
+    platform: str
 
 
 class BinaryPreBuildTask(plugin_based.PluginBasedTask):

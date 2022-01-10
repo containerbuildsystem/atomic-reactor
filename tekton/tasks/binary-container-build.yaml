@@ -12,6 +12,9 @@ spec:
     - name: USER_PARAMS
       type: string
       description: User parameters in JSON format
+    - name: PLATFORM
+      type: string
+      description: platform on which to build container
 
   workspaces:
     - name: ws-build-dir
@@ -36,4 +39,4 @@ spec:
         --build-dir=$(workspaces.ws-build-dir.path)
         --context-dir=$(workspaces.ws-context-dir.path)
         --config-file=$(workspaces.ws-reactor-config-map.path)/config.yaml
-        binary-container-build
+        binary-container-build --platform="$(params.PLATFORM)"

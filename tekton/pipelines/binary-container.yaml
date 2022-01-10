@@ -59,7 +59,7 @@ spec:
           value: "$(params.OSBS_IMAGE)"
         - name: USER_PARAMS
           value: "$(params.USER_PARAMS)"
-    - name: binary-container-build
+    - name: binary-container-build-x86_64
       runAfter:
         - binary-container-prebuild
       taskRef:
@@ -80,9 +80,83 @@ spec:
           value: "$(params.OSBS_IMAGE)"
         - name: USER_PARAMS
           value: "$(params.USER_PARAMS)"
+        - name: PLATFORM
+          value: x86_64
+    - name: binary-container-build-s390x
+      runAfter:
+        - binary-container-prebuild
+      taskRef:
+        name: binary-container-build-0-1
+      workspaces:
+        - name: ws-build-dir
+          workspace: ws-build-dir
+        - name: ws-context-dir
+          workspace: ws-context-dir
+        - name: ws-registries-secret
+          workspace: ws-registries-secret
+        - name: ws-koji-secret
+          workspace: ws-koji-secret
+        - name: ws-reactor-config-map
+          workspace: ws-reactor-config-map
+      params:
+        - name: OSBS_IMAGE
+          value: "$(params.OSBS_IMAGE)"
+        - name: USER_PARAMS
+          value: "$(params.USER_PARAMS)"
+        - name: PLATFORM
+          value: s390x
+    - name: binary-container-build-ppc64le
+      runAfter:
+        - binary-container-prebuild
+      taskRef:
+        name: binary-container-build-0-1
+      workspaces:
+        - name: ws-build-dir
+          workspace: ws-build-dir
+        - name: ws-context-dir
+          workspace: ws-context-dir
+        - name: ws-registries-secret
+          workspace: ws-registries-secret
+        - name: ws-koji-secret
+          workspace: ws-koji-secret
+        - name: ws-reactor-config-map
+          workspace: ws-reactor-config-map
+      params:
+        - name: OSBS_IMAGE
+          value: "$(params.OSBS_IMAGE)"
+        - name: USER_PARAMS
+          value: "$(params.USER_PARAMS)"
+        - name: PLATFORM
+          value: ppc64le
+    - name: binary-container-build-aarch64
+      runAfter:
+        - binary-container-prebuild
+      taskRef:
+        name: binary-container-build-0-1
+      workspaces:
+        - name: ws-build-dir
+          workspace: ws-build-dir
+        - name: ws-context-dir
+          workspace: ws-context-dir
+        - name: ws-registries-secret
+          workspace: ws-registries-secret
+        - name: ws-koji-secret
+          workspace: ws-koji-secret
+        - name: ws-reactor-config-map
+          workspace: ws-reactor-config-map
+      params:
+        - name: OSBS_IMAGE
+          value: "$(params.OSBS_IMAGE)"
+        - name: USER_PARAMS
+          value: "$(params.USER_PARAMS)"
+        - name: PLATFORM
+          value: aarch64
     - name: binary-container-postbuild
       runAfter:
-        - binary-container-build
+        - binary-container-build-x86_64
+        - binary-container-build-s390x
+        - binary-container-build-ppc64le
+        - binary-container-build-aarch64
       taskRef:
         name: binary-container-postbuild-0-1
       workspaces:
