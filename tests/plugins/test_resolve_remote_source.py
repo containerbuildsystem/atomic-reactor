@@ -6,24 +6,35 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
+import base64
+import io
+import sys
+import tarfile
 from pathlib import Path
 from textwrap import dedent
-import sys
+from typing import Callable, Dict
 
 from flexmock import flexmock
 import pytest
 import koji
 import yaml
 
+from atomic_reactor.dirs import BuildDir
 import atomic_reactor.utils.koji as koji_util
-from atomic_reactor.utils.cachito import CachitoAPI
+from atomic_reactor.utils.cachito import CachitoAPI, CFG_TYPE_B64
 from atomic_reactor.constants import (
+    CACHITO_ENV_ARG_ALIAS,
+    CACHITO_ENV_FILENAME,
     PLUGIN_BUILD_ORCHESTRATE_KEY,
+    REMOTE_SOURCE_DIR,
     REMOTE_SOURCE_TARBALL_FILENAME,
     REMOTE_SOURCE_JSON_FILENAME,
 )
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
-from atomic_reactor.plugins.pre_resolve_remote_source import ResolveRemoteSourcePlugin
+from atomic_reactor.plugins.pre_resolve_remote_source import (
+    RemoteSource,
+    ResolveRemoteSourcePlugin,
+)
 from atomic_reactor.source import SourceConfig
 
 from tests.stubs import StubSource
@@ -199,6 +210,24 @@ SECOND_CACHITO_ENV_VARS_JSON = {
     'PIP_INDEX_URL': {'kind': 'literal', 'value': 'http://example-pip-index.url/stuff'},
 }
 
+# The response from CACHITO_REQUEST_CONFIG_URL
+CACHITO_CONFIG_FILES = [
+    {
+        "path": "app/some-config.txt",
+        "type": CFG_TYPE_B64,
+        "content": base64.b64encode(b"gomod requests don't actually have configs").decode(),
+    },
+]
+
+# The response from SECOND_CACHITO_REQUEST_CONFIG_URL
+SECOND_CACHITO_CONFIG_FILES = [
+    {
+        "path": "app/package-index-ca.pem",
+        "type": CFG_TYPE_B64,
+        "content": base64.b64encode(b"-----BEGIN CERTIFICATE-----").decode(),
+    },
+]
+
 
 def mock_reactor_config(workflow, data=None):
     if data is None:
@@ -281,6 +310,20 @@ def expected_dowload_path(workflow, remote_source_name=None) -> str:
     return str(path)
 
 
+def mock_cachito_tarball(create_at_path) -> str:
+    """Create a mocked tarball for a remote source at the specified path."""
+    create_at_path = Path(create_at_path)
+    file_content = f"Content of {create_at_path.name}".encode("utf-8")
+
+    readme = tarfile.TarInfo("app/README.txt")
+    readme.size = len(file_content)
+
+    with tarfile.open(create_at_path, 'w:gz') as tf:
+        tf.addfile(readme, io.BytesIO(file_content))
+
+    return str(create_at_path)
+
+
 def mock_cachito_api_multiple_remote_sources(workflow, user=KOJI_TASK_OWNER):
 
     (
@@ -331,7 +374,7 @@ def mock_cachito_api_multiple_remote_sources(workflow, user=KOJI_TASK_OWNER):
             dest_dir=expected_build_dir(workflow),
             dest_filename="remote-source-gomod.tar.gz",
         )
-        .and_return(expected_dowload_path(workflow, "gomod"))
+        .and_return(mock_cachito_tarball(expected_dowload_path(workflow, "gomod")))
         .ordered()
     )
 
@@ -351,7 +394,7 @@ def mock_cachito_api_multiple_remote_sources(workflow, user=KOJI_TASK_OWNER):
             dest_dir=expected_build_dir(workflow),
             dest_filename="remote-source-pip.tar.gz",
         )
-        .and_return(expected_dowload_path(workflow, "pip"))
+        .and_return(mock_cachito_tarball(expected_dowload_path(workflow, "pip")))
         .ordered()
     )
 
@@ -360,6 +403,22 @@ def mock_cachito_api_multiple_remote_sources(workflow, user=KOJI_TASK_OWNER):
         .should_receive("get_request_env_vars")
         .with_args(SECOND_CACHITO_SOURCE_REQUEST["id"])
         .and_return(SECOND_CACHITO_ENV_VARS_JSON)
+        .ordered()
+    )
+
+    (
+        flexmock(CachitoAPI)
+        .should_receive("get_request_config_files")
+        .with_args(CACHITO_SOURCE_REQUEST["id"])
+        .and_return(CACHITO_CONFIG_FILES)
+        .ordered()
+    )
+
+    (
+        flexmock(CachitoAPI)
+        .should_receive("get_request_config_files")
+        .with_args(SECOND_CACHITO_SOURCE_REQUEST["id"])
+        .and_return(SECOND_CACHITO_CONFIG_FILES)
         .ordered()
     )
 
@@ -404,7 +463,7 @@ def mock_cachito_api(workflow, user=KOJI_TASK_OWNER, source_request=None,
         .should_receive('download_sources')
         .with_args(source_request, dest_dir=expected_build_dir(workflow),
                    dest_filename=REMOTE_SOURCE_TARBALL_FILENAME)
-        .and_return(expected_dowload_path(workflow)))
+        .and_return(mock_cachito_tarball(expected_dowload_path(workflow))))
 
     (flexmock(CachitoAPI)
         .should_receive('assemble_download_url')
@@ -416,11 +475,30 @@ def mock_cachito_api(workflow, user=KOJI_TASK_OWNER, source_request=None,
         .with_args(source_request['id'])
         .and_return(env_vars_json or CACHITO_ENV_VARS_JSON))
 
+    (flexmock(CachitoAPI)
+        .should_receive('get_request_config_files')
+        .with_args(source_request['id'])
+        .and_return(CACHITO_CONFIG_FILES))
+
 
 def mock_koji(user=KOJI_TASK_OWNER):
     koji_session = flexmock(krb_login=lambda: 'some')
     flexmock(koji, ClientSession=lambda hub, opts: koji_session)
     flexmock(koji_util).should_receive('get_koji_task_owner').and_return({'name': user})
+
+
+def check_injected_files(expected_files: Dict[str, str]) -> Callable[[BuildDir], None]:
+    """Make a callable that checks expected files in a BuildDir."""
+
+    def check_files(build_dir: BuildDir) -> None:
+        """Check the presence and content of files in the unpacked_remote_sources directory."""
+        unpacked_remote_sources = build_dir.path / ResolveRemoteSourcePlugin.REMOTE_SOURCE
+
+        for path, expected_content in expected_files.items():
+            abspath = unpacked_remote_sources / path
+            assert abspath.read_text() == expected_content
+
+    return check_files
 
 
 def setup_function(*args):
@@ -462,30 +540,8 @@ def test_source_request_to_json_missing_optional_keys(workflow):
                             'new_name': 'newproject',
                             'version': '2'}]),
                           (['gomod:foo.bar/project'], None)))
-@pytest.mark.parametrize('env_vars_json, expected_build_args', [
-    [CACHITO_ENV_VARS_JSON, CACHITO_BUILD_ARGS],
-    [
-        {
-            'GOPATH': {'kind': 'path', 'value': 'deps/gomod'},
-            'GOCACHE': {'kind': 'path', 'value': 'deps/gomod'},
-        },
-        {
-            'GOPATH': '/remote-source/deps/gomod',
-            'GOCACHE': '/remote-source/deps/gomod',
-        },
-    ],
-    [
-        {'GO111MODULE': {'kind': 'literal', 'value': 'on'}},
-        {
-            'GO111MODULE': 'on',
-        },
-    ],
-])
-def test_resolve_remote_source(workflow, scratch, dr_strs, dependency_replacements,
-                               env_vars_json, expected_build_args):
-    mock_cachito_api(workflow,
-                     dependency_replacements=dependency_replacements,
-                     env_vars_json=env_vars_json)
+def test_resolve_remote_source(workflow, scratch, dr_strs, dependency_replacements):
+    mock_cachito_api(workflow, dependency_replacements=dependency_replacements)
     workflow.user_params['scratch'] = scratch
     err = None
     if dr_strs and not scratch:
@@ -515,6 +571,37 @@ def test_resolve_remote_source(workflow, scratch, dr_strs, dependency_replacemen
         expect_error=err,
         expected_plugin_results=expected_plugin_results,
     )
+
+    if err:
+        return
+
+    cachito_env_content = dedent(
+        """\
+        #!/bin/bash
+        export GO111MODULE=on
+        export GOPATH=/remote-source/deps/gomod
+        export GOCACHE=/remote-source/deps/gomod
+        """
+    )
+
+    workflow.build_dir.for_each_platform(
+        check_injected_files(
+            {
+                "cachito.env": cachito_env_content,
+                "app/README.txt": "Content of remote-source.tar.gz",
+                "app/some-config.txt": "gomod requests don't actually have configs",
+            },
+        )
+    )
+
+    assert workflow.buildargs == {
+        **CACHITO_BUILD_ARGS,
+        "REMOTE_SOURCE": ResolveRemoteSourcePlugin.REMOTE_SOURCE,
+        "REMOTE_SOURCE_DIR": REMOTE_SOURCE_DIR,
+        CACHITO_ENV_ARG_ALIAS: str(Path(REMOTE_SOURCE_DIR, CACHITO_ENV_FILENAME)),
+    }
+    # https://github.com/openshift/imagebuilder/issues/139
+    assert not workflow.buildargs["REMOTE_SOURCE"].startswith("/")
 
 
 @pytest.mark.parametrize(
@@ -730,6 +817,42 @@ def test_allow_multiple_remote_sources(workflow, allow_multiple_remote_sources):
 
         run_plugin_with_args(workflow, expected_plugin_results=expected_plugin_results)
 
+        first_cachito_env = dedent(
+            """\
+            #!/bin/bash
+            export GO111MODULE=on
+            export GOPATH=/remote-source/gomod/deps/gomod
+            export GOCACHE=/remote-source/gomod/deps/gomod
+            """
+        )
+        second_cachito_env = dedent(
+            """\
+            #!/bin/bash
+            export PIP_CERT=/remote-source/pip/app/package-index-ca.pem
+            export PIP_INDEX_URL=http://example-pip-index.url/stuff
+            """
+        )
+
+        workflow.build_dir.for_each_platform(
+            check_injected_files(
+                {
+                    "gomod/cachito.env": first_cachito_env,
+                    "gomod/app/README.txt": "Content of remote-source-gomod.tar.gz",
+                    "gomod/app/some-config.txt": "gomod requests don't actually have configs",
+                    "pip/cachito.env": second_cachito_env,
+                    "pip/app/README.txt": "Content of remote-source-pip.tar.gz",
+                    "pip/app/package-index-ca.pem": "-----BEGIN CERTIFICATE-----",
+                },
+            )
+        )
+
+        assert workflow.buildargs == {
+            "REMOTE_SOURCES": ResolveRemoteSourcePlugin.REMOTE_SOURCE,
+            "REMOTE_SOURCES_DIR": REMOTE_SOURCE_DIR,
+        }
+        # https://github.com/openshift/imagebuilder/issues/139
+        assert not workflow.buildargs["REMOTE_SOURCES"].startswith("/")
+
 
 def test_multiple_remote_sources_non_unique_names(workflow):
     container_yaml_config = dedent("""\
@@ -792,3 +915,49 @@ def run_plugin_with_args(workflow, dependency_replacements=None, expect_error=No
         assert results == expected_plugin_results
 
     return results
+
+
+def test_inject_remote_sources_dest_already_exists(workflow):
+    plugin = ResolveRemoteSourcePlugin(workflow)
+
+    processed_remote_sources = [
+        RemoteSource(
+            id=CACHITO_REQUEST_ID,
+            name=None,
+            json_data={},
+            build_args={},
+            tarball_path=Path("/does/not/matter"),
+        ),
+    ]
+
+    builddir_path = Path(expected_build_dir(workflow))
+    builddir_path.joinpath(ResolveRemoteSourcePlugin.REMOTE_SOURCE).mkdir()
+
+    err_msg = "Conflicting path unpacked_remote_sources already exists"
+    with pytest.raises(RuntimeError, match=err_msg):
+        plugin.inject_remote_sources(processed_remote_sources)
+
+
+def test_generate_cachito_env_file_shell_quoting(workflow):
+    plugin = ResolveRemoteSourcePlugin(workflow)
+
+    dest_dir = Path(expected_build_dir(workflow))
+    plugin.generate_cachito_env_file(dest_dir, {"foo": "somefile; rm -rf ~"})
+
+    cachito_env = dest_dir / "cachito.env"
+    assert cachito_env.read_text() == dedent(
+        """\
+        #!/bin/bash
+        export foo='somefile; rm -rf ~'
+        """
+    )
+
+
+def test_generate_cachito_config_files_unknown_type(workflow):
+    plugin = ResolveRemoteSourcePlugin(workflow)
+
+    dest_dir = Path(expected_build_dir(workflow))
+    cfg_files = [{"path": "foo", "type": "unknown", "content": "does not matter"}]
+
+    with pytest.raises(ValueError, match="Unknown cachito configuration file data type 'unknown'"):
+        plugin.generate_cachito_config_files(dest_dir, cfg_files)
