@@ -6,6 +6,7 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
+from pathlib import Path
 from textwrap import dedent
 import sys
 
@@ -250,6 +251,7 @@ def workflow(workflow, source_dir):
         def __init__(self, workdir):
             super(MockSource, self).__init__()
             self.workdir = workdir
+            self.path = workdir
 
     workflow.source = MockSource(str(source_dir))
     workflow.buildstep_plugins_conf = [{'name': PLUGIN_BUILD_ORCHESTRATE_KEY}]
@@ -259,7 +261,24 @@ def workflow(workflow, source_dir):
     mock_reactor_config(workflow)
     mock_koji()
 
+    workflow.build_dir.init_build_dirs(["x86_64", "ppc64le"], workflow.source)
+
     return workflow
+
+
+def expected_build_dir(workflow) -> str:
+    """The primary build_dir that the plugin is expected to work with."""
+    return str(workflow.build_dir.any_platform.path)
+
+
+def expected_dowload_path(workflow, remote_source_name=None) -> str:
+    if remote_source_name:
+        filename = f'remote-source-{remote_source_name}.tar.gz'
+    else:
+        filename = 'remote-source.tar.gz'
+
+    path = Path(expected_build_dir(workflow), filename)
+    return str(path)
 
 
 def mock_cachito_api_multiple_remote_sources(workflow, user=KOJI_TASK_OWNER):
@@ -309,7 +328,7 @@ def mock_cachito_api_multiple_remote_sources(workflow, user=KOJI_TASK_OWNER):
         .should_receive("download_sources")
         .with_args(
             CACHITO_SOURCE_REQUEST,
-            dest_dir=str(workflow._tmpdir),
+            dest_dir=expected_build_dir(workflow),
             dest_filename="remote-source-gomod.tar.gz",
         )
         .and_return(expected_dowload_path(workflow, "gomod"))
@@ -329,7 +348,7 @@ def mock_cachito_api_multiple_remote_sources(workflow, user=KOJI_TASK_OWNER):
         .should_receive("download_sources")
         .with_args(
             SECOND_CACHITO_SOURCE_REQUEST,
-            dest_dir=str(workflow._tmpdir),
+            dest_dir=expected_build_dir(workflow),
             dest_filename="remote-source-pip.tar.gz",
         )
         .and_return(expected_dowload_path(workflow, "pip"))
@@ -383,7 +402,7 @@ def mock_cachito_api(workflow, user=KOJI_TASK_OWNER, source_request=None,
 
     (flexmock(CachitoAPI)
         .should_receive('download_sources')
-        .with_args(source_request, dest_dir=str(workflow._tmpdir),
+        .with_args(source_request, dest_dir=expected_build_dir(workflow),
                    dest_filename=REMOTE_SOURCE_TARBALL_FILENAME)
         .and_return(expected_dowload_path(workflow)))
 
@@ -402,15 +421,6 @@ def mock_koji(user=KOJI_TASK_OWNER):
     koji_session = flexmock(krb_login=lambda: 'some')
     flexmock(koji, ClientSession=lambda hub, opts: koji_session)
     flexmock(koji_util).should_receive('get_koji_task_owner').and_return({'name': user})
-
-
-def expected_dowload_path(workflow, remote_source_name=None):
-    if remote_source_name:
-        filename = f'remote-source-{remote_source_name}.tar.gz'
-    else:
-        filename = 'remote-source.tar.gz'
-
-    return str(workflow._tmpdir / filename)
 
 
 def setup_function(*args):

@@ -241,9 +241,11 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
     def process_request(self, source_request: dict, name: Optional[str]) -> RemoteSource:
         """Download the tarball for a request and return info about the processed remote source."""
         tarball_filename = RemoteSource.tarball_filename(name)
+        dest_dir = str(self.workflow.build_dir.any_platform.path)
+
         tarball_dest_path = self.cachito_session.download_sources(
             source_request,
-            dest_dir=self.workflow.source.workdir,
+            dest_dir=dest_dir,
             dest_filename=tarball_filename,
         )
 
