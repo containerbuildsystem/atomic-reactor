@@ -307,9 +307,9 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
             raise RuntimeError("operator_manifests configuration missing in container.yaml")
         self.log.info("Looking for operator CSV files in %s", self.workflow.build_dir.path)
         manifests_dir = self.workflow.source.config.operator_manifests["manifests_dir"]
-        kwargs = {'repo_dir': self.workflow.build_dir.any_build_dir.path}
+        kwargs = {'repo_dir': self.workflow.build_dir.any_platform.path}
         operator_manifest = OperatorManifest.from_directory(
-            os.path.join(self.workflow.build_dir.any_build_dir.path, manifests_dir), **kwargs)
+            os.path.join(self.workflow.build_dir.any_platform.path, manifests_dir), **kwargs)
         self.log.info("Found operator CSV file: %s", operator_manifest.csv.path)
 
         return operator_manifest

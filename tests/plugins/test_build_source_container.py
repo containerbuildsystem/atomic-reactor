@@ -79,7 +79,7 @@ def test_running_build(workflow, caplog,
     )
 
     temp_image_output_dir = workflow.build_dir.source_container_output_dir
-    exported_image_file = workflow.build_dir.any_build_dir.exported_squashed_image
+    exported_image_file = workflow.build_dir.any_platform.exported_squashed_image
     temp_image_export_dir = exported_image_file.parent
     tempfile_chain = (flexmock(tempfile)
                       .should_receive("mkdtemp")
@@ -161,7 +161,7 @@ def test_running_build(workflow, caplog,
     )
 
     if not export_failed:
-        export_tar = workflow.build_dir.any_build_dir.exported_squashed_image
+        export_tar = workflow.build_dir.any_platform.exported_squashed_image
         with open(export_tar, "wb") as f:
             with tarfile.TarFile(mode="w", fileobj=f) as tf:
                 for f in os.listdir(temp_image_output_dir):

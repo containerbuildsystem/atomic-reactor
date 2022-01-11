@@ -140,28 +140,28 @@ def test_rootbuilddir_has_sources(build_dir):
     assert root.has_sources
 
 
-def test_rootbuilddir_get_any_build_dir(build_dir, mock_source):
+def test_rootbuilddir_get_any_platform(build_dir, mock_source):
     root = RootBuildDir(build_dir)
     root.init_build_dirs(["x86_64", "s390x"], mock_source)
-    build_dir_1 = root.any_build_dir
-    build_dir_2 = root.any_build_dir
+    build_dir_1 = root.any_platform
+    build_dir_2 = root.any_platform
     assert build_dir_1.path == build_dir_2.path
     assert build_dir_1.platform == build_dir_2.platform
 
 
-def test_rootbuilddir_get_any_build_dir_fails_if_build_dirs_not_inited(build_dir):
+def test_rootbuilddir_get_any_platform_fails_if_build_dirs_not_inited(build_dir):
     with pytest.raises(BuildDirIsNotInitialized, match="not initialized yet"):
-        print(RootBuildDir(build_dir).any_build_dir)
+        print(RootBuildDir(build_dir).any_platform)
 
 
-def test_rootbuilddir_get_any_build_dir_by_different_platforms_order(build_dir, mock_source):
+def test_rootbuilddir_get_any_platform_by_different_platforms_order(build_dir, mock_source):
     root = RootBuildDir(build_dir)
     root.init_build_dirs(["x86_64", "s390x"], mock_source)
-    build_dir_1 = root.any_build_dir
+    build_dir_1 = root.any_platform
 
     root = RootBuildDir(build_dir)
     root.init_build_dirs(["s390x", "x86_64"], mock_source)
-    build_dir_2 = root.any_build_dir
+    build_dir_2 = root.any_platform
 
     assert build_dir_1.path == build_dir_2.path
     assert build_dir_1.platform == build_dir_2.platform
