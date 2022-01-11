@@ -30,7 +30,7 @@ class SourceContainerPlugin(BuildStepPlugin):
     key = PLUGIN_SOURCE_CONTAINER_KEY
 
     def export_image(self, image_output_dir: Path) -> str:
-        output_path = self.workflow.build_dir.any_build_dir.exported_squashed_image
+        output_path = self.workflow.build_dir.any_platform.exported_squashed_image
 
         cmd = ['skopeo', 'copy']
         source_img = 'oci:{}'.format(image_output_dir)

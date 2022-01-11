@@ -409,7 +409,7 @@ class TestPinOperatorDigest(object):
         with pytest.raises(PluginFailedException) as exc_info:
             runner.run()
 
-        csv = os.path.join(runner.workflow.build_dir.any_build_dir.path,
+        csv = os.path.join(runner.workflow.build_dir.any_platform.path,
                            runner.workflow.source.config.operator_manifests['manifests_dir'],
                            csv.name)
         expected = (
@@ -603,7 +603,7 @@ class TestPinOperatorDigest(object):
         }
 
         assert result['pin_operator_digest'] == expected_result
-        replaced_csv = os.path.join(runner.workflow.build_dir.any_build_dir.path,
+        replaced_csv = os.path.join(runner.workflow.build_dir.any_platform.path,
                                     runner.workflow.source.config.operator_manifests[
                                         "manifests_dir"],
                                     'csv.yaml')
@@ -1420,7 +1420,7 @@ class TestOperatorCSVModifications:
             operator_csv_modifications_url=test_url
         )
 
-        pytest_tmp_dir = runner.workflow.build_dir.any_build_dir.path
+        pytest_tmp_dir = runner.workflow.build_dir.any_platform.path
 
         runner.run()
 

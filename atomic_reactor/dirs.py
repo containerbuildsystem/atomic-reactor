@@ -182,7 +182,7 @@ class RootBuildDir(object):
         self._copy_sources(source)
 
     @property
-    def any_build_dir(self) -> BuildDir:
+    def any_platform(self) -> BuildDir:
         """Get a platform-specific build directory.
 
         This is typically used by code that does not care about platform. The
