@@ -72,14 +72,15 @@ def test_builddir_get_parsed_dockerfile(tmpdir):
 
 @pytest.mark.parametrize("inspection_data,expected_envs", [
     [{}, {"HOME": ""}],
-    [{"Env": {}}, {"HOME": ""}],
-    [{"Env": []}, {"HOME": ""}],
+    [{"Config": {}}, {"HOME": ""}],
+    [{"Config": {"Env": {}}}, {"HOME": ""}],
+    [{"Config": {"Env": []}}, {"HOME": ""}],
     [
-        {"Env": ["HOME=/home", "var2=--option=first"]},
+        {"Config": {"Env": ["HOME=/home", "var2=--option=first"]}},
         {"HOME": "/home"},
     ],
     [
-        {"Env": {"HOME": "/home", "var2": "--option=first"}},
+        {"Config": {"Env": {"HOME": "/home", "var2": "--option=first"}}},
         {"HOME": "/home"},
     ],
 ])
