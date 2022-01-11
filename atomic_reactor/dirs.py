@@ -17,6 +17,7 @@ from atomic_reactor.constants import (
     DOCKERFILE_FILENAME,
     EXPORTED_COMPRESSED_IMAGE_NAME_TEMPLATE,
     EXPORTED_SQUASHED_IMAGE_NAME,
+    INSPECT_CONFIG,
 )
 from atomic_reactor.source import Source
 from atomic_reactor.types import ImageInspectionData
@@ -85,7 +86,7 @@ class BuildDir(object):
             will be returned.
         :rtype: None or dict[str, str]
         """
-        envs = data.get("Env")
+        envs = data.get(INSPECT_CONFIG, {}).get("Env")
         if envs is None:
             return None
         if isinstance(envs, dict):
