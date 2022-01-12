@@ -10,7 +10,6 @@ import logging
 import os
 import re
 import sys
-import time
 from collections import defaultdict
 from copy import deepcopy
 from datetime import datetime, timedelta
@@ -31,7 +30,7 @@ from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.pre_resolve_composes import (ResolveComposesPlugin,
                                                          ODCS_DATETIME_FORMAT, UNPUBLISHED_REPOS)
 from atomic_reactor.source import SourceConfig
-from atomic_reactor.utils.odcs import ODCSClient, construct_compose_url
+from atomic_reactor.utils.odcs import ODCSClient, construct_compose_url, WaitComposeToFinishTimeout
 from tests.mock_env import MockEnv
 from tests.util import add_koji_map_in_workflow
 
@@ -1528,19 +1527,78 @@ class TestResolveComposes(object):
         assert ('This is a base image based on scratch. '
                 'Signing intent will not be adjusted for it.' in caplog.text)
 
+    @pytest.mark.parametrize('cancel_compose', (True, False))
     @responses.activate
     def test_canceling_compose_when_timeout_of_waiting_for_the_compose(
-        self, mocked_env, tmpdir
+        self, mocked_env, tmpdir, cancel_compose, caplog
     ):
+        repo_config = dedent("""\
+                        compose:
+                            inherit: true
+                        """)
+        mock_repo_config(mocked_env._tmpdir, repo_config)
+        parent_compose_ids = [10, 11]
+        mock_koji_parent(mocked_env,
+                         parent_compose_ids=parent_compose_ids,
+                         parent_repo=None,
+                         scratch=False, isolated=False)
+        for parent_compose_id in parent_compose_ids:
+            compose = ODCS_COMPOSE.copy()
+            compose['id'] = parent_compose_id
+            compose['result_repofile'] = ODCS_COMPOSE_REPO + '/odcs-{}.repo'.format(
+                parent_compose_id)
+
+            (flexmock(ODCSClient)
+             .should_receive('wait_for_compose')
+             .once()
+             .with_args(parent_compose_id)
+             .and_return(compose))
+            # Ensure ODCS responses the compose is still waiting for process before
+            # checking the timeout.
+            parent_url = construct_compose_url(ODCS_URL, parent_compose_id)
+            if cancel_compose:
+                renew_compose = compose.copy()
+                compose['state_name'] = 'removed'
+                renew_compose['id'] += 5
+                renew_parent_url = construct_compose_url(ODCS_URL, renew_compose['id'])
+                (flexmock(ODCSClient)
+                 .should_receive('renew_compose')
+                 .once()
+                 .with_args(compose['id'], [])
+                 .and_return(renew_compose))
+                (flexmock(ODCSClient)
+                 .should_receive('wait_for_compose')
+                 .once()
+                 .with_args(renew_compose['id'])
+                 .and_return(renew_compose))
+                if renew_compose['id'] == 15:
+                    responses.add(responses.GET, url=renew_parent_url, json={
+                        'id': renew_compose['id'],
+                        'state_name': 'wait'
+                    })
+                else:
+                    responses.add(responses.GET, url=renew_parent_url, json={
+                        'id': renew_compose['id'],
+                        'state_name': 'done'
+                    })
+                responses.add(responses.DELETE, url=renew_parent_url)
+            else:
+                responses.add(responses.GET, url=parent_url, json={
+                    'id': parent_compose_id,
+                    'state_name': 'done'
+                })
+            # Ensure to cancel the compose
+            responses.add(responses.DELETE, url=parent_url)
         # Fake data for an existing compose requested from ODCS.
         # No need to start a new one.
         plugin_args = {'compose_ids': [ODCS_COMPOSE_ID]}
 
         # Ensure ODCSClient.wait_for_compose raises timeout error
-        (flexmock(time)
-         .should_receive('time')
-         .and_return(1, 2 + ODCSClient.DEFAULT_WAIT_TIMEOUT)
-         .one_by_one())
+        (flexmock(ODCSClient)
+         .should_receive('wait_for_compose')
+         .with_args(ODCS_COMPOSE_ID)
+         .once()
+         .and_raise(WaitComposeToFinishTimeout(ODCS_COMPOSE_ID, ODCSClient.DEFAULT_WAIT_TIMEOUT)))
 
         # Ensure ODCS responses the compose is still waiting for process before
         # checking the timeout.
@@ -1557,3 +1615,8 @@ class TestResolveComposes(object):
 
         msg = 'Timeout of waiting for compose {}'.format(ODCS_COMPOSE_ID)
         assert msg in str(exc.value)
+        if cancel_compose:
+            msg = 'Canceling the compose 15'
+            assert msg in caplog.text
+            msg = 'The compose 16 is not in progress, skip canceling'
+            assert msg in caplog.text
