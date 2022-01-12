@@ -77,6 +77,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
         self.has_complete_repos = len(self.repourls) > 0
         self.plugin_result = self.workflow.prebuild_results.get(PLUGIN_KOJI_PARENT_KEY)
         self.all_compose_ids = list(self.compose_ids)
+        self.new_compose_ids = []
         self.parent_compose_ids = []
         self.include_koji_repo = False
         self.yum_repourls = defaultdict(list)
@@ -101,13 +102,8 @@ class ResolveComposesPlugin(PreBuildPlugin):
             self.wait_for_composes()
         except WaitComposeToFinishTimeout as e:
             self.log.info(str(e))
-            preserve_composes = set(self.compose_ids).union(self.parent_compose_ids)
-            cancel_composes = set(self.all_compose_ids) - preserve_composes
-            if cancel_composes:
-                self.log.info('Canceling unfinished composes which were created by the build: %s',
-                              cancel_composes)
 
-            for compose_id in cancel_composes:
+            for compose_id in self.new_compose_ids:
                 if self.odcs_client.get_compose_status(compose_id) in ['wait', 'generating']:
                     self.log.info('Canceling the compose %s', compose_id)
                     self.odcs_client.cancel_compose(compose_id)
@@ -254,7 +250,8 @@ class ResolveComposesPlugin(PreBuildPlugin):
 
         for compose_request in self.compose_config.render_requests():
             compose_info = self.odcs_client.start_compose(**compose_request)
-            self.all_compose_ids.append(compose_info['id'])
+            self.new_compose_ids.append(compose_info['id'])
+        self.all_compose_ids.extend(self.new_compose_ids)
 
     def wait_for_composes(self):
         self.log.debug('Waiting for ODCS composes to be available: %s', self.all_compose_ids)
@@ -277,6 +274,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
 
                 compose_info = self.odcs_client.renew_compose(compose_id, sigkeys)
                 compose_id = compose_info['id']
+                self.new_compose_ids.append(compose_id)
                 compose_info = self.odcs_client.wait_for_compose(compose_id)
 
             self.composes_info.append(compose_info)
