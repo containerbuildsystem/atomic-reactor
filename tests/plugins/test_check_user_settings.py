@@ -14,7 +14,7 @@ from flexmock import flexmock
 
 from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.pre_check_user_settings import CheckUserSettingsPlugin
-from atomic_reactor.util import df_parser, DockerfileImages
+from atomic_reactor.util import DockerfileImages
 from atomic_reactor.constants import (
     DOCKERFILE_FILENAME,
     REPO_CONTENT_SETS_CONFIG,
@@ -106,12 +106,12 @@ def mock_env(workflow, source_dir: Path, labels=None, flatpak=False, dockerfile_
         'prebuild', CheckUserSettingsPlugin.key, {'flatpak': flatpak}
     )
     env.workflow.source = FakeSource(source_dir)
+    env.workflow.build_dir.init_build_dirs(["aarch64", "x86_64"], env.workflow.source)
 
     if isolated is not None:
         env.set_isolated(isolated)
 
-    dfp = df_parser(str(source_dir))
-    env.workflow._df_path = str(source_dir)
+    dfp = env.workflow.build_dir.any_platform.dockerfile
     env.workflow.dockerfile_images = DockerfileImages([] if flatpak else dfp.parent_images)
 
     flexmock(env.workflow.imageutil).should_receive("base_image_inspect").and_return({})
