@@ -55,7 +55,6 @@ from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI_
 from tests.flatpak import (MODULEMD_AVAILABLE,
                            setup_flatpak_composes,
                            setup_flatpak_source_info)
-from tests.stubs import StubSource
 from tests.util import add_koji_map_in_workflow
 from tests.constants import OSBS_BUILD_LOG_FILENAME
 
@@ -275,7 +274,6 @@ def mock_environment(workflow, source_dir: Path, session=None, name=None,
     mock_reactor_config(workflow)
     workflow.user_params['scratch'] = scratch
 
-    workflow.source = StubSource()
     if yum_repourls:
         workflow.all_yum_repourls = yum_repourls
     workflow.image_id = '123456imageid'
@@ -295,7 +293,6 @@ def mock_environment(workflow, source_dir: Path, session=None, name=None,
             df.write('LABEL com.redhat.delivery.appregistry=true\n')
         if has_op_bundle_manifests:
             df.write('LABEL com.redhat.delivery.operator.bundle=true\n')
-        flexmock(workflow, df_path=df.name)
     if container_first:
         with open(source_dir / REPO_CONTAINER_CONFIG, 'wt') as container_conf:
             container_conf.write('go:\n'
@@ -333,6 +330,9 @@ def mock_environment(workflow, source_dir: Path, session=None, name=None,
     setattr(workflow.source.lg, 'commit_id', '123456')
     setattr(workflow.source.lg, 'git_path', str(source_dir))
     setattr(workflow, 'push_conf', PushConf())
+
+    workflow.build_dir.init_build_dirs(["x86_64"], workflow.source)
+
     if docker_registry:
         docker_reg = workflow.push_conf.add_docker_registry('docker.example.com')
 
@@ -351,7 +351,10 @@ def mock_environment(workflow, source_dir: Path, session=None, name=None,
         exported_file_type = IMAGE_TYPE_OCI_TAR
     else:
         exported_file_type = IMAGE_TYPE_DOCKER_ARCHIVE
-    image_tar = source_dir / 'image.tar.xz'
+
+    build_dir_path = workflow.build_dir.any_platform.path
+
+    image_tar = build_dir_path / 'image.tar.xz'
     image_tar.write_text('x' * 2**12, "utf-8")
     setattr(workflow, 'exported_image_sequence', [{'path': str(image_tar),
                                                    'type': exported_file_type}])
@@ -492,7 +495,7 @@ def mock_environment(workflow, source_dir: Path, session=None, name=None,
          .append(manifests_entry))
 
     if has_remote_source:
-        source_path = source_dir / REMOTE_SOURCE_TARBALL_FILENAME
+        source_path = build_dir_path / REMOTE_SOURCE_TARBALL_FILENAME
         source_path.write_text('dummy file', 'utf-8')
         remote_source_result = [
             {
@@ -515,7 +518,7 @@ def mock_environment(workflow, source_dir: Path, session=None, name=None,
     workflow.postbuild_results[PLUGIN_GENERATE_MAVEN_METADATA_KEY] = None
 
     if has_remote_source_file:
-        filepath = source_dir / REMOTE_SOURCE_FILE_FILENAME
+        filepath = build_dir_path / REMOTE_SOURCE_FILE_FILENAME
         filepath.write_text('dummy file', 'utf-8')
         remote_source_file_result = {
             'remote_source_files': [
