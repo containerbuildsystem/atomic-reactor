@@ -1854,18 +1854,16 @@ def test_allow_repo_dir_in_dockerignore(tmpdir, dockerignore_exists):
     )
 
 ])
-def test_has_operator_manifest(tmpdir, workflow, labels, f_true, f_false):
+def test_has_operator_manifest(workflow, labels, f_true, f_false):
     df_content = dedent("""\
         FROM fedora
         ENV foo=bar
         """)
     for label in labels:
         df_content += 'LABEL {}\n'.format(label)
-    workflow.source = StubSource()
-    cont_path = os.path.join(str(tmpdir), 'Dockerfile')
-    with open(cont_path, 'w') as f:
-        f.write(df_content)
-    workflow._df_path = cont_path
+
+    workflow.build_dir.init_build_dirs(["x86_64"], workflow.source)
+    workflow.build_dir.any_platform.dockerfile.content = df_content
 
     for func in f_true:
         assert func(workflow), 'Label not properly detected'

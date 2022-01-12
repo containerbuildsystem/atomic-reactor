@@ -1575,8 +1575,18 @@ def exception_message(exc):
     return '{exc.__class__.__name__}: {exc}'.format(exc=exc)
 
 
-def _has_label_flag(workflow, label):
-    dockerfile = df_parser(workflow.df_path, workflow=workflow)
+def _has_label_flag(workflow, label) -> bool:
+    """Check if the Dockerfile for the build sets the specified label to 'true' (case-insensitive).
+
+    Checks the Dockerfile for just one platform. For the boolean-like labels this method should be
+    used to check, it is generally expected that they will be present in the source repo and not
+    modified by OSBS (therefore their values will be equal for all platforms).
+
+    Takes into account parent environment inheritance.
+    """
+    dockerfile = workflow.build_dir.any_platform.dockerfile_with_parent_env(
+        workflow.imageutil.base_image_inspect()
+    )
     labels = Labels(dockerfile.labels)
     try:
         _, value = labels.get_name_and_value(label)
@@ -1585,7 +1595,7 @@ def _has_label_flag(workflow, label):
     return value.lower() == 'true'
 
 
-def has_operator_appregistry_manifest(workflow):
+def has_operator_appregistry_manifest(workflow) -> bool:
     """
     Check if Dockerfile sets the operator manifest appregistry label
 
@@ -1594,7 +1604,7 @@ def has_operator_appregistry_manifest(workflow):
     return _has_label_flag(workflow, Labels.LABEL_TYPE_OPERATOR_MANIFESTS)
 
 
-def has_operator_bundle_manifest(workflow):
+def has_operator_bundle_manifest(workflow) -> bool:
     """
     Check if Dockerfile sets the operator manifest bundle label
 

@@ -9,7 +9,6 @@ of the BSD license. See the LICENSE file for details.
 from atomic_reactor.constants import PLUGIN_CHECK_USER_SETTINGS
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import (
-    df_parser,
     has_operator_appregistry_manifest,
     has_operator_bundle_manifest,
     is_isolated_build,
@@ -65,7 +64,10 @@ class CheckUserSettingsPlugin(PreBuildPlugin):
         msg = "Dockerfile version label can't contain '/' character"
         self.log.debug("Running check: %s", msg)
 
-        parser = df_parser(self.workflow.df_path, workflow=self.workflow)
+        # any_platform: the version label should be equal for all platforms
+        parser = self.workflow.build_dir.any_platform.dockerfile_with_parent_env(
+            self.workflow.imageutil.base_image_inspect()
+        )
         dockerfile_labels = parser.labels
         labels = Labels(parser.labels)
 
