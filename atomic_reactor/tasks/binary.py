@@ -33,7 +33,7 @@ class BinaryPreBuildTask(plugin_based.PluginBasedTask):
             {"name": "add_image_content_manifest"},
             {"name": "add_dockerfile"},
             {"name": "distgit_fetch_artefacts"},
-            {"name": "inject_yum_repos"},
+            {"name": "inject_yum_repo"},
             {"name": "hide_files"},
             {"name": "distribution_scope"},
             {"name": "add_buildargs_in_dockerfile"},
