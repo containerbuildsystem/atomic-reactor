@@ -121,9 +121,12 @@ def mock_env(workflow, tmpdir, has_appregistry_label=False, appregistry_label=Fa
         def manifests_dir(self):
             return manifests_dir
 
-    # Set a new source object, only the manifests_dir property is required for tests.
-    setattr(env.workflow, 'source', MockSource())
-    env.workflow._df_path = str(repo_dir)
+        path = str(repo_dir)
+
+    # Set a new source object, only the manifests_dir and path properties are required for tests.
+    source = MockSource()
+    env.workflow.source = source
+    env.workflow.build_dir.init_build_dirs(["aarch64", "x86_64"], source)
 
 #    mock_stream = generate_archive(tmpdir, empty_archive, change_csv_content, multiple_csv)
     if selected_platform:
