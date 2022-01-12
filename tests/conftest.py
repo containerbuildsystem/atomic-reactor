@@ -14,6 +14,7 @@ import requests
 import requests.exceptions
 from atomic_reactor.constants import DOCKERFILE_FILENAME
 from atomic_reactor.dirs import RootBuildDir
+from atomic_reactor.source import DummySource
 from tests.constants import LOCALHOST_REGISTRY_HTTP, DOCKER0_REGISTRY_HTTP, TEST_IMAGE
 from tests.util import uuid_value
 
@@ -66,8 +67,11 @@ def user_params(monkeypatch):
 
 
 @pytest.fixture
-def workflow(build_dir, user_params):
-    return DockerBuildWorkflow(RootBuildDir(build_dir), source=None)
+def workflow(build_dir, source_dir, user_params):
+    return DockerBuildWorkflow(
+        build_dir=RootBuildDir(build_dir),
+        source=DummySource(None, None, workdir=source_dir),
+    )
 
 
 @pytest.mark.optionalhook
