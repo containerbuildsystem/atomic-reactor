@@ -61,7 +61,7 @@ from atomic_reactor.constants import (
     KOJI_SOURCE_ENGINE,
 )
 from atomic_reactor.util import (Output,
-                                 df_parser, get_primary_images,
+                                 get_primary_images,
                                  get_floating_images, get_unique_images,
                                  get_manifest_media_type,
                                  get_digests_map_from_annotations, is_scratch_build,
@@ -699,8 +699,11 @@ class KojiImportPlugin(KojiImportBase):
             extra['custom_user_metadata'] = self.userdata
 
     def _update_build(self, build):
-        labels = Labels(df_parser(self.workflow.df_path,
-                                  workflow=self.workflow).labels)
+        # any_platform: the N-V-R labels should be equal for all platforms
+        dockerfile = self.workflow.build_dir.any_platform.dockerfile_with_parent_env(
+            self.workflow.imageutil.base_image_inspect()
+        )
+        labels = Labels(dockerfile.labels)
         _, component = labels.get_name_and_value(Labels.LABEL_TYPE_COMPONENT)
         _, version = labels.get_name_and_value(Labels.LABEL_TYPE_VERSION)
         _, release = labels.get_name_and_value(Labels.LABEL_TYPE_RELEASE)
