@@ -97,7 +97,7 @@ def generate_archive(tmpdir, empty=False, change_csv_content=False, multiple_csv
     archive_path.remove()
 
 
-def mock_env(tmpdir, has_appregistry_label=False, appregistry_label=False,
+def mock_env(workflow, tmpdir, has_appregistry_label=False, appregistry_label=False,
              has_bundle_label=True, bundle_label=True,
              has_archive=True,
              scratch=False, orchestrator=False, selected_platform=True, empty_archive=False,
@@ -110,7 +110,7 @@ def mock_env(tmpdir, has_appregistry_label=False, appregistry_label=False,
     )
     manifests_dir = mock_manifests_dir(repo_dir)
 
-    env = (MockEnv()
+    env = (MockEnv(workflow)
            .for_plugin('postbuild', ExportOperatorManifestsPlugin.key)
            .set_scratch(scratch))
     if orchestrator:
@@ -141,12 +141,12 @@ class TestExportOperatorManifests(object):
     @pytest.mark.parametrize('bundle_label', [True, False])
     @pytest.mark.parametrize('orchestrator', [True, False])
     @pytest.mark.parametrize('selected_platform', [True, False])
-    def test_skip(self, tmpdir, caplog, has_appregistry_label, appregistry_label,
+    def test_skip(self, workflow, tmpdir, caplog, has_appregistry_label, appregistry_label,
                   has_bundle_label, bundle_label,
                   orchestrator, selected_platform):
 
         runner = mock_env(
-            tmpdir, has_appregistry_label=has_appregistry_label,
+            workflow, tmpdir, has_appregistry_label=has_appregistry_label,
             has_bundle_label=has_bundle_label, bundle_label=bundle_label,
             appregistry_label=appregistry_label,
             orchestrator=orchestrator, selected_platform=selected_platform
@@ -167,8 +167,8 @@ class TestExportOperatorManifests(object):
 
     @pytest.mark.skip(reason="plugin needs rework to get image content")
     @pytest.mark.parametrize('scratch', [True, False])
-    def test_export_archive(self, tmpdir, scratch):
-        runner = mock_env(tmpdir, scratch=scratch)
+    def test_export_archive(self, workflow, tmpdir, scratch):
+        runner = mock_env(workflow, tmpdir, scratch=scratch)
         result = runner.run()
         archive = result[PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY]
 
@@ -181,23 +181,22 @@ class TestExportOperatorManifests(object):
             assert sorted(z.namelist()) == sorted(expected)
 
     @pytest.mark.skip(reason="plugin needs rework to get image content")
-    def test_csv_is_changed_in_built_image(self, tmpdir):
-        runner = mock_env(tmpdir, change_csv_content=True)
+    def test_csv_is_changed_in_built_image(self, workflow, tmpdir):
+        runner = mock_env(workflow, tmpdir, change_csv_content=True)
         with pytest.raises(PluginFailedException, match='have different content'):
             runner.run()
 
     @pytest.mark.skip(reason="plugin needs rework to get image content")
-    def test_multiple_csv_files_inside_built_image(self, tmpdir):
-        runner = mock_env(tmpdir, multiple_csv=True)
+    def test_multiple_csv_files_inside_built_image(self, workflow, tmpdir):
+        runner = mock_env(workflow, tmpdir, multiple_csv=True)
         with pytest.raises(PluginFailedException, match='but contains more'):
             runner.run()
 
     @pytest.mark.skip(reason="plugin needs rework to get image content")
     @pytest.mark.parametrize('remove_fails', [True, False])
     @pytest.mark.parametrize('has_archive', [True, False, None])
-    def test_no_archive(self, tmpdir, caplog, remove_fails, has_archive):
-        runner = mock_env(tmpdir, has_archive=has_archive,
-                          remove_fails=remove_fails)
+    def test_no_archive(self, workflow, tmpdir, caplog, remove_fails, has_archive):
+        runner = mock_env(workflow, tmpdir, has_archive=has_archive, remove_fails=remove_fails)
         if has_archive:
             runner.run()
             if remove_fails:
@@ -213,8 +212,8 @@ class TestExportOperatorManifests(object):
 
     @pytest.mark.skip(reason="plugin needs rework to get image content")
     @pytest.mark.parametrize('empty_archive', [True, False])
-    def test_empty_manifests_dir(self, tmpdir, caplog, empty_archive):
-        runner = mock_env(tmpdir, empty_archive=empty_archive)
+    def test_empty_manifests_dir(self, workflow, tmpdir, caplog, empty_archive):
+        runner = mock_env(workflow, tmpdir, empty_archive=empty_archive)
         if empty_archive:
             with pytest.raises(PluginFailedException) as exc:
                 runner.run()
