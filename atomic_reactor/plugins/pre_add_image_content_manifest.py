@@ -8,7 +8,6 @@ of the BSD license. See the LICENSE file for details.
 
 import json
 import os
-
 from copy import deepcopy
 
 from osbs.utils import Labels
@@ -102,25 +101,20 @@ class AddImageContentManifestPlugin(PreBuildPlugin):
         self.content_manifests_dir = os.path.join(destdir, 'content_manifests')
         self.remote_sources = remote_sources
         self.dfp = df_parser(self.workflow.df_path, workflow=self.workflow)
-        labels = Labels(self.dfp.labels)
-        _, image_name = labels.get_name_and_value(Labels.LABEL_TYPE_COMPONENT)
-        _, image_version = labels.get_name_and_value(Labels.LABEL_TYPE_VERSION)
-        _, image_release = labels.get_name_and_value(Labels.LABEL_TYPE_RELEASE)
-        self.icm_file_name = '{}-{}-{}.json'.format(image_name, image_version, image_release)
-        self.content_sets = []
         fetch_maven_results = workflow.prebuild_results.get(PLUGIN_FETCH_MAVEN_KEY) or {}
         self.pnc_artifact_ids = fetch_maven_results.get('pnc_artifact_ids') or []
-        self._cachito_verify = None
-        self._layer_index = None
-        self._icm = None
-        self._cachito_session = None
-        self._pnc_util = None
 
     @property
-    def layer_index(self):
-        if self._layer_index is not None:
-            return self._layer_index
+    def icm_file_name(self):
+        """Determine the name for the ICM file (name-version-release.json)."""
+        labels = Labels(self.dfp.labels)
+        _, name = labels.get_name_and_value(Labels.LABEL_TYPE_COMPONENT)
+        _, version = labels.get_name_and_value(Labels.LABEL_TYPE_VERSION)
+        _, release = labels.get_name_and_value(Labels.LABEL_TYPE_RELEASE)
+        return f"{name}-{version}-{release}.json"
 
+    @property
+    def layer_index(self) -> int:
         # OSBS2 TBD: decide if we need to inspect a specific arch
         inspect = self.workflow.imageutil.base_image_inspect()
         if not inspect:
@@ -129,70 +123,53 @@ class AddImageContentManifestPlugin(PreBuildPlugin):
             #   to only 1 layer => the layer index in this case is 0 (the first and only layer).
 
             # OSBS2 TBD: this is only true for build tasks that behave like `podman build --squash`
-            self._layer_index = 0
-        else:
-            self._layer_index = len(inspect[INSPECT_ROOTFS][INSPECT_ROOTFS_LAYERS])
-        return self._layer_index
+            return 0
+
+        return len(inspect[INSPECT_ROOTFS][INSPECT_ROOTFS_LAYERS])
 
     @property
-    def icm(self):
-        """
-        Get and validate the ICM from the Cachito API `content-manifest` endpoint.
+    def _icm_base(self) -> dict:
+        """Create the platform-independent skeleton of the ICM document.
 
         :return: dict, the ICM as a Python dict
         """
-        if self._icm:
-            return self._icm
+        icm = deepcopy(self.minimal_icm)
 
-        self._icm = deepcopy(self.minimal_icm)
         if self.remote_sources:
             request_ids = [remote_source['request_id'] for remote_source in self.remote_sources]
-            self._icm = self.cachito_session.get_image_content_manifest(
-                request_ids
-            )
+            icm = self.cachito_session.get_image_content_manifest(request_ids)
+
         if self.pnc_artifact_ids:
             purl_specs = self.pnc_util.get_artifact_purl_specs(self.pnc_artifact_ids)
             for purl_spec in purl_specs:
-                self._icm['image_contents'].append({'purl': purl_spec})
+                icm['image_contents'].append({'purl': purl_spec})
+
+        icm['metadata']['image_layer_index'] = self.layer_index
+        return icm
+
+    def make_icm(self, platform: str) -> dict:
+        """Create the complete ICM document for the specified platform."""
+        icm = deepcopy(self._icm_base)
+
+        content_sets = read_content_sets(self.workflow) or {}
+        icm['content_sets'] = content_sets.get(platform, [])
+
+        self.log.debug('Output ICM content_sets: %s', icm['content_sets'])
+        self.log.debug('Output ICM metadata: %s', icm['metadata'])
 
         # Validate; `json.dumps()` converts `icm` to str. Confusingly, `read_yaml`
         #     *will* validate JSON
-        read_yaml(json.dumps(self._icm), 'schemas/content_manifest.json')
+        read_yaml(json.dumps(icm), 'schemas/content_manifest.json')
+        return icm
 
-        return self._icm
-
-    def _populate_content_sets(self):
-        """
-        Get the list of the current platform's content_sets from
-        'content_sets.yml' in dist-git, and set `self.content_sets` to same.
-        """
-        current_platform = self.workflow.user_params['platform']
-        content_sets = read_content_sets(self.workflow) or {}
-        self.content_sets = content_sets.get(current_platform, [])
-        self.log.debug('Output content_sets: %s', self.content_sets)
-
-    def _update_icm_data(self):
-        # Inject the content_sets data into the ICM JSON object
-        self.icm['content_sets'] = self.content_sets
-
-        # Inject the current image layer index number into the ICM JSON object metadata
-        self.icm['metadata']['image_layer_index'] = self.layer_index
-
-        # Convert dict -> str
-        icm_json = json.dumps(self.icm, indent=4)
-
-        # Validate the updated ICM with the ICM JSON Schema
-        read_yaml(icm_json, 'schemas/content_manifest.json')
-
-        self.log.debug('Output ICM content_sets: %s', self.icm['content_sets'])
-        self.log.debug('Output ICM metadata: %s', self.icm['metadata'])
-
-    def _write_json_file(self):
+    def _write_json_file(self, icm: dict) -> None:
         out_file_path = os.path.join(self.workflow.df_dir, self.icm_file_name)
         if os.path.exists(out_file_path):
             raise RuntimeError('File {} already exists in repo'.format(out_file_path))
+
         with open(out_file_path, 'w') as outfile:
-            json.dump(self.icm, outfile, indent=4)
+            json.dump(icm, outfile, indent=4)
+
         self.log.debug('ICM JSON saved to: %s', out_file_path)
 
     def _add_to_dockerfile(self):
@@ -212,9 +189,8 @@ class AddImageContentManifestPlugin(PreBuildPlugin):
         """
         run the plugin
         """
-        self._populate_content_sets()
-        self._update_icm_data()
-        self._write_json_file()
+        icm = self.make_icm(self.workflow.user_params['platform'])
+        self._write_json_file(icm)
         self._add_to_dockerfile()
         self.log.info('added "%s" to "%s"', self.icm_file_name, self.content_manifests_dir)
 
@@ -222,15 +198,11 @@ class AddImageContentManifestPlugin(PreBuildPlugin):
     def cachito_session(self):
         if not self.workflow.conf.cachito:
             raise RuntimeError('No Cachito configuration defined')
-        if not self._cachito_session:
-            self._cachito_session = get_cachito_session(self.workflow.conf)
-        return self._cachito_session
+        return get_cachito_session(self.workflow.conf)
 
     @property
     def pnc_util(self):
-        if not self._pnc_util:
-            pnc_map = self.workflow.conf.pnc
-            if not pnc_map:
-                raise RuntimeError('No PNC configuration found in reactor config map')
-            self._pnc_util = PNCUtil(pnc_map)
-        return self._pnc_util
+        pnc_map = self.workflow.conf.pnc
+        if not pnc_map:
+            raise RuntimeError('No PNC configuration found in reactor config map')
+        return PNCUtil(pnc_map)
