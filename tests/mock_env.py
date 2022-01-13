@@ -5,8 +5,7 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
-from pathlib import Path
-from typing import Iterable, List, Optional, Union
+from typing import Iterable, List, Union
 
 from atomic_reactor.constants import (PLUGIN_BUILD_ORCHESTRATE_KEY,
                                       PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
@@ -18,7 +17,6 @@ from atomic_reactor.plugin import (PreBuildPluginsRunner,
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.config import Configuration
 from atomic_reactor.util import DockerfileImages
-from tests.stubs import StubSource
 
 
 class MockEnv(object):
@@ -29,7 +27,7 @@ class MockEnv(object):
     for a specific test scenario.
 
     Example usage:
-    >>> runner = (MockEnv()
+    >>> runner = (MockEnv(workflow)
     >>>           .for_plugin('prebuild', 'my_plugin')
     >>>           .set_scratch(True)
     >>>           .make_orchestrator()
@@ -55,14 +53,8 @@ class MockEnv(object):
         'exit': 'exit_results',
     }
 
-    def __init__(self, workflow=None, build_dir: Optional[Path] = None):
-        if not workflow and build_dir is None:
-            raise ValueError(
-                "Argument build_dir is missed to create a DockerBuildWorkflow instance."
-            )
-        self.workflow = workflow or DockerBuildWorkflow(build_dir)
-        self.workflow.source = StubSource()
-
+    def __init__(self, workflow: DockerBuildWorkflow):
+        self.workflow = workflow
         self._phase = None
         self._plugin_key = None
         self._reactor_config_map = None
@@ -196,7 +188,7 @@ class MockEnv(object):
         Get reactor config map (from the ReactorConfigPlugin's workspace)
 
         If config does not exist, it will be created, i.e. you can do:
-        >>> env = MockEnv()
+        >>> env = MockEnv(workflow)
         >>> env.reactor_config.conf['sources_command'] = 'fedpkg sources'
 
         :return: ReactorConfig instance
