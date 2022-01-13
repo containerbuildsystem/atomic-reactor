@@ -7,8 +7,8 @@ of the BSD license. See the LICENSE file for details.
 """
 
 import json
-import os
 import sys
+from pathlib import Path
 
 from copy import deepcopy
 from textwrap import dedent
@@ -20,7 +20,6 @@ from flexmock import flexmock
 from tests.mock_env import MockEnv
 from tests.utils.test_cachito import CACHITO_URL, CACHITO_REQUEST_ID
 
-from atomic_reactor import util
 from atomic_reactor.constants import INSPECT_ROOTFS, INSPECT_ROOTFS_LAYERS, PLUGIN_FETCH_MAVEN_KEY
 from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.pre_add_image_content_manifest import AddImageContentManifestPlugin
@@ -132,12 +131,12 @@ def teardown_function(*args):
     sys.modules.pop('pre_add_image_content_manifest', None)
 
 
-def mock_content_sets_config(tmpdir, empty=False):
+def mock_content_sets_config(source_path: str, empty=False):
     content_dict = {}
     if not empty:
         for arch, repos in CONTENT_SETS.items():
             content_dict[arch] = repos
-    tmpdir.join('content_sets.yml').write(yaml.safe_dump(content_dict))
+    Path(source_path, 'content_sets.yml').write_text(yaml.safe_dump(content_dict))
 
 
 def mock_get_icm(requests_mock):
@@ -145,9 +144,8 @@ def mock_get_icm(requests_mock):
     requests_mock.register_uri('GET', PNC_ARTIFACT_URL, text=json.dumps(PNC_ARTIFACT))
 
 
-def mock_env(workflow, tmpdir, platform='x86_64', base_layers=0,
-             remote_sources=REMOTE_SOURCES, r_c_m_override=None, pnc_artifacts=True,
-             ):  # pylint: disable=W0102
+def mock_env(workflow, df_content, base_layers=0, remote_sources=None,
+             r_c_m_override=None, pnc_artifacts=True):
 
     if base_layers > 0:
         inspection_data = {
@@ -158,13 +156,16 @@ def mock_env(workflow, tmpdir, platform='x86_64', base_layers=0,
     else:
         inspection_data = {}
 
+    certs_dir = Path(workflow.source.path)
+    certs_dir.joinpath('cert').write_text('')
+
     if r_c_m_override is None:
         r_c_m = {
             'version': 1,
             'cachito': {
                 'api_url': CACHITO_URL,
                 'auth': {
-                    'ssl_certs_dir': str(tmpdir),
+                    'ssl_certs_dir': str(certs_dir),
                 },
             },
             'pnc': {
@@ -185,22 +186,34 @@ def mock_env(workflow, tmpdir, platform='x86_64', base_layers=0,
         env.set_plugin_result(
             'prebuild', PLUGIN_FETCH_MAVEN_KEY, {'pnc_artifact_ids': [PNC_ARTIFACT['id']]}
         )
-    tmpdir.join('cert').write('')
     flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return(inspection_data)
-    env.workflow.user_params['platform'] = platform
 
-    # Ensure to succeed in reading the content_sets.yml
-    env.workflow.source.get_build_file_path = lambda: (str(tmpdir), str(tmpdir))
+    Path(workflow.source.path, "Dockerfile").write_text(df_content)
 
-    # TEMP solution until the plugin is updated to read Dockerfiles from build dirs
-    env.workflow._df_path = str(tmpdir)
+    platforms = list(CONTENT_SETS.keys())
+    workflow.build_dir.init_build_dirs(platforms, workflow.source)
 
     return env.create_runner()
 
 
+def check_icm(expect_filename: str, platform_independent_data: dict, has_content_sets: bool):
+    """Make a function that checks the expected ICM in a build dir."""
+
+    def check_in_build_dir(build_dir):
+        expect_data = deepcopy(platform_independent_data)
+        if has_content_sets:
+            expect_data['content_sets'] = CONTENT_SETS[build_dir.platform]
+
+        icm_content = build_dir.path.joinpath(expect_filename).read_text()
+        actual_data = json.loads(icm_content)
+
+        assert actual_data == expect_data
+
+    return check_in_build_dir
+
+
 @pytest.mark.parametrize('manifest_file_exists', [True, False])
 @pytest.mark.parametrize('content_sets', [True, False])
-@pytest.mark.parametrize('platform', ['x86_64', 'ppc64', 's390x'])
 @pytest.mark.parametrize(
     ('df_content, expected_df, base_layers, manifest_file'), [
         (
@@ -249,41 +262,41 @@ def mock_env(workflow, tmpdir, platform='x86_64', base_layers=0,
             'eggs-1.0-42.json',
         ),
     ])
-def test_add_image_content_manifest(workflow, requests_mock, tmpdir, caplog,
-                                    manifest_file_exists, content_sets, platform,
+def test_add_image_content_manifest(workflow, requests_mock,
+                                    manifest_file_exists, content_sets,
                                     df_content, expected_df, base_layers, manifest_file,
                                     ):
     mock_get_icm(requests_mock)
-    mock_content_sets_config(tmpdir, empty=(not content_sets))
-    dfp = util.df_parser(str(tmpdir))
-    dfp.content = df_content
+    mock_content_sets_config(workflow.source.path, empty=(not content_sets))
+
+    runner = mock_env(workflow, df_content, base_layers, remote_sources=REMOTE_SOURCES)
+
     if manifest_file_exists:
-        tmpdir.join(manifest_file).write("")
-    runner = mock_env(workflow, tmpdir, platform, base_layers)
-    runner.workflow.df_dir = str(tmpdir)
-    if manifest_file_exists:
-        with pytest.raises(PluginFailedException):
+        workflow.build_dir.any_platform.path.joinpath(manifest_file).touch()
+        err_msg = f'File .*/{manifest_file} already exists in repo'
+
+        with pytest.raises(PluginFailedException, match=err_msg):
             runner.run()
-        log_msg = 'File {} already exists in repo'.format(os.path.join(str(tmpdir), manifest_file))
-        assert log_msg in caplog.text
         return
+
     expected_output = deepcopy(ICM_DICT)
-    if content_sets:
-        expected_output['content_sets'] = CONTENT_SETS[platform]
     expected_output['metadata']['image_layer_index'] = base_layers if base_layers else 0
+
     runner.run()
-    assert dfp.content == expected_df
-    output_file = os.path.join(str(tmpdir), manifest_file)
-    with open(output_file) as f:
-        json_data = f.read()
-    output = json.loads(json_data)
-    assert expected_output == output
+
+    workflow.build_dir.for_each_platform(
+        check_icm(manifest_file, expected_output, has_content_sets=content_sets)
+    )
+
+    def check_df(build_dir):
+        assert build_dir.dockerfile_path.read_text() == expected_df
+
+    workflow.build_dir.for_each_platform(check_df)
 
 
-def test_fetch_maven_artifacts_no_pnc_config(workflow, requests_mock, tmpdir, caplog, user_params):
+def test_fetch_maven_artifacts_no_pnc_config(workflow, requests_mock, caplog):
     mock_get_icm(requests_mock)
-    dfp = util.df_parser(str(tmpdir))
-    dfp.content = dedent("""\
+    df_content = dedent("""\
                             FROM base_image
                             CMD build /spam/eggs
                             LABEL com.redhat.component=eggs version=1.0 release=42
@@ -293,13 +306,13 @@ def test_fetch_maven_artifacts_no_pnc_config(workflow, requests_mock, tmpdir, ca
         'cachito': {
             'api_url': CACHITO_URL,
             'auth': {
-                'ssl_certs_dir': str(tmpdir),
+                'ssl_certs_dir': workflow.source.path,
             },
         },
     }
 
     with pytest.raises(PluginFailedException):
-        runner = mock_env(workflow, tmpdir, r_c_m_override=r_c_m)
+        runner = mock_env(workflow, df_content, r_c_m_override=r_c_m, remote_sources=REMOTE_SOURCES)
         runner.run()
 
     msg = 'No PNC configuration found in reactor config map'
@@ -318,26 +331,21 @@ def test_fetch_maven_artifacts_no_pnc_config(workflow, requests_mock, tmpdir, ca
             2,
             'eggs-1.0-42.json',
         )])
-def test_none_remote_source_icm_url(workflow, requests_mock, tmpdir, caplog,
+def test_none_remote_source_icm_url(workflow, requests_mock,
                                     content_sets, df_content, base_layers, manifest_file):
-    platform = 'x86_64'
     mock_get_icm(requests_mock)
-    mock_content_sets_config(tmpdir, empty=(not content_sets))
-    dfp = util.df_parser(str(tmpdir))
-    dfp.content = df_content
-    runner = mock_env(workflow, tmpdir, platform, base_layers, remote_sources=None)
-    runner.workflow.df_dir = str(tmpdir)
+    mock_content_sets_config(workflow.source.path, empty=(not content_sets))
+
+    runner = mock_env(workflow, df_content, base_layers)
+    runner.run()
+
     expected_output = deepcopy(ICM_MINIMAL_DICT)
     expected_output['image_contents'].append({'purl': PNC_ARTIFACT['purl']})
-    if content_sets:
-        expected_output['content_sets'] = CONTENT_SETS[platform]
     expected_output['metadata']['image_layer_index'] = base_layers
-    runner.run()
-    output_file = os.path.join(str(tmpdir), manifest_file)
-    with open(output_file) as f:
-        json_data = f.read()
-    output = json.loads(json_data)
-    assert expected_output == output
+
+    workflow.build_dir.for_each_platform(
+        check_icm(manifest_file, expected_output, has_content_sets=content_sets)
+    )
 
 
 @pytest.mark.parametrize('content_sets', [True, False])
@@ -352,23 +360,20 @@ def test_none_remote_source_icm_url(workflow, requests_mock, tmpdir, caplog,
             2,
             'eggs-1.0-42.json',
         )])
-def test_no_pnc_artifacts(workflow, requests_mock, tmpdir, caplog, content_sets, df_content,
+def test_no_pnc_artifacts(workflow, requests_mock, content_sets, df_content,
                           base_layers, manifest_file):
-    platform = 'x86_64'
     mock_get_icm(requests_mock)
-    mock_content_sets_config(tmpdir, empty=(not content_sets))
-    dfp = util.df_parser(str(tmpdir))
-    dfp.content = df_content
-    runner = mock_env(workflow, tmpdir, platform, base_layers, pnc_artifacts=False)
-    runner.workflow.df_dir = str(tmpdir)
+    mock_content_sets_config(workflow.source.path, empty=(not content_sets))
+    runner = mock_env(
+        workflow, df_content, base_layers, pnc_artifacts=False, remote_sources=REMOTE_SOURCES
+    )
+
     expected_output = deepcopy(ICM_DICT)
     expected_output['image_contents'] = expected_output['image_contents'][:-1]
-    if content_sets:
-        expected_output['content_sets'] = CONTENT_SETS[platform]
     expected_output['metadata']['image_layer_index'] = base_layers
+
     runner.run()
-    output_file = os.path.join(str(tmpdir), manifest_file)
-    with open(output_file) as f:
-        json_data = f.read()
-    output = json.loads(json_data)
-    assert expected_output == output
+
+    workflow.build_dir.for_each_platform(
+        check_icm(manifest_file, expected_output, has_content_sets=content_sets)
+    )

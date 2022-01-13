@@ -6,6 +6,7 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
+import functools
 import json
 import os
 from copy import deepcopy
@@ -17,8 +18,9 @@ from atomic_reactor.constants import (IMAGE_BUILD_INFO_DIR, INSPECT_ROOTFS,
                                       PLUGIN_ADD_IMAGE_CONTENT_MANIFEST,
                                       PLUGIN_FETCH_MAVEN_KEY)
 from atomic_reactor.config import get_cachito_session
+from atomic_reactor.dirs import BuildDir
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.util import df_parser, read_yaml, read_content_sets, map_to_user_params
+from atomic_reactor.util import read_yaml, read_content_sets, map_to_user_params
 from atomic_reactor.utils.pnc import PNCUtil
 
 
@@ -100,14 +102,17 @@ class AddImageContentManifestPlugin(PreBuildPlugin):
         super(AddImageContentManifestPlugin, self).__init__(workflow)
         self.content_manifests_dir = os.path.join(destdir, 'content_manifests')
         self.remote_sources = remote_sources
-        self.dfp = df_parser(self.workflow.df_path, workflow=self.workflow)
         fetch_maven_results = workflow.prebuild_results.get(PLUGIN_FETCH_MAVEN_KEY) or {}
         self.pnc_artifact_ids = fetch_maven_results.get('pnc_artifact_ids') or []
 
-    @property
+    @functools.cached_property
     def icm_file_name(self):
         """Determine the name for the ICM file (name-version-release.json)."""
-        labels = Labels(self.dfp.labels)
+        # parse Dockerfile for any platform, the N-V-R labels should be equal for all platforms
+        dockerfile = self.workflow.build_dir.any_platform.dockerfile_with_parent_env(
+            self.workflow.imageutil.base_image_inspect()
+        )
+        labels = Labels(dockerfile.labels)
         _, name = labels.get_name_and_value(Labels.LABEL_TYPE_COMPONENT)
         _, version = labels.get_name_and_value(Labels.LABEL_TYPE_VERSION)
         _, release = labels.get_name_and_value(Labels.LABEL_TYPE_RELEASE)
@@ -115,7 +120,7 @@ class AddImageContentManifestPlugin(PreBuildPlugin):
 
     @property
     def layer_index(self) -> int:
-        # OSBS2 TBD: decide if we need to inspect a specific arch
+        # inspect any platform, we expect the number of layers to be equal for all platforms
         inspect = self.workflow.imageutil.base_image_inspect()
         if not inspect:
             # Base images ('FROM koji/image-build') and 'FROM scratch' images do not have any
@@ -127,7 +132,7 @@ class AddImageContentManifestPlugin(PreBuildPlugin):
 
         return len(inspect[INSPECT_ROOTFS][INSPECT_ROOTFS_LAYERS])
 
-    @property
+    @functools.cached_property
     def _icm_base(self) -> dict:
         """Create the platform-independent skeleton of the ICM document.
 
@@ -162,37 +167,42 @@ class AddImageContentManifestPlugin(PreBuildPlugin):
         read_yaml(json.dumps(icm), 'schemas/content_manifest.json')
         return icm
 
-    def _write_json_file(self, icm: dict) -> None:
-        out_file_path = os.path.join(self.workflow.df_dir, self.icm_file_name)
-        if os.path.exists(out_file_path):
-            raise RuntimeError('File {} already exists in repo'.format(out_file_path))
+    def _write_json_file(self, icm: dict, build_dir: BuildDir) -> None:
+        out_file_path = build_dir.path / self.icm_file_name
+        if out_file_path.exists():
+            raise RuntimeError(f'File {out_file_path} already exists in repo')
 
         with open(out_file_path, 'w') as outfile:
             json.dump(icm, outfile, indent=4)
 
         self.log.debug('ICM JSON saved to: %s', out_file_path)
 
-    def _add_to_dockerfile(self):
+    def _add_to_dockerfile(self, build_dir: BuildDir) -> None:
         """
         Put an ADD instruction into the Dockerfile (to include the ICM file
         into the container image to be built)
         """
         dest_file_path = os.path.join(self.content_manifests_dir, self.icm_file_name)
         content = 'ADD {0} {1}'.format(self.icm_file_name, dest_file_path)
-        lines = self.dfp.lines
+        lines = build_dir.dockerfile.lines
 
         # Put it before last instruction
         lines.insert(-1, content + '\n')
-        self.dfp.lines = lines
+        build_dir.dockerfile.lines = lines
+
+    def inject_icm(self, build_dir: BuildDir) -> None:
+        """Inject the ICM document to a build directory."""
+        self.log.debug(
+            "Injecting ICM to the build directory for the %s platform", build_dir.platform
+        )
+        icm = self.make_icm(build_dir.platform)
+        self._write_json_file(icm, build_dir)
+        self._add_to_dockerfile(build_dir)
+        self.log.info('added "%s" to "%s"', self.icm_file_name, self.content_manifests_dir)
 
     def run(self):
-        """
-        run the plugin
-        """
-        icm = self.make_icm(self.workflow.user_params['platform'])
-        self._write_json_file(icm)
-        self._add_to_dockerfile()
-        self.log.info('added "%s" to "%s"', self.icm_file_name, self.content_manifests_dir)
+        """Run the plugin."""
+        self.workflow.build_dir.for_each_platform(self.inject_icm)
 
     @property
     def cachito_session(self):
