@@ -23,6 +23,7 @@ class BinaryPreBuildTask(plugin_based.PluginBasedTask):
     plugins_def = plugin_based.PluginsDef(
         prebuild=[
             {"name": "check_user_settings"},
+            {"name": "distgit_fetch_artefacts"},
             {"name": "check_and_set_platforms"},
             {"name": "flatpak_create_dockerfile"},
             {"name": "inject_parent_image"},
@@ -40,7 +41,6 @@ class BinaryPreBuildTask(plugin_based.PluginBasedTask):
             {"name": "fetch_maven_artifacts"},
             {"name": "add_image_content_manifest"},
             {"name": "add_dockerfile"},
-            {"name": "distgit_fetch_artefacts"},
             {"name": "inject_yum_repos"},
             {"name": "hide_files"},
             {"name": "distribution_scope"},
