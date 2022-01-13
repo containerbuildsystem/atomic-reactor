@@ -5,12 +5,12 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
-import subprocess
 
 import pytest
+import os
 
-from atomic_reactor.dirs import BuildDir
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
+from atomic_reactor.plugins import pre_pyrpkg_fetch_artefacts
 from atomic_reactor.plugins.pre_pyrpkg_fetch_artefacts import DistgitFetchArtefactsPlugin
 from osbs.utils import ImageName
 from tests.stubs import StubSource
@@ -29,40 +29,25 @@ class X(object):
     base_image = ImageName.parse('asd')
 
 
-@pytest.fixture
-def workflow(workflow):
-    workflow.build_dir.init_build_dirs(["x86_64", "ppc64le"], workflow.source)
-    return workflow
+def test_distgit_fetch_artefacts_plugin(tmpdir, workflow):  # noqa
+    command = 'fedpkg sources'
+    expected_command = ['fedpkg', 'sources']
 
+    workflow.source = StubSource()
+    workflow.source.path = str(tmpdir)
 
-def test_distgit_fetch_artefacts_plugin(workflow):  # noqa
-    sources_cmd = 'fedpkg sources'
-    workflow.conf.conf['sources_command'] = sources_cmd
+    initial_dir = os.getcwd()
+    assert initial_dir != str(tmpdir)
 
-    # The for_all_platforms_copy works inside this directory.
-    working_build_dir = workflow.build_dir.path / workflow.build_dir.platforms[0]
-    expected_sources_outdir = working_build_dir / 'outdir'
-    # subprocess.check_call should be called with these parameters.
-    expected_check_call_cmd = sources_cmd.split()
-    expected_check_call_cmd.append('--outdir')
-    expected_check_call_cmd.append(str(expected_sources_outdir))
+    def assert_tmpdir(*args, **kwargs):
+        assert os.getcwd() == str(tmpdir)
 
-    expected_sources_files = (
-        ("logo.png", b"image"),
-        ("app.tar.gz", b"tar"),
-    )
-
-    def _mock_check_call(cmd, cwd=None):
-        assert cmd == expected_check_call_cmd
-        assert cwd == working_build_dir
-        # These sources files must be downloaded
-        for filename, data in expected_sources_files:
-            expected_sources_outdir.joinpath(filename).write_bytes(data)
-
-    (flexmock(subprocess)
-     .should_receive('check_call')
-     .replace_with(_mock_check_call)
-     .once())
+    (flexmock(pre_pyrpkg_fetch_artefacts.subprocess)
+        .should_receive('check_call')
+        .with_args(expected_command)
+        .replace_with(assert_tmpdir)
+        .once())
+    workflow.conf.conf['sources_command'] = command
 
     runner = PreBuildPluginsRunner(
         workflow,
@@ -72,39 +57,25 @@ def test_distgit_fetch_artefacts_plugin(workflow):  # noqa
     )
     runner.run()
 
-    def _assert(build_dir: BuildDir):
-        for filename, data in expected_sources_files:
-            sources_file = build_dir.path.joinpath(filename)
-            assert sources_file.exists()
-            assert sources_file.read_bytes() == data
-
-    workflow.build_dir.for_each_platform(_assert)
-
-    assert not expected_sources_outdir.exists()
+    assert os.getcwd() == initial_dir
 
 
-def test_distgit_fetch_artefacts_failure(workflow, source_dir):  # noqa
-    expected_command = 'fedpkg sources'
-    workflow.conf.conf['sources_command'] = expected_command
+def test_distgit_fetch_artefacts_failure(tmpdir, workflow):  # noqa
+    command = 'fedpkg sources'
+    expected_command = ['fedpkg', 'sources']
 
-    working_build_dir = workflow.build_dir.path / workflow.build_dir.platforms[0]
-    expected_sources_outdir = working_build_dir / 'outdir'
+    workflow.source = StubSource()
+    workflow.source.path = str(tmpdir)
 
-    # subprocess.check_call must be called with these parameters.
-    expected_sources_cmd = expected_command.split()
-    expected_sources_cmd.append('--outdir')
-    expected_sources_cmd.append(str(expected_sources_outdir))
+    initial_dir = os.getcwd()
+    assert initial_dir != str(tmpdir)
 
-    def _mock_check_call(cmd, cwd=None):
-        assert cmd == expected_sources_cmd
-        assert cwd == working_build_dir
-        # Then, it is time make check_call fail
-        raise IOError("critical error")
-
-    (flexmock(subprocess)
-     .should_receive("check_call")
-     .replace_with(_mock_check_call)
-     .once())
+    (flexmock(pre_pyrpkg_fetch_artefacts.subprocess)
+        .should_receive('check_call')
+        .with_args(expected_command)
+        .and_raise(RuntimeError)
+        .once())
+    workflow.conf.conf['sources_command'] = command
 
     runner = PreBuildPluginsRunner(
         workflow,
@@ -114,6 +85,8 @@ def test_distgit_fetch_artefacts_failure(workflow, source_dir):  # noqa
     )
     with pytest.raises(PluginFailedException):
         runner.run()
+
+    assert os.getcwd() == initial_dir
 
 
 def test_distgit_fetch_artefacts_skip(tmpdir, workflow, caplog):  # noqa
