@@ -761,7 +761,6 @@ class DockerBuildWorkflow(object):
                 if not exception_being_handled:
                     raise ex
             finally:
-                self.source.remove_workdir()  # OSBS2 TBD: Don't remove here, remove in exit task?
                 self.fs_watcher.finish()
 
             signal.signal(signal.SIGTERM, signal.SIG_DFL)
