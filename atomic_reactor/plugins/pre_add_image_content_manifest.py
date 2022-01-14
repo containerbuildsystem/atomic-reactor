@@ -16,7 +16,8 @@ from osbs.utils import Labels
 from atomic_reactor.constants import (IMAGE_BUILD_INFO_DIR, INSPECT_ROOTFS,
                                       INSPECT_ROOTFS_LAYERS,
                                       PLUGIN_ADD_IMAGE_CONTENT_MANIFEST,
-                                      PLUGIN_FETCH_MAVEN_KEY)
+                                      PLUGIN_FETCH_MAVEN_KEY,
+                                      PLUGIN_RESOLVE_REMOTE_SOURCE)
 from atomic_reactor.config import get_cachito_session
 from atomic_reactor.dirs import BuildDir
 from atomic_reactor.plugin import PreBuildPlugin
@@ -85,23 +86,17 @@ class AddImageContentManifestPlugin(PreBuildPlugin):
 
     args_from_user_params = map_to_user_params("remote_sources")
 
-    def __init__(self, workflow, remote_sources=None, destdir=IMAGE_BUILD_INFO_DIR):
+    def __init__(self, workflow, destdir=IMAGE_BUILD_INFO_DIR):
         """
         :param workflow: DockerBuildWorkflow instance
-        :param remote_sources: list of dicts, each dict contains info about particular
-        remote source with the following keys:
-            build_args: dict, extra args for `workflow.buildargs`, if any
-            configs: list of str, configuration files to be injected into
-            the exploded remote sources dir
-            request_id: int, cachito request id; used to request the
-            Image Content Manifest
-            url: str, URL from which to download a source archive
-            name: str, name of remote source
         :param destdir: image path to carry content_manifests data dir
         """
         super(AddImageContentManifestPlugin, self).__init__(workflow)
         self.content_manifests_dir = os.path.join(destdir, 'content_manifests')
-        self.remote_sources = remote_sources
+
+        remote_source_results = workflow.prebuild_results.get(PLUGIN_RESOLVE_REMOTE_SOURCE) or []
+        self.remote_source_ids = [remote_source['id'] for remote_source in remote_source_results]
+
         fetch_maven_results = workflow.prebuild_results.get(PLUGIN_FETCH_MAVEN_KEY) or {}
         self.pnc_artifact_ids = fetch_maven_results.get('pnc_artifact_ids') or []
 
@@ -140,9 +135,8 @@ class AddImageContentManifestPlugin(PreBuildPlugin):
         """
         icm = deepcopy(self.minimal_icm)
 
-        if self.remote_sources:
-            request_ids = [remote_source['request_id'] for remote_source in self.remote_sources]
-            icm = self.cachito_session.get_image_content_manifest(request_ids)
+        if self.remote_source_ids:
+            icm = self.cachito_session.get_image_content_manifest(self.remote_source_ids)
 
         if self.pnc_artifact_ids:
             purl_specs = self.pnc_util.get_artifact_purl_specs(self.pnc_artifact_ids)

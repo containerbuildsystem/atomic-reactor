@@ -323,6 +323,7 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
         json_filename = RemoteSource.json_filename(remote_source.name)
 
         return {
+            "id": remote_source.id,
             "name": remote_source.name,
             "url": download_url,
             "remote_source_json": {
