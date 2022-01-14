@@ -20,7 +20,12 @@ from flexmock import flexmock
 from tests.mock_env import MockEnv
 from tests.utils.test_cachito import CACHITO_URL, CACHITO_REQUEST_ID
 
-from atomic_reactor.constants import INSPECT_ROOTFS, INSPECT_ROOTFS_LAYERS, PLUGIN_FETCH_MAVEN_KEY
+from atomic_reactor.constants import (
+    INSPECT_ROOTFS,
+    INSPECT_ROOTFS_LAYERS,
+    PLUGIN_FETCH_MAVEN_KEY,
+    PLUGIN_RESOLVE_REMOTE_SOURCE,
+)
 from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.pre_add_image_content_manifest import AddImageContentManifestPlugin
 
@@ -111,11 +116,11 @@ ICM_JSON = dedent(
 )
 
 REMOTE_SOURCES = [{
-    'build_args': None,
-    'configs': None,
-    'request_id': CACHITO_REQUEST_ID,
-    'url': None,
-    'name': None,
+    'id': CACHITO_REQUEST_ID,
+    # 'url': 'some url',
+    # 'name': None,
+    # 'remote_source_json': {},
+    # 'remote_source_tarball': {},
 }]
 
 
@@ -177,9 +182,9 @@ def mock_env(workflow, df_content, base_layers=0, remote_sources=None,
         r_c_m = r_c_m_override
 
     env = (MockEnv(workflow)
-           .for_plugin('prebuild', AddImageContentManifestPlugin.key,
-                       {'remote_sources': remote_sources})
+           .for_plugin('prebuild', AddImageContentManifestPlugin.key)
            .set_reactor_config(r_c_m)
+           .set_plugin_result('prebuild', PLUGIN_RESOLVE_REMOTE_SOURCE, remote_sources)
            .make_orchestrator()
            )
     if pnc_artifacts:

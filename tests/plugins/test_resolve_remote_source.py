@@ -552,6 +552,7 @@ def test_resolve_remote_source(workflow, scratch, dr_strs, dependency_replacemen
 
     expected_plugin_results = [
         {
+            "id": CACHITO_REQUEST_ID,
             "name": None,
             "url": CACHITO_REQUEST_DOWNLOAD_URL,
             "remote_source_json": {
@@ -639,6 +640,7 @@ def test_no_koji_user(workflow, caplog):
 
     expected_plugin_results = [
         {
+            "id": CACHITO_REQUEST_ID,
             "name": None,
             "url": CACHITO_REQUEST_DOWNLOAD_URL,
             "remote_source_json": {
@@ -717,6 +719,7 @@ def test_bad_build_metadata(workflow, task_id, log_entry, caplog):
 
     expected_plugin_results = [
         {
+            "id": CACHITO_REQUEST_ID,
             "name": None,
             "url": CACHITO_REQUEST_DOWNLOAD_URL,
             "remote_source_json": {
@@ -790,6 +793,7 @@ def test_allow_multiple_remote_sources(workflow, allow_multiple_remote_sources):
     else:
         expected_plugin_results = [
             {
+                "id": CACHITO_REQUEST_ID,
                 "name": first_remote_source_name,
                 "url": CACHITO_REQUEST_DOWNLOAD_URL,
                 "remote_source_json": {
@@ -802,6 +806,7 @@ def test_allow_multiple_remote_sources(workflow, allow_multiple_remote_sources):
                 },
             },
             {
+                "id": SECOND_CACHITO_REQUEST_ID,
                 "name": second_remote_source_name,
                 "url": SECOND_CACHITO_REQUEST_DOWNLOAD_URL,
                 "remote_source_json": {
