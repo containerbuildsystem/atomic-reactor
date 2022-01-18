@@ -301,3 +301,36 @@ def test_rootbuilddir_for_all_platforms_copy_invalid_file_path(
 def test_rootbuilddir_for_all_platforms_copy_fails_if_build_dirs_not_inited(build_dir):
     with pytest.raises(BuildDirIsNotInitialized, match="not initialized yet"):
         RootBuildDir(build_dir).for_all_platforms_copy(lambda path: [])
+
+
+def test_rootbuilddir_for_all_platforms_copy_preserve_permissions(build_dir, mock_source):
+    root = RootBuildDir(build_dir)
+    root.init_build_dirs(["aarch64", "x86_64"], mock_source)
+
+    def create_files(d: BuildDir):
+        f1 = d.path / "400.txt"
+        f1.write_text("Preserve permissions for a single file")
+        f1.chmod(0o400)
+
+        subdir = d.path / "some-dir"
+        subdir.mkdir()
+
+        f2 = subdir / "666.txt"
+        f2.write_text("Preserve permissions for files in a directory")
+        f2.chmod(0o666)
+
+        return [f1, subdir]
+
+    root.for_all_platforms_copy(create_files)
+
+    def check_rwx_perms(filepath: Path, expected_perms: int):
+        # Check the 3 rwx bytes (owner, group and others) of file permissions
+        actual_perms = filepath.stat().st_mode & 0o777
+        assert actual_perms == expected_perms, (
+            f"{filepath.relative_to(root.path)}: expected permissions {oct(expected_perms)}, "
+            f"actual {oct(actual_perms)}"
+        )
+
+    for platform in ["aarch64", "x86_64"]:
+        check_rwx_perms(root.path / platform / "400.txt", 0o400)
+        check_rwx_perms(root.path / platform / "some-dir" / "666.txt", 0o666)

@@ -8,7 +8,7 @@ of the BSD license. See the LICENSE file for details.
 import logging
 
 from pathlib import Path
-from shutil import copyfile, copytree
+from shutil import copy2, copytree
 from typing import Dict, Any, List, Callable, Iterable, Optional
 
 from dockerfile_parse import DockerfileParser
@@ -279,6 +279,6 @@ class RootBuildDir(object):
                     copytree(src_file, dest)
                 else:
                     dest.parent.mkdir(parents=True, exist_ok=True)
-                    copyfile(src_file, dest)
+                    copy2(src_file, dest)
 
         return the_new_files
