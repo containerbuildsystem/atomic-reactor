@@ -22,9 +22,9 @@ class BinaryPreBuildTask(plugin_based.PluginBasedTask):
 
     plugins_def = plugin_based.PluginsDef(
         prebuild=[
-            {"name": "check_user_settings"},
             {"name": "distgit_fetch_artefacts"},
             {"name": "check_and_set_platforms"},
+            {"name": "check_user_settings"},
             {"name": "flatpak_create_dockerfile"},
             {"name": "inject_parent_image"},
             {"name": "check_base_image"},
