@@ -26,13 +26,13 @@ class AddBuildargsPlugin(PreBuildPlugin):
         """
         Run the plugin.
         """
-        if not self.workflow.buildargs:
+        if not self.workflow.data.buildargs:
             self.log.info('No buildargs specified, skipping plugin')
             return
 
         buildarg_lines = []
 
-        for buildarg in sorted(self.workflow.buildargs.keys()):
+        for buildarg in sorted(self.workflow.data.buildargs.keys()):
             buildarg_lines.append("ARG {}".format(buildarg))
 
         df = df_parser(self.workflow.df_path, workflow=self.workflow)

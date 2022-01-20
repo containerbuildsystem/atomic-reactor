@@ -26,7 +26,7 @@ class ManifestUtil(object):
     )
 
     def __init__(self, workflow, registries, log):
-        self.push_conf = workflow.push_conf
+        self.push_conf = workflow.data.push_conf
         self.registries = workflow.conf.registries
         self.worker_registries = {}
         self.log = log

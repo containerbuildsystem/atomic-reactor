@@ -23,7 +23,7 @@ class RemoveWorkerMetadataPlugin(ExitPlugin):
         """
         Run the plugin.
         """
-        build_result = self.workflow.build_result
+        build_result = self.workflow.data.build_result
 
         if not build_result.annotations:
             self.log.info("No build annotations found, skipping plugin")

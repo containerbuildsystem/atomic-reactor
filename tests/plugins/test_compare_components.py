@@ -25,7 +25,7 @@ import pytest
 
 def mock_workflow(workflow):
     setattr(workflow, 'postbuild_result', {})
-    workflow.dockerfile_images = DockerfileImages(['fedora:25'])
+    workflow.data.dockerfile_images = DockerfileImages(['fedora:25'])
 
 
 def mock_metadatas():
@@ -85,9 +85,9 @@ def test_compare_components_plugin(workflow, caplog,
     if exception:
         workflow.conf.conf = {'version': 1, 'package_comparison_exceptions': [component['name']]}
 
-    workflow.postbuild_results[PLUGIN_FETCH_WORKER_METADATA_KEY] = worker_metadatas
+    workflow.data.postbuild_results[PLUGIN_FETCH_WORKER_METADATA_KEY] = worker_metadatas
     if base_from_scratch:
-        workflow.dockerfile_images = DockerfileImages(['scratch'])
+        workflow.data.dockerfile_images = DockerfileImages(['scratch'])
 
     runner = PostBuildPluginsRunner(
         workflow,
@@ -115,7 +115,7 @@ def test_no_components(workflow):
     del worker_metadatas['x86_64']['output'][2]['components']
     del worker_metadatas['ppc64le']['output'][2]['components']
 
-    workflow.postbuild_results[PLUGIN_FETCH_WORKER_METADATA_KEY] = worker_metadatas
+    workflow.data.postbuild_results[PLUGIN_FETCH_WORKER_METADATA_KEY] = worker_metadatas
 
     runner = PostBuildPluginsRunner(
         workflow,
@@ -136,7 +136,7 @@ def test_bad_component_type(workflow):
     # example data has 2 log items before component item hence output[2]
     worker_metadatas['x86_64']['output'][2]['components'][0]['type'] = "foo"
 
-    workflow.postbuild_results[PLUGIN_FETCH_WORKER_METADATA_KEY] = worker_metadatas
+    workflow.data.postbuild_results[PLUGIN_FETCH_WORKER_METADATA_KEY] = worker_metadatas
 
     runner = PostBuildPluginsRunner(
         workflow,
@@ -171,7 +171,7 @@ def test_mismatch_reporting(workflow, caplog, mismatch):
         component_ppc64le['version'] = 'bacon'
         component_s390x['version'] = 'sandwich'
 
-    workflow.postbuild_results[PLUGIN_FETCH_WORKER_METADATA_KEY] = worker_metadatas
+    workflow.data.postbuild_results[PLUGIN_FETCH_WORKER_METADATA_KEY] = worker_metadatas
 
     runner = PostBuildPluginsRunner(
         workflow,

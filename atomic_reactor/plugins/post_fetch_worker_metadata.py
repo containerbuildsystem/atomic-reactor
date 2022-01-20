@@ -48,7 +48,7 @@ class FetchWorkerMetadataPlugin(PostBuildPlugin):
         metadatas = {}
 
         # get all the build annotations and labels from the orchestrator
-        build_result = self.workflow.build_result
+        build_result = self.workflow.data.build_result
 
         annotations = build_result.annotations
         worker_builds = annotations['worker-builds']

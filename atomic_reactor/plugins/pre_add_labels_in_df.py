@@ -264,8 +264,8 @@ class AddLabelsPlugin(PreBuildPlugin):
         base_image_inspect = self.workflow.imageutil.base_image_inspect(build_dir.platform)
         dockerfile = build_dir.dockerfile_with_parent_env(base_image_inspect)
 
-        if (self.workflow.dockerfile_images.custom_base_image or
-                self.workflow.dockerfile_images.base_from_scratch):
+        df_images = self.workflow.data.dockerfile_images
+        if df_images.custom_base_image or df_images.base_from_scratch:
             base_image_labels = {}
         else:
             try:

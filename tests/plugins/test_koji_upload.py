@@ -214,11 +214,11 @@ def mock_environment(workflow, source_dir: Path, session=None, name=None, compon
 
     base_image_id = '123456parent-id'
     workflow.source = StubSource()
-    workflow.dockerfile_images = DockerfileImages(['Fedora:22'])
-    workflow.image_id = '123456imageid'
+    workflow.data.dockerfile_images = DockerfileImages(['Fedora:22'])
+    workflow.data.image_id = '123456imageid'
     flexmock(imageutil).should_receive('base_image_inspect').and_return({'Id': base_image_id})
     workflow.user_params['scratch'] = scratch
-    setattr(workflow, 'tag_conf', TagConf())
+    setattr(workflow.data, 'tag_conf', TagConf())
     dockerfile = source_dir / DOCKERFILE_FILENAME
     dockerfile.write_text(
         f'FROM base\n'
@@ -229,26 +229,23 @@ def mock_environment(workflow, source_dir: Path, session=None, name=None, compon
     )
     flexmock(workflow, df_path=str(dockerfile))
     workflow.df_dir = str(source_dir)
+    tag_conf = workflow.data.tag_conf
     if name and version:
-        workflow.tag_conf.add_unique_image('user/test-image:{v}-timestamp'
-                                           .format(v=version))
+        tag_conf.add_unique_image(f'user/test-image:{version}-timestamp')
     if name and version and release:
-        workflow.tag_conf.add_primary_images(["{0}:{1}-{2}".format(name,
-                                                                   version,
-                                                                   release),
-                                              "{0}:{1}".format(name, version),
-                                              "{0}:latest".format(name)])
+        tag_conf.add_primary_images([f"{name}:{version}-{release}",
+                                     f"{name}:{version}",
+                                     f"{name}:latest"])
 
     if additional_tags:
-        workflow.tag_conf.add_primary_images(["{0}:{1}".format(name, tag)
-                                              for tag in additional_tags])
+        tag_conf.add_primary_images([f"{name}:{tag}" for tag in additional_tags])
 
     flexmock(rpm, TransactionSet=MockedTS)
     flexmock(koji, ClientSession=lambda hub, opts: session)
-    setattr(workflow, 'push_conf', PushConf())
-    docker_reg = workflow.push_conf.add_docker_registry('docker.example.com')
+    setattr(workflow.data, 'push_conf', PushConf())
+    docker_reg = workflow.data.push_conf.add_docker_registry('docker.example.com')
 
-    for image in workflow.tag_conf.images:
+    for image in tag_conf.images:
         tag = image.to_str(registry=False)
 
         docker_reg.digests[tag] = ManifestDigest(v1='sha256:not-used',
@@ -270,14 +267,18 @@ def mock_environment(workflow, source_dir: Path, session=None, name=None, compon
     ])
 
     if build_process_failed:
-        workflow.build_result = BuildResult(logs=["docker build log - \u2018 \u2017 \u2019 \n'"],
-                                            fail_reason="not built")
+        workflow.data.build_result = BuildResult(
+            logs=["docker build log - \u2018 \u2017 \u2019 \n'"],
+            fail_reason="not built",
+        )
     else:
-        workflow.build_result = BuildResult(logs=["docker build log - \u2018 \u2017 \u2019 \n'"],
-                                            image_id="id1234")
+        workflow.data.build_result = BuildResult(
+            logs=["docker build log - \u2018 \u2017 \u2019 \n'"],
+            image_id="id1234",
+        )
     workflow.prebuild_plugins_conf = {}
 
-    workflow.image_components = parse_rpm_output([
+    workflow.data.image_components = parse_rpm_output([
         "name1;1.0;1;" + LOCAL_ARCH + ";0;2000;" + FAKE_SIGMD5 + ";23000;"
         "RSA/SHA256, Tue 30 Aug 2016 00:00:00, Key ID 01234567890abc;(none);(none);(none)",
         "name2;2.0;1;" + LOCAL_ARCH + ";0;3000;" + FAKE_SIGMD5 + ";24000"
@@ -337,7 +338,7 @@ def create_runner(workflow, ssl_certs=False, principal=None,
 
 
 def get_metadata(workflow, osbs):
-    cm_annotations = workflow.postbuild_results[KojiUploadPlugin.key]
+    cm_annotations = workflow.data.postbuild_results[KojiUploadPlugin.key]
 
     if not cm_annotations:
         return {}
@@ -740,7 +741,7 @@ class TestKojiUpload(object):
                          session=session, name=name, component=component, version=version,
                          release=release, has_config=has_config)
         if base_from_scratch:
-            workflow.dockerfile_images = DockerfileImages(['scratch'])
+            workflow.data.dockerfile_images = DockerfileImages(['scratch'])
         target = 'images-docker-candidate'
         runner = create_runner(workflow, blocksize=blocksize, target=target, platform=LOCAL_ARCH)
         runner.run()
@@ -900,7 +901,7 @@ class TestKojiUpload(object):
                 archive.write(stub.name, 'stub.yml')
 
         if has_operator_manifests:
-            results = workflow.postbuild_results
+            results = workflow.data.postbuild_results
             results[PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY] = str(op_manifests_path)
         runner = create_runner(workflow, platform='x86_64')
         runner.run()

@@ -44,7 +44,7 @@ class SourceContainerPlugin(BuildStepPlugin):
             raise
 
         img_metadata = get_exported_image_metadata(str(output_path), IMAGE_TYPE_DOCKER_ARCHIVE)
-        self.workflow.exported_image_sequence.append(img_metadata)
+        self.workflow.data.exported_image_sequence.append(img_metadata)
         return str(output_path)
 
     def split_remote_sources_to_subdirs(self, remote_source_data_dir):
@@ -68,7 +68,7 @@ class SourceContainerPlugin(BuildStepPlugin):
         Returns:
             BuildResult
         """
-        fetch_sources_result = self.workflow.prebuild_results.get(PLUGIN_FETCH_SOURCES_KEY, {})
+        fetch_sources_result = self.workflow.data.prebuild_results.get(PLUGIN_FETCH_SOURCES_KEY, {})
         source_data_dir = fetch_sources_result.get('image_sources_dir')
         remote_source_data_dir = fetch_sources_result.get('remote_sources_dir')
         maven_source_data_dir = fetch_sources_result.get('maven_sources_dir')

@@ -6,10 +6,13 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
-from collections import defaultdict
 import logging
 import json
 import os
+from collections import defaultdict
+from dataclasses import fields, Field
+from pathlib import Path
+
 import time
 from dockerfile_parse import DockerfileParser
 from textwrap import dedent
@@ -26,14 +29,16 @@ import signal
 
 from atomic_reactor.inner import (BuildResults, BuildResultsEncoder,
                                   BuildResultsJSONDecoder, DockerBuildWorkflow,
-                                  FSWatcher, PushConf, DockerRegistry, BuildResult)
+                                  FSWatcher, ImageBuildWorkflowData, PushConf, DockerRegistry,
+                                  BuildResult, TagConf)
 from atomic_reactor.constants import (INSPECT_ROOTFS,
                                       INSPECT_ROOTFS_LAYERS,
                                       PLUGIN_BUILD_ORCHESTRATE_KEY)
 from atomic_reactor.source import PathSource
-from atomic_reactor.util import DockerfileImages, df_parser
+from atomic_reactor.util import DockerfileImages, ManifestDigest, df_parser
 from atomic_reactor.utils import imageutil
 from atomic_reactor.tasks.plugin_based import PluginsDef
+from osbs.utils import ImageName
 
 
 BUILD_RESULTS_ATTRS = ['build_logs',
@@ -504,15 +509,15 @@ def test_plugin_errors(plugins, should_fail, should_log, build_dir, caplog):
             workflow.build_docker_image()
 
         assert not watcher.was_called()
-        assert workflow.plugins_errors
+        assert workflow.data.plugins_errors
         assert all([is_string_type(plugin)
-                    for plugin in workflow.plugins_errors])
+                    for plugin in workflow.data.plugins_errors])
         assert all([is_string_type(reason)
-                    for reason in workflow.plugins_errors.values()])
+                    for reason in workflow.data.plugins_errors.values()])
     else:
         workflow.build_docker_image()
         assert watcher.was_called()
-        assert not workflow.plugins_errors
+        assert not workflow.data.plugins_errors
 
     if should_log:
         assert any(record.levelno == logging.ERROR for record in caplog.records)
@@ -573,12 +578,12 @@ def test_workflow_plugin_error(fail_at, build_dir):
     # an exit plugin that's explicitly allowed to fail.
     if fail_at == 'exit_raises_allowed':
         workflow.build_docker_image()
-        assert not workflow.plugins_errors
+        assert not workflow.data.plugins_errors
     else:
         with pytest.raises(PluginFailedException):
             workflow.build_docker_image()
 
-        assert fail_at in workflow.plugins_errors
+        assert fail_at in workflow.data.plugins_errors
 
     # The pre-build phase should only complete if there were no
     # earlier plugin failures.
@@ -877,17 +882,17 @@ def test_workflow_plugin_results(buildstep_plugin, buildstep_raises, build_dir):
     else:
         workflow.build_docker_image()
 
-    assert workflow.prebuild_results == {'pre_build_value': 'pre_build_value_result'}
-    assert isinstance(workflow.buildstep_result[buildstep_plugin], BuildResult)
+    assert workflow.data.prebuild_results == {'pre_build_value': 'pre_build_value_result'}
+    assert isinstance(workflow.data.buildstep_result[buildstep_plugin], BuildResult)
 
     if buildstep_raises:
-        assert workflow.postbuild_results == {}
-        assert workflow.prepub_results == {}
+        assert workflow.data.postbuild_results == {}
+        assert workflow.data.prepub_results == {}
     else:
-        assert workflow.postbuild_results == {'post_build_value': 'post_build_value_result'}
-        assert workflow.prepub_results == {'pre_publish_value': 'pre_publish_value_result'}
+        assert workflow.data.postbuild_results == {'post_build_value': 'post_build_value_result'}
+        assert workflow.data.prepub_results == {'pre_publish_value': 'pre_publish_value_result'}
 
-    assert workflow.exit_results == {'exit_value': 'exit_value_result'}
+    assert workflow.data.exit_results == {'exit_value': 'exit_value_result'}
 
 
 @pytest.mark.parametrize('fail_at', ['pre', 'prepub', 'buildstep', 'post', 'exit'])
@@ -929,7 +934,7 @@ def test_cancel_build(fail_at, build_dir, caplog):
     if fail_at == 'buildstep':
         with pytest.raises(PluginFailedException):
             workflow.build_docker_image()
-        assert workflow.build_canceled
+        assert workflow.data.build_canceled
         assert any(
             expected_entry.format(fail_at) in record.message
             for record in caplog.records
@@ -939,14 +944,14 @@ def test_cancel_build(fail_at, build_dir, caplog):
         workflow.build_docker_image()
 
         if fail_at != 'exit':
-            assert workflow.build_canceled
+            assert workflow.data.build_canceled
             assert any(
                 expected_entry.format(fail_at) in record.message
                 for record in caplog.records
                 if record.levelno == logging.WARNING
             )
         else:
-            assert not workflow.build_canceled
+            assert not workflow.data.build_canceled
 
     assert watch_exit.was_called()
     assert watch_pre.was_called()
@@ -1017,7 +1022,7 @@ def test_layer_sizes(build_dir):
         {'diff_id': u'sha256:diff_id4-newest', 'size': 1}
     ]
 
-    assert workflow.layer_sizes == expected
+    assert workflow.data.layer_sizes == expected
 
 
 @pytest.mark.parametrize('buildstep_plugins, is_orchestrator', [
@@ -1037,8 +1042,8 @@ def test_workflow_is_orchestrator_build(buildstep_plugins, is_orchestrator, buil
 
 def test_parent_images_to_str(caplog, build_dir):
     workflow = DockerBuildWorkflow(build_dir, source=None)
-    workflow.dockerfile_images = DockerfileImages(['fedora:latest', 'bacon'])
-    workflow.dockerfile_images['fedora:latest'] = "spam"
+    workflow.data.dockerfile_images = DockerfileImages(['fedora:latest', 'bacon'])
+    workflow.data.dockerfile_images['fedora:latest'] = "spam"
     expected_results = {
         "fedora:latest": "spam:latest"
     }
@@ -1164,39 +1169,415 @@ class TestPushConf(object):
         assert len(push_conf.docker_registries) == 0
         assert push_conf.all_registries == push_conf.docker_registries
 
+    @pytest.mark.parametrize("uri,expected_dump", [
+        [
+            "http://registry.example.com",
+            {
+                "docker": {
+                    "http://registry.example.com": {
+                        "uri": "http://registry.example.com",
+                        "insecure": True,
+                        "digests": {},
+                        "config": None,
+                    },
+                },
+            }
+        ],
+        [None, {"docker": {}}],  # Test dump an "empty" push conf
+    ])
+    def test_dump(self, uri, expected_dump):
+        push_conf = PushConf()
+        if uri is not None:
+            push_conf.add_docker_registry(uri, insecure=True)
+        assert expected_dump == push_conf.dump()
 
-def test_build_result():
-    with pytest.raises(AssertionError):
-        BuildResult(fail_reason='it happens', image_id='spam')
+    @pytest.mark.parametrize("input_data", [{}, {"podman": {}}])
+    def test_parse_no_registry_is_parsed(self, input_data):
+        push_conf = PushConf.load(input_data)
+        assert len(push_conf.all_registries) == 0
 
-    with pytest.raises(AssertionError):
-        BuildResult(fail_reason='', image_id='spam')
+    @pytest.mark.parametrize("input_data", [
+        {
+            "docker": {
+                "https://registry.host/": {
+                    "uri": "https://registry.host/",
+                    "insecure": True,
+                    "digests": {},
+                    "config": None,
+                },
+            },
+        },
+    ])
+    def test_parse(self, input_data):
+        push_conf = PushConf.load(input_data)
+        registries = push_conf.all_registries
+        docker_regs = input_data["docker"]
+        for reg in registries:
+            docker_reg_info = docker_regs[reg.uri]
+            assert docker_reg_info["uri"] == reg.uri
+            assert docker_reg_info["insecure"] == reg.insecure
+            assert docker_reg_info["digests"] == reg.digests
+            assert docker_reg_info["config"] == reg.config
 
-    with pytest.raises(AssertionError):
-        BuildResult(fail_reason='it happens', source_docker_archive='/somewhere')
 
-    with pytest.raises(AssertionError):
-        BuildResult(image_id='spam', source_docker_archive='/somewhere')
+class TestBuildResult:
+    """Test class BuildResult"""
 
-    with pytest.raises(AssertionError):
-        BuildResult(image_id='spam', fail_reason='it happens', source_docker_archive='/somewhere')
+    def test_build_result(self):
+        with pytest.raises(AssertionError):
+            BuildResult(fail_reason='it happens', image_id='spam')
 
-    assert BuildResult(fail_reason='it happens').is_failed()
-    assert not BuildResult(image_id='spam').is_failed()
+        with pytest.raises(AssertionError):
+            BuildResult(fail_reason='', image_id='spam')
 
-    assert BuildResult(image_id='spam', logs=list('logs')).logs == list('logs')
+        with pytest.raises(AssertionError):
+            BuildResult(fail_reason='it happens', source_docker_archive='/somewhere')
 
-    assert BuildResult(fail_reason='it happens').fail_reason == 'it happens'
-    assert BuildResult(image_id='spam').image_id == 'spam'
+        with pytest.raises(AssertionError):
+            BuildResult(image_id='spam', source_docker_archive='/somewhere')
 
-    assert BuildResult(image_id='spam', annotations={'ham': 'mah'}).annotations == {'ham': 'mah'}
+        with pytest.raises(AssertionError):
+            BuildResult(image_id='spam',
+                        fail_reason='it happens',
+                        source_docker_archive='/somewhere')
 
-    assert BuildResult(image_id='spam', labels={'ham': 'mah'}).labels == {'ham': 'mah'}
+        assert BuildResult(fail_reason='it happens').is_failed()
+        assert not BuildResult(image_id='spam').is_failed()
 
-    assert BuildResult(source_docker_archive='/somewhere').source_docker_archive == '/somewhere'
+        assert BuildResult(image_id='spam', logs=list('logs')).logs == list('logs')
 
-    assert BuildResult(image_id='spam').is_image_available()
-    assert not BuildResult(fail_reason='it happens').is_image_available()
-    assert not BuildResult.make_remote_image_result().is_image_available()
+        assert BuildResult(fail_reason='it happens').fail_reason == 'it happens'
+        assert BuildResult(image_id='spam').image_id == 'spam'
 
-    assert not BuildResult.make_remote_image_result().is_failed()
+        annotations = {'ham': 'mah'}
+        assert BuildResult(image_id='spam', annotations=annotations).annotations == annotations
+
+        assert BuildResult(image_id='spam', labels={'ham': 'mah'}).labels == {'ham': 'mah'}
+
+        assert BuildResult(source_docker_archive='/somewhere').source_docker_archive == '/somewhere'
+
+        assert BuildResult(image_id='spam').is_image_available()
+        assert not BuildResult(fail_reason='it happens').is_image_available()
+        assert not BuildResult.make_remote_image_result().is_image_available()
+
+        assert not BuildResult.make_remote_image_result().is_failed()
+
+    def test_dump(self):
+        build_result = BuildResult(
+            logs=["start build", "fetch sources"],
+            image_id="registry/image:1.2",
+            annotations={"name": "app"},
+        )
+        expected = {
+            "annotations": {"name": "app"},
+            "fail_reason": None,
+            "image_id": "registry/image:1.2",
+            "labels": None,
+            "logs": ["start build", "fetch sources"],
+            "skip_layer_squash": False,
+            "source_docker_archive": None,
+        }
+        assert expected == build_result.dump()
+
+    def test_parse(self):
+        input_data = {
+            "image_id": "image_id",
+            "labels": {"label1": "value1", "label2": "value2"},
+        }
+        br = BuildResult.load(input_data)
+        assert input_data["image_id"] == br.image_id
+        assert input_data["labels"] == br.labels
+        assert br.fail_reason is None
+        assert br.logs == []
+        assert br.annotations is None
+        assert not br.skip_layer_squash
+        assert br.source_docker_archive is None
+
+
+class TestTagConf:
+    """Test class TagConf"""
+
+    def test_dump_empty_object(self):
+        expected = {
+            'primary_images': [],
+            'unique_images': [],
+            'floating_images': [],
+        }
+        assert expected == TagConf().dump()
+
+    def test_dump_images(self):
+        conf = TagConf()
+        conf.add_primary_image('r.fp.o/f:35')
+        conf.add_floating_images(['ns/img:latest', 'ns1/img2:devel'])
+        expected = {
+            'primary_images': ['r.fp.o/f:35'],
+            'unique_images': [],
+            'floating_images': ['ns/img:latest', 'ns1/img2:devel'],
+        }
+        assert expected == conf.dump()
+
+    @pytest.mark.parametrize(
+        'input_data,expected_primary_images,expected_unique_images,expected_floating_images',
+        [
+            [
+                {
+                    'primary_images': ['registry/image:2.4'],
+                    'unique_images': ['registry/image:2.4'],
+                    'floating_images': ['registry/image:latest'],
+                },
+                [ImageName.parse('registry/image:2.4')],
+                [ImageName.parse('registry/image:2.4')],
+                [ImageName.parse('registry/image:latest')],
+            ],
+            [
+                {
+                    'primary_images': [],
+                    'unique_images': [],
+                    'floating_images': ['registry/image:latest', 'registry/image:devel'],
+                },
+                [],
+                [],
+                [
+                    ImageName.parse('registry/image:latest'),
+                    ImageName.parse('registry/image:devel'),
+                ],
+            ],
+            [
+                {'floating_images': ['registry/image:latest']},
+                [],
+                [],
+                [ImageName.parse('registry/image:latest')],
+            ],
+        ],
+    )
+    def test_parse_images(
+        self, input_data, expected_primary_images, expected_unique_images, expected_floating_images
+    ):
+        tag_conf = TagConf.load(input_data)
+        assert expected_primary_images == tag_conf.primary_images
+        assert expected_unique_images == tag_conf.unique_images
+        assert expected_floating_images == tag_conf.floating_images
+
+
+class TestDockerRegistry:
+    """Test DockerRegistry class"""
+
+    @pytest.mark.parametrize("insecure", [True, False])
+    @pytest.mark.parametrize("digests", [
+        {},
+        {
+            "tag1": ManifestDigest(v1="v1-digest"),
+            "tag2": ManifestDigest(v2="v2-digest", oci="oci-digest"),
+        },
+    ])
+    @pytest.mark.parametrize("config", [
+        {},
+        {"key": "value"},
+    ])
+    def test_dump(self, insecure, digests, config):
+        docker_reg = DockerRegistry("uri", insecure=insecure)
+        docker_reg.digests = digests
+        docker_reg.config = config
+        expected = {
+            "uri": "uri",
+            "insecure": insecure,
+            "digests": digests,
+            "config": config,
+        }
+        if digests:
+            expected["digests"] = {
+                "tag1": digests["tag1"].dump(),
+                "tag2": digests["tag2"].dump(),
+            }
+        assert expected == docker_reg.dump()
+
+    @pytest.mark.parametrize("insecure", [True, False])
+    @pytest.mark.parametrize("digests", [
+        {},
+        {
+            "tag1": {"v1": "v1-digests", "oci-index": "oci-index-digests"},
+            "tag2": {"v2": "v2-digest"},
+        },
+    ])
+    @pytest.mark.parametrize("config", [
+        {},
+        {"key": "value"},
+    ])
+    def test_parse(self, insecure, digests, config):
+        input_data = {
+            "uri": "https://registry.host/",
+            "insecure": insecure,
+            "digests": digests,
+            "config": config,
+        }
+        docker_reg = DockerRegistry.load(input_data)
+
+        assert input_data["uri"] == docker_reg.uri
+        assert input_data["insecure"] == docker_reg.insecure
+        assert input_data["config"] == docker_reg.config
+
+        if digests:
+            expected = {
+                "tag1": ManifestDigest.load(digests["tag1"]),
+                "tag2": ManifestDigest.load(digests["tag2"]),
+            }
+        else:
+            expected = digests
+
+        assert expected == docker_reg.digests
+
+
+class TestWorkflowData:
+    """Test class ImageBuildWorkflowData."""
+
+    def test_creation(self):
+        data = ImageBuildWorkflowData()
+        assert data.dockerfile_images.is_empty
+        assert data.tag_conf.is_empty
+        assert data.push_conf.is_empty
+        assert "not built" == data.build_result.fail_reason
+        assert {} == data.prebuild_results
+
+    def test_dump(self):
+        """Test the result from dump method."""
+        data = ImageBuildWorkflowData(dockerfile_images=DockerfileImages(["f:35"]))
+        dump = data.dump()
+
+        assert {} == dump["prebuild_results"]
+        assert [] == dump["pulled_base_images"]
+
+        expected_df_images = {
+            "original_parents": ["f:35"],
+            "local_parents": [None],
+            "source_registry": None,
+            "organization": None,
+        }
+        assert expected_df_images == dump["dockerfile_images"]
+
+        expected_tag_conf = {
+            "primary_images": [],
+            "unique_images": [],
+            "floating_images": [],
+        }
+        assert expected_tag_conf == dump["tag_conf"]
+
+        expected_build_result = {
+            "logs": [],
+            "fail_reason": "not built",
+            "annotations": None,
+            "image_id": None,
+            "labels": None,
+            "skip_layer_squash": False,
+            "source_docker_archive": None,
+        }
+        assert expected_build_result == dump["build_result"]
+
+    def test_load_from_empty_dump(self):
+        wf_data = ImageBuildWorkflowData.load({})
+        empty_data = ImageBuildWorkflowData()
+        field: Field
+        for field in fields(ImageBuildWorkflowData):
+            name = field.name
+            assert getattr(empty_data, name) == getattr(wf_data, name)
+
+    def test_load_from_dump(self):
+        input_data = {
+            "dockerfile_images": {
+                "original_parents": ["scratch"],
+                "local_parents": [],
+                "source_registry": None,
+                "organization": None,
+            },
+            "prebuild_results": {"plugin_1": "result"},
+            "tag_conf": {
+                "floating_images": [
+                    ImageName.parse("registry/httpd:2.4").to_str(),
+                ],
+            },
+            "push_conf": {
+                "docker": {
+                    "https://registry.host/": {
+                        "uri": "https://registry.host/",
+                        "insecure": True,
+                        "digests": {},
+                        "config": None,
+                    }
+                }
+            },
+        }
+        wf_data = ImageBuildWorkflowData.load(input_data)
+
+        expected_df_images = DockerfileImages.load(input_data["dockerfile_images"])
+        assert expected_df_images == wf_data.dockerfile_images
+        assert input_data["prebuild_results"] == wf_data.prebuild_results
+        assert TagConf.load(input_data["tag_conf"]) == wf_data.tag_conf
+        assert PushConf.load(input_data["push_conf"]) == wf_data.push_conf
+
+    def test_load_from_empty_directory(self, tmpdir):
+        context_dir = tmpdir.join("context_dir").mkdir()
+        # Note: no data file is created here, e.g. workflow.json.
+        wf_data = ImageBuildWorkflowData.load_from_dir(Path(context_dir))
+        assert wf_data.dockerfile_images.is_empty
+        assert wf_data.tag_conf.is_empty
+        assert wf_data.push_conf.is_empty
+        assert {} == wf_data.prebuild_results
+
+    def test_load_from_directory(self, tmpdir):
+        context_dir = tmpdir.join("context_dir").mkdir()
+        workflow_json = context_dir.join("workflow.json")
+        input_data = {
+            "dockerfile_images": {
+                "original_parents": ["scratch"],
+                "local_parents": [],
+            },
+            "prebuild_results": {"plugin_1": "result"},
+            "tag_conf": {
+                "floating_images": [
+                    ImageName.parse("registry/httpd:2.4").to_str(),
+                ],
+            },
+            "push_conf": {
+                "docker": {
+                    "https://registry.host/": {
+                        "uri": "https://registry.host/",
+                        "insecure": True,
+                        "digests": {},
+                        "config": None,
+                    }
+                }
+            },
+        }
+        workflow_json.write_text(json.dumps(input_data), encoding="utf-8")
+
+        # TBD: when implementing the build step, build_result.json may be
+        #      created here and test the loaded BuildResult object.
+
+        wf_data = ImageBuildWorkflowData.load_from_dir(context_dir)
+
+        expected_df_images = DockerfileImages.load(input_data["dockerfile_images"])
+        assert expected_df_images == wf_data.dockerfile_images
+        assert TagConf.load(input_data["tag_conf"]) == wf_data.tag_conf
+        assert PushConf.load(input_data["push_conf"]) == wf_data.push_conf
+        assert input_data["prebuild_results"] == wf_data.prebuild_results
+
+    def test_save(self, tmpdir):
+        wf_data = ImageBuildWorkflowData(
+            dockerfile_images=DockerfileImages(["scratch", "registry/f:35"]),
+            tag_conf=TagConf.load(
+                {"floating_images": [ImageName.parse("registry/image:1.0").to_str()]}
+            ),
+        )
+
+        context_dir = tmpdir.join("context_dir").mkdir()
+        wf_data.save(Path(context_dir))
+
+        workflow_json = context_dir.join("workflow.json")
+        assert workflow_json.exists()
+
+        dump_data = json.loads(workflow_json.read())
+        loaded_wf_data = ImageBuildWorkflowData.load(dump_data)
+
+        assert wf_data.dockerfile_images == loaded_wf_data.dockerfile_images
+        assert wf_data.tag_conf == loaded_wf_data.tag_conf
+        assert wf_data.push_conf == loaded_wf_data.push_conf
+        assert wf_data.prebuild_results == loaded_wf_data.prebuild_results

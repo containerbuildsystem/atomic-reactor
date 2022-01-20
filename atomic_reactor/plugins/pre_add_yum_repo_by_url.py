@@ -68,8 +68,8 @@ class AddYumRepoByUrlPlugin(PreBuildPlugin):
         """
         run the plugin
         """
-        if (self.workflow.dockerfile_images.base_from_scratch and
-                not self.workflow.dockerfile_images):
+        if (self.workflow.data.dockerfile_images.base_from_scratch and
+                not self.workflow.data.dockerfile_images):
             self.log.info("Skipping add yum repo by url: unsupported for FROM-scratch images")
             return
 
@@ -91,6 +91,6 @@ class AddYumRepoByUrlPlugin(PreBuildPlugin):
             if self.inject_proxy:
                 if yumrepo.is_valid():
                     yumrepo.set_proxy_for_all_repos(self.inject_proxy)
-            self.workflow.files[yumrepo.dst_filename] = yumrepo.content.decode()
+            self.workflow.data.files[yumrepo.dst_filename] = yumrepo.content.decode()
             self.log.debug("saving yum repo '%s', length %d", yumrepo.dst_filename,
                            len(yumrepo.content))

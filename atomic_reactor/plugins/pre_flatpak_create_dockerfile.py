@@ -71,16 +71,16 @@ WORKSPACE_SOURCE_SPEC_KEY = 'source_spec'
 
 def get_flatpak_source_spec(workflow):
     key = FlatpakCreateDockerfilePlugin.key
-    if key not in workflow.plugin_workspace:
+    if key not in workflow.data.plugin_workspace:
         return None
-    return workflow.plugin_workspace[key].get(WORKSPACE_SOURCE_SPEC_KEY, None)
+    return workflow.data.plugin_workspace[key].get(WORKSPACE_SOURCE_SPEC_KEY, None)
 
 
 def set_flatpak_source_spec(workflow, module_info):
     key = FlatpakCreateDockerfilePlugin.key
 
-    workflow.plugin_workspace.setdefault(key, {})
-    workspace = workflow.plugin_workspace[key]
+    workflow.data.plugin_workspace.setdefault(key, {})
+    workspace = workflow.data.plugin_workspace[key]
     workspace[WORKSPACE_SOURCE_SPEC_KEY] = module_info
 
 

@@ -160,18 +160,18 @@ def mock_environment(workflow,
     env = MockEnv(workflow).for_plugin("exit", PushFloatingTagsPlugin.key)
     env.set_plugin_result("postbuild", PLUGIN_GROUP_MANIFESTS_KEY, manifest_results)
 
-    workflow = env.workflow
+    wf_data = env.workflow.data
 
     if primary_images:
         for image in primary_images:
             if '-' in ImageName.parse(image).tag:
-                workflow.tag_conf.add_primary_image(image)
-        workflow.tag_conf.add_unique_image(primary_images[0])
+                wf_data.tag_conf.add_primary_image(image)
+        wf_data.tag_conf.add_unique_image(primary_images[0])
 
     if floating_images:
-        workflow.tag_conf.add_floating_images(floating_images)
+        wf_data.tag_conf.add_floating_images(floating_images)
 
-    workflow.build_result = BuildResult(image_id='123456', annotations=annotations or {})
+    wf_data.build_result = BuildResult(image_id='123456', annotations=annotations or {})
 
     return env
 
@@ -435,7 +435,7 @@ def test_floating_tags_push(workflow, tmpdir, test_name, registries, manifest_re
         kwargs = {}
         if 'insecure' in opts:
             kwargs['insecure'] = opts['insecure']
-        env.workflow.push_conf.add_docker_registry(registry, **kwargs)
+        env.workflow.data.push_conf.add_docker_registry(registry, **kwargs)
 
     if workers:
         env.make_orchestrator()
@@ -489,7 +489,7 @@ def test_floating_tags_push(workflow, tmpdir, test_name, registries, manifest_re
         assert isinstance(plugin_result, dict)
         # Check that plugin returns correct list of repos
         actual_repos = sorted(plugin_result.keys())
-        expected_repos = sorted({x.get_repo() for x in env.workflow.tag_conf.images})
+        expected_repos = sorted({x.get_repo() for x in env.workflow.data.tag_conf.images})
         assert expected_repos == actual_repos
     else:
         assert not plugin_result

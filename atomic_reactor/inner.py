@@ -12,13 +12,15 @@ Script for building docker image. This is expected to run inside container.
 import functools
 import json
 import logging
+from pathlib import Path
 import signal
 import threading
 import os
 import time
 import re
+from dataclasses import dataclass, field, fields
 from textwrap import dedent
-from typing import List
+from typing import Any, Callable, Dict, List, Optional, Set, Union
 
 from atomic_reactor.dirs import RootBuildDir
 from atomic_reactor.plugin import (
@@ -38,7 +40,8 @@ from atomic_reactor.constants import (
     REACTOR_CONFIG_FULL_PATH,
     DOCKERFILE_FILENAME,
 )
-from atomic_reactor.util import (exception_message, DockerfileImages, df_parser,
+from atomic_reactor.types import ISerializer
+from atomic_reactor.util import (ManifestDigest, exception_message, DockerfileImages, df_parser,
                                  base_image_is_custom, print_version_of_tools)
 from atomic_reactor.config import Configuration
 from atomic_reactor.source import Source, DummySource
@@ -91,13 +94,18 @@ class BuildResultsJSONDecoder(json.JSONDecoder):
         return results
 
 
-class BuildResult(object):
+class BuildResult(ISerializer):
 
     REMOTE_IMAGE = object()
 
-    def __init__(self, logs=None, fail_reason=None, image_id=None,
-                 annotations=None, labels=None, skip_layer_squash=False,
-                 source_docker_archive=None):
+    def __init__(self,
+                 logs: Optional[List[str]] = None,
+                 fail_reason: Optional[str] = None,
+                 image_id: Optional[str] = None,
+                 annotations: Optional[Dict[str, str]] = None,
+                 labels: Optional[Dict[str, str]] = None,
+                 skip_layer_squash: bool = False,
+                 source_docker_archive: Optional[str] = None):
         """
         :param logs: iterable of log lines (without newlines)
         :param fail_reason: str, description of failure or None if successful
@@ -126,6 +134,19 @@ class BuildResult(object):
         self._labels = labels
         self._skip_layer_squash = skip_layer_squash
         self._source_docker_archive = source_docker_archive
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, type(self)):
+            return False
+        return (
+            self._logs == other.logs and
+            self._fail_reason == other.fail_reason and
+            self._image_id == other.image_id and
+            self._annotations == other.annotations and
+            self._labels == other.labels and
+            self._skip_layer_squash == other.skip_layer_squash and
+            self._source_docker_archive == other.source_docker_archive
+        )
 
     @classmethod
     def make_remote_image_result(cls, annotations=None, labels=None):
@@ -165,23 +186,63 @@ class BuildResult(object):
     def source_docker_archive(self):
         return self._source_docker_archive
 
-    def is_image_available(self):
+    def is_image_available(self) -> bool:
         return self._image_id and self._image_id is not self.REMOTE_IMAGE
 
+    @classmethod
+    def load(cls, data: Dict[str, Any]):
+        return cls(
+            logs=data.get("logs"),
+            fail_reason=data.get("fail_reason"),
+            image_id=data.get("image_id"),
+            annotations=data.get("annotations"),
+            labels=data.get("labels"),
+            skip_layer_squash=data.get("skip_layer_squash"),
+            source_docker_archive=data.get("source_docker_archive"),
+        )
 
-class TagConf(object):
+    def dump(self) -> Dict[str, Any]:
+        return {
+            "annotations": self.annotations,
+            "fail_reason": self.fail_reason,
+            "image_id": self.image_id,
+            "labels": self.labels,
+            "logs": self.logs,
+            "skip_layer_squash": self.skip_layer_squash,
+            "source_docker_archive": self.source_docker_archive,
+        }
+
+
+class TagConf(ISerializer):
     """
     confguration of image names and tags to be applied
     """
 
     def __init__(self):
         # list of ImageNames with 'static' tags
-        self._primary_images = []
+        self._primary_images: List[ImageName] = []
         # list if ImageName instances with unpredictable names
-        self._unique_images = []
+        self._unique_images: List[ImageName] = []
         # list of ImageName instances with 'floating' tags
         # which can be updated by other images later
-        self._floating_images = []
+        self._floating_images: List[ImageName] = []
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, type(self)):
+            return False
+        return (
+            self._primary_images == other.primary_images and
+            self._unique_images == other.unique_images and
+            self._floating_images == other.floating_images
+        )
+
+    @property
+    def is_empty(self):
+        return (
+            len(self.primary_images) == 0 and
+            len(self.unique_images) == 0 and
+            len(self.floating_images) == 0
+        )
 
     @property
     def primary_images(self):
@@ -225,7 +286,7 @@ class TagConf(object):
         """
         return self._floating_images
 
-    def add_primary_image(self, image):
+    def add_primary_image(self, image: str) -> None:
         """
         add new primary image
 
@@ -236,7 +297,7 @@ class TagConf(object):
         """
         self._primary_images.append(ImageName.parse(image))
 
-    def add_unique_image(self, image):
+    def add_unique_image(self, image: str) -> None:
         """
         add image with unpredictable name
 
@@ -247,7 +308,7 @@ class TagConf(object):
         """
         self._unique_images.append(ImageName.parse(image))
 
-    def add_floating_image(self, image):
+    def add_floating_image(self, image: str) -> None:
         """
         add image with floating name
 
@@ -258,7 +319,7 @@ class TagConf(object):
         """
         self._floating_images.append(ImageName.parse(image))
 
-    def add_primary_images(self, images):
+    def add_primary_images(self, images: List[str]) -> None:
         """
         add new primary images in bulk
 
@@ -270,7 +331,7 @@ class TagConf(object):
         for image in images:
             self.add_primary_image(image)
 
-    def add_floating_images(self, images):
+    def add_floating_images(self, images: List[str]) -> None:
         """
         add new floating images in bulk
 
@@ -291,8 +352,33 @@ class TagConf(object):
         """
         return list(map(lambda unique_image: f'{unique_image}-{platform}', self._unique_images))
 
+    def add_unique_images(self, images: List[str]) -> None:
+        """
+        add new unique images in bulk
 
-class Registry(object):
+        :param images: list of str, list of image names
+        :return: None
+        """
+        for image in images:
+            self.add_unique_image(image)
+
+    @classmethod
+    def load(cls, data: Dict[str, Any]):
+        tag_conf = TagConf()
+        tag_conf.add_primary_images(data.get("primary_images", []))
+        tag_conf.add_unique_images(data.get("unique_images", []))
+        tag_conf.add_floating_images(data.get("floating_images", []))
+        return tag_conf
+
+    def dump(self) -> Dict[str, Any]:
+        return {
+            "primary_images": [image.to_str() for image in self._primary_images],
+            "unique_images": [image.to_str() for image in self._unique_images],
+            "floating_images": [image.to_str() for image in self.floating_images],
+        }
+
+
+class Registry(ISerializer):
     def __init__(self, uri, insecure=False):
         """
         abstraction for all registry classes
@@ -303,6 +389,18 @@ class Registry(object):
         self.uri = uri
         self.insecure = insecure
 
+    @classmethod
+    def load(cls, data: Dict[str, Any]):
+        uri = data.get("uri")
+        if not uri:
+            raise ValueError(
+                f"Missing uri from data {data!r} to create a {cls.__name__} object."
+            )
+        return Registry(uri, insecure=data.get("insecure", False))
+
+    def dump(self) -> Dict[str, Any]:
+        return {"uri": self.uri, "insecure": self.insecure}
+
 
 class DockerRegistry(Registry):
     """ v2 docker registry """
@@ -312,20 +410,62 @@ class DockerRegistry(Registry):
         :param insecure: bool
         """
         super(DockerRegistry, self).__init__(uri, insecure=insecure)
-        self.digests = {}  # maps a tag (str) to a ManifestDigest instance, if available
-        self.config = None  # stores image config from the registry,
+        # maps a tag (str) to a ManifestDigest instance, if available
+        self.digests: Dict[str, ManifestDigest] = {}
+        self.config: Optional[Dict[str, Any]] = None  # stores image config from the registry,
         # media type of the config is application/vnd.docker.container.image.v1+json
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, type(self)):
+            return False
+        return (
+            self.uri == other.uri and
+            self.insecure == other.insecure and
+            self.digests == other.digests and
+            self.config == other.config
+        )
 
-class PushConf(object):
+    @classmethod
+    def load(cls, data: Dict[str, Any]):
+        registry = super().load(data)
+        docker_reg = DockerRegistry(registry.uri, registry.insecure)
+        for name, value in data.items():
+            if name == "digests":
+                for tag, data in value.items():
+                    docker_reg.digests[tag] = ManifestDigest.load(data)
+            elif name == "config":
+                docker_reg.config = value
+        return docker_reg
+
+    def dump(self) -> Dict[str, Any]:
+        result = super().dump()
+        result["digests"] = {
+            tag: manifest_digest.dump()
+            for tag, manifest_digest in self.digests.items()
+        }
+        result["config"] = self.config
+        return result
+
+
+class PushConf(ISerializer):
     """
     configuration of remote registries: docker-registry
     """
 
     def __init__(self):
-        self._registries = {
+        self._registries: Dict[str, Dict[str, DockerRegistry]] = {
             "docker": {},  # URI -> DockerRegistry instance
         }
+
+    def __eq__(self, other: object) -> bool:
+        return self._registries == other._registries
+
+    @property
+    def is_empty(self):
+        for registries in self._registries.values():
+            if len(registries) > 0:
+                return False
+        return True
 
     def add_docker_registry(self, registry_uri, insecure=False):
         if registry_uri is None:
@@ -355,6 +495,30 @@ class PushConf(object):
     @property
     def all_registries(self):
         return self.docker_registries
+
+    @classmethod
+    def load(cls, data: Dict[str, Any]):
+        push_conf = cls()
+        # uri -> docker registry info
+        docker_regs: Optional[Dict[str, Dict[str, Any]]] = data.get("docker")
+        if not docker_regs:
+            return push_conf
+        for uri, docker_reg_info in docker_regs.items():
+            push_conf.add_docker_registry(uri)
+            added_reg = [reg for reg in push_conf.docker_registries if reg.uri == uri][0]
+            loaded_reg = DockerRegistry.load(docker_reg_info)
+            added_reg.insecure = loaded_reg.insecure
+            added_reg.digests = loaded_reg.digests
+            added_reg.config = loaded_reg.config
+        return push_conf
+
+    def dump(self) -> Dict[str, Any]:
+        result = {}
+        for registry_type, registries in self._registries.items():
+            result[registry_type] = {
+                uri: registry.dump() for uri, registry in registries.items()
+            }
+        return result
 
 
 class FSWatcher(threading.Thread):
@@ -413,6 +577,167 @@ class FSWatcher(threading.Thread):
         return new_data
 
 
+@dataclass
+class ImageBuildWorkflowData(ISerializer):
+    """Manage workflow data.
+
+    Workflow data is those data which are generated values by plugins through
+    the whole build workflow (pipeline) and must be shared in every build tasks.
+
+    These data can be dumped into dictionary object in order to be saved into a
+    file as JSON data, and then be loaded while atomic-reactor launches again to
+    execute another set of plugins for a different build task.
+    """
+
+    dockerfile_images: DockerfileImages = field(default_factory=DockerfileImages)
+    tag_conf: TagConf = field(default_factory=TagConf)
+    push_conf: PushConf = field(default_factory=PushConf)
+
+    prebuild_results: Dict[str, Any] = field(default_factory=dict)
+    buildstep_result: Dict[str, Any] = field(default_factory=dict)
+    postbuild_results: Dict[str, Any] = field(default_factory=dict)
+    prepub_results: Dict[str, Any] = field(default_factory=dict)
+    exit_results: Dict[str, Any] = field(default_factory=dict)
+    plugin_workspace: Dict[str, Any] = field(default_factory=dict)
+
+    # Plugin name -> timestamp in isoformat
+    plugins_timestamps: Dict[str, str] = field(default_factory=dict)
+    # Plugin name -> seconds
+    plugins_durations: Dict[str, float] = field(default_factory=dict)
+    # Plugin name -> a string containing error message
+    plugins_errors: Dict[str, str] = field(default_factory=dict)
+    build_canceled: bool = False
+    plugin_failed: bool = False
+
+    # info about pre-declared build, build-id and token
+    reserved_build_id: int = None
+    reserved_token: str = None
+    koji_source_nvr: Dict[str, str] = field(default_factory=dict)
+    koji_source_source_url: str = None
+    koji_source_manifest: Dict[str, Any] = None
+
+    buildargs: Dict[str, str] = field(default_factory=dict)  # --buildargs for container build
+    built_image_inspect: Dict[str, Any] = None
+    layer_sizes: List[Dict[str, Union[str, int]]] = field(default_factory=list)
+
+    # list of images pulled during the build, to be deleted after the build
+    pulled_base_images: Set = field(default_factory=set)
+
+    # When an image is exported into tarball, it can then be processed by various plugins.
+    #  Each plugin that transforms the image should save it as a new file and append it to
+    #  the end of exported_image_sequence. Other plugins should then operate with last
+    #  member of this structure. Example:
+    #  [{'path': '/tmp/foo.tar', 'size': 12345678, 'md5sum': '<md5>', 'sha256sum': '<sha256>'}]
+    #  You can use util.get_exported_image_metadata to create a dict to append to this list.
+    exported_image_sequence: List[Dict[str, Union[str, int]]] = field(default_factory=list)
+
+    # mapping of downloaded files; DON'T PUT ANYTHING BIG HERE!
+    # "path/to/file" -> "content"
+    files: Dict[str, str] = field(default_factory=dict)
+
+    # List of RPMs that go into the final result, as per utils.rpm.parse_rpm_output
+    # Each RPM inside is a mapping containing the name, version, release and other attributes.
+    image_components: List[Dict[str, Union[int, str]]] = None
+
+    # List of all yum repos. The provided repourls might be changed (by resolve_composes) when
+    # inheritance is enabled. This property holds the updated list of repos, allowing
+    # post-build plugins (such as koji_import) to record them.
+    all_yum_repourls: List[str] = None
+
+    # Plugins can store info here using the @annotation, @annotation_map,
+    # @label and @label_map decorators from atomic_reactor.metadata
+    annotations: Dict[str, Any] = field(default_factory=dict)
+    labels: Dict[str, Any] = field(default_factory=dict)
+
+    # OSBS2 TBD
+    image_id: str = None
+    parent_images_digests: Dict[str, Dict[str, str]] = field(default_factory=dict)
+
+    build_result: BuildResult = field(init=False)
+
+    def __post_init__(self):
+        # TBD: value will be determined when implement the build task.
+        self.build_result = BuildResult(fail_reason="not built")
+
+    @classmethod
+    def load(cls, data: Dict[str, Any]):
+        """Load workflow data from given input."""
+        wf_data = cls()
+
+        if not data:
+            return wf_data
+
+        data_conv: Dict[str, Callable] = {
+            "dockerfile_images": DockerfileImages.load,
+            "tag_conf": TagConf.load,
+            "push_conf": PushConf.load,
+            "build_result": BuildResult.load,
+            "pulled_base_images": set,
+        }
+
+        def _return_directly(value):
+            return value
+
+        defined_field_names = set(f.name for f in fields(cls))
+        for name, value in data.items():
+            if name not in defined_field_names:
+                logger.info("Unknown field name %s", name)
+                continue
+            setattr(wf_data, name, data_conv.get(name, _return_directly)(value))
+        return wf_data
+
+    def dump(self) -> Dict[str, Any]:
+        """Dump workflow data into JSON data."""
+        result = {}
+        defined_field_names = [f.name for f in fields(self)]
+        for name in defined_field_names:
+            value = getattr(self, name)
+            if isinstance(value, ISerializer):
+                result[name] = value.dump()
+            elif isinstance(value, set):
+                result[name] = list(value)
+            else:
+                result[name] = value
+        return result
+
+    @classmethod
+    def load_from_dir(cls, data_dir: Path) -> "ImageBuildWorkflowData":
+        """Load workflow data from the data directory.
+
+        :param data_dir: a directory holding the files containing the serialized
+            workflow data.
+        :type data_dir: pathlib.Path
+        :return: the workflow data containing data loaded from the specified directory.
+        :rtype: ImageBuildWorkflowData
+        """
+
+        # TBD: build result should be handled specifically after the build
+        #      task is done. There will be multiple build result objects for
+        #      multi-platforms and they should be written in to separate
+        #      build_result.json file in each platform directory.
+
+        workflow_json = data_dir / "workflow.json"
+        if not workflow_json.exists():
+            return cls()
+        with open(workflow_json, "r") as f:
+            return cls.load(json.load(f))
+
+    def save(self, data_dir: Path) -> None:
+        """Save workflow data into the files under a specific directory.
+
+        :param data_dir: a directory holding the files containing the serialized
+            workflow data.
+        :type data_dir: pathlib.Path
+        """
+
+        # TBD: same comment as above for build_result
+
+        workflow_json = data_dir / "workflow.json"
+        logger.info("Writing workflow data into %s", workflow_json)
+        with open(workflow_json, "w+") as f:
+            json.dump(self.dump(), f)
+
+
 class DockerBuildWorkflow(object):
     """
     This class defines a workflow for building images:
@@ -449,67 +774,16 @@ class DockerBuildWorkflow(object):
         :param client_version: osbs-client version used to render build json
         """
         self.build_dir = build_dir
+        self.data = ImageBuildWorkflowData()
 
         self.source = source or DummySource(None, None)
         self.plugins = plugins or PluginsDef()
         self.user_params = user_params or self._default_user_params.copy()
 
-        self.prebuild_results = {}
-        self.buildstep_result = {}
-        self.postbuild_results = {}
-        self.prepub_results = {}
-        self.exit_results = {}
-        self.build_result = BuildResult(fail_reason="not built")
-        self.plugin_workspace = {}
-        self.plugins_timestamps = {}
-        self.plugins_durations = {}
-        self.plugins_errors = {}
-        self.build_canceled = False
-        self.plugin_failed = False
         self.plugin_files = plugin_files
         self.fs_watcher = FSWatcher()
 
-        self.built_image_inspect = None
-        self.layer_sizes = []
         self.storage_transport = DOCKER_STORAGE_TRANSPORT_NAME
-
-        # list of images pulled during the build, to be deleted after the build
-        self.pulled_base_images = set()
-
-        # When an image is exported into tarball, it can then be processed by various plugins.
-        #  Each plugin that transforms the image should save it as a new file and append it to
-        #  the end of exported_image_sequence. Other plugins should then operate with last
-        #  member of this structure. Example:
-        #  [{'path': '/tmp/foo.tar', 'size': 12345678, 'md5sum': '<md5>', 'sha256sum': '<sha256>'}]
-        #  You can use util.get_exported_image_metadata to create a dict to append to this list.
-        self.exported_image_sequence = []
-
-        self.tag_conf = TagConf()
-        self.push_conf = PushConf()
-
-        # mapping of downloaded files; DON'T PUT ANYTHING BIG HERE!
-        # "path/to/file" -> "content"
-        self.files = {}
-
-        # List of RPMs that go into the final result, as per utils.rpm.parse_rpm_output
-        self.image_components = None
-
-        # List of all yum repos. The provided repourls might be changed (by resolve_composes) when
-        # inheritance is enabled. This property holds the updated list of repos, allowing
-        # post-build plugins (such as koji_import) to record them.
-        self.all_yum_repourls = None
-
-        # info about pre-declared build, build-id and token
-        self.reserved_build_id = None
-        self.reserved_token = None
-        self.koji_source_nvr = {}
-        self.koji_source_source_url = None
-        self.koji_source_manifest = None
-
-        # Plugins can store info here using the @annotation, @annotation_map,
-        # @label and @label_map decorators from atomic_reactor.metadata
-        self.annotations = {}
-        self.labels = {}
 
         if client_version:
             logger.debug("build json was built by osbs-client %s", client_version)
@@ -519,12 +793,6 @@ class DockerBuildWorkflow(object):
 
         self.df_dir = build_file_dir
         self._df_path = None
-        self.buildargs = {}  # --buildargs for container build
-        self.dockerfile_images = DockerfileImages([])
-        # OSBS2 TBD
-        self.image_id = None
-        # OSBS2 TBD
-        self.parent_images_digests = {}
 
         # openshift in configuration needs namespace, it was reading it from get_builds_json()
         # we should have it in user_params['namespace']
@@ -562,7 +830,7 @@ class DockerBuildWorkflow(object):
         self.conf.update_dockerfile_images_from_config(new_dockerfile_images)
 
         self.imageutil.set_dockerfile_images(new_dockerfile_images)
-        self.dockerfile_images = new_dockerfile_images
+        self.data.dockerfile_images = new_dockerfile_images
 
     def _parse_dockerfile_images(self, path: str) -> DockerfileImages:
         dfp = df_parser(path)
@@ -619,11 +887,11 @@ class DockerBuildWorkflow(object):
         for performance reasons (ImageUtil caches registry queries, a new instance would not have
         the cache).
         """
-        return imageutil.ImageUtil(self.dockerfile_images, self.conf)
+        return imageutil.ImageUtil(self.data.dockerfile_images, self.conf)
 
     def parent_images_to_str(self):
         results = {}
-        for base_image_name, parent_image_name in self.dockerfile_images.items():
+        for base_image_name, parent_image_name in self.data.dockerfile_images.items():
             base_str = str(base_image_name)
             parent_str = str(parent_image_name)
             if base_image_name and parent_image_name:
@@ -669,10 +937,10 @@ class DockerBuildWorkflow(object):
         """
         Has any aspect of the build process failed?
         """
-        return self.build_result.is_failed() or self.plugin_failed
+        return self.data.build_result.is_failed() or self.data.plugin_failed
 
     def throw_canceled_build_exception(self, *args, **kwargs):
-        self.build_canceled = True
+        self.data.build_canceled = True
         raise BuildCanceledException("Build was canceled")
 
     def build_docker_image(self) -> BuildResult:
@@ -710,16 +978,16 @@ class DockerBuildWorkflow(object):
 
             logger.info("running buildstep plugins")
             try:
-                self.build_result = buildstep_runner.run()
+                self.data.build_result = buildstep_runner.run()
 
-                if self.build_result.is_failed():
-                    raise PluginFailedException(self.build_result.fail_reason)
+                if self.data.build_result.is_failed():
+                    raise PluginFailedException(self.data.build_result.fail_reason)
             except PluginFailedException as ex:
                 logger.error('buildstep plugin failed: %s', ex)
                 raise
 
-            if self.build_result.is_image_available():
-                self.image_id = self.build_result.image_id
+            if self.data.build_result.is_image_available():
+                self.data.image_id = self.data.build_result.image_id
 
             # run prepublish plugins
             try:
@@ -728,18 +996,20 @@ class DockerBuildWorkflow(object):
                 logger.error("one or more prepublish plugins failed: %s", ex)
                 raise
 
-            if self.build_result.is_image_available():
+            if self.data.build_result.is_image_available():
                 # OSBS2 TBD
-                self.built_image_inspect = imageutil.inspect_built_image()
+                self.data.built_image_inspect = imageutil.inspect_built_image()
                 # OSBS2 TBD
-                history = imageutil.get_image_history(self.image_id)
-                diff_ids = self.built_image_inspect[INSPECT_ROOTFS][INSPECT_ROOTFS_LAYERS]
+                history = imageutil.get_image_history(self.data.image_id)
+                diff_ids = self.data.built_image_inspect[INSPECT_ROOTFS][INSPECT_ROOTFS_LAYERS]
 
                 # diff_ids is ordered oldest first
                 # history is ordered newest first
                 # We want layer_sizes to be ordered oldest first
-                self.layer_sizes = [{"diff_id": diff_id, "size": layer['Size']}
-                                    for (diff_id, layer) in zip(diff_ids, reversed(history))]
+                self.data.layer_sizes = [
+                    {"diff_id": diff_id, "size": layer['Size']}
+                    for (diff_id, layer) in zip(diff_ids, reversed(history))
+                ]
 
             try:
                 postbuild_runner.run()
@@ -747,7 +1017,7 @@ class DockerBuildWorkflow(object):
                 logger.error("one or more postbuild plugins failed: %s", ex)
                 raise
 
-            return self.build_result
+            return self.data.build_result
         except Exception as ex:
             logger.debug("caught exception (%s) so running exit plugins", exception_message(ex))
             exception_being_handled = True

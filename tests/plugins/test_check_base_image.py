@@ -89,7 +89,7 @@ def test_check_base_image_special(add_another_parent, special_image, workflow):
                           content=json.dumps(manifest_list).encode('utf-8'))))
 
     runner.run()
-    dockerfile_images = env.workflow.dockerfile_images
+    dockerfile_images = env.workflow.data.dockerfile_images
     if dockerfile_images.base_from_scratch:
         assert dockerfile_images.base_image == special_image
     else:
@@ -166,14 +166,14 @@ def test_check_base_image_plugin(workflow, parent_registry, df_base,
 
     runner.run()
 
-    dockerfile_images = workflow.dockerfile_images
+    dockerfile_images = workflow.data.dockerfile_images
     for df, tagged in dockerfile_images.items():
         assert tagged is not None, "Did not tag parent image " + str(df)
         assert 'sha256' in tagged.to_str()
     # tags should all be unique
     assert len(set(dockerfile_images.values())) == len(dockerfile_images)
     if expected_digests:
-        assert expected_digests == workflow.parent_images_digests
+        assert expected_digests == workflow.data.parent_images_digests
     return workflow
 
 
@@ -338,7 +338,7 @@ class TestValidateBaseImage(object):
 
         def workflow_callback(workflow):
             self.prepare(workflow, mock_get_manifest_list=True)
-            del workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
+            del workflow.data.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
             del workflow.plugins.buildstep[0]
             return workflow
 
@@ -359,7 +359,7 @@ class TestValidateBaseImage(object):
                 workflow = self.prepare(workflow, mock_get_manifest_list=True)
             else:
                 workflow = self.prepare(workflow, mock_get_manifest_list=False)
-            workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = {'x86_64'}
+            workflow.data.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = {'x86_64'}
             if not has_manifest_list:
                 resp = {'v2': StubResponse()} if has_v2s2_manifest else {}
                 (flexmock(atomic_reactor.util.RegistryClient)
@@ -389,7 +389,7 @@ class TestValidateBaseImage(object):
             expected_digests = {'registry.example.com/busybox:latest': {
                 'application/vnd.docker.distribution.manifest.list.v2+json':
                     'sha256:dd796ff42339f8a7c109da5c4c63148e9e0798ab029e323e54c15311d3ea1d4b'}}
-            workflow.parent_images_digests = expected_digests
+            workflow.data.parent_images_digests = expected_digests
             with pytest.raises(PluginFailedException) as exc:
                 test_check_base_image_plugin(workflow, SOURCE_REGISTRY, BASE_IMAGE,
                                              workflow_callback=workflow_callback,
@@ -574,7 +574,7 @@ class TestValidateBaseImage(object):
 
                 # platform validation will fail if manifest is missing
                 # setting only one platform to skip platform validation and test negative case
-                workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = {'x86_64'}
+                workflow.data.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = {'x86_64'}
 
             test_vals['workflow'] = workflow
             return workflow
@@ -595,7 +595,7 @@ class TestValidateBaseImage(object):
             assert replacing_msg in caplog.text
 
             # check if worker.builder has set correct values
-            builder_digests_dict = test_vals['workflow'].parent_images_digests
+            builder_digests_dict = test_vals['workflow'].data.parent_images_digests
             assert builder_digests_dict == test_vals['expected_digest']
 
     def prepare(self, workflow, mock_get_manifest_list=False):

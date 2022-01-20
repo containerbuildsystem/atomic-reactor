@@ -50,8 +50,8 @@ class KojiPlugin(PreBuildPlugin):
             self.log.info('no target provided, skipping plugin')
             return
 
-        if (self.workflow.dockerfile_images.base_from_scratch and
-                not self.workflow.dockerfile_images):
+        if (self.workflow.data.dockerfile_images.base_from_scratch and
+                not self.workflow.data.dockerfile_images):
             self.log.info("from scratch single stage can't add repos from koji target")
             return
 
@@ -98,4 +98,4 @@ class KojiPlugin(PreBuildPlugin):
 
         path = YumRepo(os.path.join(YUM_REPOS_DIR, self.target)).dst_filename
         self.log.info("yum repo of koji target: '%s'", path)
-        self.workflow.files[path] = render_yum_repo(repo, escape_dollars=False)
+        self.workflow.data.files[path] = render_yum_repo(repo, escape_dollars=False)

@@ -98,7 +98,7 @@ class KojiUploadPlugin(PostBuildPlugin):
         build_logs = NamedTemporaryFile(prefix="buildstep-%s" % self.build_id,
                                         suffix=".log",
                                         mode='wb')
-        build_logs.write("\n".join(self.workflow.build_result.logs).encode('utf-8'))
+        build_logs.write("\n".join(self.workflow.data.build_result.logs).encode('utf-8'))
         build_logs.flush()
         filename = "{platform}-build.log".format(platform=self.platform)
         return [Output(file=build_logs,
@@ -116,11 +116,13 @@ class KojiUploadPlugin(PostBuildPlugin):
             self.log.error("No pipeline_run_name found")
             raise
 
-        for image in self.workflow.tag_conf.unique_images:
+        tag_conf = self.workflow.data.tag_conf
+
+        for image in tag_conf.unique_images:
             self.pullspec_image = image
             break
 
-        for image in self.workflow.tag_conf.primary_images:
+        for image in tag_conf.primary_images:
             # dash at first/last postition does not count
             if '-' in image.tag[1:-1]:
                 self.pullspec_image = image

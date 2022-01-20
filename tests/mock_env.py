@@ -145,7 +145,7 @@ class MockEnv(object):
         :param result: any, value to set as plugin result
         """
         self._validate_phase(phase)
-        results = getattr(self.workflow, self._results_for_phase[phase])
+        results = getattr(self.workflow.data, self._results_for_phase[phase])
         results[plugin_key] = result
         return self
 
@@ -204,7 +204,7 @@ class MockEnv(object):
         """Set dockerfile images in the workflow."""
         if not isinstance(images, DockerfileImages):
             images = DockerfileImages(images)
-        self.workflow.dockerfile_images = images
+        self.workflow.data.dockerfile_images = images
         return self
 
     def _validate_phase(self, phase):

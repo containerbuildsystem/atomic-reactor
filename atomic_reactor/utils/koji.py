@@ -340,7 +340,7 @@ def get_image_output(workflow, image_id, arch, pullspec):
     :return: tuple, (metadata dict, Output instance)
 
     """
-    image_name = get_image_upload_filename(workflow.exported_image_sequence[-1],
+    image_name = get_image_upload_filename(workflow.data.exported_image_sequence[-1],
                                            image_id, arch)
 
     readme_content = ('Archive is just a placeholder for the koji archive, if you need the '
@@ -355,7 +355,7 @@ def get_image_output(workflow, image_id, arch, pullspec):
 
 
 def get_source_tarballs_output(workflow):
-    plugin_results = workflow.prebuild_results.get(PLUGIN_RESOLVE_REMOTE_SOURCE) or {}
+    plugin_results = workflow.data.prebuild_results.get(PLUGIN_RESOLVE_REMOTE_SOURCE) or {}
     output_tarball_files = []
     for remote_source in plugin_results:
         remote_source_tarball = remote_source['remote_source_tarball']
@@ -367,7 +367,7 @@ def get_source_tarballs_output(workflow):
 
 
 def get_remote_sources_json_output(workflow):
-    plugin_results = workflow.prebuild_results.get(PLUGIN_RESOLVE_REMOTE_SOURCE) or {}
+    plugin_results = workflow.data.prebuild_results.get(PLUGIN_RESOLVE_REMOTE_SOURCE) or {}
     output_json_files = []
     tmpdir = tempfile.mkdtemp()
     for remote_source in plugin_results:
@@ -390,7 +390,7 @@ def get_maven_metadata(workflow):
     :rtype: list[Output], list[dict] # list of output to add to koji build
                                         and list of kojifile components
     """
-    plugin_results = workflow.postbuild_results.get(PLUGIN_GENERATE_MAVEN_METADATA_KEY) or {}
+    plugin_results = workflow.data.postbuild_results.get(PLUGIN_GENERATE_MAVEN_METADATA_KEY) or {}
     outputs = []
     components = plugin_results.get('components', [])
     for remote_source_file in plugin_results.get('remote_source_files', []):
@@ -404,7 +404,7 @@ def get_image_components(workflow):
     Re-package the output of the rpmqa plugin into the format required
     for the metadata.
     """
-    output = workflow.image_components
+    output = workflow.data.image_components
     if output is None:
         logger.error("%s plugin did not run!", PostBuildRPMqaPlugin.key)
         output = []
@@ -449,11 +449,12 @@ def get_output(workflow, buildroot_id, pullspec, platform, source_build=False, l
     arch = os.uname()[4]
 
     if source_build:
-        image_id = workflow.koji_source_manifest['config']['digest']
+        manifest = workflow.data.koji_source_manifest
+        image_id = manifest['config']['digest']
         # we are using digest from manifest, because we can't get diff_ids
         # unless we pull image, which would fail due because there are so many layers
         layer_sizes = [{'digest': layer['digest'], 'size': layer['size']}
-                       for layer in workflow.koji_source_manifest['layers']]
+                       for layer in manifest['layers']]
         platform = arch
 
     else:
@@ -462,15 +463,15 @@ def get_output(workflow, buildroot_id, pullspec, platform, source_build=False, l
 
         # Parent of squashed built image is base image
         # OSBS2 TBD
-        image_id = workflow.image_id
+        image_id = workflow.data.image_id
         parent_id = None
-        if not workflow.dockerfile_images.base_from_scratch:
+        if not workflow.data.dockerfile_images.base_from_scratch:
             # OSBS2 TBD: inspect the correct architecture
             parent_id = workflow.imageutil.base_image_inspect()['Id']
 
-        layer_sizes = workflow.layer_sizes
+        layer_sizes = workflow.data.layer_sizes
 
-    registries = workflow.push_conf.docker_registries
+    registries = workflow.data.push_conf.docker_registries
     config = copy.deepcopy(registries[0].config)
 
     # We don't need container_config section
@@ -479,7 +480,7 @@ def get_output(workflow, buildroot_id, pullspec, platform, source_build=False, l
 
     repositories, typed_digests = get_repositories_and_digests(workflow, pullspec)
 
-    tags = set(image.tag for image in workflow.tag_conf.images)
+    tags = set(image.tag for image in workflow.data.tag_conf.images)
     metadata, output = get_image_output(workflow, image_id, platform, pullspec)
 
     metadata.update({
@@ -507,7 +508,7 @@ def get_output(workflow, buildroot_id, pullspec, platform, source_build=False, l
     if not source_build:
         metadata['components'] = get_image_components(workflow)
 
-        if not workflow.dockerfile_images.base_from_scratch:
+        if not workflow.data.dockerfile_images.base_from_scratch:
             metadata['extra']['docker']['parent_id'] = parent_id
 
     # Add the 'docker save' image to the output
@@ -525,7 +526,7 @@ def get_output(workflow, buildroot_id, pullspec, platform, source_build=False, l
 
     if not source_build:
         # add operator manifests to output
-        operator_manifests_path = (workflow.postbuild_results
+        operator_manifests_path = (workflow.data.postbuild_results
                                    .get(PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY))
         if operator_manifests_path:
             operator_manifests_file = open(operator_manifests_path)
@@ -581,8 +582,8 @@ def get_repositories_and_digests(workflow, pullspec_image):
     """
     digests = {}  # image -> digests
     typed_digests = {}  # media_type -> digests
-    for registry in workflow.push_conf.docker_registries:
-        for image in workflow.tag_conf.images:
+    for registry in workflow.data.push_conf.docker_registries:
+        for image in workflow.data.tag_conf.images:
             image_str = image.to_str()
             if image_str in registry.digests:
                 image_digests = registry.digests[image_str]
@@ -596,7 +597,7 @@ def get_repositories_and_digests(workflow, pullspec_image):
                     digest_type = get_manifest_media_type(digest_version)
                     typed_digests[digest_type] = image_digests[digest_version]
 
-    registries = workflow.push_conf.all_registries
+    registries = workflow.data.push_conf.all_registries
     repositories = []
     for registry in registries:
         image = pullspec_image.copy()

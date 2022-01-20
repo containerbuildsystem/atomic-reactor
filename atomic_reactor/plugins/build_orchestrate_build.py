@@ -50,7 +50,7 @@ def get_worker_build_info(workflow, platform):
     """
     Obtain worker build information for a given platform
     """
-    workspace = workflow.plugin_workspace[OrchestrateBuildPlugin.key]
+    workspace = workflow.data.plugin_workspace[OrchestrateBuildPlugin.key]
     return workspace[WORKSPACE_KEY_BUILD_INFO][platform]
 
 
@@ -58,7 +58,7 @@ def get_koji_upload_dir(workflow):
     """
     Obtain koji_upload_dir value used for worker builds
     """
-    workspace = workflow.plugin_workspace[OrchestrateBuildPlugin.key]
+    workspace = workflow.data.plugin_workspace[OrchestrateBuildPlugin.key]
     return workspace[WORKSPACE_KEY_UPLOAD_DIR]
 
 
@@ -69,7 +69,7 @@ def override_build_kwarg(workflow, k, v, platform=None):
     key = OrchestrateBuildPlugin.key
     # Use None to indicate an override for all platforms
 
-    workspace = workflow.plugin_workspace.setdefault(key, {})
+    workspace = workflow.data.plugin_workspace.setdefault(key, {})
     override_kwargs = workspace.setdefault(WORKSPACE_KEY_OVERRIDE_KWARGS, {})
     override_kwargs.setdefault(platform, {})
     override_kwargs[platform][k] = v
@@ -358,7 +358,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
 
     def adjust_build_kwargs(self):
         # OSBS2 TBD
-        self.build_kwargs['parent_images_digests'] = self.workflow.parent_images_digests
+        self.build_kwargs['parent_images_digests'] = self.workflow.data.parent_images_digests
         # All platforms should generate the same operator manifests. We can use any of them
         if self.platforms:
             self.build_kwargs['operator_manifests_extract_platform'] = list(self.platforms)[0]
@@ -478,7 +478,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
     def get_fs_task_id(self):
         task_id = None
 
-        fs_result = self.workflow.prebuild_results.get(PLUGIN_ADD_FILESYSTEM_KEY)
+        fs_result = self.workflow.data.prebuild_results.get(PLUGIN_ADD_FILESYSTEM_KEY)
         if fs_result is None:
             return None
 
@@ -499,7 +499,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         return task_id
 
     def do_worker_build(self, cluster_info):
-        workspace = self.workflow.plugin_workspace.get(self.key, {})
+        workspace = self.workflow.data.plugin_workspace.get(self.key, {})
         override_kwargs = workspace.get(WORKSPACE_KEY_OVERRIDE_KWARGS, {})
 
         build = None
@@ -653,7 +653,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
             if not build_info.build or not build_info.build.is_succeeded()
         }
 
-        workspace = self.workflow.plugin_workspace.setdefault(self.key, {})
+        workspace = self.workflow.data.plugin_workspace.setdefault(self.key, {})
         workspace[WORKSPACE_KEY_UPLOAD_DIR] = self.koji_upload_dir
         workspace[WORKSPACE_KEY_BUILD_INFO] = {build_info.platform: build_info
                                                for build_info in self.worker_builds}

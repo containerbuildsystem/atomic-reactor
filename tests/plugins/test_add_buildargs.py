@@ -137,7 +137,7 @@ def test_add_buildargs_plugin(
     df.content = df_content
 
     prepare(workflow, df.dockerfile_path)
-    workflow.buildargs = buildargs
+    workflow.data.buildargs = buildargs
 
     runner = PreBuildPluginsRunner(workflow, [{
         'name': AddBuildargsPlugin.key,

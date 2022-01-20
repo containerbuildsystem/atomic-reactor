@@ -67,11 +67,11 @@ class PrePublishSquashPlugin(PrePublishPlugin):
             disk under the image.tar name; if `False`, archive is not generated
         """
         super(PrePublishSquashPlugin, self).__init__(workflow)
-        self.image = self.workflow.image_id
+        self.image = self.workflow.data.image_id
         self.tag = tag or str(self.workflow.image)
         self.from_layer = from_layer
         if from_base and from_layer is None:
-            if not self.workflow.dockerfile_images.base_from_scratch:
+            if not self.workflow.data.dockerfile_images.base_from_scratch:
                 try:
                     # OSBS2 TBD: this entire plugin will be deleted
                     base_image_id = self.workflow.imageutil.base_image_inspect()['Id']
@@ -96,7 +96,7 @@ class PrePublishSquashPlugin(PrePublishPlugin):
             self.log.info('flatpak build, skipping plugin')
             return
 
-        if self.workflow.build_result.skip_layer_squash:
+        if self.workflow.data.build_result.skip_layer_squash:
             return  # enable build plugins to prevent unnecessary squashes
         if self.save_archive:
             output_path = os.path.join(self.workflow.source.workdir, EXPORTED_SQUASHED_IMAGE_NAME)
@@ -115,9 +115,9 @@ class PrePublishSquashPlugin(PrePublishPlugin):
             new_id = 'sha256:{}'.format(new_id)
 
         if not self.dont_load:
-            self.workflow.image_id = new_id
+            self.workflow.data.image_id = new_id
 
         if self.save_archive:
             metadata.update(get_exported_image_metadata(output_path, IMAGE_TYPE_DOCKER_ARCHIVE))
-            self.workflow.exported_image_sequence.append(metadata)
+            self.workflow.data.exported_image_sequence.append(metadata)
         defer_removal(self.workflow, self.image)

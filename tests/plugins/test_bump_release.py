@@ -64,7 +64,7 @@ class TestBumpRelease(object):
         if scratch is not None:
             workflow.user_params['scratch'] = scratch
         if fetch_source:
-            workflow.prebuild_results[PLUGIN_FETCH_SOURCES_KEY] = {
+            workflow.data.prebuild_results[PLUGIN_FETCH_SOURCES_KEY] = {
                 'sources_for_nvr': KOJI_SOURCE_NVR
             }
 
@@ -419,8 +419,8 @@ class TestBumpRelease(object):
         workflow.build_dir.for_each_platform(check_labels)
 
         if reserve_build and not next_release['scratch']:
-            assert plugin.workflow.reserved_build_id == build_id
-            assert plugin.workflow.reserved_token == token
+            assert plugin.workflow.data.reserved_build_id == build_id
+            assert plugin.workflow.data.reserved_token == token
 
     @pytest.mark.parametrize('next_release', [
         {'last': '20', 'builds': ['19', '20'], 'expected': '21', 'search': [{'id': 12345}]},
@@ -584,15 +584,15 @@ class TestBumpRelease(object):
                 assert fd.read() == expected
 
         if reserve_build and not next_release['scratch']:
-            assert plugin.workflow.reserved_build_id == build_id
-            assert plugin.workflow.reserved_token == token
+            assert plugin.workflow.data.reserved_build_id == build_id
+            assert plugin.workflow.data.reserved_token == token
 
-        assert plugin.workflow.koji_source_source_url == koji_source
+        assert plugin.workflow.data.koji_source_source_url == koji_source
 
         expected_nvr = {'name': "%s-source" % koji_name,
                         'version': koji_version,
                         'release': next_release['expected']}
-        plugin.workflow.koji_source_nvr = expected_nvr
+        plugin.workflow.data.koji_source_nvr = expected_nvr
 
 
 @pytest.mark.parametrize('flatpak, isolated, append', [

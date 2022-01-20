@@ -34,7 +34,7 @@ class ExceedsImageSizeError(RuntimeError):
 
 class TagAndPushPlugin(PostBuildPlugin):
     """
-    Use tags from workflow.tag_conf and push the images to workflow.push_conf
+    Use tags from workflow.data.tag_conf and push the images to workflow.data.push_conf
     """
 
     key = "tag_and_push"
@@ -57,8 +57,8 @@ class TagAndPushPlugin(PostBuildPlugin):
         self.koji_target = koji_target
 
     def need_skopeo_push(self):
-        if len(self.workflow.exported_image_sequence) > 0:
-            last_image = self.workflow.exported_image_sequence[-1]
+        if len(self.workflow.data.exported_image_sequence) > 0:
+            last_image = self.workflow.data.exported_image_sequence[-1]
             if last_image['type'] == IMAGE_TYPE_OCI or last_image['type'] == IMAGE_TYPE_OCI_TAR:
                 return True
 
@@ -78,7 +78,7 @@ class TagAndPushPlugin(PostBuildPlugin):
             # If the last image has type OCI_TAR, then hunt back and find the
             # the untarred version, since skopeo only supports OCI's as an
             # untarred directory
-            image = [x for x in self.workflow.exported_image_sequence if
+            image = [x for x in self.workflow.data.exported_image_sequence if
                      x['type'] != IMAGE_TYPE_OCI_TAR][-1]
 
             if image['type'] == IMAGE_TYPE_OCI:
@@ -102,7 +102,7 @@ class TagAndPushPlugin(PostBuildPlugin):
             raise
 
     def source_get_unique_image(self):
-        source_result = self.workflow.prebuild_results[PLUGIN_FETCH_SOURCES_KEY]
+        source_result = self.workflow.data.prebuild_results[PLUGIN_FETCH_SOURCES_KEY]
         koji_build_id = source_result['sources_for_koji_build_id']
         kojisession = get_koji_session(self.workflow.conf)
 
@@ -131,16 +131,18 @@ class TagAndPushPlugin(PostBuildPlugin):
 
     def run(self):
         pushed_images = []
+        wf_data = self.workflow.data
 
-        source_docker_archive = self.workflow.build_result.source_docker_archive
+        source_docker_archive = wf_data.build_result.source_docker_archive
         if source_docker_archive:
             source_unique_image = self.source_get_unique_image()
 
-        if not self.workflow.tag_conf.unique_images:
+        tag_conf = wf_data.tag_conf
+        if not tag_conf.unique_images:
             if source_docker_archive:
-                self.workflow.tag_conf.add_unique_image(source_unique_image)
+                tag_conf.add_unique_image(source_unique_image)
             else:
-                self.workflow.tag_conf.add_unique_image(self.workflow.image)
+                tag_conf.add_unique_image(self.workflow.image)
 
         config_manifest_digest = None
         config_manifest_type = None
@@ -149,18 +151,17 @@ class TagAndPushPlugin(PostBuildPlugin):
 
         for registry, registry_conf in self.registries.items():
             insecure = registry_conf.get('insecure', False)
-            push_conf_registry = \
-                self.workflow.push_conf.add_docker_registry(registry, insecure=insecure)
+            push_conf_registry = wf_data.push_conf.add_docker_registry(registry, insecure=insecure)
 
             docker_push_secret = registry_conf.get('secret', None)
             self.log.info("Registry %s secret %s", registry, docker_push_secret)
 
-            for image in self.workflow.tag_conf.images:
+            for image in wf_data.tag_conf.images:
                 if image.registry:
                     raise RuntimeError("Image name must not contain registry: %r" % image.registry)
 
                 if not source_docker_archive:
-                    image_size = sum(item['size'] for item in self.workflow.layer_sizes)
+                    image_size = sum(item['size'] for item in self.workflow.data.layer_sizes)
                     config_image_size = image_size_limit['binary_image']
                     # Only handle the case when size is set > 0 in config
                     if config_image_size and image_size > config_image_size:
@@ -182,7 +183,7 @@ class TagAndPushPlugin(PostBuildPlugin):
                         # OSBS2 TBD either use store manifest from ManifestUtil
                         # or tag_imag from utils.image
                         # we won't need pushing
-                        # self.tasker.tag_and_push_image(self.workflow.image_id,
+                        # self.tasker.tag_and_push_image(self.workflow.data.image_id,
                         #                                registry_image, insecure=insecure,
                         #                                force=True, dockercfg=docker_push_secret)
                         pass
@@ -197,7 +198,7 @@ class TagAndPushPlugin(PostBuildPlugin):
                                 f'Unable to fetch v2 schema 2 digest for {registry_image.to_str()}'
                             ) from exc
 
-                        self.workflow.koji_source_manifest = koji_source_manifest_response.json()
+                        wf_data.koji_source_manifest = koji_source_manifest_response.json()
 
                     digests = get_manifest_digests(registry_image, registry,
                                                    insecure, docker_push_secret)

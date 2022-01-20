@@ -40,14 +40,14 @@ class PostBuildRPMqaPlugin(PostBuildPlugin):
 
     def run(self):
         # If another component has already filled in the image component list, skip
-        if self.workflow.image_components is not None:
+        if self.workflow.data.image_components is not None:
             return None
 
         plugin_output = self.gather_output()
 
         # OSBS2 TBD
         # we won't need to clean container because we will use just oc image extract
-        # if self.workflow.dockerfile_images.base_from_scratch:
+        # if self.workflow.data.dockerfile_images.base_from_scratch:
         #     if not plugin_output:
         #         self.tasker.cleanup_containers(*self._container_ids)
         #         return None
@@ -60,7 +60,7 @@ class PostBuildRPMqaPlugin(PostBuildPlugin):
 
         # self.tasker.cleanup_containers(*self._container_ids)
 
-        self.workflow.image_components = parse_rpm_output(plugin_output)
+        self.workflow.data.image_components = parse_rpm_output(plugin_output)
 
         return plugin_output
 
@@ -75,7 +75,7 @@ class PostBuildRPMqaPlugin(PostBuildPlugin):
         #     bits, _ = self.tasker.get_archive(container_id, RPMDB_PATH)
         # except APIError as ex:
         #     self.log.info('Could not extract rpmdb in %s : %s', RPMDB_PATH, ex)
-        #     if self.workflow.dockerfile_images.base_from_scratch:
+        #     if self.workflow.data.dockerfile_images.base_from_scratch:
         #         return None
         #     raise RuntimeError(ex) from ex
 
@@ -97,7 +97,7 @@ class PostBuildRPMqaPlugin(PostBuildPlugin):
 
             if not os.listdir(rpmdb_path):
                 self.log.info('rpmdb directory %s is empty', RPMDB_PATH)
-                if self.workflow.dockerfile_images.base_from_scratch:
+                if self.workflow.data.dockerfile_images.base_from_scratch:
                     return None
                 raise RuntimeError(f'rpmdb directory {RPMDB_PATH} is empty')
 

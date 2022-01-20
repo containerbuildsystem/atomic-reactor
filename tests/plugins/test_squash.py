@@ -33,8 +33,8 @@ SET_DEFAULT_LAYER_ID = object()
 
 @pytest.fixture
 def workflow(workflow):
-    workflow.dockerfile_images = DockerfileImages(['Fedora:22'])
-    workflow.image_id = 'image_id'
+    workflow.data.dockerfile_images = DockerfileImages(['Fedora:22'])
+    workflow.data.image_id = 'image_id'
     flexmock(workflow, image='image')
     (flexmock(workflow.imageutil)
         .should_receive('base_image_inspect')
@@ -52,14 +52,14 @@ class TestSquashPlugin(object):
 
     def test_skip_squash(self, workflow):
         flexmock(Squash).should_receive('__init__').never()
-        workflow.build_result = BuildResult(image_id="spam", skip_layer_squash=True)
+        workflow.data.build_result = BuildResult(image_id="spam", skip_layer_squash=True)
         self.run_plugin_with_args(workflow, {})
 
     @pytest.mark.parametrize('base_from_scratch', (True, False))
     def test_default_parameters(self, base_from_scratch, workflow):
         self.should_squash_with_kwargs(workflow, base_from_scratch=base_from_scratch)
         if base_from_scratch:
-            workflow.dockerfile_images = DockerfileImages(['scratch'])
+            workflow.data.dockerfile_images = DockerfileImages(['scratch'])
         self.run_plugin_with_args(workflow, {})
 
     @pytest.mark.parametrize(('plugin_tag', 'squash_tag'), (
@@ -98,7 +98,7 @@ class TestSquashPlugin(object):
     def test_sha256_prefix(self, new_id, expected_id, workflow):
         self.should_squash_with_kwargs(workflow, new_id=new_id)
         self.run_plugin_with_args(workflow, {})
-        assert workflow.image_id == expected_id
+        assert workflow.data.image_id == expected_id
 
     def test_skip_saving_archive(self, workflow):
         self.should_squash_with_kwargs(workflow, output_path=None)
@@ -111,7 +111,7 @@ class TestSquashPlugin(object):
         assert 'flatpak build, skipping plugin' in caplog.text
 
     def should_squash_with_kwargs(self, workflow, new_id='abc', base_from_scratch=False, **kwargs):
-        kwargs.setdefault('image', workflow.image_id)
+        kwargs.setdefault('image', workflow.data.image_id)
         kwargs.setdefault('load_image', True)
         kwargs.setdefault('log', logging.Logger)
         kwargs.setdefault('output_path', os.path.join(workflow.source.workdir,
@@ -152,7 +152,7 @@ class TestSquashPlugin(object):
         assert result[PrePublishSquashPlugin.key] is None
 
         if self.output_path:
-            assert workflow.exported_image_sequence == [{
+            assert workflow.data.exported_image_sequence == [{
                 'md5sum': DUMMY_TARBALL['md5sum'],
                 'sha256sum': DUMMY_TARBALL['sha256sum'],
                 'size': DUMMY_TARBALL['size'],
@@ -160,4 +160,4 @@ class TestSquashPlugin(object):
                 'path': self.output_path,
             }]
         else:
-            assert workflow.exported_image_sequence == []
+            assert workflow.data.exported_image_sequence == []

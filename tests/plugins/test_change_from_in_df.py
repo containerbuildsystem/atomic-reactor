@@ -31,10 +31,10 @@ def mock_workflow(workflow, df_path=None, df_images=None):
     workflow.source = StubSource()
     flexmock(workflow, df_path=df_path)
     if df_images:
-        workflow.dockerfile_images = DockerfileImages(df_images)
+        workflow.data.dockerfile_images = DockerfileImages(df_images)
     else:
-        workflow.dockerfile_images = DockerfileImages(['mock:base'])
-        workflow.dockerfile_images['mock:base'] = ImageName.parse("mock:tag")
+        workflow.data.dockerfile_images = DockerfileImages(['mock:base'])
+        workflow.data.dockerfile_images['mock:base'] = ImageName.parse("mock:tag")
 
     return workflow
 
@@ -69,7 +69,7 @@ def test_update_base_image(tmpdir, workflow, base_image):
     workflow = mock_workflow(workflow,
                              df_path=dfp.dockerfile_path,
                              df_images=dfp.parent_images)
-    workflow.dockerfile_images[base_image] = local_tag
+    workflow.data.dockerfile_images[base_image] = local_tag
 
     run_plugin(workflow)
     expected_df = df_content.format(base_str)
@@ -263,13 +263,13 @@ def test_update_parent_images(df_content, expected_df_content, tmpdir, workflow)
         if parent == 'scratch':
             continue
         parent_in = ImageName.parse(parent)
-        workflow.dockerfile_images[parent] = parent_images[parent_in]
+        workflow.data.dockerfile_images[parent] = parent_images[parent_in]
 
-    original_base = workflow.dockerfile_images.base_image
+    original_base = workflow.data.dockerfile_images.base_image
     run_plugin(workflow)
     assert dfp.content == expected_df_content
-    if workflow.dockerfile_images.base_from_scratch:
-        assert original_base == workflow.dockerfile_images.base_image
+    if workflow.data.dockerfile_images.base_from_scratch:
+        assert original_base == workflow.data.dockerfile_images.base_image
 
 
 def test_parent_images_unresolved(tmpdir, workflow):
@@ -283,7 +283,7 @@ def test_parent_images_unresolved(tmpdir, workflow):
     workflow = mock_workflow(workflow,
                              df_path=dfp.dockerfile_path,
                              df_images=['extra_image', 'base_image'])
-    workflow.dockerfile_images['base_image'] = 'base_local'
+    workflow.data.dockerfile_images['base_image'] = 'base_local'
 
     with pytest.raises(PluginFailedException) as exc:
         run_plugin(workflow)
@@ -302,7 +302,7 @@ def test_parent_images_missing(tmpdir, workflow):
     workflow = mock_workflow(workflow,
                              df_path=dfp.dockerfile_path,
                              df_images=['monty'])
-    workflow.dockerfile_images['monty'] = 'monty_local'
+    workflow.data.dockerfile_images['monty'] = 'monty_local'
 
     with pytest.raises(PluginFailedException) as exc:
         run_plugin(workflow)

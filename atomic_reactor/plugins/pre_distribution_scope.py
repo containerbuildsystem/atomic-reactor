@@ -91,7 +91,7 @@ class DistributionScopePlugin(PreBuildPlugin):
             # OSBS2 TBD: decide if we need to inspect a specific arch
             inspect = self.workflow.imageutil.base_image_inspect()
             parent_labels = {}
-            if not self.workflow.dockerfile_images.base_from_scratch:
+            if not self.workflow.data.dockerfile_images.base_from_scratch:
                 parent_labels = inspect.get(INSPECT_CONFIG, {}).get('Labels', {})
             parent_scope = self.get_scope('parent', parent_labels)
         except NothingToCheck:

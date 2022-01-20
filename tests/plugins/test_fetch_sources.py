@@ -528,7 +528,7 @@ class TestFetchSources(object):
             if custom_rcm:
                 assert get_srpm_url() in caplog.text
                 assert get_srpm_url('usedKey') not in caplog.text
-            assert runner.workflow.labels['sources_for_koji_build_id'] == 1
+            assert runner.workflow.data.labels['sources_for_koji_build_id'] == 1
 
     @pytest.mark.parametrize('typeinfo_rs', (RS_TYPEINFO, RS_TYPEINFO_NO_JSON, RS_TYPEINFO_NO_2))
     @pytest.mark.parametrize('archives_in_koji', (4, 3, 5))
@@ -628,7 +628,7 @@ class TestFetchSources(object):
 
             with open(os.path.join(sources_dir, sources_list[0]), 'rb') as f:
                 assert f.read() == b'Source RPM'
-            assert runner.workflow.labels['sources_for_koji_build_id'] == 1
+            assert runner.workflow.data.labels['sources_for_koji_build_id'] == 1
 
     @pytest.mark.parametrize('signing_intent', ('unsigned', 'empty', 'one', 'multiple', 'invalid'))
     def test_koji_signing_intent(self, signing_intent,
