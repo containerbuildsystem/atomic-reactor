@@ -275,14 +275,14 @@ def mock_environment(workflow, source_dir: Path, session=None, name=None,
     workflow.user_params['scratch'] = scratch
 
     if yum_repourls:
-        workflow.all_yum_repourls = yum_repourls
-    workflow.image_id = '123456imageid'
-    workflow.dockerfile_images = DockerfileImages(['Fedora:22'])
+        workflow.data.all_yum_repourls = yum_repourls
+    workflow.data.image_id = '123456imageid'
+    workflow.data.dockerfile_images = DockerfileImages(['Fedora:22'])
 
     flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return({})
-    setattr(workflow, 'tag_conf', TagConf())
-    setattr(workflow, 'reserved_build_id ', None)
-    setattr(workflow, 'reserved_token', None)
+    setattr(workflow.data, 'tag_conf', TagConf())
+    setattr(workflow.data, 'reserved_build_id ', None)
+    setattr(workflow.data, 'reserved_token', None)
     with open(source_dir / DOCKERFILE_FILENAME, 'wt') as df:
         df.write('FROM base\n'
                  'LABEL BZComponent={component} com.redhat.component={component}\n'
@@ -298,17 +298,15 @@ def mock_environment(workflow, source_dir: Path, session=None, name=None,
             container_conf.write('go:\n'
                                  '  modules:\n'
                                  '    - module: example.com/packagename\n')
+
+    tag_conf = workflow.data.tag_conf
     if name and version:
-        workflow.tag_conf.add_unique_image('{}:{}-timestamp'.format(name, version))
+        tag_conf.add_unique_image('{}:{}-timestamp'.format(name, version))
     if name and version and release and add_tag_conf_primaries:
-        workflow.tag_conf.add_primary_image("{0}:{1}-{2}".format(name,
-                                                                 version,
-                                                                 release))
-        workflow.tag_conf.add_floating_images(["{0}:{1}".format(name, version),
-                                               "{0}:latest".format(name)])
+        tag_conf.add_primary_image("{0}:{1}-{2}".format(name, version, release))
+        tag_conf.add_floating_images(["{0}:{1}".format(name, version), "{0}:latest".format(name)])
     if additional_tags:
-        workflow.tag_conf.add_floating_images(["{0}:{1}".format(name, tag)
-                                              for tag in additional_tags])
+        tag_conf.add_floating_images(["{0}:{1}".format(name, tag) for tag in additional_tags])
 
     flexmock(subprocess, Popen=fake_Popen)
     flexmock(koji, ClientSession=lambda hub, opts: session)
@@ -329,14 +327,14 @@ def mock_environment(workflow, source_dir: Path, session=None, name=None,
     setattr(workflow.source, 'lg', X())
     setattr(workflow.source.lg, 'commit_id', '123456')
     setattr(workflow.source.lg, 'git_path', str(source_dir))
-    setattr(workflow, 'push_conf', PushConf())
 
     workflow.build_dir.init_build_dirs(["x86_64"], workflow.source)
 
+    setattr(workflow.data, 'push_conf', PushConf())
     if docker_registry:
-        docker_reg = workflow.push_conf.add_docker_registry('docker.example.com')
+        docker_reg = workflow.data.push_conf.add_docker_registry('docker.example.com')
 
-        for image in workflow.tag_conf.images:
+        for image in tag_conf.images:
             tag = image.to_str(registry=False)
             docker_reg.digests[tag] = ManifestDigest(v1='sha256:not-used',
                                                      v2=fake_digest(image))
@@ -356,8 +354,9 @@ def mock_environment(workflow, source_dir: Path, session=None, name=None,
 
     image_tar = build_dir_path / 'image.tar.xz'
     image_tar.write_text('x' * 2**12, "utf-8")
-    setattr(workflow, 'exported_image_sequence', [{'path': str(image_tar),
-                                                   'type': exported_file_type}])
+    setattr(workflow.data,
+            'exported_image_sequence',
+            [{'path': str(image_tar), 'type': exported_file_type}])
 
     annotations = {
         'worker-builds': {
@@ -379,25 +378,31 @@ def mock_environment(workflow, source_dir: Path, session=None, name=None,
     }
 
     if build_process_failed:
-        workflow.build_result = BuildResult(logs=["docker build log - \u2018 \u2017 \u2019 \n'"],
-                                            fail_reason="not built")
+        workflow.data.build_result = BuildResult(
+            logs=["docker build log - \u2018 \u2017 \u2019 \n'"],
+            fail_reason="not built",
+        )
         if build_process_canceled:
-            workflow.build_canceled = True
+            workflow.data.build_canceled = True
     else:
-        workflow.build_result = BuildResult(logs=["docker build log - \u2018 \u2017 \u2019 \n'"],
-                                            image_id="id1234",
-                                            annotations=annotations)
+        workflow.data.build_result = BuildResult(
+            logs=["docker build log - \u2018 \u2017 \u2019 \n'"],
+            image_id="id1234",
+            annotations=annotations,
+        )
     workflow.prebuild_plugins_conf = {}
-    workflow.prebuild_results[PLUGIN_FETCH_SOURCES_KEY] = {'sources_for_nvr': SOURCES_FOR_KOJI_NVR,
-                                                           'signing_intent': SOURCES_SIGNING_INTENT}
-    workflow.postbuild_results[PostBuildRPMqaPlugin.key] = [
+    workflow.data.prebuild_results[PLUGIN_FETCH_SOURCES_KEY] = {
+        'sources_for_nvr': SOURCES_FOR_KOJI_NVR,
+        'signing_intent': SOURCES_SIGNING_INTENT,
+    }
+    workflow.data.postbuild_results[PostBuildRPMqaPlugin.key] = [
         "name1;1.0;1;x86_64;0;2000;" + FAKE_SIGMD5.decode() + ";23000;"
         "RSA/SHA256, Tue 30 Aug 2016 00:00:00, Key ID 01234567890abc;(none)",
         "name2;2.0;1;x86_64;0;3000;" + FAKE_SIGMD5.decode() + ";24000"
         "RSA/SHA256, Tue 30 Aug 2016 00:00:00, Key ID 01234567890abd;(none)",
     ]
 
-    workflow.postbuild_results[FetchWorkerMetadataPlugin.key] = {
+    workflow.data.postbuild_results[FetchWorkerMetadataPlugin.key] = {
         'x86_64': {
             'buildroots': [
                 {
@@ -491,7 +496,7 @@ def mock_environment(workflow, source_dir: Path, session=None, name=None,
             'type': 'log',
             'filename': OPERATOR_MANIFESTS_ARCHIVE,
             'buildroot_id': 1}
-        (workflow.postbuild_results[FetchWorkerMetadataPlugin.key]['x86_64']['output']
+        (workflow.data.postbuild_results[FetchWorkerMetadataPlugin.key]['x86_64']['output']
          .append(manifests_entry))
 
     if has_remote_source:
@@ -511,16 +516,16 @@ def mock_environment(workflow, source_dir: Path, session=None, name=None,
                 },
             }
         ]
-        workflow.prebuild_results[PLUGIN_RESOLVE_REMOTE_SOURCE] = remote_source_result
+        workflow.data.prebuild_results[PLUGIN_RESOLVE_REMOTE_SOURCE] = remote_source_result
     else:
-        workflow.prebuild_results[PLUGIN_RESOLVE_REMOTE_SOURCE] = None
+        workflow.data.prebuild_results[PLUGIN_RESOLVE_REMOTE_SOURCE] = None
 
-    workflow.postbuild_results[PLUGIN_GENERATE_MAVEN_METADATA_KEY] = None
+    workflow.data.postbuild_results[PLUGIN_GENERATE_MAVEN_METADATA_KEY] = None
 
     if has_remote_source_file:
         filepath = build_dir_path / REMOTE_SOURCE_FILE_FILENAME
         filepath.write_text('dummy file', 'utf-8')
-        remote_source_file_result = {
+        workflow.data.postbuild_results[PLUGIN_GENERATE_MAVEN_METADATA_KEY] = {
             'remote_source_files': [
                 {
                     'file': str(filepath),
@@ -554,10 +559,9 @@ def mock_environment(workflow, source_dir: Path, session=None, name=None,
                 'filename': 'dummy-no-source.jar'
             }],
         }
-        workflow.postbuild_results[PLUGIN_GENERATE_MAVEN_METADATA_KEY] = remote_source_file_result
 
     if has_pnc_build_metadata:
-        workflow.postbuild_results[PLUGIN_GENERATE_MAVEN_METADATA_KEY] = {
+        workflow.data.postbuild_results[PLUGIN_GENERATE_MAVEN_METADATA_KEY] = {
             'pnc_build_metadata': {
                 'builds': [
                     {'id': 12345},
@@ -567,10 +571,10 @@ def mock_environment(workflow, source_dir: Path, session=None, name=None,
         }
 
     if push_operator_manifests_enabled:
-        workflow.postbuild_results[PLUGIN_PUSH_OPERATOR_MANIFESTS_KEY] = \
+        workflow.data.postbuild_results[PLUGIN_PUSH_OPERATOR_MANIFESTS_KEY] = \
             PUSH_OPERATOR_MANIFESTS_RESULTS
 
-    workflow.plugin_workspace = {
+    workflow.data.plugin_workspace = {
         OrchestrateBuildPlugin.key: {
             WORKSPACE_KEY_UPLOAD_DIR: 'test-dir',
             WORKSPACE_KEY_BUILD_INFO: {
@@ -692,8 +696,8 @@ class TestKojiImport(object):
                          build_process_canceled=canceled_build, name='ns/name',
                          version='1.0', release='1')
         if reserved_build:
-            workflow.reserved_build_id = 1
-            workflow.reserved_token = 1
+            workflow.data.reserved_build_id = 1
+            workflow.data.reserved_token = 1
 
         runner = create_runner(workflow, reserve_build=reserved_build)
         runner.run()
@@ -1074,7 +1078,7 @@ class TestKojiImport(object):
             koji_parent_result = {
                 BASE_IMAGE_KOJI_BUILD: {'id': parent_id},
             }
-        workflow.prebuild_results[PLUGIN_KOJI_PARENT_KEY] = koji_parent_result
+        workflow.data.prebuild_results[PLUGIN_KOJI_PARENT_KEY] = koji_parent_result
 
         runner = create_runner(workflow)
         runner.run()
@@ -1115,12 +1119,12 @@ class TestKojiImport(object):
                 ImageName.parse('base'): dict(nvr='base-16.0-1', id=16, extra='build_info'),
             },
         }
-        workflow.prebuild_results[PLUGIN_KOJI_PARENT_KEY] = koji_parent_result
+        workflow.data.prebuild_results[PLUGIN_KOJI_PARENT_KEY] = koji_parent_result
 
         dockerfile_images = ['base:latest', 'scratch', 'some:1.0']
         if base_from_scratch:
             dockerfile_images.append('scratch')
-        workflow.dockerfile_images = DockerfileImages(dockerfile_images)
+        workflow.data.dockerfile_images = DockerfileImages(dockerfile_images)
 
         runner = create_runner(workflow)
         runner.run()
@@ -1150,7 +1154,7 @@ class TestKojiImport(object):
         session = MockedClientSession('')
         mock_environment(workflow, source_dir,
                          name='ns/name', version='1.0', release='1', session=session)
-        workflow.prebuild_results[AddFilesystemPlugin.key] = {
+        workflow.data.prebuild_results[AddFilesystemPlugin.key] = {
             'base-image-id': 'abcd',
             'filesystem-koji-task-id': task_id,
         }
@@ -1180,7 +1184,7 @@ class TestKojiImport(object):
         session = MockedClientSession('')
         mock_environment(workflow, source_dir,
                          name='ns/name', version='1.0', release='1', session=session)
-        workflow.prebuild_results[AddFilesystemPlugin.key] = {
+        workflow.data.prebuild_results[AddFilesystemPlugin.key] = {
             'base-image-id': 'abcd',
         }
         runner = create_runner(workflow)
@@ -1222,16 +1226,16 @@ class TestKojiImport(object):
                          name=name, version=version, release=release)
 
         if verify_media:
-            workflow.exit_results[PLUGIN_VERIFY_MEDIA_KEY] = verify_media
+            workflow.data.exit_results[PLUGIN_VERIFY_MEDIA_KEY] = verify_media
         expected_media_types = verify_media or []
 
-        workflow.image_id = expect_id
+        workflow.data.image_id = expect_id
 
         build_token = 'token_12345'
         build_id = '123'
         if reserved_build:
-            workflow.reserved_build_id = build_id
-            workflow.reserved_token = build_token
+            workflow.data.reserved_build_id = build_id
+            workflow.data.reserved_token = build_token
 
         if reserved_build:
             (flexmock(session)
@@ -1350,7 +1354,7 @@ class TestKojiImport(object):
         assert set(session.uploaded_files.keys()) == {OSBS_BUILD_LOG_FILENAME}
         orchestrator_log = session.uploaded_files[OSBS_BUILD_LOG_FILENAME]
         assert orchestrator_log == b"log message A\nlog message B\nlog message C\n"
-        assert workflow.labels['koji-build-id'] == '123'
+        assert workflow.data.labels['koji-build-id'] == '123'
 
     def test_koji_import_owner_submitter(self, workflow, source_dir):
         session = MockedClientSession('')
@@ -1435,7 +1439,7 @@ class TestKojiImport(object):
         mock_environment(workflow, source_dir,
                          name='ns/name', version='1.0', release='1', session=session)
 
-        orchestrator_ws = workflow.plugin_workspace[OrchestrateBuildPlugin.key]
+        orchestrator_ws = workflow.data.plugin_workspace[OrchestrateBuildPlugin.key]
         build_info = orchestrator_ws[WORKSPACE_KEY_BUILD_INFO]
 
         if expect_result == 'pass':
@@ -1546,7 +1550,7 @@ class TestKojiImport(object):
             worker_media_types += ['application/vnd.docker.distribution.manifest.list.v2+json']
         if worker_media_types:
             build_info = BuildInfo(media_types=worker_media_types)
-            orchestrate_plugin = workflow.plugin_workspace[OrchestrateBuildPlugin.key]
+            orchestrate_plugin = workflow.data.plugin_workspace[OrchestrateBuildPlugin.key]
             orchestrate_plugin[WORKSPACE_KEY_BUILD_INFO]['x86_64'] = build_info
 
         runner = create_runner(workflow)
@@ -1579,11 +1583,11 @@ class TestKojiImport(object):
         session = MockedClientSession('')
         mock_environment(workflow, source_dir,
                          name='ns/name', version='1.0', release='1', session=session)
-        registry = workflow.push_conf.add_docker_registry('docker.example.com')
-        for image in workflow.tag_conf.images:
+        registry = workflow.data.push_conf.add_docker_registry('docker.example.com')
+        for image in workflow.data.tag_conf.images:
             tag = image.to_str(registry=False)
             registry.digests[tag] = 'tag'
-        worker_metadata = workflow.postbuild_results[FetchWorkerMetadataPlugin.key]
+        worker_metadata = workflow.data.postbuild_results[FetchWorkerMetadataPlugin.key]
         for metadata in worker_metadata.values():
             for output in metadata['output']:
                 if output['type'] != 'docker-image':
@@ -1593,10 +1597,10 @@ class TestKojiImport(object):
                     'crane.example.com/foo:tag',
                     'crane.example.com/foo@sha256:bar',
                 ]
-        workflow.postbuild_results[PLUGIN_GROUP_MANIFESTS_KEY] = {
+        workflow.data.postbuild_results[PLUGIN_GROUP_MANIFESTS_KEY] = {
             "media_type": MEDIA_TYPE_DOCKER_V2_SCHEMA2
         }
-        orchestrate_plugin = workflow.plugin_workspace[OrchestrateBuildPlugin.key]
+        orchestrate_plugin = workflow.data.plugin_workspace[OrchestrateBuildPlugin.key]
         if digest:
             build_info = BuildInfo(digests=[digest])
         else:
@@ -1641,8 +1645,8 @@ class TestKojiImport(object):
                 'media_type': MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
                 'manifest_digest': digest
             }
-        workflow.postbuild_results[PLUGIN_GROUP_MANIFESTS_KEY] = group_manifest_result
-        orchestrate_plugin = workflow.plugin_workspace[OrchestrateBuildPlugin.key]
+        workflow.data.postbuild_results[PLUGIN_GROUP_MANIFESTS_KEY] = group_manifest_result
+        orchestrate_plugin = workflow.data.plugin_workspace[OrchestrateBuildPlugin.key]
         orchestrate_plugin[WORKSPACE_KEY_BUILD_INFO]['x86_64'] = BuildInfo()
         runner = create_runner(workflow)
         runner.run()
@@ -1655,7 +1659,7 @@ class TestKojiImport(object):
             meta_rec = {x.arch: x.message for x in caplog.records if hasattr(x, 'arch')
                         and x.arch == medata_tag}
             assert medata_tag in meta_rec
-            orchestrator_ws = workflow.plugin_workspace[OrchestrateBuildPlugin.key]
+            orchestrator_ws = workflow.data.plugin_workspace[OrchestrateBuildPlugin.key]
             upload_dir = orchestrator_ws[WORKSPACE_KEY_UPLOAD_DIR]
             dest_file = os.path.join(upload_dir, metadata_file)
             assert dest_file == meta_rec[medata_tag]
@@ -1673,15 +1677,15 @@ class TestKojiImport(object):
         assert isinstance(image, dict)
         expected_results = {'unique_tags': [unique_tag]}
         expected_results['floating_tags'] = [
-            tag.tag for tag in workflow.tag_conf.floating_images
+            tag.tag for tag in workflow.data.tag_conf.floating_images
         ]
         if is_scratch:
             expected_results['tags'] = [
-                tag.tag for tag in workflow.tag_conf.images
+                tag.tag for tag in workflow.data.tag_conf.images
             ]
         else:
             expected_results['tags'] = [
-                tag.tag for tag in workflow.tag_conf.primary_images
+                tag.tag for tag in workflow.data.tag_conf.primary_images
             ]
 
         for tag in expected_results['tags']:
@@ -1743,13 +1747,13 @@ class TestKojiImport(object):
         session = MockedClientSession('')
         mock_environment(workflow, source_dir,
                          name='ns/name', version='1.0', release='1', session=session)
-        registry = workflow.push_conf.add_docker_registry('docker.example.com')
-        for image in workflow.tag_conf.images:
+        registry = workflow.data.push_conf.add_docker_registry('docker.example.com')
+        for image in workflow.data.tag_conf.images:
             tag = image.to_str(registry=False)
             registry.digests[tag] = ManifestDigest(v1='sha256:v1',
                                                    v2='sha256:v2')
 
-        worker_metadata = workflow.postbuild_results[FetchWorkerMetadataPlugin.key]
+        worker_metadata = workflow.data.postbuild_results[FetchWorkerMetadataPlugin.key]
         for metadata in worker_metadata.values():
             for output in metadata['output']:
                 if output['type'] != 'docker-image':
@@ -1761,9 +1765,9 @@ class TestKojiImport(object):
                     'crane.example.com/foo@sha256:v2',
                 ]
 
-        workflow.postbuild_results[PLUGIN_GROUP_MANIFESTS_KEY] = {}
+        workflow.data.postbuild_results[PLUGIN_GROUP_MANIFESTS_KEY] = {}
 
-        orchestrate_plugin = workflow.plugin_workspace[OrchestrateBuildPlugin.key]
+        orchestrate_plugin = workflow.data.plugin_workspace[OrchestrateBuildPlugin.key]
         orchestrate_plugin[WORKSPACE_KEY_BUILD_INFO]['x86_64'] = BuildInfo()
 
         runner = create_runner(workflow)
@@ -1821,7 +1825,7 @@ class TestKojiImport(object):
         if comp is not None and sign_int is not None and override is not None:
             resolve_comp_entry = True
 
-            workflow.prebuild_results[PLUGIN_RESOLVE_COMPOSES_KEY] = {
+            workflow.data.prebuild_results[PLUGIN_RESOLVE_COMPOSES_KEY] = {
                 'composes': comp,
                 'signing_intent': sign_int,
                 'signing_intent_overridden': override,
@@ -1864,7 +1868,7 @@ class TestKojiImport(object):
                          name='ns/name', version='1.0', release='1', session=session)
 
         if resolve_run:
-            workflow.prebuild_results[PLUGIN_RESOLVE_COMPOSES_KEY] = None
+            workflow.data.prebuild_results[PLUGIN_RESOLVE_COMPOSES_KEY] = None
 
         runner = create_runner(workflow)
         runner.run()
@@ -2014,7 +2018,7 @@ class TestKojiImport(object):
                          session=session, has_op_bundle_manifests=has_bundle_manifests)
 
         if has_bundle_manifests:
-            workflow.prebuild_results[PLUGIN_PIN_OPERATOR_DIGESTS_KEY] = {
+            workflow.data.prebuild_results[PLUGIN_PIN_OPERATOR_DIGESTS_KEY] = {
                 'custom_csv_modifications_applied': False,
                 'related_images': {
                     'pullspecs': [
@@ -2096,7 +2100,7 @@ class TestKojiImport(object):
                 'created_by_osbs': True,
             }
         }
-        workflow.prebuild_results[PLUGIN_PIN_OPERATOR_DIGESTS_KEY] = plugin_res
+        workflow.data.prebuild_results[PLUGIN_PIN_OPERATOR_DIGESTS_KEY] = plugin_res
 
         runner = create_runner(workflow)
         runner.run()
@@ -2265,21 +2269,21 @@ class TestKojiImport(object):
                          version=version, release=release, has_config=has_config,
                          source_build=True)
 
-        workflow.build_result = BuildResult(source_docker_archive="oci_path")
-        workflow.koji_source_nvr = {'name': component, 'version': version, 'release': release}
-        workflow.koji_source_source_url = 'git://hostname/path#123456'
+        workflow.data.build_result = BuildResult(source_docker_archive="oci_path")
+        workflow.data.koji_source_nvr = {'name': component, 'version': version, 'release': release}
+        workflow.data.koji_source_source_url = 'git://hostname/path#123456'
 
         if verify_media:
-            workflow.exit_results[PLUGIN_VERIFY_MEDIA_KEY] = verify_media
+            workflow.data.exit_results[PLUGIN_VERIFY_MEDIA_KEY] = verify_media
         expected_media_types = verify_media or []
 
-        workflow.image_id = expect_id
+        workflow.data.image_id = expect_id
 
         build_token = 'token_12345'
         build_id = '123'
         if reserved_build:
-            workflow.reserved_build_id = build_id
-            workflow.reserved_token = build_token
+            workflow.data.reserved_build_id = build_id
+            workflow.data.reserved_token = build_token
 
         if reserved_build:
             (flexmock(session)
@@ -2304,7 +2308,7 @@ class TestKojiImport(object):
                  'digest': 'sha256:987654321'},
             ]
         }
-        workflow.koji_source_manifest = source_manifest
+        workflow.data.koji_source_manifest = source_manifest
 
         runner = create_runner(workflow, target=target, blocksize=blocksize,
                                reserve_build=reserved_build,
@@ -2426,4 +2430,4 @@ class TestKojiImport(object):
         orchestrator_log = session.uploaded_files[OSBS_BUILD_LOG_FILENAME]
         assert orchestrator_log == b"log message A\nlog message B\nlog message C\n"
 
-        assert workflow.labels['koji-build-id'] == '123'
+        assert workflow.data.labels['koji-build-id'] == '123'

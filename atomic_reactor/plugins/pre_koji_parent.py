@@ -78,16 +78,16 @@ class KojiParentPlugin(PreBuildPlugin):
             self.log.info('scratch build, skipping plugin')
             return
 
-        if not (self.workflow.dockerfile_images.base_from_scratch or
-                self.workflow.dockerfile_images.custom_base_image):
+        df_images = self.workflow.data.dockerfile_images
+        if not (df_images.base_from_scratch or df_images.custom_base_image):
             self._base_image_nvr = self.detect_parent_image_nvr(
-                self.workflow.dockerfile_images.base_image,
+                df_images.base_image,
                 # Inspect any platform: the N-V-R labels should be equal for all platforms
                 inspect_data=self.workflow.imageutil.base_image_inspect(),
             )
 
         manifest_mismatches = []
-        for img, local_tag in self.workflow.dockerfile_images.items():
+        for img, local_tag in df_images.items():
             if base_image_is_custom(img.to_str()):
                 continue
 
@@ -135,7 +135,7 @@ class KojiParentPlugin(PreBuildPlugin):
         image_str = image.to_str()
         v2_list_type = get_manifest_media_type('v2_list')
         v2_type = get_manifest_media_type('v2')
-        image_digest_data = self.workflow.parent_images_digests[image_str]
+        image_digest_data = self.workflow.data.parent_images_digests[image_str]
         if v2_list_type in image_digest_data:
             media_type = v2_list_type
         elif v2_type in image_digest_data:

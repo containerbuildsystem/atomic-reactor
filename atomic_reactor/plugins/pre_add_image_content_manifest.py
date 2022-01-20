@@ -93,11 +93,12 @@ class AddImageContentManifestPlugin(PreBuildPlugin):
         """
         super(AddImageContentManifestPlugin, self).__init__(workflow)
         self.content_manifests_dir = os.path.join(destdir, 'content_manifests')
+        wf_data = workflow.data
 
-        remote_source_results = workflow.prebuild_results.get(PLUGIN_RESOLVE_REMOTE_SOURCE) or []
+        remote_source_results = wf_data.prebuild_results.get(PLUGIN_RESOLVE_REMOTE_SOURCE) or []
         self.remote_source_ids = [remote_source['id'] for remote_source in remote_source_results]
 
-        fetch_maven_results = workflow.prebuild_results.get(PLUGIN_FETCH_MAVEN_KEY) or {}
+        fetch_maven_results = wf_data.prebuild_results.get(PLUGIN_FETCH_MAVEN_KEY) or {}
         self.pnc_artifact_ids = fetch_maven_results.get('pnc_artifact_ids') or []
 
     @functools.cached_property

@@ -16,8 +16,8 @@ __all__ = ('GarbageCollectionPlugin', )
 
 def defer_removal(workflow, image):
     key = GarbageCollectionPlugin.key
-    workflow.plugin_workspace.setdefault(key, {})
-    workspace = workflow.plugin_workspace[key]
+    workflow.data.plugin_workspace.setdefault(key, {})
+    workspace = workflow.data.plugin_workspace[key]
     workspace.setdefault('images_to_remove', set())
     workspace['images_to_remove'].add(image)
 
@@ -38,15 +38,15 @@ class GarbageCollectionPlugin(ExitPlugin):
 
     def run(self):
         # OSBS2 TBD
-        image = self.workflow.image_id
+        image = self.workflow.data.image_id
         if image:
             self.remove_image(image, force=True)
 
-        if self.remove_base_image and self.workflow.pulled_base_images:
-            for base_image_tag in self.workflow.pulled_base_images:
+        if self.remove_base_image and self.workflow.data.pulled_base_images:
+            for base_image_tag in self.workflow.data.pulled_base_images:
                 self.remove_image(base_image_tag, force=False)
 
-        workspace = self.workflow.plugin_workspace.get(self.key, {})
+        workspace = self.workflow.data.plugin_workspace.get(self.key, {})
         images_to_remove = workspace.get('images_to_remove', [])
         for image in images_to_remove:
             self.remove_image(image, force=True)

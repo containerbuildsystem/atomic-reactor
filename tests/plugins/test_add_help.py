@@ -84,7 +84,7 @@ def test_add_help_plugin(tmpdir, workflow, filename):
         ADD %s /%s
         CMD blabla""" % (AddHelpPlugin.man_filename, AddHelpPlugin.man_filename))
 
-    assert workflow.annotations['help_file'] == filename
+    assert workflow.data.annotations['help_file'] == filename
 
 
 @pytest.mark.parametrize('filename', ['help.md', 'other_file.md'])  # noqa

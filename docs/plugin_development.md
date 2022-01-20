@@ -62,9 +62,9 @@ class LogSubmitter(PostBuildPlugin):
         plugin actually.
 
         Response from this method is stored in
-        `workflow.postbuild_results[self.key]`
+        `workflow.data.postbuild_results[self.key]`
         """
-        json_data = {"logs": self.workflow.build_result.logs}
+        json_data = {"logs": self.workflow.data.build_result.logs}
         return requests.post(self.url, json=json_data).content
 ```
 

@@ -29,7 +29,7 @@ repocontent = '''[repo]\n'''
 
 def prepare(workflow, scratch=False):
     workflow.source = StubSource()
-    workflow.dockerfile_images = DockerfileImages([])
+    workflow.data.dockerfile_images = DockerfileImages([])
     workflow.user_params['scratch'] = scratch
     (flexmock(requests.Response, content=repocontent)
         .should_receive('raise_for_status')
@@ -48,7 +48,7 @@ def test_no_repourls(inject_proxy, workflow):
         'args': {'repourls': [], 'inject_proxy': inject_proxy}}])
     runner.run()
     assert AddYumRepoByUrlPlugin.key is not None
-    assert workflow.files == {}
+    assert workflow.data.files == {}
 
 
 @pytest.mark.parametrize('inject_proxy', [None, 'http://proxy.example.com'])
@@ -64,9 +64,10 @@ def test_single_repourl(inject_proxy, workflow):
     if inject_proxy:
         repo_content = '%sproxy = %s\n\n' % (repocontent, inject_proxy)
     # next(iter(...)) is for py 2/3 compatibility
-    assert next(iter(workflow.files.keys())) == os.path.join(YUM_REPOS_DIR, filename)
-    assert next(iter(workflow.files.values())) == repo_content
-    assert len(workflow.files) == 1
+    files = workflow.data.files
+    assert next(iter(files.keys())) == os.path.join(YUM_REPOS_DIR, filename)
+    assert next(iter(files.values())) == repo_content
+    assert len(files) == 1
 
 
 @pytest.mark.parametrize('base_from_scratch', [True, False])
@@ -88,15 +89,17 @@ def test_multiple_repourls(workflow, caplog,
         dockerfile_images.append('parent_image:latest')
     if base_from_scratch:
         dockerfile_images.append('scratch')
-    workflow.dockerfile_images = DockerfileImages(dockerfile_images)
+    workflow.data.dockerfile_images = DockerfileImages(dockerfile_images)
     runner = PreBuildPluginsRunner(workflow, [{
         'name': AddYumRepoByUrlPlugin.key,
         'args': {'repourls': repos, 'inject_proxy': inject_proxy}}])
     runner.run()
 
+    files = workflow.data.files
+
     if base_from_scratch and not parent_images:
         assert AddYumRepoByUrlPlugin.key is not None
-        assert workflow.files == {}
+        assert files == {}
         log_msg = "Skipping add yum repo by url: unsupported for FROM-scratch images"
         assert log_msg in caplog.text
     else:
@@ -105,10 +108,10 @@ def test_multiple_repourls(workflow, caplog,
             repo_content = '%sproxy = %s\n\n' % (repocontent, inject_proxy)
 
         for filename in filenames:
-            assert workflow.files[os.path.join(YUM_REPOS_DIR, filename)]
-            assert workflow.files[os.path.join(YUM_REPOS_DIR, filename)] == repo_content
+            assert files[os.path.join(YUM_REPOS_DIR, filename)]
+            assert files[os.path.join(YUM_REPOS_DIR, filename)] == repo_content
 
-        assert len(workflow.files) == 2
+        assert len(files) == 2
 
 
 @pytest.mark.parametrize('inject_proxy', [None, 'http://proxy.example.com'])
@@ -124,9 +127,10 @@ def test_single_repourl_no_suffix(inject_proxy, workflow):
     if inject_proxy:
         repo_content = '%sproxy = %s\n\n' % (repocontent, inject_proxy)
     # next(iter(...)) is for py 2/3 compatibility
-    assert fnmatch(next(iter(workflow.files.keys())), os.path.join(YUM_REPOS_DIR, pattern))
-    assert next(iter(workflow.files.values())) == repo_content
-    assert len(workflow.files) == 1
+    files = workflow.data.files
+    assert fnmatch(next(iter(files.keys())), os.path.join(YUM_REPOS_DIR, pattern))
+    assert next(iter(files.values())) == repo_content
+    assert len(files) == 1
 
 
 @pytest.mark.parametrize('inject_proxy', [None, 'http://proxy.example.com'])
@@ -154,16 +158,17 @@ def test_multiple_repourls_no_suffix(workflow, inject_proxy, repos, patterns):
     if inject_proxy:
         repo_content = '%sproxy = %s\n\n' % (repocontent, inject_proxy)
 
-    assert len(workflow.files) == 2
+    files = workflow.data.files
+    assert len(files) == 2
     for pattern in patterns:
-        for filename, content in workflow.files.items():
+        for filename, content in files.items():
             if fnmatch(filename, os.path.join(YUM_REPOS_DIR, pattern)):
                 assert content == repo_content  # only because they're all the same
-                del workflow.files[filename]
+                del files[filename]
                 break
         else:
             raise RuntimeError("no filename in %s matching pattern %s" %
-                               (list(workflow.files.keys()), pattern))
+                               (list(files.keys()), pattern))
 
 
 def test_invalid_repourl(workflow):

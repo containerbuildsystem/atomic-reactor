@@ -34,7 +34,7 @@ def prepare(workflow, df_path, df_dir, inherited_user=''):
     flexmock(workflow, df_path=df_path)
     flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return(inspect_data)
     workflow.df_dir = df_dir
-    workflow.dockerfile_images = DockerfileImages(df_parser(df_path).parent_images)
+    workflow.data.dockerfile_images = DockerfileImages(df_parser(df_path).parent_images)
     return workflow
 
 
@@ -43,7 +43,7 @@ def test_no_base_image_in_dockerfile(workflow, source_dir):
     dockerfile.touch()
 
     workflow = prepare(workflow, str(dockerfile), str(source_dir))
-    workflow.files = {'/etc/yum.repos.d/foo.repo': 'repo'}
+    workflow.data.files = {'/etc/yum.repos.d/foo.repo': 'repo'}
 
     runner = PreBuildPluginsRunner(workflow, [{
         'name': InjectYumRepoPlugin.key,

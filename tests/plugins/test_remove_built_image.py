@@ -25,17 +25,17 @@ class X(object):
 
 
 def mock_environment(workflow):
-    workflow.postbuild_results[TagAndPushPlugin.key] = True
-    workflow.tag_conf.add_primary_image(TEST_IMAGE)
-    workflow.push_conf.add_docker_registry(LOCALHOST_REGISTRY, insecure=True)
+    workflow.data.postbuild_results[TagAndPushPlugin.key] = True
+    workflow.data.tag_conf.add_primary_image(TEST_IMAGE)
+    workflow.data.push_conf.add_docker_registry(LOCALHOST_REGISTRY, insecure=True)
 #    setattr(workflow, 'builder', X())
-    workflow.image_id = INPUT_IMAGE
+    workflow.data.image_id = INPUT_IMAGE
 #    setattr(workflow.builder, 'source', X())
 #    setattr(workflow.builder.source, 'dockerfile_path', None)
 #    setattr(workflow.builder.source, 'path', None)
 #    base_image = ImageName.parse(IMPORTED_IMAGE_ID)
 #    setattr(workflow.builder, 'base_image', base_image)
-    workflow.pulled_base_images.add(IMPORTED_IMAGE_ID)
+    workflow.data.pulled_base_images.add(IMPORTED_IMAGE_ID)
 
 
 @pytest.mark.usefixtures('user_params')

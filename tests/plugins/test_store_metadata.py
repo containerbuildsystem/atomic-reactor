@@ -72,13 +72,14 @@ def prepare(workflow, docker_registries=None):
     workflow.conf.conf = rcm
     add_koji_map_in_workflow(workflow, hub_url='/', root_url='')
 
-    workflow.tag_conf.add_floating_image(TEST_IMAGE)
-    workflow.tag_conf.add_primary_image("namespace/image:version-release")
+    tag_conf = workflow.data.tag_conf
+    tag_conf.add_floating_image(TEST_IMAGE)
+    tag_conf.add_primary_image("namespace/image:version-release")
 
-    workflow.tag_conf.add_unique_image("namespace/image:asd123")
+    tag_conf.add_unique_image("namespace/image:asd123")
 
     for docker_registry in docker_registries:
-        r = workflow.push_conf.add_docker_registry(docker_registry)
+        r = workflow.data.push_conf.add_docker_registry(docker_registry)
         r.digests[TEST_IMAGE_NAME] = ManifestDigest(v1=DIGEST_NOT_USED, v2=DIGEST1)
         r.digests["namespace/image:asd123"] = ManifestDigest(v1=DIGEST_NOT_USED,
                                                              v2=DIGEST2)
@@ -143,54 +144,54 @@ CMD blabla"""
 
     df = df_parser(str(source_dir))
     df.content = df_content
-    workflow.dockerfile_images = DockerfileImages(df.parent_images)
+    workflow.data.dockerfile_images = DockerfileImages(df.parent_images)
     for parent in df.parent_images:
         if parent != 'scratch':
-            workflow.dockerfile_images[parent] = "sha256:spamneggs"
+            workflow.data.dockerfile_images[parent] = "sha256:spamneggs"
     flexmock(workflow, df_path=df.dockerfile_path)
     workflow.df_dir = str(source_dir)
 
-    workflow.prebuild_results = {
+    workflow.data.prebuild_results = {
         AddHelpPlugin.key: help_results
     }
     remote_source_output = [{'name': 'first', 'url': 'cachito_url_for_first'},
                             {'name': 'second', 'url': 'cachito_url_for_second'}]
     if remote_sources:
-        workflow.prebuild_results[PLUGIN_RESOLVE_REMOTE_SOURCE] = remote_source_output
+        workflow.data.prebuild_results[PLUGIN_RESOLVE_REMOTE_SOURCE] = remote_source_output
 
     if help_results is not None:
-        workflow.annotations['help_file'] = help_results['help_file']
+        workflow.data.annotations['help_file'] = help_results['help_file']
 
-    workflow.postbuild_results = {
+    workflow.data.postbuild_results = {
         PostBuildRPMqaPlugin.key: "rpm1\nrpm2",
     }
-    workflow.exit_results = {
+    workflow.data.exit_results = {
         PLUGIN_VERIFY_MEDIA_KEY: verify_media_results,
     }
     workflow.fs_watcher._data = dict(fs_data=None)
 
     if br_annotations or br_labels:
-        workflow.build_result = BuildResult(
+        workflow.data.build_result = BuildResult(
             image_id=INPUT_IMAGE,
             annotations={'br_annotations': br_annotations} if br_annotations else None,
             labels={'br_labels': br_labels} if br_labels else None,
         )
 
     timestamp = (initial_timestamp + timedelta(seconds=3)).isoformat()
-    workflow.plugins_timestamps = {
+    workflow.data.plugins_timestamps = {
         PostBuildRPMqaPlugin.key: timestamp,
     }
-    workflow.plugins_durations = {
+    workflow.data.plugins_durations = {
         PostBuildRPMqaPlugin.key: 3.03,
     }
-    workflow.plugins_errors = {}
+    workflow.data.plugins_errors = {}
 
     if koji:
         cm_annotations = {'metadata_fragment_key': 'metadata.json',
                           'metadata_fragment': 'configmap/build-1-md'}
-        workflow.postbuild_results[PLUGIN_KOJI_UPLOAD_PLUGIN_KEY] = cm_annotations
-        workflow.plugins_timestamps[PLUGIN_KOJI_UPLOAD_PLUGIN_KEY] = timestamp
-        workflow.plugins_durations[PLUGIN_KOJI_UPLOAD_PLUGIN_KEY] = 3.03
+        workflow.data.postbuild_results[PLUGIN_KOJI_UPLOAD_PLUGIN_KEY] = cm_annotations
+        workflow.data.plugins_timestamps[PLUGIN_KOJI_UPLOAD_PLUGIN_KEY] = timestamp
+        workflow.data.plugins_durations[PLUGIN_KOJI_UPLOAD_PLUGIN_KEY] = 3.03
 
     runner = ExitPluginsRunner(
         workflow,
@@ -224,10 +225,10 @@ CMD blabla"""
         assert '"scratch": "scratch"' in annotations['parent_images']
     else:
         assert annotations["base-image-name"] ==\
-               workflow.dockerfile_images.original_base_image
+               workflow.data.dockerfile_images.original_base_image
         assert annotations["base-image-id"] != ""
 
-        assert (workflow.dockerfile_images.base_image.to_str() in
+        assert (workflow.data.dockerfile_images.base_image.to_str() in
                 annotations['parent_images'])
     assert "image-id" in annotations
     assert is_string_type(annotations['image-id'])
@@ -357,38 +358,38 @@ def test_metadata_plugin_source(image_id, br_annotations, expected_br_annotation
     prepare(workflow)
 
     if image_id:
-        workflow.koji_source_manifest = {'config': {'digest': image_id}}
+        workflow.data.koji_source_manifest = {'config': {'digest': image_id}}
 
     sources_for_nvr = 'image_build'
     sources_for_koji_build_id = '12345'
-    workflow.labels['sources_for_koji_build_id'] = sources_for_koji_build_id
-    workflow.prebuild_results = {
+    workflow.data.labels['sources_for_koji_build_id'] = sources_for_koji_build_id
+    workflow.data.prebuild_results = {
         PLUGIN_FETCH_SOURCES_KEY: {
             'sources_for_koji_build_id': sources_for_koji_build_id,
             'sources_for_nvr': sources_for_nvr,
             'image_sources_dir': 'source_dir',
         }
     }
-    workflow.exit_results = {
+    workflow.data.exit_results = {
         PLUGIN_VERIFY_MEDIA_KEY: verify_media_results,
     }
     workflow.fs_watcher._data = dict(fs_data=None)
 
     if br_annotations or br_labels:
-        workflow.build_result = BuildResult(
+        workflow.data.build_result = BuildResult(
             image_id=INPUT_IMAGE,
             annotations={'br_annotations': br_annotations} if br_annotations else None,
             labels={'br_labels': br_labels} if br_labels else None,
         )
 
     timestamp = (initial_timestamp + timedelta(seconds=3)).isoformat()
-    workflow.plugins_timestamps = {
+    workflow.data.plugins_timestamps = {
         PLUGIN_FETCH_SOURCES_KEY: timestamp,
     }
-    workflow.plugins_durations = {
+    workflow.data.plugins_durations = {
         PLUGIN_FETCH_SOURCES_KEY: 3.03,
     }
-    workflow.plugins_errors = {}
+    workflow.data.plugins_errors = {}
 
     runner = ExitPluginsRunner(
         workflow,
@@ -505,7 +506,7 @@ def test_metadata_plugin_source(image_id, br_annotations, expected_br_annotation
 def test_koji_filesystem_label(res, workflow):
     prepare(workflow)
     if 'filesystem-koji-task-id' in res:
-        workflow.labels['filesystem-koji-task-id'] = res['filesystem-koji-task-id']
+        workflow.data.labels['filesystem-koji-task-id'] = res['filesystem-koji-task-id']
     runner = ExitPluginsRunner(
         workflow,
         [{
@@ -537,21 +538,21 @@ CMD blabla"""
     flexmock(workflow, df_path=df.dockerfile_path)
     workflow.df_dir = str(source_dir)
 
-    workflow.prebuild_results = {}
-    workflow.postbuild_results = {
+    workflow.data.prebuild_results = {}
+    workflow.data.postbuild_results = {
         PostBuildRPMqaPlugin.key: RuntimeError(),
         PLUGIN_KOJI_UPLOAD_PLUGIN_KEY: {'metadata_fragment_key': 'metadata.json',
                                         'metadata_fragment': 'configmap/build-1-md'}
     }
-    workflow.plugins_timestamps = {
+    workflow.data.plugins_timestamps = {
         PostBuildRPMqaPlugin.key: (initial_timestamp + timedelta(seconds=3)).isoformat(),
         PLUGIN_KOJI_UPLOAD_PLUGIN_KEY: (initial_timestamp + timedelta(seconds=3)).isoformat(),
     }
-    workflow.plugins_durations = {
+    workflow.data.plugins_durations = {
         PostBuildRPMqaPlugin.key: 3.03,
         PLUGIN_KOJI_UPLOAD_PLUGIN_KEY: 3.03,
     }
-    workflow.plugins_errors = {
+    workflow.data.plugins_errors = {
         PostBuildRPMqaPlugin.key: 'foo',
         PLUGIN_KOJI_UPLOAD_PLUGIN_KEY: 'bar',
     }
@@ -588,7 +589,7 @@ CMD blabla"""
 
 def test_exit_before_dockerfile_created(workflow, source_dir):
     prepare(workflow)
-    workflow.exit_results = {}
+    workflow.data.exit_results = {}
     workflow.df_dir = str(source_dir)
     workflow._df_path = None
 
@@ -611,7 +612,7 @@ def test_exit_before_dockerfile_created(workflow, source_dir):
 
 def test_store_metadata_fail_update_annotations(workflow, source_dir, caplog):
     prepare(workflow)
-    workflow.exit_results = {}
+    workflow.data.exit_results = {}
     df_content = """
 FROM fedora
 RUN yum install -y python-django
@@ -640,7 +641,7 @@ CMD blabla"""
 
 def test_store_metadata_fail_update_labels(workflow, caplog):
     prepare(workflow)
-    workflow.labels = {'some-label': 'some-value'}
+    workflow.data.labels = {'some-label': 'some-value'}
 
     runner = ExitPluginsRunner(
         workflow,
@@ -772,7 +773,7 @@ def test_set_koji_annotations_whitelist(workflow, source_dir, koji_conf):
 
 def test_plugin_annotations(workflow):
     prepare(workflow)
-    workflow.annotations = {'foo': {'bar': 'baz'}, 'spam': ['eggs']}
+    workflow.data.annotations = {'foo': {'bar': 'baz'}, 'spam': ['eggs']}
 
     runner = ExitPluginsRunner(
         workflow,
@@ -793,7 +794,7 @@ def test_plugin_annotations(workflow):
 
 def test_plugin_labels(workflow):
     prepare(workflow)
-    workflow.labels = {'foo': 1, 'bar': 'two'}
+    workflow.data.labels = {'foo': 1, 'bar': 'two'}
 
     runner = ExitPluginsRunner(
         workflow,

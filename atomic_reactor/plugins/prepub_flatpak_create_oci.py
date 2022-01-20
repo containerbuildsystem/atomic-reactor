@@ -151,18 +151,18 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
         self.log.info('manifest written to %s', manifest)
 
         image_components = self.builder.get_components(manifest)
-        self.workflow.image_components = image_components
+        self.workflow.data.image_components = image_components
 
         ref_name, outfile, tarred_outfile = self.builder.build_container(tarred_filesystem)
 
         # OSBS2 TBD
-        self.log.info('Marking filesystem image "%s" for removal', self.workflow.image_id)
-        defer_removal(self.workflow, self.workflow.image_id)
+        self.log.info('Marking filesystem image "%s" for removal', self.workflow.data.image_id)
+        defer_removal(self.workflow, self.workflow.data.image_id)
 
         image_id = self._get_oci_image_id(outfile)
         self.log.info('New OCI image ID is %s', image_id)
         # OSBS2 TBD
-        self.workflow.image_id = image_id
+        self.workflow.data.image_id = image_id
 
         labels = Labels(df_labels)
         _, image_name = labels.get_name_and_value(Labels.LABEL_TYPE_NAME)
@@ -177,12 +177,12 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
 
         metadata = get_exported_image_metadata(outfile, IMAGE_TYPE_OCI)
         metadata['ref_name'] = ref_name
-        self.workflow.exported_image_sequence.append(metadata)
+        self.workflow.data.exported_image_sequence.append(metadata)
 
         self.log.info('OCI image is available as %s', outfile)
 
         metadata = get_exported_image_metadata(tarred_outfile, IMAGE_TYPE_OCI_TAR)
         metadata['ref_name'] = ref_name
-        self.workflow.exported_image_sequence.append(metadata)
+        self.workflow.data.exported_image_sequence.append(metadata)
 
         self.log.info('OCI tarfile is available as %s', tarred_outfile)

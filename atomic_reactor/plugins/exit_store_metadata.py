@@ -31,7 +31,7 @@ class StoreMetadataPlugin(ExitPlugin):
         """
         # call parent constructor
         super(StoreMetadataPlugin, self).__init__(workflow)
-        self.source_build = PLUGIN_FETCH_SOURCES_KEY in self.workflow.prebuild_results
+        self.source_build = PLUGIN_FETCH_SOURCES_KEY in self.workflow.data.prebuild_results
 
     def get_result(self, result):
         if isinstance(result, Exception):
@@ -40,13 +40,13 @@ class StoreMetadataPlugin(ExitPlugin):
         return result
 
     def get_pre_result(self, key):
-        return self.get_result(self.workflow.prebuild_results.get(key, ''))
+        return self.get_result(self.workflow.data.prebuild_results.get(key, ''))
 
     def get_post_result(self, key):
-        return self.get_result(self.workflow.postbuild_results.get(key, ''))
+        return self.get_result(self.workflow.data.postbuild_results.get(key, ''))
 
     def get_exit_result(self, key):
-        return self.get_result(self.workflow.exit_results.get(key, ''))
+        return self.get_result(self.workflow.data.exit_results.get(key, ''))
 
     def get_config_map(self):
         annotations = self.get_post_result(PLUGIN_KOJI_UPLOAD_PLUGIN_KEY)
@@ -61,8 +61,9 @@ class StoreMetadataPlugin(ExitPlugin):
         """
 
         digests = {}  # repository -> digest
-        for registry in self.workflow.push_conf.docker_registries:
-            for image in self.workflow.tag_conf.images:
+        wf_data = self.workflow.data
+        for registry in wf_data.push_conf.docker_registries:
+            for image in wf_data.tag_conf.images:
                 image_str = image.to_str()
                 if image_str in registry.digests:
                     digest = registry.digests[image_str]
@@ -74,14 +75,16 @@ class StoreMetadataPlugin(ExitPlugin):
         """
         Return a list of registries that this build updated
         """
-        return self.workflow.push_conf.all_registries
+        return self.workflow.data.push_conf.all_registries
 
     def get_repositories(self):
+        tag_conf = self.workflow.data.tag_conf
+
         # usually repositories formed from NVR labels
         # these should be used for pulling and layering
         primary_repositories = []
         for registry in self._get_registries():
-            for image in self.workflow.tag_conf.primary_images:
+            for image in tag_conf.primary_images:
                 registry_image = image.copy()
                 registry_image.registry = registry.uri
                 primary_repositories.append(registry_image.to_str())
@@ -89,7 +92,7 @@ class StoreMetadataPlugin(ExitPlugin):
         # unique unpredictable repositories
         unique_repositories = []
         for registry in self._get_registries():
-            for image in self.workflow.tag_conf.unique_images:
+            for image in tag_conf.unique_images:
                 registry_image = image.copy()
                 registry_image.registry = registry.uri
                 unique_repositories.append(registry_image.to_str())
@@ -98,7 +101,7 @@ class StoreMetadataPlugin(ExitPlugin):
         # these should be used for pulling and layering
         floating_repositories = []
         for registry in self._get_registries():
-            for image in self.workflow.tag_conf.floating_images:
+            for image in tag_conf.floating_images:
                 registry_image = image.copy()
                 registry_image.registry = registry.uri
                 floating_repositories.append(registry_image.to_str())
@@ -111,8 +114,9 @@ class StoreMetadataPlugin(ExitPlugin):
     def get_pullspecs(self, digests):
         # v2 registry digests
         pullspecs = []
+        images = self.workflow.data.tag_conf.images
         for registry in self._get_registries():
-            for image in self.workflow.tag_conf.images:
+            for image in images:
                 image_str = image.to_str()
                 if image_str in digests:
                     digest = digests[image_str]
@@ -130,10 +134,11 @@ class StoreMetadataPlugin(ExitPlugin):
         return pullspecs
 
     def get_plugin_metadata(self):
+        wf_data = self.workflow.data
         return {
-            "errors": self.workflow.plugins_errors,
-            "timestamps": self.workflow.plugins_timestamps,
-            "durations": self.workflow.plugins_durations,
+            "errors": wf_data.plugins_errors,
+            "timestamps": wf_data.plugins_timestamps,
+            "durations": wf_data.plugins_durations,
         }
 
     def get_filesystem_metadata(self):
@@ -153,8 +158,8 @@ class StoreMetadataPlugin(ExitPlugin):
 
     def make_labels(self):
         labels = {}
-        self._update_labels(labels, self.workflow.labels)
-        self._update_labels(labels, self.workflow.build_result.labels)
+        self._update_labels(labels, self.workflow.data.labels)
+        self._update_labels(labels, self.workflow.data.build_result.labels)
 
         if 'sources_for_koji_build_id' in labels:
             labels['sources_for_koji_build_id'] = str(labels['sources_for_koji_build_id'])
@@ -179,10 +184,10 @@ class StoreMetadataPlugin(ExitPlugin):
             annotations.update(updates)
 
     def apply_build_result_annotations(self, annotations):
-        self._update_annotations(annotations, self.workflow.build_result.annotations)
+        self._update_annotations(annotations, self.workflow.data.build_result.annotations)
 
     def apply_plugin_annotations(self, annotations):
-        self._update_annotations(annotations, self.workflow.annotations)
+        self._update_annotations(annotations, self.workflow.data.annotations)
 
     def apply_remote_source_annotations(self, annotations):
         try:
@@ -208,15 +213,16 @@ class StoreMetadataPlugin(ExitPlugin):
         osbs = get_openshift_session(self.workflow.conf,
                                      self.workflow.user_params.get('namespace'))
 
+        wf_data = self.workflow.data
+
         if not self.source_build:
             try:
                 commit_id = self.workflow.source.commit_id
             except AttributeError:
                 commit_id = ""
 
-            base_image = self.workflow.dockerfile_images.original_base_image
-            if (base_image is not None and
-                    not self.workflow.dockerfile_images.base_from_scratch):
+            base_image = wf_data.dockerfile_images.original_base_image
+            if base_image is not None and not wf_data.dockerfile_images.base_from_scratch:
                 base_image_name = base_image
                 try:
                     # OSBS2 TBD: we probably don't need this and many other annotations anymore
@@ -228,7 +234,7 @@ class StoreMetadataPlugin(ExitPlugin):
                 base_image_id = ""
 
             parent_images_strings = self.workflow.parent_images_to_str()
-            if self.workflow.dockerfile_images.base_from_scratch:
+            if wf_data.dockerfile_images.base_from_scratch:
                 parent_images_strings[SCRATCH_FROM] = SCRATCH_FROM
 
             try:
@@ -246,20 +252,20 @@ class StoreMetadataPlugin(ExitPlugin):
 
         if self.source_build:
             annotations['image-id'] = ''
-            if self.workflow.koji_source_manifest:
-                annotations['image-id'] = self.workflow.koji_source_manifest['config']['digest']
+            if wf_data.koji_source_manifest:
+                annotations['image-id'] = wf_data.koji_source_manifest['config']['digest']
         else:
             annotations['dockerfile'] = dockerfile_contents
             annotations['commit_id'] = commit_id
             annotations['base-image-id'] = base_image_id
             annotations['base-image-name'] = base_image_name
             # OSBS2 TBD
-            annotations['image-id'] = self.workflow.image_id or ''
+            annotations['image-id'] = wf_data.image_id or ''
             annotations['parent_images'] = json.dumps(parent_images_strings)
 
         media_types = []
 
-        media_results = self.workflow.exit_results.get(PLUGIN_VERIFY_MEDIA_KEY)
+        media_results = wf_data.exit_results.get(PLUGIN_VERIFY_MEDIA_KEY)
         if isinstance(media_results, Exception):
             media_results = None
 
@@ -270,11 +276,12 @@ class StoreMetadataPlugin(ExitPlugin):
             annotations['media-types'] = json.dumps(sorted(list(set(media_types))))
 
         tar_path = tar_size = tar_md5sum = tar_sha256sum = None
-        if len(self.workflow.exported_image_sequence) > 0:
-            tar_path = self.workflow.exported_image_sequence[-1].get("path")
-            tar_size = self.workflow.exported_image_sequence[-1].get("size")
-            tar_md5sum = self.workflow.exported_image_sequence[-1].get("md5sum")
-            tar_sha256sum = self.workflow.exported_image_sequence[-1].get("sha256sum")
+        if len(wf_data.exported_image_sequence) > 0:
+            info = wf_data.exported_image_sequence[-1]
+            tar_path = info.get("path")
+            tar_size = info.get("size")
+            tar_md5sum = info.get("md5sum")
+            tar_sha256sum = info.get("sha256sum")
         # looks like that openshift can't handle value being None (null in json)
         if tar_size is not None and tar_md5sum is not None and tar_sha256sum is not None and \
                 tar_path is not None:

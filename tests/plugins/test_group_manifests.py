@@ -293,15 +293,16 @@ def mock_registries(registries, config, schema_version='v2', foreign_layers=Fals
 
 
 def mock_environment(workflow, primary_images=None, annotations=None):
-    setattr(workflow, 'tag_conf', TagConf())
+    wf_data = workflow.data
+    setattr(wf_data, 'tag_conf', TagConf())
     if primary_images:
         for image in primary_images:
             if '-' in ImageName.parse(image).tag:
-                workflow.tag_conf.add_primary_image(image)
-        workflow.tag_conf.add_unique_image(primary_images[0])
+                wf_data.tag_conf.add_primary_image(image)
+        wf_data.tag_conf.add_unique_image(primary_images[0])
 
-    workflow.tag_conf.add_floating_image('namespace/httpd:floating')
-    workflow.build_result = BuildResult(image_id='123456', annotations=annotations or {})
+    wf_data.tag_conf.add_floating_image('namespace/httpd:floating')
+    wf_data.build_result = BuildResult(image_id='123456', annotations=annotations or {})
 
 
 REGISTRY_V2 = 'registry_v2.example.com'

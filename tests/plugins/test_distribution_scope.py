@@ -37,7 +37,7 @@ class TestDistributionScope(object):
         dockerfile_images = DockerfileImages([])
         if base_from_scratch:
             dockerfile_images = DockerfileImages(['scratch'])
-        workflow.dockerfile_images = dockerfile_images
+        workflow.data.dockerfile_images = dockerfile_images
 
         plugin = DistributionScopePlugin(workflow)
         plugin.log = logging.getLogger('plugin')

@@ -153,7 +153,7 @@ class TestKoji(object):
             dockerfile_images.append('parent_image:latest')
         if base_from_scratch:
             dockerfile_images.append('scratch')
-        workflow.dockerfile_images = DockerfileImages(dockerfile_images)
+        workflow.data.dockerfile_images = DockerfileImages(dockerfile_images)
 
         args = {'target': target}
 
@@ -188,9 +188,10 @@ class TestKoji(object):
                     assert fd.read() == expected
 
         repofile = '/etc/yum.repos.d/target-?????.repo'
-        assert len(workflow.files) == 1
-        assert fnmatch(next(iter(workflow.files.keys())), repofile)
-        content = next(iter(workflow.files.values()))
+        files = workflow.data.files
+        assert len(files) == 1
+        assert fnmatch(next(iter(files.keys())), repofile)
+        content = next(iter(files.values()))
         assert content.startswith("[atomic-reactor-koji-plugin-target]\n")
         assert "gpgcheck=0\n" in content
         assert "enabled=1\n" in content
@@ -204,7 +205,7 @@ class TestKoji(object):
             assert expected_string in content
 
         if expected_file:
-            assert expected_file in workflow.files
+            assert expected_file in files
 
     @pytest.mark.parametrize('target, yum_repos, include_repo', [
         ('target', ['repo'], False),

@@ -121,7 +121,7 @@ class SendMailPlugin(ExitPlugin):
             else:
                 self.log.info("No koji task")
 
-        self.koji_build_id = self.workflow.exit_results.get(KojiImportPlugin.key)
+        self.koji_build_id = self.workflow.data.exit_results.get(KojiImportPlugin.key)
         if not self.koji_build_id:
             self.log.info("Failed to fetch koji build ID")
         else:
@@ -157,7 +157,7 @@ class SendMailPlugin(ExitPlugin):
         labels = Labels(dockerfile.labels)
         _, image_name = labels.get_name_and_value(Labels.LABEL_TYPE_NAME)
 
-        stored_data = self.workflow.exit_results.get(StoreMetadataPlugin.key)
+        stored_data = self.workflow.data.exit_results.get(StoreMetadataPlugin.key)
         if not stored_data or 'annotations' not in stored_data:
             raise ValueError('Stored Metadata not found')
 
@@ -361,7 +361,7 @@ class SendMailPlugin(ExitPlugin):
             return
 
         success = not self.workflow.build_process_failed
-        manual_canceled = self.workflow.build_canceled
+        manual_canceled = self.workflow.data.build_canceled
 
         self.log.info('checking conditions for sending notification ...')
         if self._should_send(success, manual_canceled):

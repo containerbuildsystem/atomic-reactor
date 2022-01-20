@@ -56,12 +56,14 @@ class TagFromConfigPlugin(PreBuildPlugin):
         name = self.get_component_name()
         floating_defined = 'floating' in self.tag_suffixes
 
+        tag_conf = self.workflow.data.tag_conf
+
         for tag_suffix in self.tag_suffixes.get('unique', []):
             tag = '{}:{}'.format(name, tag_suffix)
             if tag not in tags:
                 tags.append(tag)
                 self.log.debug('Using additional unique tag %s', tag)
-                self.workflow.tag_conf.add_unique_image(tag)
+                tag_conf.add_unique_image(tag)
 
         for tag_suffix in self.tag_suffixes.get('floating', []):
             p_suffix = LabelFormatter().vformat(tag_suffix, [], self.labels)
@@ -69,7 +71,7 @@ class TagFromConfigPlugin(PreBuildPlugin):
             if p_tag not in tags:
                 tags.append(p_tag)
                 self.log.debug('Using additional floating tag %s', p_tag)
-                self.workflow.tag_conf.add_floating_image(p_tag)
+                tag_conf.add_floating_image(p_tag)
 
         for tag_suffix in self.tag_suffixes.get('primary', []):
             p_suffix = LabelFormatter().vformat(tag_suffix, [], self.labels)
@@ -82,15 +84,15 @@ class TagFromConfigPlugin(PreBuildPlugin):
                 tags.append(p_tag)
                 if add_primary:
                     self.log.debug('Using additional primary tag %s', p_tag)
-                    self.workflow.tag_conf.add_primary_image(p_tag)
+                    tag_conf.add_primary_image(p_tag)
                 else:
                     self.log.debug('Using additional floating tag %s', p_tag)
-                    self.workflow.tag_conf.add_floating_image(p_tag)
+                    tag_conf.add_floating_image(p_tag)
 
         return tags
 
     def add_registry_to_images(self):
-        for image in self.workflow.tag_conf.images:
+        for image in self.workflow.data.tag_conf.images:
             image.registry = next(iter(self.workflow.conf.registries))
 
     def get_component_name(self):

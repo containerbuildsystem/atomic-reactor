@@ -17,7 +17,7 @@ import requests
 from requests.exceptions import SSLError, HTTPError, RetryError
 import shutil
 import tempfile
-from typing import Any, Iterator, Sequence, Dict, Union, List, BinaryIO, Tuple, Optional
+from typing import Any, Final, Iterator, Sequence, Dict, Union, List, BinaryIO, Tuple, Optional
 import logging
 import uuid
 import yaml
@@ -50,7 +50,7 @@ from atomic_reactor.constants import (DOCKERFILE_FILENAME, REPO_CONTAINER_CONFIG
                                       USER_CONFIG_FILES, REPO_FETCH_ARTIFACTS_KOJI)
 
 from atomic_reactor.auth import HTTPRegistryAuth
-from atomic_reactor.types import ImageInspectionData
+from atomic_reactor.types import ISerializer, ImageInspectionData
 
 from dockerfile_parse import DockerfileParser
 
@@ -491,7 +491,7 @@ def get_orchestrator_platforms(workflow):
 
 
 def get_platforms(workflow):
-    koji_platforms = workflow.prebuild_results.get(PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
+    koji_platforms = workflow.data.prebuild_results.get(PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
     if koji_platforms:
         return koji_platforms
 
@@ -957,7 +957,7 @@ class RegistryClient(object):
         v2_digest = manifest["digest"]
         return self.get_config_and_id_from_registry(image, v2_digest, version='v2')
 
-    def get_config_and_id_from_registry(self, image, digest, version='v2'):
+    def get_config_and_id_from_registry(self, image, digest, version='v2') -> Tuple[Dict, str]:
         """Return image config by digest
 
         :param image: ImageName, the remote image to inspect
@@ -991,8 +991,10 @@ class RegistryClient(object):
         return blob_config
 
 
-class ManifestDigest(dict):
+class ManifestDigest(ISerializer, dict):
     """Wrapper for digests for a docker manifest."""
+
+    NOT_SET: Final = None
 
     content_type = {
         'v1': MEDIA_TYPE_DOCKER_V2_SCHEMA1,
@@ -1018,7 +1020,24 @@ class ManifestDigest(dict):
         if attr not in self.content_type:
             raise AttributeError("Unknown version: %s" % attr)
         else:
-            return self.get(attr, None)
+            return self.get(attr, self.NOT_SET)
+
+    @classmethod
+    def load(cls, data: Dict[str, Any]):
+        md = ManifestDigest()
+        default_value = cls.NOT_SET
+        for type_name in cls.content_type:
+            setattr(md, type_name, data.get(type_name, default_value))
+        return md
+
+    def dump(self) -> Dict[str, Any]:
+        return {
+            'v1': self.v1,
+            'v2': self.v2,
+            'v2_list': self.v2_list,
+            'oci': self.oci,
+            'oci_index': self.oci_index,
+        }
 
 
 def is_manifest_list(version):
@@ -1220,8 +1239,9 @@ def get_inspect_for_image(image, registry, insecure=False, dockercfg_path=None, 
     return registry_client.get_inspect_for_image(image, arch=arch)
 
 
-def get_config_and_id_from_registry(image, registry, digest, insecure=False,
-                                    dockercfg_path=None, version='v2'):
+def get_config_and_id_from_registry(
+    image, registry, digest, insecure=False, dockercfg_path=None, version='v2'
+) -> Tuple[Dict, str]:
     """Return image config by digest
 
     :param image: ImageName, the remote image to inspect
@@ -1239,8 +1259,9 @@ def get_config_and_id_from_registry(image, registry, digest, insecure=False,
     return registry_client.get_config_and_id_from_registry(image, digest, version=version)
 
 
-def get_config_from_registry(image, registry, digest, insecure=False,
-                             dockercfg_path=None, version='v2'):
+def get_config_from_registry(
+    image, registry, digest, insecure=False, dockercfg_path=None, version='v2'
+) -> Dict[str, Any]:
     """Return image config by digest
 
     :param image: ImageName, the remote image to inspect
@@ -1429,20 +1450,20 @@ def label_to_string(key, value):
 
 
 def get_primary_images(workflow):
-    return workflow.tag_conf.primary_images
+    return workflow.data.tag_conf.primary_images
 
 
 def get_floating_images(workflow):
-    return workflow.tag_conf.floating_images
+    return workflow.data.tag_conf.floating_images
 
 
 def get_unique_images(workflow):
-    return workflow.tag_conf.unique_images
+    return workflow.data.tag_conf.unique_images
 
 
 def get_parent_image_koji_data(workflow):
     """Transform koji_parent plugin results into metadata dict."""
-    koji_parent = workflow.prebuild_results.get(PLUGIN_KOJI_PARENT_KEY) or {}
+    koji_parent = workflow.data.prebuild_results.get(PLUGIN_KOJI_PARENT_KEY) or {}
     image_metadata = {}
 
     parents = {}
@@ -1453,11 +1474,12 @@ def get_parent_image_koji_data(workflow):
             parents[str(img)] = {key: val for key, val in build.items() if key in ('id', 'nvr')}
     image_metadata[PARENT_IMAGE_BUILDS_KEY] = parents
 
+    df_images = workflow.data.dockerfile_images
     # ordered list of parent images
-    image_metadata[PARENT_IMAGES_KEY] = workflow.dockerfile_images.original_parents
+    image_metadata[PARENT_IMAGES_KEY] = df_images.original_parents
 
     # don't add parent image id key for scratch
-    if workflow.dockerfile_images.base_from_scratch:
+    if df_images.base_from_scratch:
         return image_metadata
 
     base_info = koji_parent.get(BASE_IMAGE_KOJI_BUILD) or {}
@@ -1666,7 +1688,7 @@ def chain_get(d, path, default=None):
     return obj
 
 
-class DockerfileImages(object):
+class DockerfileImages(ISerializer):
     """
     _pullable_parents and _local_parents form together dictionary for parent_images
     they are in reversed order than in Dockerfile (parent image from the last stage first)
@@ -1678,7 +1700,7 @@ class DockerfileImages(object):
     source and organization with set_source_registry method
     and local tags in _local_parents via setter with valid key
     """
-    def __init__(self, dfp_parents: List[str]):
+    def __init__(self, dfp_parents: Optional[List[str]] = None):
         self._original_parents: List[str] = deepcopy(dfp_parents) if dfp_parents else []
         self._custom_parent_image = False
         self._custom_base_image = False
@@ -1689,6 +1711,26 @@ class DockerfileImages(object):
         self._local_parents: List[Optional[ImageName]] = []
         self._create_pullable()
         self._source_and_org_set = False
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, type(self)):
+            return False
+        return (
+            self.original_parents == other.original_parents and
+            self.source_registry == other.source_registry and
+            self.organization == other.organization and
+            self._source_and_org_set == other._source_and_org_set and
+            self._pullable_parents == other._pullable_parents and
+            self._local_parents == other._local_parents
+        )
+
+    @property
+    def is_empty(self):
+        return (
+            not self.original_parents and
+            not self._pullable_parents and
+            not self._local_parents
+        )
 
     @property
     def original_parents(self) -> List[str]:
@@ -1888,6 +1930,51 @@ class DockerfileImages(object):
 
             if self._should_enclose(image):
                 image.enclose(self._organization)
+
+    @classmethod
+    def load(cls, data: Dict[str, Any]):
+        """Load the data to create a DockerfileImages object.
+
+        NOTE: This method relies on the input data dumped from Dockerfiles.dump
+        to restore a workable object for the build pipeline. Technically, the
+        argument data accepts arbitrary data, so whether the created object has
+        correct status to work for the purpose, the caller must be repsonsible
+        for the correctness of the input data, especially the correspondence
+        between _pullable_parents and _local_parents.
+        """
+        original_parents = data["original_parents"]
+        df_images = cls(original_parents)
+        local_parents = []
+        for image_str in data["local_parents"]:
+            local_parents.append(
+                image_str if image_str is None else ImageName.parse(image_str)
+            )
+        df_images._local_parents = local_parents
+        # Source registry and organization are set while initializing the
+        # workflow object. When restore a DockerfileImages object, they have
+        # to be updated accordingly as well.
+        registry = data["source_registry"]
+        if registry is not None:
+            df_images.set_source_registry(registry, data["organization"])
+        return df_images
+
+    def dump(self) -> Dict[str, Any]:
+        """Convert this object into a dictionary.
+
+        A DockerfileImages object has attributes that are set from outside and
+        others are computed from input original parent images. This method only
+        dumps the former attributes and a new DockerfileImages object with same
+        status can be restored from them.
+        """
+        local_parents = []
+        for image in self._local_parents:
+            local_parents.append(None if image is None else image.to_str())
+        return {
+            "original_parents": self.original_parents,
+            "local_parents": local_parents,
+            "source_registry": self.source_registry,
+            "organization": self.organization,
+        }
 
 
 def sha256sum(s, abbrev_len=0, prefix=False):

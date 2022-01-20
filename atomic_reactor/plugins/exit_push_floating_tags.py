@@ -43,8 +43,9 @@ class PushFloatingTagsPlugin(ExitPlugin):
             self.manifest_util.store_manifest_in_repository(session, manifest, list_type,
                                                             target_repo, target_repo, ref=image.tag)
         # And store the manifest list in the push_conf
-        push_conf_registry = self.workflow.push_conf.add_docker_registry(session.registry,
-                                                                         insecure=session.insecure)
+        push_conf_registry = self.workflow.data.push_conf.add_docker_registry(
+            session.registry, insecure=session.insecure
+        )
         for image in floating_images:
             push_conf_registry.digests[image.tag] = manifest_digest
         registry_image = get_unique_images(self.workflow)[0]
@@ -69,7 +70,7 @@ class PushFloatingTagsPlugin(ExitPlugin):
             self.log.warning('%s cannot be used by a worker builder', PLUGIN_PUSH_FLOATING_TAGS_KEY)
             return
 
-        manifest_data = self.workflow.postbuild_results.get(PLUGIN_GROUP_MANIFESTS_KEY)
+        manifest_data = self.workflow.data.postbuild_results.get(PLUGIN_GROUP_MANIFESTS_KEY)
         if not manifest_data or not manifest_data.get("manifest_digest"):
             self.log.info('No manifest digest available, skipping %s',
                           PLUGIN_PUSH_FLOATING_TAGS_KEY)

@@ -185,7 +185,7 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
 
         # For single remote_source workflow, inject all build args directly
         if self.single_remote_source_params:
-            self.workflow.buildargs.update(remote_sources[0].build_args)
+            self.workflow.data.buildargs.update(remote_sources[0].build_args)
 
         self.add_general_buildargs()
 
@@ -389,4 +389,4 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
                 'REMOTE_SOURCE_DIR': REMOTE_SOURCE_DIR,
                 CACHITO_ENV_ARG_ALIAS: os.path.join(REMOTE_SOURCE_DIR, CACHITO_ENV_FILENAME),
             }
-        self.workflow.buildargs.update(args_for_dockerfile_to_add)
+        self.workflow.data.buildargs.update(args_for_dockerfile_to_add)

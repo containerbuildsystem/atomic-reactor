@@ -589,19 +589,19 @@ def test_flatpak_create_oci(workflow, source_dir, config_name, flatpak_metadata,
     else:
         # Check if run replaces image_id and marks filesystem image for removal
         filesystem_image_id = 'xxx'
-        for_removal = workflow.plugin_workspace.get(
+        for_removal = workflow.data.plugin_workspace.get(
             'remove_built_image', {}).get('images_to_remove', [])
-        assert workflow.image_id == filesystem_image_id
+        assert workflow.data.image_id == filesystem_image_id
         assert filesystem_image_id not in for_removal
         runner.run()
-        for_removal = workflow.plugin_workspace['remove_built_image']['images_to_remove']
-        assert re.match(r'^sha256:\w{64}$', workflow.image_id)
+        for_removal = workflow.data.plugin_workspace['remove_built_image']['images_to_remove']
+        assert re.match(r'^sha256:\w{64}$', workflow.data.image_id)
         assert filesystem_image_id in for_removal
 
-        dir_metadata = workflow.exported_image_sequence[-2]
+        dir_metadata = workflow.data.exported_image_sequence[-2]
         assert dir_metadata['type'] == IMAGE_TYPE_OCI
 
-        tar_metadata = workflow.exported_image_sequence[-1]
+        tar_metadata = workflow.data.exported_image_sequence[-1]
         assert tar_metadata['type'] == IMAGE_TYPE_OCI_TAR
 
         # Check that the correct labels and annotations were written
@@ -647,7 +647,7 @@ def test_flatpak_create_oci(workflow, source_dir, config_name, flatpak_metadata,
         files = inspector.list_files()
         assert sorted(files) == config['expected_contents']
 
-        components = {c['name'] for c in workflow.image_components}  # noqa:E501; pylint: disable=not-an-iterable
+        components = {c['name'] for c in workflow.data.image_components}  # noqa:E501; pylint: disable=not-an-iterable
         for n in config['expected_components']:
             assert n in components
         for n in config['unexpected_components']:

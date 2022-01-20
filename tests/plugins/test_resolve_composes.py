@@ -428,7 +428,7 @@ class TestResolveComposes(object):
             all_yum_repourls.append(parent_repo)
             assert 'Inheriting yum repo http://example.com/parent.repo' in caplog.text
 
-        assert set(workflow.all_yum_repourls) == set(all_yum_repourls)
+        assert set(workflow.data.all_yum_repourls) == set(all_yum_repourls)
 
     @pytest.mark.parametrize('arches', (
         ['ppc64le', 'x86_64'],

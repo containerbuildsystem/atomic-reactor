@@ -175,12 +175,12 @@ def mock_workflow(workflow, build_dir: Path, dockerfile=DEFAULT_DOCKERFILE,
     workflow.source = MockSource(build_dir)
     if not platforms:
         platforms = ['x86_64']
-    workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(platforms)
+    workflow.data.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(platforms)
     with open(workflow.source.dockerfile_path, 'w') as f:
         f.write(dockerfile)
     workflow.build_dir.init_build_dirs(platforms, workflow.source)
     df = df_parser(str(build_dir))
-    workflow.dockerfile_images = DockerfileImages(df.parent_images)
+    workflow.data.dockerfile_images = DockerfileImages(df.parent_images)
     mock_get_retry_session()
 
 
@@ -293,7 +293,7 @@ def test_add_filesystem_plugin_generated(workflow, build_dir, scratch, dockerfil
     plugin_result = results[PLUGIN_ADD_FILESYSTEM_KEY]
     assert 'filesystem-koji-task-id' in plugin_result
     assert plugin_result == expected_results
-    assert workflow.labels['filesystem-koji-task-id'] == FILESYSTEM_TASK_ID
+    assert workflow.data.labels['filesystem-koji-task-id'] == FILESYSTEM_TASK_ID
     msg = f'added "{image_name}" as image filesystem'
     assert msg in caplog.text
     assert workflow.build_dir.any_platform.dockerfile.content == expected_dockerfile
@@ -302,7 +302,7 @@ def test_add_filesystem_plugin_generated(workflow, build_dir, scratch, dockerfil
 @pytest.mark.parametrize('scratch', [True, False])
 def test_add_filesystem_plugin_legacy(workflow, build_dir, scratch, caplog):
     mock_workflow(workflow, build_dir, scratch=scratch)
-    workflow.prebuild_results[PLUGIN_RESOLVE_COMPOSES_KEY] = {'composes': []}
+    workflow.data.prebuild_results[PLUGIN_RESOLVE_COMPOSES_KEY] = {'composes': []}
     mock_koji_session(scratch=scratch)
     mock_image_build_file(workflow)
     image_name = 'fedora-23-1.0.x86_64.tar.gz'
@@ -325,7 +325,7 @@ def test_add_filesystem_plugin_legacy(workflow, build_dir, scratch, caplog):
     results = runner.run()
     plugin_result = results[PLUGIN_ADD_FILESYSTEM_KEY]
     assert 'filesystem-koji-task-id' in plugin_result
-    assert workflow.labels['filesystem-koji-task-id'] == FILESYSTEM_TASK_ID
+    assert workflow.data.labels['filesystem-koji-task-id'] == FILESYSTEM_TASK_ID
     msg = f'added "{image_name}" as image filesystem'
     assert msg in caplog.text
     assert workflow.build_dir.any_platform.dockerfile.content == expected_dockerfile_content
@@ -399,7 +399,7 @@ def test_image_task_failure(workflow, build_dir, build_cancel, error_during_canc
             raise RuntimeError(task_result)
         return task_result
     mock_workflow(workflow, build_dir)
-    workflow.prebuild_results[PLUGIN_RESOLVE_COMPOSES_KEY] = {'composes': []}
+    workflow.data.prebuild_results[PLUGIN_RESOLVE_COMPOSES_KEY] = {'composes': []}
     mock_koji_session(image_task_fail=True,
                       throws_build_cancelled=build_cancel,
                       error_on_build_cancelled=error_during_cancel,
@@ -408,7 +408,7 @@ def test_image_task_failure(workflow, build_dir, build_cancel, error_during_canc
 
     make_and_store_reactor_config_map(workflow, {'root_url': '', 'auth': {}})
 
-    workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = ['x86_64']
+    workflow.data.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = ['x86_64']
 
     runner = PreBuildPluginsRunner(
         workflow,
@@ -479,7 +479,7 @@ def test_image_build_defaults(workflow, build_dir, resolve_compose, yum_repos):
                     baseurl = http://odcs-compose.com/$basearch/compose2.repo
                     """))
     plugin = create_plugin_instance(workflow, build_dir, {'repos': repos})
-    plugin.workflow.prebuild_results[PLUGIN_RESOLVE_COMPOSES_KEY] = resolve_compose
+    plugin.workflow.data.prebuild_results[PLUGIN_RESOLVE_COMPOSES_KEY] = resolve_compose
 
     image_build_conf = dedent("""\
         [image-build]
@@ -712,8 +712,8 @@ def test_build_filesystem_from_task_id(workflow, build_dir, prefix, suffix):
 def test_image_download(workflow, build_dir, parents, skip_plugin,
                         platforms, caplog):
     mock_workflow(workflow, build_dir)
-    workflow.dockerfile_images = DockerfileImages(parents)
-    workflow.prebuild_results[PLUGIN_RESOLVE_COMPOSES_KEY] = {'composes': []}
+    workflow.data.dockerfile_images = DockerfileImages(parents)
+    workflow.data.prebuild_results[PLUGIN_RESOLVE_COMPOSES_KEY] = {'composes': []}
     if not skip_plugin:
         mock_koji_session()
     mock_image_build_file(workflow)
@@ -725,7 +725,7 @@ def test_image_download(workflow, build_dir, parents, skip_plugin,
     """)
 
     if platforms:
-        workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(platforms)
+        workflow.data.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(platforms)
 
     make_and_store_reactor_config_map(workflow, {'root_url': '', 'auth': {}})
 
