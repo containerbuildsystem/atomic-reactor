@@ -8,13 +8,12 @@ of the BSD license. See the LICENSE file for details.
 
 import functools
 
-from atomic_reactor.plugin import PostBuildPlugin
-from atomic_reactor.constants import INSPECT_CONFIG
-from atomic_reactor.util import df_parser, LabelFormatter
+from atomic_reactor.plugin import PreBuildPlugin
+from atomic_reactor.util import LabelFormatter
 from osbs.utils import Labels, ImageName
 
 
-class TagFromConfigPlugin(PostBuildPlugin):
+class TagFromConfigPlugin(PreBuildPlugin):
     """Computes tags to be applied to the built image.
 
     The tags are saved in the tag configuration object in the build workflow. They are later
@@ -90,6 +89,10 @@ class TagFromConfigPlugin(PostBuildPlugin):
 
         return tags
 
+    def add_registry_to_images(self):
+        for image in self.workflow.tag_conf.images:
+            image.registry = next(iter(self.workflow.conf.registries))
+
     def get_component_name(self):
         try:
             labels = Labels(self.labels)
@@ -107,19 +110,7 @@ class TagFromConfigPlugin(PostBuildPlugin):
         return name
 
     def run(self):
-        self.lookup_labels()
-        return self.parse_and_add_tags()
-
-    def lookup_labels(self):
-        if self.workflow.build_result.is_image_available():
-            if not self.workflow.built_image_inspect:
-                raise RuntimeError('There is no inspect data for built image. '
-                                   'Has the build succeeded?')
-            try:
-                self.labels = self.workflow.built_image_inspect[INSPECT_CONFIG]['Labels']
-            except (TypeError, KeyError):
-                self.log.error('Unable to determine "Labels" from built image')
-                raise
-        else:
-            self.labels = df_parser(self.workflow.df_path, workflow=self.workflow,
-                                    env_replace=True).labels
+        self.labels = self.workflow.build_dir.any_platform.dockerfile_with_parent_env(
+            self.workflow.imageutil.base_image_inspect()).labels
+        self.parse_and_add_tags()
+        self.add_registry_to_images()

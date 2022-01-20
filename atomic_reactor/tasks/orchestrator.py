@@ -36,6 +36,7 @@ class OrchestratorTask(plugin_based.PluginBasedTask):
             {"name": "add_labels_in_dockerfile"},
             {"name": "resolve_remote_source"},
             {"name": "pin_operator_digest"},
+            {"name": "tag_from_config"},
         ],
         buildstep=[
             {"name": "orchestrate_build"},
@@ -43,7 +44,6 @@ class OrchestratorTask(plugin_based.PluginBasedTask):
         postbuild=[
             {"name": "fetch_worker_metadata"},
             {"name": "compare_components"},
-            {"name": "tag_from_config"},
             {"name": "group_manifests"},
             {"name": "generate_maven_metadata"},
         ],

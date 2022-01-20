@@ -10,14 +10,9 @@ from flexmock import flexmock
 from textwrap import dedent
 
 import pytest
-import os.path
 
-from atomic_reactor.inner import BuildResult
-from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
-from atomic_reactor.plugins.post_tag_from_config import TagFromConfigPlugin
-from atomic_reactor.util import df_parser
+from atomic_reactor.plugins.pre_tag_from_config import TagFromConfigPlugin
 from atomic_reactor.constants import INSPECT_CONFIG
-from tests.constants import IMPORTED_IMAGE_ID
 
 
 DF_CONTENT_LABELS = '''\
@@ -29,53 +24,19 @@ LABEL "release"="$parentrelease"
 
 TEST_VERSION = "v1.2.5"
 TEST_IMAGE = f"holy-hand-grenade:{TEST_VERSION}"
+REGISTRY = 'registry.com'
 
 pytestmark = pytest.mark.usefixtures('user_params')
 
 
-class MockSource(object):
-    def __init__(self, tmpdir):
-        tmpdir = str(tmpdir)
-        self.dockerfile_path = os.path.join(tmpdir, 'Dockerfile')
-        self.path = tmpdir
-
-    def get_build_file_path(self):
-        return self.dockerfile_path, self.path
-
-
 @pytest.fixture
 def workflow(workflow, source_dir):
-    mock_source = MockSource(source_dir)
-    flexmock(workflow, source=mock_source)
+    flexmock(workflow.conf, registries={REGISTRY: {}})
 
-    df = df_parser(str(source_dir))
-    flexmock(workflow, df_path=df.dockerfile_path)
-    workflow.df_dir = str(source_dir)
+    workflow.build_dir.init_build_dirs(["x86_64"], workflow.source)
+    workflow.build_dir.any_platform.dockerfile.content = DF_CONTENT_LABELS
 
     return workflow
-
-
-@pytest.mark.parametrize(('inspect', 'error'), [  # noqa
-    ({'Labels': {}}, "KeyError: <object"),
-    ({}, "KeyError: 'Labels'"),
-    (None, "RuntimeError: There is no inspect data"),
-])
-def test_bad_inspect_data(workflow, inspect, error):
-    if inspect is not None:
-        workflow.built_image_inspect = {
-            INSPECT_CONFIG: inspect
-        }
-    workflow.build_result = BuildResult(image_id=IMPORTED_IMAGE_ID)
-
-    runner = PostBuildPluginsRunner(
-        workflow,
-        [{'name': TagFromConfigPlugin.key}]
-    )
-
-    with pytest.raises(PluginFailedException) as exc:
-        runner.run()
-
-    assert error in str(exc.value)
 
 
 @pytest.mark.parametrize(('floating_tags', 'unique_tags', 'primary_tags', 'expected'), [  # noqa
@@ -102,13 +63,7 @@ def test_bad_inspect_data(workflow, inspect, error):
      ['name_value:foo', 'name_value:bar', 'name_value:baz',
       'name_value:version_value']),
 ])
-def test_tag_parse(workflow, floating_tags, unique_tags, primary_tags, expected):
-    df = df_parser(workflow.source.path)
-    df.content = DF_CONTENT_LABELS
-
-    flexmock(workflow, df_path=df.dockerfile_path)
-    workflow.build_result = BuildResult.make_remote_image_result()
-
+def test_tag_from_config(workflow, floating_tags, unique_tags, primary_tags, expected):
     base_inspect = {
         INSPECT_CONFIG: {
             'Labels': {'parentrelease': '7.4.1'},
@@ -130,17 +85,12 @@ def test_tag_parse(workflow, floating_tags, unique_tags, primary_tags, expected)
     plugin.tag_suffixes = input_tags
 
     if expected is not None:
-        plugin_result = plugin.run()
+        plugin.run()
 
-        # Plugin should return the tags we expect
-        assert plugin_result == expected
-
-        # Workflow should have the expected tags configured
-        for tag in expected:
-            assert any(tag == str(image) for image in workflow.tag_conf.images)
-
-        # Workflow should not have any other tags configured
-        assert len(workflow.tag_conf.images) == len(expected)
+        # Testing the whole image pullspecs with the registry
+        expected_images = [f"{REGISTRY}/{image}" for image in expected]
+        actual_images = [str(image) for image in workflow.tag_conf.images]
+        assert sorted(actual_images) == sorted(expected_images)
     else:
         with pytest.raises(KeyError):
             plugin.run()
@@ -152,16 +102,15 @@ def test_tag_parse(workflow, floating_tags, unique_tags, primary_tags, expected)
     ('custom/etcd', None, 'custom/etcd'),
     ('custom/etcd', 'org', 'org/custom-etcd'),
 ))
-def test_tags_enclosed(workflow, name, organization, expected):
-    df = df_parser(workflow.source.path)
-    df.content = dedent("""\
+def test_tag_from_config_with_tags_enclosed(workflow, name, organization, expected):
+    df_content = dedent("""\
         FROM fedora
         LABEL "name"="{}"
         LABEL "version"="1.7"
         LABEL "release"="99"
     """.format(name))
 
-    workflow.build_result = BuildResult.make_remote_image_result()
+    workflow.build_dir.any_platform.dockerfile.content = df_content
 
     if organization:
         reactor_config = {
@@ -178,18 +127,11 @@ def test_tags_enclosed(workflow, name, organization, expected):
     plugin = TagFromConfigPlugin(workflow)
     plugin.tag_suffixes = input_tags
 
-    plugin_result = plugin.run()
+    plugin.run()
 
-    expected_tags = ['{}:{}'.format(expected, tag) for tag in ['foo', 'bar', '1.7', '1.7-99']]
-    # Plugin should return the tags we expect
-    assert plugin_result == expected_tags
-
-    # Workflow should have the expected tags configured
-    for tag in expected_tags:
-        assert any(tag == str(image) for image in workflow.tag_conf.images)
-
-    # Workflow should not have any other tags configured
-    assert len(workflow.tag_conf.images) == len(expected_tags)
+    expected_images = [f'{REGISTRY}/{expected}:{tag}' for tag in ['foo', 'bar', '1.7', '1.7-99']]
+    actual_images = [str(image) for image in workflow.tag_conf.images]
+    assert sorted(actual_images) == sorted(expected_images)
 
 
 @pytest.mark.parametrize(
