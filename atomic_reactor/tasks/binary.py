@@ -45,6 +45,7 @@ class BinaryPreBuildTask(plugin_based.PluginBasedTask):
             {"name": "hide_files"},
             {"name": "distribution_scope"},
             {"name": "add_buildargs_in_dockerfile"},
+            {"name": "tag_from_config"},
         ],
     )
 
@@ -66,7 +67,6 @@ class BinaryPostBuildTask(plugin_based.PluginBasedTask):
         postbuild=[
             {"name": "flatpak_create_oci"},
             {"name": "all_rpm_packages"},
-            {"name": "tag_from_config"},
             {"name": "export_operator_manifests"},
             {"name": "compress"},
             {"name": "fetch_worker_metadata"},

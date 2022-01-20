@@ -43,6 +43,7 @@ class WorkerTask(plugin_based.PluginBasedTask):
             {"name": "download_remote_source"},
             {"name": "add_buildargs_in_dockerfile"},
             {"name": "pin_operator_digest"},
+            {"name": "tag_from_config"},
         ],
         prepublish=[
             {"name": "squash"},
@@ -50,7 +51,6 @@ class WorkerTask(plugin_based.PluginBasedTask):
         ],
         postbuild=[
             {"name": "all_rpm_packages", "args": {"image_id": "BUILT_IMAGE_ID"}},
-            {"name": "tag_from_config"},
             {"name": "tag_and_push"},
             {"name": "export_operator_manifests"},
             {"name": "compress", "args": {"load_exported_image": True, "method": "gzip"}},
