@@ -105,7 +105,7 @@ def mock_workflow(workflow, source_dir: Path, platforms=None):
     flexmock(workflow, df_path=df.dockerfile_path)
 
     platforms = ['x86_64', 'ppc64le'] if platforms is None else platforms
-    workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(platforms)
+    workflow.data.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = set(platforms)
 
     build = {
         "spec": {
@@ -857,7 +857,7 @@ def test_orchestrate_build_get_fs_task_id(workflow, source_dir, task_id, error):
 
     mock_reactor_config(workflow, source_dir)
 
-    workflow.prebuild_results[PLUGIN_ADD_FILESYSTEM_KEY] = {
+    workflow.data.prebuild_results[PLUGIN_ADD_FILESYSTEM_KEY] = {
         'filesystem-koji-task-id': task_id,
     }
     runner = BuildStepPluginsRunner(
@@ -874,7 +874,7 @@ def test_orchestrate_build_get_fs_task_id(workflow, source_dir, task_id, error):
     if error is not None:
         with pytest.raises(PluginFailedException) as exc:
             runner.run()
-        workflow.build_result.is_failed()
+        workflow.data.build_result.is_failed()
         assert error in str(exc.value)
 
     else:
@@ -1433,7 +1433,7 @@ def test_parent_images_digests(workflow, source_dir, caplog):
     }
 
     mock_workflow(workflow, source_dir, platforms=['x86_64'])
-    workflow.parent_images_digests.update(PARENT_IMAGES_DIGESTS)
+    workflow.data.parent_images_digests.update(PARENT_IMAGES_DIGESTS)
     expected_kwargs = {
         'git_uri': SOURCE['uri'],
         'git_ref': 'master',

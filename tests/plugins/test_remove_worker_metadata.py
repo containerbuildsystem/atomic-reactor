@@ -107,8 +107,8 @@ def test_remove_worker_plugin(caplog, workflow,
             annotations['worker-builds'][platform]['metadata_fragment'] = metadata_fragment
             annotations['worker-builds'][platform]['metadata_fragment_key'] = fragment_key
 
-    workflow.build_result = BuildResult(annotations=annotations, image_id="id1234")
-    workflow.plugin_workspace[OrchestrateBuildPlugin.key] = workspace
+    workflow.data.build_result = BuildResult(annotations=annotations, image_id="id1234")
+    workflow.data.plugin_workspace[OrchestrateBuildPlugin.key] = workspace
 
     runner = ExitPluginsRunner(
         workflow,
@@ -137,7 +137,7 @@ def test_remove_worker_metadata_no_worker_build(caplog, workflow):
     """Don't traceback with missing worker builds, without worker
     builds plugin should just skip"""
     annotations = None
-    workflow.build_result = BuildResult(annotations=annotations, image_id="id1234")
+    workflow.data.build_result = BuildResult(annotations=annotations, image_id="id1234")
 
     runner = ExitPluginsRunner(
         workflow,

@@ -64,7 +64,8 @@ disable=I,
         useless-import-alias,  # nice to have
         useless-super-delegation,  # nice to have
         wrong-import-order,
-        wrong-import-position
+        wrong-import-position,
+        eq-without-hash  # no need to hash objects which have method __eq__
 
 [REPORTS]
 

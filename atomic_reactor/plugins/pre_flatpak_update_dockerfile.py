@@ -62,31 +62,31 @@ class ComposeInfo(object):
 
 def get_flatpak_source_info(workflow):
     key = FlatpakUpdateDockerfilePlugin.key
-    if key not in workflow.plugin_workspace:
+    if key not in workflow.data.plugin_workspace:
         return None
-    return workflow.plugin_workspace[key].get(WORKSPACE_SOURCE_KEY, None)
+    return workflow.data.plugin_workspace[key].get(WORKSPACE_SOURCE_KEY, None)
 
 
 def set_flatpak_source_info(workflow, source):
     key = FlatpakUpdateDockerfilePlugin.key
 
-    workflow.plugin_workspace.setdefault(key, {})
-    workspace = workflow.plugin_workspace[key]
+    workflow.data.plugin_workspace.setdefault(key, {})
+    workspace = workflow.data.plugin_workspace[key]
     workspace[WORKSPACE_SOURCE_KEY] = source
 
 
 def get_flatpak_compose_info(workflow):
     key = FlatpakUpdateDockerfilePlugin.key
-    if key not in workflow.plugin_workspace:
+    if key not in workflow.data.plugin_workspace:
         return None
-    return workflow.plugin_workspace[key].get(WORKSPACE_COMPOSE_KEY, None)
+    return workflow.data.plugin_workspace[key].get(WORKSPACE_COMPOSE_KEY, None)
 
 
 def set_flatpak_compose_info(workflow, source):
     key = FlatpakUpdateDockerfilePlugin.key
 
-    workflow.plugin_workspace.setdefault(key, {})
-    workspace = workflow.plugin_workspace[key]
+    workflow.data.plugin_workspace.setdefault(key, {})
+    workspace = workflow.data.plugin_workspace[key]
     workspace[WORKSPACE_COMPOSE_KEY] = source
 
 
@@ -151,7 +151,7 @@ class FlatpakUpdateDockerfilePlugin(PreBuildPlugin):
         assert source_spec is not None  # flatpak_create_dockerfile must be run first
         main_module = ModuleSpec.from_str(source_spec)
 
-        resolve_comp_result = self.workflow.prebuild_results.get(PLUGIN_RESOLVE_COMPOSES_KEY)
+        resolve_comp_result = self.workflow.data.prebuild_results.get(PLUGIN_RESOLVE_COMPOSES_KEY)
         composes = resolve_comp_result['composes']
 
         for compose_info in composes:

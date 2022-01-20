@@ -340,15 +340,15 @@ class BuildPluginsRunner(PluginsRunner):
         super(BuildPluginsRunner, self).__init__(plugin_class_name, plugins_conf, *args, **kwargs)
 
     def on_plugin_failed(self, plugin=None, exception=None):
-        self.workflow.plugin_failed = True
+        self.workflow.data.plugin_failed = True
         if plugin and exception:
-            self.workflow.plugins_errors[plugin] = str(exception)
+            self.workflow.data.plugins_errors[plugin] = str(exception)
 
     def save_plugin_timestamp(self, plugin, timestamp):
-        self.workflow.plugins_timestamps[plugin] = timestamp.isoformat()
+        self.workflow.data.plugins_timestamps[plugin] = timestamp.isoformat()
 
     def save_plugin_duration(self, plugin, duration):
-        self.workflow.plugins_durations[plugin] = duration
+        self.workflow.data.plugins_durations[plugin] = duration
 
     def _translate_special_values(self, obj_to_translate):
         """
@@ -358,7 +358,7 @@ class BuildPluginsRunner(PluginsRunner):
         """
         translation_dict = {
             # OSBS2 TBD
-            'BUILT_IMAGE_ID': self.workflow.image_id,
+            'BUILT_IMAGE_ID': self.workflow.data.image_id,
             'BUILD_DOCKERFILE_PATH': self.workflow.source.dockerfile_path,
             'BUILD_SOURCE_PATH': self.workflow.source.path,
         }
@@ -414,7 +414,7 @@ class PreBuildPluginsRunner(BuildPluginsRunner):
 
     def __init__(self, workflow, plugins_conf, *args, **kwargs):
         logger.info("initializing runner of pre-build plugins")
-        self.plugins_results = workflow.prebuild_results
+        self.plugins_results = workflow.data.prebuild_results
         super(PreBuildPluginsRunner, self).__init__(workflow, 'PreBuildPlugin', plugins_conf,
                                                     *args, **kwargs)
 
@@ -427,7 +427,7 @@ class BuildStepPluginsRunner(BuildPluginsRunner):
 
     def __init__(self, workflow, plugin_conf, *args, **kwargs):
         logger.info("initializing runner of build-step plugin")
-        self.plugins_results = workflow.buildstep_result
+        self.plugins_results = workflow.data.buildstep_result
 
         if plugin_conf:
             # any non existing buildstep plugin must be skipped without error
@@ -461,7 +461,7 @@ class PrePublishPluginsRunner(BuildPluginsRunner):
 
     def __init__(self, workflow, plugins_conf, *args, **kwargs):
         logger.info("initializing runner of pre-publish plugins")
-        self.plugins_results = workflow.prepub_results
+        self.plugins_results = workflow.data.prepub_results
         super(PrePublishPluginsRunner, self).__init__(workflow, 'PrePublishPlugin',
                                                       plugins_conf, *args, **kwargs)
 
@@ -474,7 +474,7 @@ class PostBuildPluginsRunner(BuildPluginsRunner):
 
     def __init__(self, workflow, plugins_conf, *args, **kwargs):
         logger.info("initializing runner of post-build plugins")
-        self.plugins_results = workflow.postbuild_results
+        self.plugins_results = workflow.data.postbuild_results
         super(PostBuildPluginsRunner, self).__init__(workflow, 'PostBuildPlugin',
                                                      plugins_conf, *args, **kwargs)
 
@@ -495,7 +495,7 @@ class ExitPlugin(PostBuildPlugin):
 class ExitPluginsRunner(BuildPluginsRunner):
     def __init__(self, workflow, plugins_conf, *args, **kwargs):
         logger.info("initializing runner of exit plugins")
-        self.plugins_results = workflow.exit_results
+        self.plugins_results = workflow.data.exit_results
         super(ExitPluginsRunner, self).__init__(workflow, 'ExitPlugin',
                                                 plugins_conf, *args, **kwargs)
 

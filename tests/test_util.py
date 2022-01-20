@@ -12,6 +12,8 @@ import logging
 import os
 import tempfile
 import tarfile
+from typing import List
+
 import pytest
 import requests
 from requests.exceptions import HTTPError, RetryError
@@ -900,23 +902,92 @@ def test_image_name_get_repo(namespace, repo, explicit, expected):
     assert image.get_repo(explicit) == expected
 
 
-@pytest.mark.parametrize('v1,v2,v2_list,oci,oci_index,default', [
-    ('v1-digest', 'v2-digest', None, None, None, 'v2-digest'),
-    ('v1-digest', None, None, None, None, 'v1-digest'),
-    (None, 'v2-digest', None, None, None, 'v2-digest'),
-    (None, 'v2-digest', None, None, None, 'v2-digest'),
-    (None, None, None, 'oci-digest', None, 'oci-digest'),
-    (None, None, None, None, 'oci-index-digest', 'oci-index-digest'),
-    (None, 'v2-digest', None, 'oci-digest', None, 'oci-digest'),
-    ('v1-digest', 'v2-digest', 'v2-list-digest', 'oci-digest', 'oci-index-digest',
-     'v2-list-digest'),
-    (None, 'v2-digest', 'v2-list-digest', 'oci-digest', None, 'v2-list-digest'),
-    ('v1-digest', None, 'v2-list-digest', 'oci-digest', None, 'v2-list-digest'),
-    ('v1-digest', 'v2-digest', 'v2-list-digest', None, None, 'v2-list-digest'),
-    (None, None, None, 'oci-digest', 'oci-index-digest', 'oci-index-digest'),
-    (None, None, None, None, None, None),
+@pytest.mark.parametrize('v1,v2,v2_list,oci,oci_index,default,expected_dump', [
+    (
+        'v1-digest', 'v2-digest', None, None, None, 'v2-digest',
+        {'v1': 'v1-digest', 'v2': 'v2-digest', 'v2_list': None, 'oci': None, 'oci_index': None},
+    ),
+    (
+        'v1-digest', None, None, None, None, 'v1-digest',
+        {'v1': 'v1-digest', 'v2': None, 'v2_list': None, 'oci': None, 'oci_index': None},
+    ),
+    (
+        None, 'v2-digest', None, None, None, 'v2-digest',
+        {'v1': None, 'v2': 'v2-digest', 'v2_list': None, 'oci': None, 'oci_index': None},
+    ),
+    (
+        None, None, None, 'oci-digest', None, 'oci-digest',
+        {'v1': None, 'v2': None, 'v2_list': None, 'oci': 'oci-digest', 'oci_index': None},
+    ),
+    (
+        None, None, None, None, 'oci-index-digest', 'oci-index-digest',
+        {'v1': None, 'v2': None, 'v2_list': None, 'oci': None, 'oci_index': 'oci-index-digest'},
+    ),
+    (
+        None, 'v2-digest', None, 'oci-digest', None, 'oci-digest',
+        {'v1': None, 'v2': 'v2-digest', 'v2_list': None, 'oci': 'oci-digest', 'oci_index': None},
+    ),
+    (
+        'v1-digest',
+        'v2-digest',
+        'v2-list-digest',
+        'oci-digest',
+        'oci-index-digest',
+        'v2-list-digest',
+        {
+            'v1': 'v1-digest',
+            'v2': 'v2-digest',
+            'v2_list': 'v2-list-digest',
+            'oci': 'oci-digest',
+            'oci_index': 'oci-index-digest',
+        },
+    ),
+    (
+        None, 'v2-digest', 'v2-list-digest', 'oci-digest', None, 'v2-list-digest',
+        {
+            'v1': None,
+            'v2': 'v2-digest',
+            'v2_list': 'v2-list-digest',
+            'oci': 'oci-digest',
+            'oci_index': None,
+        },
+    ),
+    (
+        'v1-digest', None, 'v2-list-digest', 'oci-digest', None, 'v2-list-digest',
+        {
+            'v1': 'v1-digest',
+            'v2': None,
+            'v2_list': 'v2-list-digest',
+            'oci': 'oci-digest',
+            'oci_index': None,
+        },
+    ),
+    (
+        'v1-digest', 'v2-digest', 'v2-list-digest', None, None, 'v2-list-digest',
+        {
+            'v1': 'v1-digest',
+            'v2': 'v2-digest',
+            'v2_list': 'v2-list-digest',
+            'oci': None,
+            'oci_index': None,
+        },
+    ),
+    (
+        None, None, None, 'oci-digest', 'oci-index-digest', 'oci-index-digest',
+        {
+            'v1': None,
+            'v2': None,
+            'v2_list': None,
+            'oci': 'oci-digest',
+            'oci_index': 'oci-index-digest',
+        },
+    ),
+    (
+        None, None, None, None, None, None,
+        {'v1': None, 'v2': None, 'v2_list': None, 'oci': None, 'oci_index': None},
+    ),
 ])
-def test_manifest_digest(v1, v2, v2_list, oci, oci_index, default):
+def test_manifest_digest(v1, v2, v2_list, oci, oci_index, default, expected_dump):
     md = ManifestDigest(v1=v1, v2=v2, v2_list=v2_list, oci=oci, oci_index=oci_index)
     assert md.v1 == v1
     assert md.v2 == v2
@@ -925,6 +996,36 @@ def test_manifest_digest(v1, v2, v2_list, oci, oci_index, default):
     assert md.default == default
     with pytest.raises(AttributeError):
         assert md.no_such_version
+    assert expected_dump == md.dump()
+
+
+@pytest.mark.parametrize("input_data", [
+    {},
+    {"v2": "v2-digest", "oci_index": "oci-index-digest"},
+])
+def test_manifest_digest_parse_partial_input_data(input_data):
+    md = ManifestDigest.load(input_data)
+    for type_name in ManifestDigest.content_type:
+        if type_name in input_data:
+            assert getattr(md, type_name) == input_data[type_name]
+        else:
+            assert getattr(md, type_name) is None
+
+
+@pytest.mark.parametrize("v1", [None, "v1-digest"])
+@pytest.mark.parametrize("v2", [None, "v2-digest"])
+@pytest.mark.parametrize("v2_list", [None, "v2-list-digest"])
+@pytest.mark.parametrize("oci", [None, "oci-digest"])
+@pytest.mark.parametrize("oci_index", [None, "oci-index-digest"])
+def test_manifest_digest_parse(v1, v2, v2_list, oci, oci_index):
+    md = ManifestDigest.load(
+        {'v1': v1, 'v2': v2, 'v2_list': v2_list, 'oci': oci, 'oci_index': oci_index}
+    )
+    assert md.v1 == v1
+    assert md.v2 == v2
+    assert md.v2_list == v2_list
+    assert md.oci == oci
+    assert md.oci_index == oci_index
 
 
 def test_get_manifest_media_version_unknown():
@@ -1097,18 +1198,19 @@ def test_get_primary_and_floating_images(workflow, tag_conf, expected_primary,
                                          expected_floating, expected_unique):
     template_image = ImageName.parse('registry.example.com/fedora')
 
+    wf_data = workflow.data
     for tag in tag_conf:
         image_name = ImageName.parse(str(template_image))
         image_name.tag = tag
         if '-' in tag:
-            workflow.tag_conf.add_primary_image(str(image_name))
+            wf_data.tag_conf.add_primary_image(str(image_name))
         elif 'unique' in tag:
-            workflow.tag_conf.add_unique_image(str(image_name))
+            wf_data.tag_conf.add_unique_image(str(image_name))
         else:
-            workflow.tag_conf.add_floating_image(str(image_name))
+            wf_data.tag_conf.add_floating_image(str(image_name))
 
     build_result = BuildResult(image_id='foo')
-    workflow.build_result = build_result
+    workflow.data.build_result = build_result
 
     actual_primary = get_primary_images(workflow)
     actual_floating = get_floating_images(workflow)
@@ -2051,6 +2153,72 @@ def test_dockerfile_images(source_registry, organization, dockerfile_images, bas
     # setting non-existing image
     with pytest.raises(KeyError):
         df_image['non-existing'] = 'test'
+
+
+def test_dockerfile_images_dump_empty_object():
+    df_images = DockerfileImages()
+    expected = {
+        "original_parents": [],
+        "source_registry": None,
+        "organization": None,
+        "local_parents": [],
+    }
+    assert expected == df_images.dump()
+
+
+@pytest.mark.parametrize(
+    "df_parents,expected_local_parents",
+    [
+        [["scratch"], []],
+        [["registry/f:34"], [None]],
+    ],
+)
+def test_dockerfile_images_dump_with_images(
+    df_parents: List[str], expected_local_parents
+):
+    df_images = DockerfileImages(df_parents)
+    expected = {
+        "original_parents": df_parents,
+        "local_parents": expected_local_parents,
+        "source_registry": None,
+        "organization": None,
+    }
+    assert expected == df_images.dump()
+
+
+def test_dockerfile_images_load():
+    input_data = {
+        "original_parents": ["build-base:1.0", "scratch"],
+        "local_parents": [None],
+        # test the registry is set and pullable images are enclosed properly.
+        "source_registry": "registry",
+        "organization": "organization",
+    }
+    df_images = DockerfileImages.load(input_data)
+
+    assert df_images.base_from_scratch
+    assert not df_images.custom_base_image
+    assert not df_images.custom_parent_image
+
+    assert input_data["original_parents"] == df_images.original_parents
+    assert input_data["local_parents"] == df_images._local_parents
+    assert input_data["source_registry"] == df_images.source_registry
+    assert input_data["organization"] == df_images.organization
+    assert df_images._source_and_org_set
+
+    assert len(df_images._pullable_parents) == 1
+    pullable_image = ImageName.parse(input_data["original_parents"][0])
+    pullable_image.registry = input_data["source_registry"]
+    pullable_image.enclose(input_data["organization"])
+    assert pullable_image == df_images._pullable_parents[0]
+
+
+def test_dockerfile_images_dump_and_load():
+    """Test the original object can be restored from the dump data."""
+    orig_df_images = DockerfileImages(["scratch", "registry/httpd:2.4"])
+    loaded_df_images = DockerfileImages.load(orig_df_images.dump())
+    assert id(orig_df_images) != id(loaded_df_images)
+    assert orig_df_images == loaded_df_images
 
 
 @pytest.mark.parametrize('data,expected', [

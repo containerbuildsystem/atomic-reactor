@@ -75,7 +75,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
         self._parent_signing_intent = None
         self.repourls = repourls or []
         self.has_complete_repos = len(self.repourls) > 0
-        self.plugin_result = self.workflow.prebuild_results.get(PLUGIN_KOJI_PARENT_KEY)
+        self.plugin_result = self.workflow.data.prebuild_results.get(PLUGIN_KOJI_PARENT_KEY)
         self.all_compose_ids = list(self.compose_ids)
         self.new_compose_ids = []
         self.parent_compose_ids = []
@@ -86,7 +86,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
     def run(self):
         if self.allow_inheritance():
             self.adjust_for_inherit()
-        self.workflow.all_yum_repourls = self.repourls
+        self.workflow.data.all_yum_repourls = self.repourls
 
         try:
             self.read_configs()
@@ -131,7 +131,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
         return True
 
     def adjust_for_inherit(self):
-        if self.workflow.dockerfile_images.base_from_scratch:
+        if self.workflow.data.dockerfile_images.base_from_scratch:
             self.log.debug('This is a base image based on scratch. '
                            'Skipping adjusting composes for inheritance.')
             return
@@ -203,7 +203,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
         self.adjust_signing_intent_from_parent()
 
     def adjust_signing_intent_from_parent(self):
-        if self.workflow.dockerfile_images.base_from_scratch:
+        if self.workflow.data.dockerfile_images.base_from_scratch:
             self.log.debug('This is a base image based on scratch. '
                            'Signing intent will not be adjusted for it.')
             return

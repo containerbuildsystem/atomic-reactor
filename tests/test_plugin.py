@@ -88,7 +88,7 @@ def test_required_plugin_failure(workflow, runner_type, required):
     and check if it fails when is required
     and also check plugin_failed value
     """
-    assert workflow.plugin_failed is False
+    assert workflow.data.plugin_failed is False
     params = (workflow,
               [{"name": "no_such_plugin",
                "required": required}])
@@ -101,9 +101,9 @@ def test_required_plugin_failure(workflow, runner_type, required):
         runner = runner_type(*params)
         runner.run()
     if runner_type == BuildStepPluginsRunner:
-        assert workflow.plugin_failed is True
+        assert workflow.data.plugin_failed is True
     else:
-        assert workflow.plugin_failed is required
+        assert workflow.data.plugin_failed is required
 
 
 @pytest.mark.parametrize('runner_type, plugin_type', [  # noqa
@@ -287,8 +287,8 @@ class TestBuildPluginsRunner(object):
         {'spam': 'maps', 'eggs': 'sgge'},
     ])
     def test_create_instance_from_plugin(self, tmpdir, params):
-        workflow = flexmock()
-        workflow.image_id = 'image-id'
+        workflow = flexmock(data=flexmock())
+        workflow.data.image_id = 'image-id'
         workflow.source = flexmock()
         workflow.source.dockerfile_path = 'dockerfile-path'
         workflow.source.path = 'path'
@@ -317,8 +317,8 @@ class TestBuildPluginsRunner(object):
         {'spam': 'maps', 'eggs': 'sgge'},
     ])
     def test_create_instance_from_plugin_with_kwargs(self, tmpdir, params):
-        workflow = flexmock()
-        workflow.image_id = 'image-id'
+        workflow = flexmock(data=flexmock())
+        workflow.data.image_id = 'image-id'
         workflow.source = flexmock()
         workflow.source.dockerfile_path = 'dockerfile-path'
         workflow.source.path = 'path'

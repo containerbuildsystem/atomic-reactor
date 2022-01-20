@@ -595,14 +595,14 @@ def test_resolve_remote_source(workflow, scratch, dr_strs, dependency_replacemen
         )
     )
 
-    assert workflow.buildargs == {
+    assert workflow.data.buildargs == {
         **CACHITO_BUILD_ARGS,
         "REMOTE_SOURCE": ResolveRemoteSourcePlugin.REMOTE_SOURCE,
         "REMOTE_SOURCE_DIR": REMOTE_SOURCE_DIR,
         CACHITO_ENV_ARG_ALIAS: str(Path(REMOTE_SOURCE_DIR, CACHITO_ENV_FILENAME)),
     }
     # https://github.com/openshift/imagebuilder/issues/139
-    assert not workflow.buildargs["REMOTE_SOURCE"].startswith("/")
+    assert not workflow.data.buildargs["REMOTE_SOURCE"].startswith("/")
 
 
 @pytest.mark.parametrize(
@@ -851,12 +851,12 @@ def test_allow_multiple_remote_sources(workflow, allow_multiple_remote_sources):
             )
         )
 
-        assert workflow.buildargs == {
+        assert workflow.data.buildargs == {
             "REMOTE_SOURCES": ResolveRemoteSourcePlugin.REMOTE_SOURCE,
             "REMOTE_SOURCES_DIR": REMOTE_SOURCE_DIR,
         }
         # https://github.com/openshift/imagebuilder/issues/139
-        assert not workflow.buildargs["REMOTE_SOURCES"].startswith("/")
+        assert not workflow.data.buildargs["REMOTE_SOURCES"].startswith("/")
 
 
 def test_multiple_remote_sources_non_unique_names(workflow):

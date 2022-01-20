@@ -311,7 +311,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
     def get_image_build_conf(self):
         image_build_conf = None
 
-        for parent in self.workflow.dockerfile_images:
+        for parent in self.workflow.data.dockerfile_images:
             if base_image_is_custom(parent.to_str()):
                 image_build_conf = parent.tag
                 break
@@ -321,7 +321,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
         return image_build_conf
 
     def update_repos_from_composes(self):
-        resolve_comp_result = self.workflow.prebuild_results.get(PLUGIN_RESOLVE_COMPOSES_KEY)
+        resolve_comp_result = self.workflow.data.prebuild_results.get(PLUGIN_RESOLVE_COMPOSES_KEY)
         if not resolve_comp_result:
             return
 
@@ -366,7 +366,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
         self._add_filesystem_to_dockerfile(file_name, build_dir)
 
     def run(self):
-        if not self.workflow.dockerfile_images.custom_parent_image:
+        if not self.workflow.data.dockerfile_images.custom_parent_image:
             self.log.info('Nothing to do for non-custom base images')
             return
 

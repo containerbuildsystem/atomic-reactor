@@ -48,7 +48,7 @@ USE_DEFAULT_KOJI_BUILD_INFO = object()
 
 @pytest.fixture()
 def workflow(workflow):
-    workflow.dockerfile_images = DockerfileImages(['source_registry.com/fedora:26'])
+    workflow.data.dockerfile_images = DockerfileImages(['source_registry.com/fedora:26'])
     workflow.source = StubSource()
 
     return workflow
@@ -82,27 +82,29 @@ class TestKojiParent(object):
     def test_parent_image_injected(self, caplog, workflow, base_from_scratch, custom_base_image):
         koji_session()
 
-        if base_from_scratch:
-            workflow.dockerfile_images = DockerfileImages(['scratch'])
-        elif custom_base_image:
-            workflow.dockerfile_images = DockerfileImages(['koji/image-build'])
+        wf_data = workflow.data
 
-        previous_parent_image = workflow.dockerfile_images.base_image
+        if base_from_scratch:
+            wf_data.dockerfile_images = DockerfileImages(['scratch'])
+        elif custom_base_image:
+            wf_data.dockerfile_images = DockerfileImages(['koji/image-build'])
+
+        previous_parent_image = wf_data.dockerfile_images.base_image
 
         self.run_plugin_with_args(workflow, base_from_scratch=base_from_scratch,
                                   custom_base_image=custom_base_image)
         if base_from_scratch:
-            assert str(previous_parent_image) == str(workflow.dockerfile_images.base_image)
+            assert str(previous_parent_image) == str(wf_data.dockerfile_images.base_image)
 
             log_msg = "from scratch can't inject parent image"
             assert log_msg in caplog.text
         elif custom_base_image:
-            assert str(previous_parent_image) == str(workflow.dockerfile_images.base_image)
+            assert str(previous_parent_image) == str(wf_data.dockerfile_images.base_image)
 
             log_msg = "custom base image builds can't inject parent image"
             assert log_msg in caplog.text
         else:
-            assert str(previous_parent_image) != str(workflow.dockerfile_images.base_image)
+            assert str(previous_parent_image) != str(wf_data.dockerfile_images.base_image)
 
     @pytest.mark.parametrize('koji_build', (KOJI_BUILD_ID, KOJI_BUILD_NVR, str(KOJI_BUILD_ID)))
     def test_koji_build_identifier(self, workflow, koji_build):
@@ -138,9 +140,9 @@ class TestKojiParent(object):
 
         repo_template = 'source_registry.com/fedora{}'
         koji_session(archives=archives, koji_build_info=koji_build_info)
-        workflow.dockerfile_images = DockerfileImages(['spam.com/fedora:some_tag'])
+        workflow.data.dockerfile_images = DockerfileImages(['spam.com/fedora:some_tag'])
         self.run_plugin_with_args(workflow)
-        assert str(workflow.dockerfile_images.base_image) == repo_template.format(selected)
+        assert str(workflow.data.dockerfile_images.base_image) == repo_template.format(selected)
 
     @pytest.mark.parametrize('organization', [None, 'my_organization'])  # noqa
     @pytest.mark.parametrize('archive_registry', ['spam.com', 'old_registry.com'])
@@ -160,14 +162,14 @@ class TestKojiParent(object):
         repo_template = 'source_registry.com/fedora{}'
 
         koji_session(archives=archives)
-        workflow.dockerfile_images = DockerfileImages(['spam.com/fedora:some_tag'])
+        workflow.data.dockerfile_images = DockerfileImages(['spam.com/fedora:some_tag'])
         self.run_plugin_with_args(workflow, organization=organization)
         if organization:
             selected_repo = enclosed_repo_template.format(organization, selected)
         else:
             selected_repo = repo_template.format(selected)
 
-        assert str(workflow.dockerfile_images.base_image) == selected_repo
+        assert str(workflow.data.dockerfile_images.base_image) == selected_repo
 
     def test_koji_ssl_certs_used(self, tmpdir, workflow):  # noqa
         session = koji_session()
@@ -240,6 +242,6 @@ class TestKojiParent(object):
             self.assert_images_to_remove(workflow)
 
     def assert_images_to_remove(self, workflow):
-        expected = {str(workflow.dockerfile_images.base_image)}
-        actual = workflow.plugin_workspace[GarbageCollectionPlugin.key]['images_to_remove']
+        expected = {str(workflow.data.dockerfile_images.base_image)}
+        actual = workflow.data.plugin_workspace[GarbageCollectionPlugin.key]['images_to_remove']
         assert actual == expected

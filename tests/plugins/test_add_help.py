@@ -144,7 +144,7 @@ def test_add_help_plugin(workflow, filename):
         assert (build_dir.path / AddHelpPlugin.man_filename).read_text() == "man file content"
 
     workflow.build_dir.for_each_platform(check_df_and_man_file)
-    assert workflow.annotations['help_file'] == filename
+    assert workflow.data.annotations['help_file'] == filename
 
 
 @pytest.mark.parametrize('filename', ['help.md', 'other_file.md'])  # noqa

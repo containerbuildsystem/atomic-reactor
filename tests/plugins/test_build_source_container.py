@@ -64,7 +64,7 @@ def test_running_build(workflow, caplog,
             os.mknod(maven_dir_path / 'maven-sources-1' / 'maven-sources-1.tar.gz')
 
     workflow.build_dir.init_build_dirs(["noarch"], workflow.source)
-    workflow.prebuild_results[PLUGIN_FETCH_SOURCES_KEY] = {
+    workflow.data.prebuild_results[PLUGIN_FETCH_SOURCES_KEY] = {
         'image_sources_dir': str(sources_dir_path),
         'remote_sources_dir': str(remote_dir_path),
         'maven_sources_dir': str(maven_dir_path),
@@ -234,7 +234,7 @@ def test_failed_build(workflow, source_dir, caplog, user_params):
      .and_raise(subprocess.CalledProcessError(1, 'cmd', output='stub stdout')))
     some_dir = workflow.build_dir.path / 'some_dir'
     some_dir.mkdir()
-    workflow.prebuild_results[PLUGIN_FETCH_SOURCES_KEY] = {
+    workflow.data.prebuild_results[PLUGIN_FETCH_SOURCES_KEY] = {
         'image_sources_dir': str(some_dir),
         'remote_sources_dir': str(some_dir),
         'maven_sources_dir': str(some_dir),

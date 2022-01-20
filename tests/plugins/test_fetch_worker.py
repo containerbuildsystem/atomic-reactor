@@ -82,8 +82,8 @@ def test_fetch_worker_plugin(fragment_key, workflow):
         'koji_upload_dir': 'foo',
     }
 
-    workflow.build_result = BuildResult(annotations=annotations, image_id="id1234")
-    workflow.plugin_workspace[OrchestrateBuildPlugin.key] = workspace
+    workflow.data.build_result = BuildResult(annotations=annotations, image_id="id1234")
+    workflow.data.plugin_workspace[OrchestrateBuildPlugin.key] = workspace
 
     runner = PostBuildPluginsRunner(
         workflow,

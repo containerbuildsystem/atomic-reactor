@@ -101,10 +101,8 @@ class CheckUserSettingsPlugin(PreBuildPlugin):
         if not has_operator_bundle_manifest(self.workflow):
             return
 
-        if (
-            not self.workflow.dockerfile_images.base_from_scratch or
-            len(self.workflow.dockerfile_images.original_parents) > 1
-        ):
+        df_images = self.workflow.data.dockerfile_images
+        if not df_images.base_from_scratch or len(df_images.original_parents) > 1:
             raise ValueError(msg)
 
     def validate_user_config_files(self):
@@ -118,7 +116,7 @@ class CheckUserSettingsPlugin(PreBuildPlugin):
         """Isolated builds for FROM scratch builds are prohibited
          except operator bundle images"""
         if (
-            self.workflow.dockerfile_images.base_from_scratch and
+            self.workflow.data.dockerfile_images.base_from_scratch and
             is_isolated_build(self.workflow) and
             not has_operator_bundle_manifest(self.workflow)
         ):

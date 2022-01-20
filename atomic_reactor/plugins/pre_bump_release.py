@@ -201,10 +201,10 @@ class BumpReleasePlugin(PreBuildPlugin):
                 self.log.error("CGInitBuild failed")
                 raise
 
-        self.workflow.reserved_build_id = reserve['build_id']
-        self.workflow.reserved_token = reserve['token']
+        self.workflow.data.reserved_build_id = reserve['build_id']
+        self.workflow.data.reserved_token = reserve['token']
         if source_build:
-            self.workflow.koji_source_nvr = nvr_data
+            self.workflow.data.koji_source_nvr = nvr_data
 
         return next_release
 
@@ -222,14 +222,14 @@ class BumpReleasePlugin(PreBuildPlugin):
                                .format(component, version, release, build.get('id')))
 
     def get_source_build_nvr(self, scratch=False):
-        source_result = self.workflow.prebuild_results[PLUGIN_FETCH_SOURCES_KEY]
+        source_result = self.workflow.data.prebuild_results[PLUGIN_FETCH_SOURCES_KEY]
         koji_build_nvr = source_result['sources_for_nvr']
 
         koji_build = self.xmlrpc.getBuild(koji_build_nvr)
         build_component = "%s-source" % koji_build['name']
         build_version = koji_build['version']
         build_release = koji_build['release']
-        self.workflow.koji_source_source_url = koji_build['source']
+        self.workflow.data.koji_source_source_url = koji_build['source']
 
         if not scratch:
             next_release = self.get_next_release_append(build_component, build_version,
@@ -244,10 +244,10 @@ class BumpReleasePlugin(PreBuildPlugin):
         run the plugin
         """
         # source container build
-        if PLUGIN_FETCH_SOURCES_KEY in self.workflow.prebuild_results:
+        if PLUGIN_FETCH_SOURCES_KEY in self.workflow.data.prebuild_results:
             source_nvr = self.get_source_build_nvr(scratch=is_scratch_build(self.workflow))
             self.log.info("Setting source_build_nvr: %s", source_nvr)
-            self.workflow.koji_source_nvr = source_nvr
+            self.workflow.data.koji_source_nvr = source_nvr
 
             if self.reserve_build and not is_scratch_build(self.workflow):
                 self.reserve_build_in_koji(

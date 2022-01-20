@@ -95,7 +95,7 @@ def _decorate_metadata(metadata_type, keys, match_keys):
             if match_keys and not isinstance(result, dict):
                 raise TypeError('[{}] run() method did not return a dict'.format(metadata_type))
 
-            metadata = getattr(self.workflow, metadata_type)
+            metadata = getattr(self.workflow.data, metadata_type)
             for key in keys:
                 if match_keys and key not in result:
                     raise RuntimeError('[{}] Not found in result: {!r}'.format(metadata_type, key))

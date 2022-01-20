@@ -64,7 +64,7 @@ class KojiTagBuildPlugin(ExitPlugin):
             self.log.info('no koji target provided, skipping plugin')
             return
 
-        build_id = self.workflow.exit_results.get(KojiImportPlugin.key)
+        build_id = self.workflow.data.exit_results.get(KojiImportPlugin.key)
         if not build_id:
             self.log.info('No koji build from %s', KojiImportPlugin.key)
             return

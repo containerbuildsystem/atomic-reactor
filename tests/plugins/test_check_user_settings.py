@@ -112,7 +112,7 @@ def mock_env(workflow, source_dir: Path, labels=None, flatpak=False, dockerfile_
         env.set_isolated(isolated)
 
     dfp = env.workflow.build_dir.any_platform.dockerfile
-    env.workflow.dockerfile_images = DockerfileImages([] if flatpak else dfp.parent_images)
+    env.workflow.data.dockerfile_images = DockerfileImages([] if flatpak else dfp.parent_images)
 
     flexmock(env.workflow.imageutil).should_receive("base_image_inspect").and_return({})
 

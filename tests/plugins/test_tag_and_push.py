@@ -117,7 +117,7 @@ def test_tag_and_push_plugin(
         image_name, logs, should_raise, has_config, missing_v2,
         use_secret, file_name, dockerconfig_contents):
 
-    workflow.tag_conf.add_primary_image(image_name)
+    workflow.data.tag_conf.add_primary_image(image_name)
 
     secret_path = None
     if use_secret:
@@ -292,9 +292,13 @@ def test_tag_and_push_plugin(
             runner.run()
     else:
         runner.run()
-        assert len(workflow.push_conf.docker_registries) > 0
+
+        registries = workflow.data.push_conf.docker_registries
+        assert len(registries) > 0
 
         if MOCK:
+            registry = registries[0]
+
             # we only test this when mocking docker because we don't expect
             # running actual docker against v2 registry
             if missing_v2:
@@ -302,18 +306,15 @@ def test_tag_and_push_plugin(
                 assert "Retrying push because V2 schema 2" in caplog.text
             else:
                 expected_digest = ManifestDigest(v1=DIGEST_V1, v2=DIGEST_V2, oci=None)
-                assert workflow.push_conf.docker_registries[0].digests[image_name].v2 == \
-                    expected_digest.v2
+                assert registry.digests[image_name].v2 == expected_digest.v2
 
-            assert workflow.push_conf.docker_registries[0].digests[image_name].v1 == \
-                expected_digest.v1
-            assert workflow.push_conf.docker_registries[0].digests[image_name].oci == \
-                expected_digest.oci
+            assert registry.digests[image_name].v1 == expected_digest.v1
+            assert registry.digests[image_name].oci == expected_digest.oci
 
             if has_config:
-                assert isinstance(workflow.push_conf.docker_registries[0].config, dict)
+                assert isinstance(registry.config, dict)
             else:
-                assert workflow.push_conf.docker_registries[0].config is None
+                assert registry.config is None
 
 
 @pytest.mark.parametrize(("source_docker_archive", "v2s2"), [
@@ -352,8 +353,8 @@ def test_tag_and_push_plugin_oci(workflow, tmpdir, monkeypatch,
 
     workflow.user_params['image_tag'] = TEST_IMAGE
     if source_docker_archive:
-        workflow.build_result._source_docker_archive = sources_dir_path
-        workflow.prebuild_results[PLUGIN_FETCH_SOURCES_KEY] =\
+        workflow.data.build_result._source_docker_archive = sources_dir_path
+        workflow.data.prebuild_results[PLUGIN_FETCH_SOURCES_KEY] =\
             {'sources_for_koji_build_id': sources_koji_id}
 
     class MockedClientSession(object):
@@ -456,7 +457,7 @@ def test_tag_and_push_plugin_oci(workflow, tmpdir, monkeypatch,
 
     metadata = get_exported_image_metadata(oci_dir, IMAGE_TYPE_OCI)
     metadata['ref_name'] = REF_NAME
-    workflow.exported_image_sequence.append(metadata)
+    workflow.data.exported_image_sequence.append(metadata)
 
     oci_tarpath = os.path.join(str(tmpdir), 'oci-image.tar')
     with open(oci_tarpath, "wb") as f:
@@ -466,7 +467,7 @@ def test_tag_and_push_plugin_oci(workflow, tmpdir, monkeypatch,
 
     metadata = get_exported_image_metadata(oci_tarpath, IMAGE_TYPE_OCI_TAR)
     metadata['ref_name'] = REF_NAME
-    workflow.exported_image_sequence.append(metadata)
+    workflow.data.exported_image_sequence.append(metadata)
 
     # Mock the call to skopeo
 
@@ -579,9 +580,10 @@ def test_tag_and_push_plugin_oci(workflow, tmpdir, monkeypatch,
     else:
         runner.run()
 
-        assert len(workflow.push_conf.docker_registries) > 0
+        registries = workflow.data.push_conf.docker_registries
+        assert len(registries) > 0
 
-        push_conf_digests = workflow.push_conf.docker_registries[0].digests
+        push_conf_digests = registries[0].digests
 
         if source_docker_archive:
             source_image_name = '{}:{}'.format(sources_koji_repo, sources_tagname)
@@ -593,7 +595,7 @@ def test_tag_and_push_plugin_oci(workflow, tmpdir, monkeypatch,
             assert push_conf_digests[TEST_IMAGE_NAME].v2 is None
             assert push_conf_digests[TEST_IMAGE_NAME].oci == DIGEST_OCI
 
-        assert workflow.push_conf.docker_registries[0].config is config_json
+        assert registries[0].config is config_json
 
 
 @pytest.mark.parametrize('image_size_limit', [
@@ -613,7 +615,7 @@ def test_exceed_binary_image_size(image_size_limit, workflow):
 
     workflow.conf.conf = config
     # fake layer sizes of the test image
-    workflow.layer_sizes = [
+    workflow.data.layer_sizes = [
         {'diff_id': '12345', 'size': 1000},
         {'diff_id': '23456', 'size': 2000},
         {'diff_id': '34567', 'size': 3000},

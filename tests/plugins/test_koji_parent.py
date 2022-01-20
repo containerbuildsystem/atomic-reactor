@@ -76,12 +76,12 @@ class MockSource(object):
 @pytest.fixture()
 def workflow(workflow, source_dir):
     workflow.source = MockSource(source_dir)
-    workflow.dockerfile_images = DockerfileImages(['base:latest'])
-    workflow.dockerfile_images['base:latest'] = ImageName.parse('base:stubDigest')
+    workflow.data.dockerfile_images = DockerfileImages(['base:latest'])
+    workflow.data.dockerfile_images['base:latest'] = ImageName.parse('base:stubDigest')
     base_inspect = {INSPECT_CONFIG: {'Labels': BASE_IMAGE_LABELS.copy()}}
     flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return(base_inspect)
     flexmock(workflow.imageutil).should_receive('get_inspect_for_image').and_return(base_inspect)
-    workflow.parent_images_digests = {'base:latest': {V2_LIST: 'stubDigest'}}
+    workflow.data.parent_images_digests = {'base:latest': {V2_LIST: 'stubDigest'}}
     return workflow
 
 
@@ -229,9 +229,9 @@ class TestKojiParent(object):
             ImageName.parse('base'): ImageName.parse('base:{}'.format(parent_tags[2])),
         }
         media_type = get_manifest_media_type(media_version)
-        workflow.parent_images_digests = {}
+        workflow.data.parent_images_digests = {}
         for name, image in parent_images.items():
-            workflow.parent_images_digests[name.to_str()] = {media_type: image.tag}
+            workflow.data.parent_images_digests[name.to_str()] = {media_type: image.tag}
         if not koji_mtype:
             media_type = get_manifest_media_type('v1')
         extra = {'image': {'index': {'digests': {media_type: 'stubDigest'}}}}
@@ -281,9 +281,9 @@ class TestKojiParent(object):
              .should_receive('base_image_inspect')
              .and_return(image_inspects['base']))
 
-        workflow.dockerfile_images = DockerfileImages(dockerfile_images)
+        workflow.data.dockerfile_images = DockerfileImages(dockerfile_images)
         for parent, local in parent_images.items():
-            workflow.dockerfile_images[parent] = local
+            workflow.data.dockerfile_images[parent] = local
 
         expected = {
             BASE_IMAGE_KOJI_BUILD: koji_builds['base'],
@@ -320,7 +320,7 @@ class TestKojiParent(object):
             )
 
     def test_unexpected_digest_data(self, workflow, koji_session):  # noqa
-        workflow.parent_images_digests = {'base:latest': {'unexpected_type': 'stubDigest'}}
+        workflow.data.parent_images_digests = {'base:latest': {'unexpected_type': 'stubDigest'}}
         with pytest.raises(PluginFailedException) as exc_info:
             self.run_plugin_with_args(workflow)
         assert 'Unexpected parent image digest data' in str(exc_info.value)
@@ -353,7 +353,7 @@ class TestKojiParent(object):
             image_str = '/'.join([registry, image_str])
         extra = {'image': {'index': {'digests': {V2_LIST: 'stubDigest'}}}}
 
-        workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = ['x86_64']
+        workflow.data.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = ['x86_64']
 
         koji_build = dict(nvr='base-image-1.0-99',
                           id=KOJI_BUILD_ID,
@@ -392,10 +392,9 @@ class TestKojiParent(object):
                            PARENT_IMAGES_KOJI_BUILDS: {
                                ImageName.parse(image_str): KOJI_BUILD}}
 
-        workflow.parent_images_digests = {image_str+':latest': {V2_LIST: parent_tag}}
-        workflow.dockerfile_images = DockerfileImages([image_str])
-        workflow.dockerfile_images[image_str] = ImageName.parse('{}:{}'.format(image_str,
-                                                                               parent_tag))
+        workflow.data.parent_images_digests = {image_str+':latest': {V2_LIST: parent_tag}}
+        workflow.data.dockerfile_images = DockerfileImages([image_str])
+        workflow.data.dockerfile_images[image_str] = ImageName.parse(f'{image_str}:{parent_tag}')
 
         rebuild_str = 'This parent image MUST be rebuilt'
         manifest_list_check_passed = ('Deeper manifest list check verified v2 manifest '
@@ -558,7 +557,7 @@ class TestKojiParent(object):
         image_str = '{}/base:latest'.format(registry)
         extra = {'image': {'index': {'digests': {V2_LIST: 'stubDigest'}}}}
         parent_tag = 'notExpectedDigest'
-        workflow.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = requested_platforms
+        workflow.data.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = requested_platforms
 
         koji_build = dict(nvr='base-image-1.0-99',
                           id=KOJI_BUILD_ID,
@@ -598,11 +597,11 @@ class TestKojiParent(object):
                            PARENT_IMAGES_KOJI_BUILDS: {
                                ImageName.parse(image_str): KOJI_BUILD}}
 
-        workflow.parent_images_digests = {image_str: {V2_LIST: parent_tag}}
-        workflow.dockerfile_images = DockerfileImages([image_str])
+        workflow.data.parent_images_digests = {image_str: {V2_LIST: parent_tag}}
+        workflow.data.dockerfile_images = DockerfileImages([image_str])
         image_for_key = ImageName.parse(image_str)
         image_for_key.tag = parent_tag
-        workflow.dockerfile_images[image_str] = image_for_key.to_str()
+        workflow.data.dockerfile_images[image_str] = image_for_key.to_str()
         self.run_plugin_with_args(workflow, expect_result=expected_result, deep_inspection=True,
                                   pull_registries=[{'url': registry}])
 

@@ -155,7 +155,7 @@ class KojiImportBase(ExitPlugin):
         media_types = []
 
         # Append media_types from verify images
-        media_results = self.workflow.exit_results.get(PLUGIN_VERIFY_MEDIA_KEY)
+        media_results = self.workflow.data.exit_results.get(PLUGIN_VERIFY_MEDIA_KEY)
         if media_results:
             media_types += media_results
         if media_types:
@@ -172,8 +172,10 @@ class KojiImportBase(ExitPlugin):
             extra['image']['go'] = go
 
     def set_operators_metadata(self, extra, worker_metadatas):
+        wf_data = self.workflow.data
+
         # upload metadata from bundle (part of image)
-        op_bundle_metadata = self.workflow.prebuild_results.get(PLUGIN_PIN_OPERATOR_DIGESTS_KEY)
+        op_bundle_metadata = wf_data.prebuild_results.get(PLUGIN_PIN_OPERATOR_DIGESTS_KEY)
         if op_bundle_metadata:
             op_related_images = op_bundle_metadata['related_images']
             pullspecs = [
@@ -195,7 +197,7 @@ class KojiImportBase(ExitPlugin):
             extra['image']['operator_manifests'] = koji_operator_manifests
 
         # update push plugin and uploaded manifests file independently as push plugin may fail
-        op_push_res = self.workflow.postbuild_results.get(PLUGIN_PUSH_OPERATOR_MANIFESTS_KEY)
+        op_push_res = wf_data.postbuild_results.get(PLUGIN_PUSH_OPERATOR_MANIFESTS_KEY)
         if op_push_res:
             extra.update({
                 "operator_manifests": {
@@ -217,15 +219,15 @@ class KojiImportBase(ExitPlugin):
                     return  # only one worker can process operator manifests
 
     def set_pnc_build_metadata(self, extra):
-        plugin_results = self.workflow.postbuild_results.get(PLUGIN_GENERATE_MAVEN_METADATA_KEY) \
-                         or {}
+        plugin_results = self.workflow.data.postbuild_results.get(
+            PLUGIN_GENERATE_MAVEN_METADATA_KEY) or {}
         pnc_build_metadata = plugin_results.get('pnc_build_metadata')
 
         if pnc_build_metadata:
             extra['image']['pnc'] = pnc_build_metadata
 
     def set_remote_sources_metadata(self, extra):
-        remote_source_result = self.workflow.prebuild_results.get(
+        remote_source_result = self.workflow.data.prebuild_results.get(
             PLUGIN_RESOLVE_REMOTE_SOURCE
         )
         if remote_source_result:
@@ -259,8 +261,8 @@ class KojiImportBase(ExitPlugin):
             extra.setdefault("typeinfo", {}).update(remote_source_typeinfo)
 
     def set_remote_source_file_metadata(self, extra):
-        plugin_results = self.workflow.postbuild_results.get(PLUGIN_GENERATE_MAVEN_METADATA_KEY) \
-                         or {}
+        plugin_results = self.workflow.data.postbuild_results.get(
+            PLUGIN_GENERATE_MAVEN_METADATA_KEY) or {}
         remote_source_files = plugin_results.get('remote_source_files')
         no_source_artifacts = plugin_results.get('no_source')
         if remote_source_files or no_source_artifacts:
@@ -286,7 +288,7 @@ class KojiImportBase(ExitPlugin):
             version_release = primary_images[0].tag
 
         if is_scratch_build(self.workflow):
-            tags = [image.tag for image in self.workflow.tag_conf.images]
+            tags = [image.tag for image in self.workflow.data.tag_conf.images]
             version_release = tags[0]
         else:
             assert version_release is not None, 'Unable to find version-release image'
@@ -295,7 +297,7 @@ class KojiImportBase(ExitPlugin):
         floating_tags = [image.tag for image in floating_images]
         unique_tags = [image.tag for image in unique_images]
 
-        manifest_data = self.workflow.postbuild_results.get(PLUGIN_GROUP_MANIFESTS_KEY, {})
+        manifest_data = self.workflow.data.postbuild_results.get(PLUGIN_GROUP_MANIFESTS_KEY, {})
         if manifest_data and is_manifest_list(manifest_data.get("media_type")):
             manifest_digest = manifest_data.get("manifest_digest")
             index = {}
@@ -305,7 +307,7 @@ class KojiImportBase(ExitPlugin):
             build_image = get_unique_images(self.workflow)[0]
             repo = ImageName.parse(build_image).to_str(registry=False, tag=False)
             # group_manifests added the registry, so this should be valid
-            registries = self.workflow.push_conf.all_registries
+            registries = self.workflow.data.push_conf.all_registries
 
             digest_version = get_manifest_media_version(manifest_digest)
             digest = manifest_digest.default
@@ -421,7 +423,9 @@ class KojiImportBase(ExitPlugin):
 
         metadata_version = 0
 
-        worker_metadatas = self.workflow.postbuild_results.get(PLUGIN_FETCH_WORKER_METADATA_KEY)
+        worker_metadatas = self.workflow.data.postbuild_results.get(
+            PLUGIN_FETCH_WORKER_METADATA_KEY
+        )
         remote_source_file_outputs, kojifile_components = get_maven_metadata(self.workflow)
 
         build = self.get_build(worker_metadatas)
@@ -514,16 +518,16 @@ class KojiImportBase(ExitPlugin):
 
         # get the session and token information in case we need to refund a failed build
         self.session = get_koji_session(self.workflow.conf)
-        build_token = self.workflow.reserved_token
-        build_id = self.workflow.reserved_build_id
+        build_token = self.workflow.data.reserved_token
+        build_id = self.workflow.data.reserved_build_id
 
         # Only run if the build was successful
         if self.workflow.build_process_failed:
             self.log.info("Not importing %s build to koji",
-                          "canceled" if self.workflow.build_canceled else "failed")
+                          "canceled" if self.workflow.data.build_canceled else "failed")
             if self.reserve_build and build_token is not None:
                 state = koji.BUILD_STATES['FAILED']
-                if self.workflow.build_canceled:
+                if self.workflow.data.build_canceled:
                     state = koji.BUILD_STATES['CANCELED']
                 self.session.CGRefundBuild(PROG, build_id, build_token, state)
             return
@@ -646,7 +650,7 @@ class KojiImportPlugin(KojiImportBase):
         self.log.info("build is isolated: %r", isolated)
         extra['image']['isolated'] = isolated
 
-        fs_result = self.workflow.prebuild_results.get(AddFilesystemPlugin.key)
+        fs_result = self.workflow.data.prebuild_results.get(AddFilesystemPlugin.key)
         if fs_result is not None:
             try:
                 fs_task_id = fs_result['filesystem-koji-task-id']
@@ -670,15 +674,15 @@ class KojiImportPlugin(KojiImportBase):
             extra['image'].update(koji_metadata)
             extra['osbs_build']['subtypes'].append('flatpak')
 
-        resolve_comp_result = self.workflow.prebuild_results.get(PLUGIN_RESOLVE_COMPOSES_KEY)
+        resolve_comp_result = self.workflow.data.prebuild_results.get(PLUGIN_RESOLVE_COMPOSES_KEY)
         if resolve_comp_result:
             extra['image']['odcs'] = {
                 'compose_ids': [item['id'] for item in resolve_comp_result['composes']],
                 'signing_intent': resolve_comp_result['signing_intent'],
                 'signing_intent_overridden': resolve_comp_result['signing_intent_overridden'],
             }
-        if self.workflow.all_yum_repourls:
-            extra['image']['yum_repourls'] = self.workflow.all_yum_repourls
+        if self.workflow.data.all_yum_repourls:
+            extra['image']['yum_repourls'] = self.workflow.data.all_yum_repourls
 
         self.set_help(extra, worker_metadatas)
         self.set_operators_metadata(extra, worker_metadatas)
@@ -730,7 +734,7 @@ class KojiImportSourceContainerPlugin(KojiImportBase):
     key = PLUGIN_KOJI_IMPORT_SOURCE_CONTAINER_PLUGIN_KEY  # type: ignore
 
     def get_output(self, worker_metadatas, buildroot_id):
-        registry = self.workflow.push_conf.docker_registries[0]
+        registry = self.workflow.data.push_conf.docker_registries[0]
 
         build_name = get_unique_images(self.workflow)[0]
         pullspec = copy.deepcopy(build_name)
@@ -754,7 +758,7 @@ class KojiImportSourceContainerPlugin(KojiImportBase):
         return buildroots
 
     def _update_extra(self, extra, worker_metadatas):
-        source_result = self.workflow.prebuild_results[PLUGIN_FETCH_SOURCES_KEY]
+        source_result = self.workflow.data.prebuild_results[PLUGIN_FETCH_SOURCES_KEY]
         extra['image']['sources_for_nvr'] = source_result['sources_for_nvr']
         extra['image']['sources_signing_intent'] = source_result['signing_intent']
         extra['osbs_build']['kind'] = KOJI_KIND_IMAGE_SOURCE_BUILD
@@ -763,11 +767,12 @@ class KojiImportSourceContainerPlugin(KojiImportBase):
             extra['custom_user_metadata'] = self.userdata
 
     def _update_build(self, build):
+        nvr = self.workflow.data.koji_source_nvr
         build.update({
-            'name': self.workflow.koji_source_nvr['name'],
-            'version': self.workflow.koji_source_nvr['version'],
-            'release': self.workflow.koji_source_nvr['release'],
-            'source': self.workflow.koji_source_source_url,
+            'name': nvr['name'],
+            'version': nvr['version'],
+            'release': nvr['release'],
+            'source': self.workflow.data.koji_source_source_url,
         })
 
     @staticmethod

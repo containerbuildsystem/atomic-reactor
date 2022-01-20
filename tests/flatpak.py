@@ -376,7 +376,7 @@ def build_flatpak_test_configs(extensions=None):
 def setup_flatpak_composes(workflow, config=None):
     config = APP_CONFIG if config is None else config
 
-    workflow.prebuild_results[PLUGIN_RESOLVE_COMPOSES_KEY] = {
+    workflow.data.prebuild_results[PLUGIN_RESOLVE_COMPOSES_KEY] = {
         'composes': config['odcs_composes'],
         'signing_intent': 'unsigned',
         'signing_intent_overridden': False,

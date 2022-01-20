@@ -26,14 +26,15 @@ class TestCompress(object):
         exp_img = os.path.join(str(tmpdir), 'img.tar')
 
         if source_build:
-            workflow.build_result = BuildResult(source_docker_archive="oci_path")
+            workflow.data.build_result = BuildResult(source_docker_archive="oci_path")
         else:
-            workflow.build_result = BuildResult(image_id="12345")
+            workflow.data.build_result = BuildResult(image_id="12345")
 
         if load_exported_image and give_export:
             tarfile.open(exp_img, mode='w').close()
-            workflow.exported_image_sequence.append({'path': exp_img,
-                                                     'type': IMAGE_TYPE_DOCKER_ARCHIVE})
+            workflow.data.exported_image_sequence.append(
+                {'path': exp_img, 'type': IMAGE_TYPE_DOCKER_ARCHIVE}
+            )
 
         runner = PostBuildPluginsRunner(
             workflow,
@@ -61,7 +62,7 @@ class TestCompress(object):
                 workflow.source.workdir,
                 EXPORTED_COMPRESSED_IMAGE_NAME_TEMPLATE.format(extension))
             assert os.path.exists(compressed_img)
-            metadata = workflow.exported_image_sequence[-1]
+            metadata = workflow.data.exported_image_sequence[-1]
             assert metadata['path'] == compressed_img
             assert metadata['type'] == IMAGE_TYPE_DOCKER_ARCHIVE
             assert 'uncompressed_size' in metadata

@@ -53,7 +53,7 @@ class GroupManifestsPlugin(PostBuildPlugin):
         """
         Creates a manifest list or OCI image index that groups the different manifests
         in worker_digests, then tags the result with with all the configured tags found
-        in workflow.tag_conf.
+        in workflow.data.tag_conf.
         """
         self.log.info("%s: Creating manifest list", session.registry)
 
@@ -111,8 +111,9 @@ class GroupManifestsPlugin(PostBuildPlugin):
             digest = ManifestDigest(v2_list=digest_str)
 
         # And store the manifest list in the push_conf
-        push_conf_registry = self.workflow.push_conf.add_docker_registry(session.registry,
-                                                                         insecure=session.insecure)
+        push_conf_registry = self.workflow.data.push_conf.add_docker_registry(
+            session.registry, insecure=session.insecure
+        )
         tags = []
         for image in self.non_floating_images:
             push_conf_registry.digests[image.tag] = digest
@@ -131,7 +132,7 @@ class GroupManifestsPlugin(PostBuildPlugin):
           worker_digest = <result>[registry][architecture]
         """
 
-        all_annotations = self.workflow.build_result.annotations['worker-builds']
+        all_annotations = self.workflow.data.build_result.annotations['worker-builds']
         all_platforms = set(all_annotations)
         if len(all_platforms) == 0:
             raise RuntimeError("No worker builds found, cannot group them")

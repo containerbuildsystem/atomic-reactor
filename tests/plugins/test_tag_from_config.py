@@ -90,7 +90,7 @@ def test_tag_from_config(workflow, floating_tags, unique_tags, primary_tags, exp
 
         # Testing the whole image pullspecs with the registry
         expected_images = [f"{REGISTRY}/{image}" for image in expected]
-        actual_images = [str(image) for image in workflow.tag_conf.images]
+        actual_images = [str(image) for image in workflow.data.tag_conf.images]
         assert sorted(actual_images) == sorted(expected_images)
     else:
         with pytest.raises(KeyError):
@@ -131,7 +131,7 @@ def test_tag_from_config_with_tags_enclosed(workflow, name, organization, expect
     plugin.run()
 
     expected_images = [f'{REGISTRY}/{expected}:{tag}' for tag in ['foo', 'bar', '1.7', '1.7-99']]
-    actual_images = [str(image) for image in workflow.tag_conf.images]
+    actual_images = [str(image) for image in workflow.data.tag_conf.images]
     assert sorted(actual_images) == sorted(expected_images)
 
 

@@ -45,8 +45,8 @@ def test_store_metadata(metadata_decorator, metadata_attr, workflow):
     assert p2.run() is None
 
     other_attr = 'labels' if metadata_attr == 'annotations' else 'annotations'
-    assert getattr(workflow, metadata_attr) == {'foo': 1}
-    assert getattr(workflow, other_attr) == {}
+    assert getattr(workflow.data, metadata_attr) == {'foo': 1}
+    assert getattr(workflow.data, other_attr) == {}
 
 
 @pytest.mark.parametrize('metadata_map_decorator, metadata_attr', [
@@ -75,8 +75,8 @@ def test_store_metadata_map(metadata_map_decorator, metadata_attr, workflow):
     assert p2.run() is None
 
     other_attr = 'labels' if metadata_attr == 'annotations' else 'annotations'
-    assert getattr(workflow, metadata_attr) == {'foo': 1, 'bar': 2}
-    assert getattr(workflow, other_attr) == {}
+    assert getattr(workflow.data, metadata_attr) == {'foo': 1, 'bar': 2}
+    assert getattr(workflow.data, other_attr) == {}
 
 
 @pytest.mark.parametrize('metadata_decorator, expected_err_msg', [
@@ -168,11 +168,11 @@ def test_store_metadata_combined(workflow):
     p = BP(workflow)
 
     p.run()
-    assert workflow.annotations == {
+    assert workflow.data.annotations == {
         'foo': {'bar': 1, 'eggs': 2},
         'bar': 1
     }
-    assert workflow.labels == {
+    assert workflow.data.labels == {
         'spam': {'bar': 1, 'eggs': 2},
         'eggs': 2
     }

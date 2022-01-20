@@ -32,9 +32,9 @@ class VerifyMediaTypesPlugin(ExitPlugin):
             return []
 
         # Work out the name of the image to pull
-        if not self.workflow.tag_conf.unique_images:
+        if not self.workflow.data.tag_conf.unique_images:
             raise ValueError("no unique image set, impossible to verify media types")
-        image = self.workflow.tag_conf.unique_images[0]
+        image = self.workflow.data.tag_conf.unique_images[0]
 
         registries = self.workflow.conf.registries
         media_in_registry = {}
@@ -55,7 +55,7 @@ class VerifyMediaTypesPlugin(ExitPlugin):
             secret = registry.get('secret', None)
 
             kwargs = {}
-            if PLUGIN_FETCH_SOURCES_KEY in self.workflow.prebuild_results:
+            if PLUGIN_FETCH_SOURCES_KEY in self.workflow.data.prebuild_results:
                 # For source containers, limit the versions we ask
                 # about (and, if necessary, the expected media types).
                 # This can help to avoid issues with tooling that is
@@ -112,7 +112,7 @@ class VerifyMediaTypesPlugin(ExitPlugin):
 
         :return: bool, expect manifest list only?
         """
-        manifest_results = self.workflow.postbuild_results.get(PLUGIN_GROUP_MANIFESTS_KEY)
+        manifest_results = self.workflow.data.postbuild_results.get(PLUGIN_GROUP_MANIFESTS_KEY)
         if not manifest_results or not is_manifest_list(manifest_results.get("media_type")):
             self.log.debug('Cannot check if only manifest list digest should be returned '
                            'because group manifests plugin did not run')

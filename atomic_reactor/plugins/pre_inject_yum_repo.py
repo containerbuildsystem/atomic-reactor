@@ -27,7 +27,7 @@ class InjectYumRepoPlugin(PreBuildPlugin):
         if user:
             return user
 
-        if not self.workflow.dockerfile_images.base_from_scratch:
+        if not self.workflow.data.dockerfile_images.base_from_scratch:
             # OSBS2 TBD: decide if we need to inspect a specific arch
             inspect = self.workflow.imageutil.base_image_inspect()
             user = inspect.get(INSPECT_CONFIG, {}).get('User')
@@ -47,7 +47,7 @@ class InjectYumRepoPlugin(PreBuildPlugin):
     def _cleanup_lines(self):
         lines = [
             "RUN rm -f " + " ".join(
-                (f"'{repo_file}'" for repo_file in self.workflow.files)
+                (f"'{repo_file}'" for repo_file in self.workflow.data.files)
             )
         ]
         if self._builder_ca_bundle:
@@ -72,7 +72,7 @@ class InjectYumRepoPlugin(PreBuildPlugin):
         self.log.info("creating directory for yum repos: %s", host_repos_path)
         os.mkdir(host_repos_path)
 
-        for repo_filename, repo_content in self.workflow.files.items():
+        for repo_filename, repo_content in self.workflow.data.files.items():
             # Update every repo accordingly in a repofile
             # input_buf ---- updated ----> updated_buf
             with StringIO(repo_content) as input_buf, StringIO() as updated_buf:
@@ -104,14 +104,15 @@ class InjectYumRepoPlugin(PreBuildPlugin):
                 all_stages=True, at_start=True, skip_scratch=True
             )
 
-        if not self.workflow.dockerfile_images.base_from_scratch:
+        if not self.workflow.data.dockerfile_images.base_from_scratch:
             self._dockerfile.add_lines(*self._cleanup_lines())
 
     def run(self):
         """
         run the plugin
         """
-        yum_repos = {k: v for k, v in self.workflow.files.items() if k.startswith(YUM_REPOS_DIR)}
+        files = self.workflow.data.files
+        yum_repos = {k: v for k, v in files.items() if k.startswith(YUM_REPOS_DIR)}
         if not yum_repos:
             return
 
@@ -126,5 +127,5 @@ class InjectYumRepoPlugin(PreBuildPlugin):
         self._inject_into_repo_files()
         self._inject_into_dockerfile()
 
-        for repo in self.workflow.files:
+        for repo in files:
             self.log.info("injected yum repo: %s", repo)

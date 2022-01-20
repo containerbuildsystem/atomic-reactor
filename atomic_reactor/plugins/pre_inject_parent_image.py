@@ -61,10 +61,10 @@ class InjectParentImage(PreBuildPlugin):
             self.log.info('no koji parent build, skipping plugin')
             return
 
-        if self.workflow.dockerfile_images.base_from_scratch:
+        if self.workflow.data.dockerfile_images.base_from_scratch:
             self.log.info("from scratch can't inject parent image")
             return
-        if self.workflow.dockerfile_images.custom_base_image:
+        if self.workflow.data.dockerfile_images.custom_base_image:
             self.log.info("custom base image builds can't inject parent image")
             return
 
@@ -129,7 +129,8 @@ class InjectParentImage(PreBuildPlugin):
         self._new_parent_image = new_parent_image.to_str()
 
     def set_new_parent_image(self):
-        base_image_key = self.workflow.dockerfile_images.base_image_key
-        self.workflow.dockerfile_images[base_image_key] = self._new_parent_image
+        df_images = self.workflow.data.dockerfile_images
+        base_image_key = df_images.base_image_key
+        df_images[base_image_key] = self._new_parent_image
 
         defer_removal(self.workflow, self._new_parent_image)

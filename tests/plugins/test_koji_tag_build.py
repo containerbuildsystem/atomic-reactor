@@ -75,11 +75,11 @@ def mock_environment(workflow, session=None, build_process_failed=False,
     flexmock(koji, ClientSession=lambda hub, opts: session)
 
     if build_process_failed:
-        workflow.build_result = BuildResult(fail_reason="not built")
+        workflow.data.build_result = BuildResult(fail_reason="not built")
     else:
-        workflow.build_result = BuildResult(image_id="id1234")
+        workflow.data.build_result = BuildResult(image_id="id1234")
 
-    workflow.exit_results[KojiImportPlugin.key] = koji_build_id
+    workflow.data.exit_results[KojiImportPlugin.key] = koji_build_id
 
     (flexmock(time)
         .should_receive('sleep')

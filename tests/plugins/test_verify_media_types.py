@@ -14,7 +14,7 @@ from atomic_reactor.constants import (PLUGIN_GROUP_MANIFESTS_KEY,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
                                       MEDIA_TYPE_OCI_V1, MEDIA_TYPE_OCI_V1_INDEX)
 from atomic_reactor.plugins.exit_verify_media_types import VerifyMediaTypesPlugin
-from atomic_reactor.inner import TagConf, PushConf
+from atomic_reactor.inner import ImageBuildWorkflowData, TagConf, PushConf
 from atomic_reactor.auth import HTTPRegistryAuth
 from atomic_reactor.config import Configuration
 from osbs.utils import RegistryURI
@@ -262,13 +262,18 @@ class TestVerifyImageTypes(object):
         mock_get_retry_session()
         builder = flexmock()
         setattr(builder, 'image_id', 'sha256:(old)')
-        return flexmock(tag_conf=tag_conf,
-                        push_conf=push_conf,
+
+        wf_data = flexmock(tag_conf=tag_conf, push_conf=push_conf)
+        wf_data = ImageBuildWorkflowData()
+        wf_data.tag_conf = tag_conf
+        wf_data.push_conf = push_conf
+        wf_data.prebuild_results = prebuild_results
+        wf_data.postbuild_results = postbuild_results
+
+        return flexmock(data=wf_data,
                         builder=builder,
                         conf=Configuration(raw_config=conf),
-                        build_process_failed=build_process_failed,
-                        prebuild_results=prebuild_results,
-                        postbuild_results=postbuild_results)
+                        build_process_failed=build_process_failed)
 
     @responses.activate
     def test_verify_successful_simple(self):
@@ -442,7 +447,7 @@ class TestVerifyImageTypes(object):
         If there is no image, this plugin shouldn't run and how did we get here?
         """
         workflow = self.workflow()
-        workflow.tag_conf = TagConf()
+        workflow.data.tag_conf = TagConf()
 
         plugin = VerifyMediaTypesPlugin(workflow)
         with pytest.raises(ValueError) as exc:
@@ -512,7 +517,7 @@ class TestVerifyImageTypes(object):
                                      MEDIA_TYPE_DOCKER_V2_SCHEMA1,
                                      MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                  ])
-        workflow.prebuild_results[PLUGIN_FETCH_SOURCES_KEY] = {}
+        workflow.data.prebuild_results[PLUGIN_FETCH_SOURCES_KEY] = {}
 
         plugin = VerifyMediaTypesPlugin(workflow)
         results = plugin.run()

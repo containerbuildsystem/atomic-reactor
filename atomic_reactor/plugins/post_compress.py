@@ -50,7 +50,7 @@ class CompressPlugin(PostBuildPlugin):
         self.load_exported_image = load_exported_image
         self.method = method
         self.uncompressed_size = 0
-        self.source_build = bool(self.workflow.build_result.source_docker_archive)
+        self.source_build = bool(self.workflow.data.build_result.source_docker_archive)
 
     def _compress_image_stream(self, stream):
         outfile = os.path.join(self.workflow.source.workdir,
@@ -82,8 +82,8 @@ class CompressPlugin(PostBuildPlugin):
             self.log.info('scratch build, skipping plugin')
             return
 
-        if self.load_exported_image and len(self.workflow.exported_image_sequence) > 0:
-            image_metadata = self.workflow.exported_image_sequence[-1]
+        if self.load_exported_image and len(self.workflow.data.exported_image_sequence) > 0:
+            image_metadata = self.workflow.data.exported_image_sequence[-1]
             image = image_metadata.get('path')
             image_type = image_metadata.get('type')
             self.log.info('preparing to compress image %s', image)
@@ -109,5 +109,5 @@ class CompressPlugin(PostBuildPlugin):
                            human_size(metadata['size']),
                            100 * savings)
 
-        self.workflow.exported_image_sequence.append(metadata)
+        self.workflow.data.exported_image_sequence.append(metadata)
         self.log.info('compressed image is available as %s', outfile)
