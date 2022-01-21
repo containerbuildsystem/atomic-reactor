@@ -82,7 +82,7 @@ class KojiParentPlugin(PreBuildPlugin):
                 self.workflow.dockerfile_images.custom_base_image):
             self._base_image_nvr = self.detect_parent_image_nvr(
                 self.workflow.dockerfile_images.base_image,
-                # OSBS2 TBD: decide if we need to inspect a specific arch
+                # Inspect any platform: the N-V-R labels should be equal for all platforms
                 inspect_data=self.workflow.imageutil.base_image_inspect(),
             )
 
@@ -135,7 +135,6 @@ class KojiParentPlugin(PreBuildPlugin):
         image_str = image.to_str()
         v2_list_type = get_manifest_media_type('v2_list')
         v2_type = get_manifest_media_type('v2')
-        # OSBS2 TBD
         image_digest_data = self.workflow.parent_images_digests[image_str]
         if v2_list_type in image_digest_data:
             media_type = v2_list_type
@@ -252,7 +251,7 @@ class KojiParentPlugin(PreBuildPlugin):
         """
 
         if inspect_data is None:
-            # OSBS2 TBD: decide if we need to inspect a specific arch
+            # Inspect any platform: the N-V-R labels should be equal for all platforms
             inspect_data = self.workflow.imageutil.get_inspect_for_image(image_name)
         labels = Labels(inspect_data[INSPECT_CONFIG].get('Labels', {}))
 
