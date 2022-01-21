@@ -36,9 +36,6 @@ class BumpReleasePlugin(PreBuildPlugin):
             return {"append": True}
         return {}
 
-    # The target parameter is no longer used by this plugin. It's
-    # left as an optional parameter to allow a graceful transition
-    # in osbs-client.
     def __init__(self, workflow, append=False):
         """
         constructor
