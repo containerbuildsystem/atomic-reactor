@@ -1,5 +1,5 @@
 """
-Copyright (c) 2016, 2017, 2018 Red Hat, Inc
+Copyright (c) 2016-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -93,7 +93,7 @@ class TagFromConfigPlugin(PreBuildPlugin):
 
     def add_registry_to_images(self):
         for image in self.workflow.data.tag_conf.images:
-            image.registry = next(iter(self.workflow.conf.registries))
+            image.registry = self.workflow.conf.registry['uri']
 
     def get_component_name(self):
         try:

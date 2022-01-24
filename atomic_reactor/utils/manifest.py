@@ -1,5 +1,5 @@
 """
-Copyright (c) 2019 Red Hat, Inc
+Copyright (c) 2019-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -25,10 +25,8 @@ class ManifestUtil(object):
         MEDIA_TYPE_OCI_V1_INDEX
     )
 
-    def __init__(self, workflow, registries, log):
-        self.push_conf = workflow.data.push_conf
-        self.registries = workflow.conf.registries
-        self.worker_registries = {}
+    def __init__(self, workflow, log):
+        self.registry = workflow.conf.registry
         self.log = log
 
     def valid_media_type(self, media_type):
@@ -50,19 +48,19 @@ class ManifestUtil(object):
                 repos.append(digest)
 
         sources = {}
-        for registry in self.registries:
-            hostname = registry_hostname(registry)
-            platforms = sorted_digests.get(hostname, {})
+        hostname = registry_hostname(self.registry['uri'])
+        platforms = sorted_digests.get(hostname, {})
 
-            if set(platforms) != all_platforms:
-                raise RuntimeError("Missing platforms for registry {}: found {}, expected {}"
-                                   .format(registry, sorted(platforms), sorted(all_platforms)))
+        if set(platforms) != all_platforms:
+            raise RuntimeError("Missing platforms for registry {}: found {}, expected {}"
+                               .format(self.registry['uri'], sorted(platforms),
+                                       sorted(all_platforms)))
 
-            selected_digests = {}
-            for p, repos in platforms.items():
-                selected_digests[p] = sorted(repos, key=lambda d: d['repository'])[0]
+        selected_digests = {}
+        for p, repos in platforms.items():
+            selected_digests[p] = sorted(repos, key=lambda d: d['repository'])[0]
 
-            sources[registry] = selected_digests
+        sources[self.registry['uri']] = selected_digests
 
         return sources
 
@@ -154,31 +152,24 @@ class ManifestUtil(object):
         response = session.put(url, data=manifest, headers=headers)
         response.raise_for_status()
 
-    def get_registry_session(self, registry):
-        registry_conf = self.registries[registry]
+    def get_registry_session(self):
+        insecure = self.registry.get('insecure', False)
+        secret_path = self.registry.get('secret')
 
-        insecure = registry_conf.get('insecure', False)
-        secret_path = registry_conf.get('secret')
-
-        return RegistrySession(registry, insecure=insecure,
+        return RegistrySession(self.registry['uri'], insecure=insecure,
                                dockercfg_path=secret_path,
                                access=('pull', 'push'))
 
-    def add_tag_and_manifest(self, session, image_manifest, media_type, manifest_digest,
+    def add_tag_and_manifest(self, session, image_manifest, media_type,
                              source_repo, configured_tags):
-        push_conf_registry = self.push_conf.add_docker_registry(session.registry,
-                                                                insecure=session.insecure)
         for image in configured_tags:
             target_repo = image.to_str(registry=False, tag=False)
             self.store_manifest_in_repository(session, image_manifest, media_type,
                                               source_repo, target_repo, ref=image.tag)
 
-            # add a tag for any plugins running later that expect it
-            push_conf_registry.digests[image.tag] = manifest_digest
-
     def tag_manifest_into_registry(self, session, digest: str, source_repo, configured_tags):
         """
-        Tags the manifest identified by worker_digest into session.registry with all the
+        Tags the manifest identified by digest into session.registry with all the
         configured_tags
         """
         self.log.info("%s: Tagging manifest", session.registry)
@@ -192,7 +183,7 @@ class ManifestUtil(object):
             raise RuntimeError("Unexpected media type {} found in source_repo: {}"
                                .format(media_type, source_repo))
 
-        self.add_tag_and_manifest(session, image_manifest, media_type, digests, source_repo,
+        self.add_tag_and_manifest(session, image_manifest, media_type, source_repo,
                                   configured_tags)
         return image_manifest, media_type, digests
 

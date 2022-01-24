@@ -1,5 +1,5 @@
 """
-Copyright (c) 2015, 2019 Red Hat, Inc
+Copyright (c) 2015-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -12,8 +12,8 @@ from pathlib import Path
 
 import koji
 import os
-import yaml
-from textwrap import dedent
+
+import requests
 
 from atomic_reactor.plugins.post_fetch_worker_metadata import FetchWorkerMetadataPlugin
 from atomic_reactor.plugins.build_orchestrate_build import (OrchestrateBuildPlugin,
@@ -25,10 +25,10 @@ from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
-from atomic_reactor.inner import TagConf, PushConf, BuildResult
+from atomic_reactor.inner import TagConf, BuildResult
 from atomic_reactor.util import (ManifestDigest, DockerfileImages,
                                  get_manifest_media_version, get_manifest_media_type,
-                                 graceful_chain_get)
+                                 graceful_chain_get, RegistryClient)
 from atomic_reactor.source import GitSource, PathSource
 from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI_TAR,
                                       PLUGIN_GENERATE_MAVEN_METADATA_KEY,
@@ -176,6 +176,7 @@ FAKE_RPM_OUTPUT = (
     b'\n')
 
 FAKE_OS_OUTPUT = 'fedora-22'
+REGISTRY = 'docker.example.com'
 
 
 def fake_subprocess_output(cmd):
@@ -240,26 +241,21 @@ class BuildInfo(object):
 
 
 def mock_reactor_config(workflow, allow_multiple_remote_sources=False):
-    data = dedent("""\
-        version: 1
-        koji:
-            hub_url: /
-            root_url: ''
-            auth: {{}}
-        allow_multiple_remote_sources: {}
-        openshift:
-            url: openshift_url
-        """.format(allow_multiple_remote_sources))
+    config = {'version': 1, 'koji': {'hub_url': '/',
+                                     'root_url': '',
+                                     'auth': {}
+                                     },
+              'allow_multiple_remote_sources': allow_multiple_remote_sources,
+              'openshift': {'url': 'openshift_url'}, 'registries': [{'url': REGISTRY,
+                                                                     'insecure': False}]}
 
-    config = yaml.safe_load(data)
     workflow.conf.conf = config
 
 
-def mock_environment(workflow, source_dir: Path, session=None, name=None,
+def mock_environment(workflow, source_dir: Path, session=None, name=None, oci=False,
                      component=None, version=None, release=None,
                      source=None, build_process_failed=False, build_process_canceled=False,
-                     docker_registry=True, additional_tags=None,
-                     has_config=None, add_tag_conf_primaries=True,
+                     additional_tags=None, has_config=None, add_tag_conf_primaries=True,
                      container_first=False, yum_repourls=None,
                      has_op_appregistry_manifests=False,
                      has_op_bundle_manifests=False,
@@ -333,20 +329,64 @@ def mock_environment(workflow, source_dir: Path, session=None, name=None,
 
     workflow.build_dir.init_build_dirs(["x86_64"], workflow.source)
 
-    setattr(workflow.data, 'push_conf', PushConf())
-    if docker_registry:
-        docker_reg = workflow.data.push_conf.add_docker_registry('docker.example.com')
+    def custom_get(method, url, headers, **kwargs):
+        if url == manifest_url:
+            return manifest_response
+        if url == config_blob_url:
+            return config_blob_response
 
-        for image in tag_conf.images:
-            tag = image.to_str(registry=False)
-            docker_reg.digests[tag] = ManifestDigest(v1='sha256:not-used',
-                                                     v2=fake_digest(image))
+    for image in tag_conf.images:
+        if oci:
+            digest = ManifestDigest(v1='sha256:not-used',
+                                    oci=fake_digest(image))
+        else:
+            digest = ManifestDigest(v1='sha256:not-used',
+                                    v2=fake_digest(image))
 
-            if has_config:
-                docker_reg.config = {
-                    'config': {'architecture': 'x86_64'},
-                    'container_config': {}
-                }
+        (flexmock(RegistryClient)
+            .should_receive('get_manifest_digests')
+            .and_return(digest))
+
+        manifest_response = requests.Response()
+        MEDIA_TYPE = 'application/vnd.oci.image.manifest.v1+json'
+        manifest_json = {
+            "schemaVersion": 2,
+            "mediaType": MEDIA_TYPE,
+            "config": {
+                "mediaType": MEDIA_TYPE,
+                "digest": fake_digest(image),
+                "size": 314
+            },
+        }
+        (flexmock(manifest_response,
+                  raise_for_status=lambda: None,
+                  json=manifest_json,
+                  headers={
+                      'Content-Type': MEDIA_TYPE,
+                      'Docker-Content-Digest': fake_digest(image)
+                  }))
+
+        if oci:
+            digest_str = digest.oci
+        else:
+            digest_str = digest.v2
+        manifest_url = "https://{}/v2/{}/manifests/{}".format(REGISTRY, image.to_str(tag=False),
+                                                              digest_str)
+        config_blob_url = "https://{}/v2/{}/blobs/{}".format(REGISTRY, image.to_str(tag=False),
+                                                             digest_str)
+
+        if has_config:
+            config_json = {'config': {'architecture': 'x86_64'},
+                           'container_config': {}}
+        else:
+            config_json = None
+
+        config_blob_response = requests.Response()
+        (flexmock(config_blob_response, raise_for_status=lambda: None, json=config_json))
+
+        (flexmock(requests.Session)
+         .should_receive('request')
+         .replace_with(custom_get))
 
     if source_build:
         exported_file_type = IMAGE_TYPE_OCI_TAR
@@ -1586,11 +1626,9 @@ class TestKojiImport(object):
         session = MockedClientSession('')
         mock_environment(workflow, source_dir,
                          name='ns/name', version='1.0', release='1', session=session)
-        registry = workflow.data.push_conf.add_docker_registry('docker.example.com')
-        for image in workflow.data.tag_conf.images:
-            tag = image.to_str(registry=False)
-            registry.digests[tag] = 'tag'
+
         worker_metadata = workflow.data.postbuild_results[FetchWorkerMetadataPlugin.key]
+
         for metadata in worker_metadata.values():
             for output in metadata['output']:
                 if output['type'] != 'docker-image':
@@ -1640,8 +1678,7 @@ class TestKojiImport(object):
         unique_tag = "{}-timestamp".format(version)
         mock_environment(workflow, source_dir,
                          name=name, version=version, release=release,
-                         session=session, docker_registry=True,
-                         add_tag_conf_primaries=not is_scratch, scratch=is_scratch)
+                         session=session, add_tag_conf_primaries=not is_scratch, scratch=is_scratch)
         group_manifest_result = {"media_type": MEDIA_TYPE_DOCKER_V2_SCHEMA2}
         if digest:
             group_manifest_result = {
@@ -1700,9 +1737,9 @@ class TestKojiImport(object):
 
         if digest:
             assert 'index' in image.keys()
-            pullspec = "docker.example.com/{}@{}".format(name, digest.v2_list)
+            pullspec = "{}/{}@{}".format(REGISTRY, name, digest.v2_list)
             expected_results['pull'] = [pullspec]
-            pullspec = "docker.example.com/{}:{}".format(name, version_release)
+            pullspec = "{}/{}:{}".format(REGISTRY, name, version_release)
             expected_results['pull'].append(pullspec)
             expected_results['digests'] = {
                 'application/vnd.docker.distribution.manifest.list.v2+json': digest.v2_list}
@@ -1750,11 +1787,6 @@ class TestKojiImport(object):
         session = MockedClientSession('')
         mock_environment(workflow, source_dir,
                          name='ns/name', version='1.0', release='1', session=session)
-        registry = workflow.data.push_conf.add_docker_registry('docker.example.com')
-        for image in workflow.data.tag_conf.images:
-            tag = image.to_str(registry=False)
-            registry.digests[tag] = ManifestDigest(v1='sha256:v1',
-                                                   v2='sha256:v2')
 
         worker_metadata = workflow.data.postbuild_results[FetchWorkerMetadataPlugin.key]
         for metadata in worker_metadata.values():
@@ -2240,7 +2272,7 @@ class TestKojiImport(object):
             assert 'pnc' not in extra['image']
 
     @pytest.mark.parametrize('blocksize', (None, 1048576))
-    @pytest.mark.parametrize('has_config', (True, False))
+    @pytest.mark.parametrize(('has_config', 'oci'), ((True, False), (False, True)))
     @pytest.mark.parametrize(('verify_media', 'expect_id'), (
         (['v1', 'v2', 'v2_list'], 'ab12'),
         (['v1'], 'ab12'),
@@ -2256,7 +2288,8 @@ class TestKojiImport(object):
         {},
         {'custom': 'userdata'},
     ])
-    def test_koji_import_success_source(self, workflow, source_dir, caplog, blocksize, has_config,
+    def test_koji_import_success_source(self, workflow, source_dir, caplog, blocksize,
+                                        has_config, oci,
                                         verify_media, expect_id, reserved_build, task_states,
                                         skip_import, userdata):
         session = MockedClientSession('', task_states=task_states)
@@ -2267,7 +2300,7 @@ class TestKojiImport(object):
         version = '1.0'
         release = '1'
 
-        mock_environment(workflow, source_dir,
+        mock_environment(workflow, source_dir, oci=oci,
                          session=session, name=name, component=component,
                          version=version, release=release, has_config=has_config,
                          source_build=True)

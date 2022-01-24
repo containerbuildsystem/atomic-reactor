@@ -1,5 +1,5 @@
 """
-Copyright (c) 2015 Red Hat, Inc
+Copyright (c) 2015-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -292,29 +292,13 @@ def test_tag_and_push_plugin(
             runner.run()
     else:
         runner.run()
-
-        registries = workflow.data.push_conf.docker_registries
-        assert len(registries) > 0
+        assert workflow.conf.registry
 
         if MOCK:
-            registry = registries[0]
-
             # we only test this when mocking docker because we don't expect
             # running actual docker against v2 registry
             if missing_v2:
-                expected_digest = ManifestDigest(v1=DIGEST_V1, v2=None, oci=None)
                 assert "Retrying push because V2 schema 2" in caplog.text
-            else:
-                expected_digest = ManifestDigest(v1=DIGEST_V1, v2=DIGEST_V2, oci=None)
-                assert registry.digests[image_name].v2 == expected_digest.v2
-
-            assert registry.digests[image_name].v1 == expected_digest.v1
-            assert registry.digests[image_name].oci == expected_digest.oci
-
-            if has_config:
-                assert isinstance(registry.config, dict)
-            else:
-                assert registry.config is None
 
 
 @pytest.mark.parametrize(("source_docker_archive", "v2s2"), [
@@ -351,7 +335,7 @@ def test_tag_and_push_plugin_oci(workflow, tmpdir, monkeypatch,
                                            sources_timestamp.strftime('%Y%m%d%H%M%S'),
                                            current_platform)
 
-    workflow.user_params['image_tag'] = TEST_IMAGE
+    workflow.user_params['image_tag'] = f'{LOCALHOST_REGISTRY}/{TEST_IMAGE}'
     if source_docker_archive:
         workflow.data.build_result._source_docker_archive = sources_dir_path
         workflow.data.prebuild_results[PLUGIN_FETCH_SOURCES_KEY] =\
@@ -490,7 +474,6 @@ def test_tag_and_push_plugin_oci(workflow, tmpdir, monkeypatch,
 
     (flexmock(retries)
      .should_receive("run_cmd")
-     .once()
      .replace_with(check_run_skopeo))
 
     # Mock out the response from the registry once the OCI image is uploaded
@@ -580,22 +563,7 @@ def test_tag_and_push_plugin_oci(workflow, tmpdir, monkeypatch,
     else:
         runner.run()
 
-        registries = workflow.data.push_conf.docker_registries
-        assert len(registries) > 0
-
-        push_conf_digests = registries[0].digests
-
-        if source_docker_archive:
-            source_image_name = '{}:{}'.format(sources_koji_repo, sources_tagname)
-            assert push_conf_digests[source_image_name].v1 is None
-            assert push_conf_digests[source_image_name].v2 == DIGEST_OCI
-            assert push_conf_digests[source_image_name].oci is None
-        else:
-            assert push_conf_digests[TEST_IMAGE_NAME].v1 is None
-            assert push_conf_digests[TEST_IMAGE_NAME].v2 is None
-            assert push_conf_digests[TEST_IMAGE_NAME].oci == DIGEST_OCI
-
-        assert registries[0].config is config_json
+        assert workflow.conf.registry
 
 
 @pytest.mark.parametrize('image_size_limit', [
@@ -631,9 +599,6 @@ def test_exceed_binary_image_size(image_size_limit, workflow):
          .and_return(ManifestDigest({
              'v2': 'application/vnd.docker.distribution.manifest.list.v2+json',
          })))
-
-        (flexmock(atomic_reactor.plugins.post_tag_and_push)
-         .should_receive('get_config_from_registry'))
 
         assert workflow.image == plugin.run()[0].repo
     else:

@@ -1,5 +1,5 @@
 """
-Copyright (c) 2017, 2019 Red Hat, Inc
+Copyright (c) 2017-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -23,8 +23,8 @@ from atomic_reactor.plugins.post_koji_upload import (KojiUploadLogger,
                                                      KojiUploadPlugin)
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 
-from atomic_reactor.inner import TagConf, PushConf, BuildResult
-from atomic_reactor.util import ManifestDigest, DockerfileImages
+from atomic_reactor.inner import TagConf, BuildResult
+from atomic_reactor.util import ManifestDigest, DockerfileImages, RegistryClient
 from atomic_reactor.utils.rpm import parse_rpm_output
 from atomic_reactor.utils import imageutil
 from tests.stubs import StubSource
@@ -244,20 +244,23 @@ def mock_environment(workflow, source_dir: Path, session=None, name=None, compon
 
     flexmock(rpm, TransactionSet=MockedTS)
     flexmock(koji, ClientSession=lambda hub, opts: session)
-    setattr(workflow.data, 'push_conf', PushConf())
-    docker_reg = workflow.data.push_conf.add_docker_registry('docker.example.com')
 
     for image in tag_conf.images:
-        tag = image.to_str(registry=False)
-
-        docker_reg.digests[tag] = ManifestDigest(v1='sha256:not-used',
-                                                 v2=fake_digest(image))
+        (flexmock(RegistryClient)
+         .should_receive('get_manifest_digests')
+         .and_return(ManifestDigest(v1='sha256:not-used', v2=fake_digest(image))))
 
         if has_config:
-            docker_reg.config = {
-                'config': {'architecture': LOCAL_ARCH},
-                'container_config': {}
-            }
+            config_json = {'config': {'architecture': 'x86_64'},
+                           'container_config': {}}
+
+            (flexmock(RegistryClient)
+             .should_receive('get_config_and_id_from_registry')
+             .and_return((config_json, None)))
+        else:
+            (flexmock(RegistryClient)
+             .should_receive('get_config_and_id_from_registry')
+             .and_return((None, None)))
 
     image_tar = source_dir / 'image.tar.xz'
     image_tar.write_text("x" * 2**12, "utf-8")
@@ -312,6 +315,8 @@ def create_runner(workflow, ssl_certs=False, principal=None,
     full_conf = {
         'version': 1,
         'openshift': {'url': '/', 'build_json_dir': ''},
+        'registries': [{'url': 'docker.example.com',
+                        'insecure': True}],
     }
 
     if blocksize:

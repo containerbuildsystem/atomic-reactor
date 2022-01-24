@@ -1,5 +1,5 @@
 """
-Copyright (c) 2019 Red Hat, Inc
+Copyright (c) 2019-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -27,7 +27,7 @@ class PushFloatingTagsPlugin(ExitPlugin):
         :param workflow: DockerBuildWorkflow instance
         """
         super(PushFloatingTagsPlugin, self).__init__(workflow)
-        self.manifest_util = ManifestUtil(workflow, None, self.log)
+        self.manifest_util = ManifestUtil(workflow, self.log)
 
     def add_floating_tags(self, session, manifest_list_data, floating_images):
         list_type = manifest_list_data.get("media_type")
@@ -42,12 +42,7 @@ class PushFloatingTagsPlugin(ExitPlugin):
             self.log.debug("storing %s as %s", target_repo, image.tag)
             self.manifest_util.store_manifest_in_repository(session, manifest, list_type,
                                                             target_repo, target_repo, ref=image.tag)
-        # And store the manifest list in the push_conf
-        push_conf_registry = self.workflow.data.push_conf.add_docker_registry(
-            session.registry, insecure=session.insecure
-        )
-        for image in floating_images:
-            push_conf_registry.digests[image.tag] = manifest_digest
+
         registry_image = get_unique_images(self.workflow)[0]
 
         return registry_image.get_repo(explicit_namespace=False), manifest_digest
@@ -78,8 +73,8 @@ class PushFloatingTagsPlugin(ExitPlugin):
 
         digests = dict()
 
-        for registry in self.manifest_util.registries:
-            session = self.manifest_util.get_registry_session(registry)
-            repo, digest = self.add_floating_tags(session, manifest_data, floating_tags)
-            digests[repo] = digest
+        session = self.manifest_util.get_registry_session()
+        repo, digest = self.add_floating_tags(session, manifest_data, floating_tags)
+        digests[repo] = digest
+
         return digests

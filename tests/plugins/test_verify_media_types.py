@@ -1,5 +1,5 @@
 """
-Copyright (c) 2018, 2019 Red Hat, Inc
+Copyright (c) 2018-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -14,7 +14,7 @@ from atomic_reactor.constants import (PLUGIN_GROUP_MANIFESTS_KEY,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
                                       MEDIA_TYPE_OCI_V1, MEDIA_TYPE_OCI_V1_INDEX)
 from atomic_reactor.plugins.exit_verify_media_types import VerifyMediaTypesPlugin
-from atomic_reactor.inner import ImageBuildWorkflowData, TagConf, PushConf
+from atomic_reactor.inner import ImageBuildWorkflowData, TagConf
 from atomic_reactor.auth import HTTPRegistryAuth
 from atomic_reactor.config import Configuration
 from osbs.utils import RegistryURI
@@ -122,8 +122,6 @@ class TestVerifyImageTypes(object):
         tag_conf = TagConf()
         tag_conf.add_unique_image(self.TEST_UNIQUE_IMAGE)
 
-        push_conf = PushConf()
-
         if platform_descriptors is None:
             platform_descriptors = [
                 {'platform': 'x86_64', 'architecture': 'amd64'},
@@ -171,7 +169,7 @@ class TestVerifyImageTypes(object):
                 media_types = request.headers.get('Accept', '').split(',')
                 content_type = media_types[0]
 
-                return (200, {'Content-Type': content_type}, '{}')
+                return 200, {'Content-Type': content_type}, '{}'
 
             url_regex = "r'" + registry['url'] + ".*/manifests/.*'"
             url = re.compile(url_regex)
@@ -263,10 +261,9 @@ class TestVerifyImageTypes(object):
         builder = flexmock()
         setattr(builder, 'image_id', 'sha256:(old)')
 
-        wf_data = flexmock(tag_conf=tag_conf, push_conf=push_conf)
+        flexmock(tag_conf=tag_conf)
         wf_data = ImageBuildWorkflowData()
         wf_data.tag_conf = tag_conf
-        wf_data.push_conf = push_conf
         wf_data.prebuild_results = prebuild_results
         wf_data.postbuild_results = postbuild_results
 
@@ -358,41 +355,33 @@ class TestVerifyImageTypes(object):
         ([{'url': 'https://container-registry.example.com/v2',
            'version': 'v2', 'insecure': True,
            'expected_media_types': [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]},
-          {'url': 'https://container-registry-test.example.com/v2',
-           'version': 'v2', 'insecure': True,
-           'expected_media_types': [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]}],
+          ],
          [{'platform': 'arm64', 'architecture': 'arm64'}],
          True, [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]),
         ([{'url': 'https://container-registry.example.com/v2',
            'version': 'v2', 'insecure': True,
            'expected_media_types': [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]},
-          {'url': 'https://container-registry-test.example.com/v2',
-           'version': 'v2', 'insecure': True,
-           'expected_media_types': [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]}],
+          ],
          [{'platform': 'arm64', 'architecture': 'arm64'}],
          False, [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]),
         ([{'url': 'https://container-registry.example.com/v2',
            'version': 'v2', 'insecure': True,
            'expected_media_types': [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]},
-          {'url': 'https://container-registry-test.example.com/v2',
-           'version': 'v2', 'insecure': True,
-           'expected_media_types': []}],
+          ],
          [{'platform': 'arm64', 'architecture': 'arm64'}],
          False, [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]),
         ([{'url': 'https://container-registry.example.com/v2',
            'version': 'v2', 'insecure': True,
            'expected_media_types': [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]},
-          {'url': 'https://container-registry-test.example.com/v2',
-           'version': 'v2', 'insecure': True,
-           'expected_media_types': [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]}],
+          ],
          [{'platform': 'arm64', 'architecture': 'arm64'},
           {'platform': 'x86_64', 'architecture': 'amd64'}],
          True, [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]),
     ])
-    def test_verify_successful_two_registries(self, registries,
-                                              platform_descriptors, group, expected_results):
+    def test_verify_successful_registries(self, registries, platform_descriptors, group,
+                                          expected_results):
         """
-        Two registries, everything behaves correctly
+        Everything behaves correctly
         """
         workflow = self.workflow(registries=registries,
                                  platform_descriptors=platform_descriptors, group=group)
@@ -404,18 +393,12 @@ class TestVerifyImageTypes(object):
     @responses.activate
     @pytest.mark.parametrize(('registries', 'platforms', 'platform_descriptors',
                               'group', 'expected_results'), [
-        # Null registries and registries without expected_media_types return nothing
-        ([],
-         None, [{'platform': 'x86_64', 'architecture': 'amd64'}],
-         True, []),
         ([{'url': 'https://container-registry.example.com/v2',
            'version': 'v2', 'insecure': True}],
          None, [{'platform': 'x86_64', 'architecture': 'amd64'}],
          True, []),
 
-        ([{'url': 'https://container-registry.example.com/v2',
-           'version': 'v2', 'insecure': True},
-          {'url': 'https://container-registry-test.example.com/v2',
+        ([{'url': 'https://container-registry-test.example.com/v2',
            'version': 'v2', 'insecure': True,
            'expected_media_types': [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]}],
          None, [{'platform': 'arm64', 'architecture': 'arm64'}],
@@ -428,8 +411,8 @@ class TestVerifyImageTypes(object):
          ['x86_64', 'arm64'], [],
          True, [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]),
     ])
-    def test_verify_malformed_two_registries(self, registries, platforms,
-                                             platform_descriptors, group, expected_results):
+    def test_verify_malformed_registries(self, registries, platforms, platform_descriptors,
+                                         group, expected_results):
         """
         Configuration is bad, but not so bad as to cause a problem
         """

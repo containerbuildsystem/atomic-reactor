@@ -1,5 +1,5 @@
 """
-Copyright (c) 2016 Red Hat, Inc
+Copyright (c) 2016-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -32,7 +32,7 @@ pytestmark = pytest.mark.usefixtures('user_params')
 
 @pytest.fixture
 def workflow(workflow, source_dir):
-    flexmock(workflow.conf, registries={REGISTRY: {}})
+    flexmock(workflow.conf, registry={'uri': REGISTRY})
 
     workflow.build_dir.init_build_dirs(["x86_64"], workflow.source)
     workflow.build_dir.any_platform.dockerfile.content = DF_CONTENT_LABELS
