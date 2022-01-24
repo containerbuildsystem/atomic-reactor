@@ -272,17 +272,14 @@ class BumpReleasePlugin(PreBuildPlugin):
                                            user_provided_release=True)
             return
 
-        if release:
-            if not self.append:
-                self.log.debug("release set explicitly so not incrementing")
+        if release and not self.append:
+            self.log.debug("release set explicitly so not incrementing")
 
-                if not is_scratch_build(self.workflow):
-                    self.check_build_existence_for_explicit_release(component, version, release)
-                    dockerfile_labels[release_label] = release
-                else:
-                    return
-
-        if not release or self.append:
+            if not is_scratch_build(self.workflow):
+                self.check_build_existence_for_explicit_release(component, version, release)
+                dockerfile_labels[release_label] = release
+        else:
+            # release not set or release should be appended
             self.next_release_general(component, version, release, release_label,
                                       dockerfile_labels)
 
