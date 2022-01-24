@@ -71,7 +71,9 @@ class BumpReleasePlugin(PreBuildPlugin):
         return '.'.join([part for part in [release, suffix, rest]
                          if part is not None])
 
-    def next_release_general(self, component: str, version: str, release: Optional[str]) -> str:
+    def next_release_general(
+        self, component: str, version: str, release: Optional[str] = None
+    ) -> str:
         """Get next release for build."""
         if is_scratch_build(self.workflow):
             # no need to append for scratch build
@@ -186,7 +188,7 @@ class BumpReleasePlugin(PreBuildPlugin):
                     self.log.info("retrying CGInitBuild")
                     time.sleep(KOJI_RESERVE_RETRY_DELAY)
                     if not source_build:
-                        next_release = self.next_release_general(component, version, release)
+                        next_release = self.next_release_general(component, version)
                         dockerfile_labels[release_label] = next_release
                     else:
                         base_rel, base_suffix = release.rsplit('.', 1)
