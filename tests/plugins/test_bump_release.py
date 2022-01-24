@@ -14,7 +14,6 @@ import os
 from atomic_reactor.plugins.pre_bump_release import BumpReleasePlugin
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.plugin import PreBuildPluginsRunner
-from atomic_reactor.util import df_parser
 from atomic_reactor.constants import PROG
 from tests.util import add_koji_map_in_workflow
 from flexmock import flexmock
@@ -73,7 +72,6 @@ class TestBumpRelease(object):
         lines: List[str] = ["FROM base"]
         lines.extend(f"LABEL {key}={value}" for key, value in labels.items())
         df.write_text('\n'.join(lines), "utf-8")
-        flexmock(workflow, df_path=str(df))
 
         kwargs = {
             'workflow': workflow,
@@ -88,6 +86,8 @@ class TestBumpRelease(object):
         add_koji_map_in_workflow(workflow, hub_url='', root_url='',
                                  reserve_build=reserve_build,
                                  ssl_certs_dir=str(source_dir) if certs else None)
+
+        workflow.build_dir.init_build_dirs(["aarch", "x86_64"], workflow.source)
 
         plugin = BumpReleasePlugin(**kwargs)
         return plugin
@@ -407,13 +407,16 @@ class TestBumpRelease(object):
             with open(file_path, 'r') as fd:
                 assert fd.read() == expected
 
-        parser = df_parser(plugin.workflow.df_path, workflow=plugin.workflow)
-        if reserve_build and koji_build_state != 'COMPLETE':
-            assert parser.labels['release'] == next_release['expected_refund']
-        else:
-            assert parser.labels['release'] == next_release['expected']
-        # Old-style spellings should not be asserted
-        assert 'Release' not in parser.labels
+        def check_labels(build_dir):
+            parser = build_dir.dockerfile
+            if reserve_build and koji_build_state != 'COMPLETE':
+                assert parser.labels['release'] == next_release['expected_refund']
+            else:
+                assert parser.labels['release'] == next_release['expected']
+            # Old-style spellings should not be asserted
+            assert 'Release' not in parser.labels
+
+        workflow.build_dir.for_each_platform(check_labels)
 
         if reserve_build and not next_release['scratch']:
             assert plugin.workflow.reserved_build_id == build_id
@@ -495,8 +498,11 @@ class TestBumpRelease(object):
             with open(file_path, 'r') as fd:
                 assert fd.read() == expected
 
-        parser = df_parser(plugin.workflow.df_path, workflow=plugin.workflow)
-        assert parser.labels['release'] == next_release['expected']
+        def check_labels(build_dir):
+            parser = build_dir.dockerfile
+            assert parser.labels['release'] == next_release['expected']
+
+        workflow.build_dir.for_each_platform(check_labels)
 
     @pytest.mark.parametrize('reserve_build, init_fails', [
         (True, RuntimeError),

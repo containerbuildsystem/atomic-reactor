@@ -9,8 +9,8 @@ of the BSD license. See the LICENSE file for details.
 import time
 from typing import Optional, Tuple
 
+from atomic_reactor.dirs import BuildDir
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.util import df_parser
 from osbs.utils import Labels
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.constants import (PLUGIN_BUMP_RELEASE_KEY, PROG, KOJI_RESERVE_MAX_RETRIES,
@@ -259,8 +259,10 @@ class BumpReleasePlugin(PreBuildPlugin):
 
             return
 
-        parser = df_parser(self.workflow.df_path, workflow=self.workflow)
-        dockerfile_labels = parser.labels
+        # any_platform: the N-V-R labels should be equal for all platforms
+        dockerfile_labels = self.workflow.build_dir.any_platform.dockerfile_with_parent_env(
+            self.workflow.imageutil.base_image_inspect()
+        ).labels
 
         component, version, original_release = self._get_nvr(dockerfile_labels)
 
@@ -297,10 +299,13 @@ class BumpReleasePlugin(PreBuildPlugin):
         # Always set preferred release label - other will be set if old-style label is present
         preferred_release_label = Labels.LABEL_NAMES[Labels.LABEL_TYPE_RELEASE][0]
 
+        def set_release_in_df(build_dir: BuildDir):
+            # Update the Dockerfile (dockerfile.labels.__setitem__ writes to the file)
+            build_dir.dockerfile.labels[preferred_release_label] = release
+
         if dockerfile_labels.get(preferred_release_label) != release:
             self.log.info("setting %s=%s", preferred_release_label, release)
-            # Write the label back to the file (this is a property setter)
-            dockerfile_labels[preferred_release_label] = release
+            self.workflow.build_dir.for_each_platform(set_release_in_df)
 
     def _get_nvr(self, dockerfile_labels) -> Tuple[str, str, Optional[str]]:
         """Get the component, version and release labels from the Dockerfile."""
