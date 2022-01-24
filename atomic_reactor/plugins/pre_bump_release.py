@@ -71,11 +71,8 @@ class BumpReleasePlugin(PreBuildPlugin):
         return '.'.join([part for part in [release, suffix, rest]
                          if part is not None])
 
-    def next_release_general(self, component, version, release, release_label,
-                             dockerfile_labels):
-        """
-        get next release for build and set it in dockerfile
-        """
+    def next_release_general(self, component: str, version: str, release: Optional[str]) -> str:
+        """Get next release for build."""
         if is_scratch_build(self.workflow):
             # no need to append for scratch build
             next_release = self.workflow.user_params.get('pipeline_run_name')
@@ -84,12 +81,9 @@ class BumpReleasePlugin(PreBuildPlugin):
         else:
             next_release = self.get_next_release_standard(component, version)
 
-        # No release labels are set so set them
-        self.log.info("setting %s=%s", release_label, next_release)
-        # Write the label back to the file (this is a property setter)
-        dockerfile_labels[release_label] = next_release
+        return next_release
 
-    def get_next_release_standard(self, component, version):
+    def get_next_release_standard(self, component: str, version: str) -> str:
         build_info = {'name': component, 'version': version}
         self.log.debug('getting next release from build info: %s', build_info)
         try:
@@ -115,7 +109,9 @@ class BumpReleasePlugin(PreBuildPlugin):
 
             next_release = self.get_patched_release(next_release, increment=True)
 
-    def get_next_release_append(self, component, version, base_release, base_suffix=1):
+    def get_next_release_append(
+        self, component: str, version: str, base_release: Optional[str], base_suffix: int = 1
+    ) -> str:
         # This is brute force, but trying to use getNextRelease() would be fragile
         # magic depending on the exact details of how koji increments the release,
         # and we expect that the number of builds for any one base_release will be small.
@@ -147,8 +143,16 @@ class BumpReleasePlugin(PreBuildPlugin):
 
         return next_release
 
-    def reserve_build_in_koji(self, component, version, release, release_label,
-                              dockerfile_labels, source_build=False, user_provided_release=False):
+    def reserve_build_in_koji(
+        self,
+        component: str,
+        version: str,
+        release: Optional[str],
+        release_label: str,
+        dockerfile_labels,
+        source_build: bool = False,
+        user_provided_release: bool = False,
+    ) -> None:
         """
         reserve build in koji, and set reserved build id an token in workflow
         for koji_import
@@ -182,12 +186,13 @@ class BumpReleasePlugin(PreBuildPlugin):
                     self.log.info("retrying CGInitBuild")
                     time.sleep(KOJI_RESERVE_RETRY_DELAY)
                     if not source_build:
-                        self.next_release_general(component, version, release,
-                                                  release_label, dockerfile_labels)
+                        next_release = self.next_release_general(component, version, release)
+                        dockerfile_labels[release_label] = next_release
                     else:
                         base_rel, base_suffix = release.rsplit('.', 1)
-                        release = self.get_next_release_append(component, version, base_rel,
-                                                               base_suffix=int(base_suffix) + 1)
+                        release = self.get_next_release_append(
+                            component, version, base_rel, base_suffix=int(base_suffix) + 1
+                        )
                 else:
                     self.log.error("CGInitBuild failed, reached maximum number of retries %s",
                                    KOJI_RESERVE_MAX_RETRIES)
@@ -280,12 +285,15 @@ class BumpReleasePlugin(PreBuildPlugin):
                 dockerfile_labels[release_label] = release
         else:
             # release not set or release should be appended
-            self.next_release_general(component, version, release, release_label,
-                                      dockerfile_labels)
+            next_release = self.next_release_general(component, version, release)
+            dockerfile_labels[release_label] = next_release
 
         if self.reserve_build and not is_scratch_build(self.workflow):
-            self.reserve_build_in_koji(component, version, release, release_label,
-                                       dockerfile_labels)
+            self.reserve_build_in_koji(
+                component, version, release, release_label, dockerfile_labels
+            )
+
+        # TODO: add the log message about setting release label
 
     def _get_nvr(self, dockerfile_labels) -> Tuple[str, str, Optional[str]]:
         """Get the component, version and release labels from the Dockerfile."""
