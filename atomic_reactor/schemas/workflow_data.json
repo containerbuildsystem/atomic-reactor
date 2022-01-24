@@ -5,7 +5,6 @@
   "properties": {
     "dockerfile_images": {"$ref": "#/definitions/dockerfile_images"},
     "tag_conf": {"$ref": "#/definitions/tag_conf"},
-    "push_conf": {"$ref": "#/definitions/push_conf"},
 
     "prebuild_results": {"type": "object"},
     "buildstep_result": {"type": "object"},
@@ -64,7 +63,7 @@
     "build_result": {"$ref": "#/definitions/build_result"}
   },
   "required": [
-    "dockerfile_images", "tag_conf", "push_conf",
+    "dockerfile_images", "tag_conf",
     "prebuild_results", "buildstep_result", "postbuild_results", "prepub_results", "exit_results",
     "plugin_workspace",
     "plugins_timestamps", "plugins_durations", "plugins_errors", "build_canceled", "plugin_failed",
@@ -143,19 +142,6 @@
         }
       },
       "required": ["primary_images", "unique_images", "floating_images"],
-      "additionalProperties": false
-    },
-    "push_conf": {
-      "type": "object",
-      "properties": {
-        "docker": {
-          "type": "object",
-          "patternProperties": {
-            "^[^ ]+$": {"$ref": "#/definitions/docker_registry"}
-          }
-        }
-      },
-      "required": ["docker"],
       "additionalProperties": false
     },
     "build_result": {

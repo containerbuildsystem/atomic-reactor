@@ -457,7 +457,7 @@ This class defines a workflow for building images
 1. Obtain source
 1. Build image
 1. Tag it
-1. Push it to registries
+1. Push it to the registry
 
 ##### DockerBuildWorkflow instance variables
 
@@ -487,7 +487,6 @@ This class defines a workflow for building images
 - prepub_results
 - prepublish_plugins_conf
 - pulled_base_images
-- push_conf
 - source
 - tag_conf
 

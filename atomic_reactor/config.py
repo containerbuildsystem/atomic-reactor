@@ -1,5 +1,5 @@
 """
-Copyright (c) 2021 Red Hat, Inc
+Copyright (c) 2021-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -407,22 +407,19 @@ class Configuration(object):
         return self._get_value(ReactorConfigKeys.REGISTRIES_ORGANIZATION_KEY, fallback=None)
 
     @property
-    def registries(self):
+    def registry(self):
         all_registries = self._get_value(ReactorConfigKeys.REGISTRIES_KEY)
 
-        registries_cm = {}
-        for registry in all_registries:
-            reguri = RegistryURI(registry.get('url'))
-            regdict = {}
-            regdict['version'] = reguri.version
-            if registry.get('auth'):
-                regdict['secret'] = registry['auth']['cfg_path']
-            regdict['insecure'] = registry.get('insecure', False)
-            regdict['expected_media_types'] = registry.get('expected_media_types', [])
+        registry = all_registries[0]
 
-            registries_cm[reguri.docker_uri] = regdict
+        reguri = RegistryURI(registry.get('url'))
+        regdict = {'uri': reguri.docker_uri, 'version': reguri.version}
+        if registry.get('auth'):
+            regdict['secret'] = registry['auth']['cfg_path']
+        regdict['insecure'] = registry.get('insecure', False)
+        regdict['expected_media_types'] = registry.get('expected_media_types', [])
 
-        return registries_cm
+        return regdict
 
     @property
     def docker_registry(self):

@@ -1,5 +1,5 @@
 """
-Copyright (c) 2017, 2018, 2019 Red Hat, Inc
+Copyright (c) 2017-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -29,16 +29,11 @@ class GroupManifestsPlugin(PostBuildPlugin):
     is_allowed_to_fail = False
     key = PLUGIN_GROUP_MANIFESTS_KEY
 
-    def __init__(self, workflow, registries=None):
+    def __init__(self, workflow):
         """
         constructor
 
         :param workflow: DockerBuildWorkflow instance
-        :param registries: dict, keys are docker registries, values are dicts containing
-                           per-registry parameters.
-                           Params:
-                            * "secret" optional string - path to the secret, which stores
-                              login and password for remote registry
         """
         # call parent constructor
         super(GroupManifestsPlugin, self).__init__(workflow)
@@ -46,7 +41,7 @@ class GroupManifestsPlugin(PostBuildPlugin):
         self.group = self.workflow.conf.group_manifests
         self.goarch = self.workflow.conf.platform_to_goarch_mapping
 
-        self.manifest_util = ManifestUtil(self.workflow, registries, self.log)
+        self.manifest_util = ManifestUtil(self.workflow, self.log)
         self.non_floating_images = None
 
     def group_manifests_and_tag(self, session, worker_digests):
@@ -110,13 +105,8 @@ class GroupManifestsPlugin(PostBuildPlugin):
         else:
             digest = ManifestDigest(v2_list=digest_str)
 
-        # And store the manifest list in the push_conf
-        push_conf_registry = self.workflow.data.push_conf.add_docker_registry(
-            session.registry, insecure=session.insecure
-        )
         tags = []
         for image in self.non_floating_images:
-            push_conf_registry.digests[image.tag] = digest
             tags.append(image.tag)
 
         self.log.info("%s: Manifest list digest is %s", session.registry, digest_str)
@@ -151,8 +141,8 @@ class GroupManifestsPlugin(PostBuildPlugin):
         unique_images = get_unique_images(self.workflow)
         self.non_floating_images = primary_images + unique_images
 
-        for registry, source in self.sort_annotations().items():
-            session = self.manifest_util.get_registry_session(registry)
+        for _, source in self.sort_annotations().items():
+            session = self.manifest_util.get_registry_session()
 
             if self.group:
                 return self.group_manifests_and_tag(session, source)

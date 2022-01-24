@@ -1,12 +1,11 @@
 """
-Copyright (c) 2016 Red Hat, Inc
+Copyright (c) 2016-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
-import copy
 import fnmatch
 import json
 import logging
@@ -29,7 +28,8 @@ from atomic_reactor.constants import (DEFAULT_DOWNLOAD_BLOCK_SIZE, PROG,
                                       KOJI_RETRY_INTERVAL, KOJI_OFFLINE_RETRY_INTERVAL)
 from atomic_reactor.util import (Output, get_image_upload_filename,
                                  get_checksums, get_manifest_media_type,
-                                 create_tar_gz_archive)
+                                 create_tar_gz_archive, get_config_from_registry,
+                                 get_manifest_digests)
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 
 logger = logging.getLogger(__name__)
@@ -471,14 +471,34 @@ def get_output(workflow, buildroot_id, pullspec, platform, source_build=False, l
 
         layer_sizes = workflow.data.layer_sizes
 
-    registries = workflow.data.push_conf.docker_registries
-    config = copy.deepcopy(registries[0].config)
+    digests = get_manifest_digests(pullspec, workflow.conf.registry['uri'],
+                                   workflow.conf.registry['insecure'],
+                                   workflow.conf.registry.get('secret', None))
+
+    if digests.v2:
+        config_manifest_digest = digests.v2
+        config_manifest_type = 'v2'
+    else:
+        config_manifest_digest = digests.oci
+        config_manifest_type = 'oci'
+
+    config = get_config_from_registry(pullspec, workflow.conf.registry['uri'],
+                                      config_manifest_digest, workflow.conf.registry['insecure'],
+                                      workflow.conf.registry.get('secret', None),
+                                      config_manifest_type)
 
     # We don't need container_config section
     if config and 'container_config' in config:
         del config['container_config']
 
-    repositories, typed_digests = get_repositories_and_digests(workflow, pullspec)
+    digest_pullspec = f"{pullspec.to_str(tag=False)}@{select_digest(digests)}"
+    repositories = [pullspec.to_str(), digest_pullspec]
+
+    typed_digests = {
+        get_manifest_media_type(version): digest
+        for version, digest in digests.items()
+        if version != "v1"
+    }
 
     tags = set(image.tag for image in workflow.data.tag_conf.images)
     metadata, output = get_image_output(workflow, image_id, platform, pullspec)
@@ -570,45 +590,3 @@ def select_digest(digests):
     digest = digests.default
 
     return digest
-
-
-def get_repositories_and_digests(workflow, pullspec_image):
-    """
-    Returns a map of images to their repositories and a map of media types to each digest
-
-    it creates a map of images to digests, which is need to create the image->repository
-    map and uses the same loop structure as media_types->digest, but the image->digest
-    map isn't needed after we have the image->repository map and can be discarded.
-    """
-    digests = {}  # image -> digests
-    typed_digests = {}  # media_type -> digests
-    for registry in workflow.data.push_conf.docker_registries:
-        for image in workflow.data.tag_conf.images:
-            image_str = image.to_str()
-            if image_str in registry.digests:
-                image_digests = registry.digests[image_str]
-                digest_list = [select_digest(image_digests)]
-                digests[image.to_str(registry=False)] = digest_list
-                for digest_version in image_digests.content_type:
-                    if digest_version == 'v1':
-                        continue
-                    if digest_version not in image_digests:
-                        continue
-                    digest_type = get_manifest_media_type(digest_version)
-                    typed_digests[digest_type] = image_digests[digest_version]
-
-    registries = workflow.data.push_conf.all_registries
-    repositories = []
-    for registry in registries:
-        image = pullspec_image.copy()
-        image.registry = registry.uri
-        pullspec = image.to_str()
-
-        repositories.append(pullspec)
-
-        digest_list = digests.get(image.to_str(registry=False), ())
-        for digest in digest_list:
-            digest_pullspec = image.to_str(tag=False) + "@" + digest
-            repositories.append(digest_pullspec)
-
-    return repositories, typed_digests

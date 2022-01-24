@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Copyright (c) 2015 Red Hat, Inc
+Copyright (c) 2015-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -132,11 +132,6 @@ registries:
 - url: https://container-registry.example.com/v2
   auth:
       cfg_path: /var/run/secrets/atomic-reactor/v2-registry-dockercfg
-- url: https://another-container-registry.example.com
-  insecure: True
-- url: https://better-container-registry.example.com/v2
-  expected_media_types:
-  - application/json
 
 source_registry:
     url: https://registry.private.example.com

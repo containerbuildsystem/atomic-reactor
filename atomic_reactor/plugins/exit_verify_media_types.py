@@ -1,4 +1,4 @@
-"""Copyright (c) 2018, 2019 Red Hat, Inc
+"""Copyright (c) 2018-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -36,56 +36,54 @@ class VerifyMediaTypesPlugin(ExitPlugin):
             raise ValueError("no unique image set, impossible to verify media types")
         image = self.workflow.data.tag_conf.unique_images[0]
 
-        registries = self.workflow.conf.registries
+        registry = self.workflow.conf.registry
         media_in_registry = {}
         expect_list_only = self.get_manifest_list_only_expectation()
 
-        for registry_name, registry in registries.items():
-            expected_media_types = set(registry.get('expected_media_types', []))
-            media_types = set()
+        expected_media_types = set(registry.get('expected_media_types', []))
+        media_types = set()
 
-            if expect_list_only:
-                expected_media_types = {MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST}
+        if expect_list_only:
+            expected_media_types = {MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST}
 
-            media_in_registry[registry_name] = {'expected': expected_media_types}
+        media_in_registry[registry['uri']] = {'expected': expected_media_types}
 
-            pullspec = image.copy()
-            pullspec.registry = registry_name
-            insecure = registry.get('insecure', False)
-            secret = registry.get('secret', None)
+        pullspec = image.copy()
+        insecure = registry.get('insecure', False)
+        secret = registry.get('secret', None)
 
-            kwargs = {}
-            if PLUGIN_FETCH_SOURCES_KEY in self.workflow.data.prebuild_results:
-                # For source containers, limit the versions we ask
-                # about (and, if necessary, the expected media types).
-                # This can help to avoid issues with tooling that is
-                # unable to deal with the number of layers in these
-                # images.
-                src_config = self.workflow.conf.source_container
-                limit_media_types = src_config.get('limit_media_types')
-                if limit_media_types is not None:
-                    short_name = {v: k for k, v in ManifestDigest.content_type.items()}
-                    versions = tuple(short_name[mt] for mt in limit_media_types)
-                    kwargs['versions'] = versions
+        kwargs = {}
+        if PLUGIN_FETCH_SOURCES_KEY in self.workflow.data.prebuild_results:
+            # For source containers, limit the versions we ask
+            # about (and, if necessary, the expected media types).
+            # This can help to avoid issues with tooling that is
+            # unable to deal with the number of layers in these
+            # images.
+            src_config = self.workflow.conf.source_container
+            limit_media_types = src_config.get('limit_media_types')
+            if limit_media_types is not None:
+                short_name = {v: k for k, v in ManifestDigest.content_type.items()}
+                versions = tuple(short_name[mt] for mt in limit_media_types)
+                kwargs['versions'] = versions
 
-                    if expected_media_types:
-                        expected_media_types.intersection_update(set(limit_media_types))
+                if expected_media_types:
+                    expected_media_types.intersection_update(set(limit_media_types))
 
-            digests = get_manifest_digests(pullspec, registry_name, insecure,
-                                           secret, require_digest=False, **kwargs)
-            if digests:
-                if digests.v2_list:
-                    media_types.add(MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST)
-                if digests.v2:
-                    media_types.add(MEDIA_TYPE_DOCKER_V2_SCHEMA2)
-                if digests.v1:
-                    media_types.add(MEDIA_TYPE_DOCKER_V2_SCHEMA1)
-                if digests.oci:
-                    media_types.add(MEDIA_TYPE_OCI_V1)
-                if digests.oci_index:
-                    media_types.add(MEDIA_TYPE_OCI_V1_INDEX)
+        digests = get_manifest_digests(pullspec, registry['uri'], insecure,
+                                       secret, require_digest=False, **kwargs)
+        if digests:
+            if digests.v2_list:
+                media_types.add(MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST)
+            if digests.v2:
+                media_types.add(MEDIA_TYPE_DOCKER_V2_SCHEMA2)
+            if digests.v1:
+                media_types.add(MEDIA_TYPE_DOCKER_V2_SCHEMA1)
+            if digests.oci:
+                media_types.add(MEDIA_TYPE_OCI_V1)
+            if digests.oci_index:
+                media_types.add(MEDIA_TYPE_OCI_V1_INDEX)
 
-            media_in_registry[registry_name]['found'] = media_types
+        media_in_registry[registry['uri']]['found'] = media_types
 
         should_raise = False
         all_found = set()

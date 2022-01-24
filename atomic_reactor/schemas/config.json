@@ -453,6 +453,8 @@
                 "expected_media_types": {"$ref": "#/definitions/media_types"}
             },
             "additionalProperties": false,
+            "maxItems": 1,
+            "minItems": 1,
             "required": ["url"]
         }
     },

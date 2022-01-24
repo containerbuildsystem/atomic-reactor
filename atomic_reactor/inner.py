@@ -40,7 +40,7 @@ from atomic_reactor.constants import (
     DOCKERFILE_FILENAME,
 )
 from atomic_reactor.types import ISerializer
-from atomic_reactor.util import (ManifestDigest, exception_message, DockerfileImages, df_parser,
+from atomic_reactor.util import (exception_message, DockerfileImages, df_parser,
                                  base_image_is_custom, print_version_of_tools, validate_with_schema)
 from atomic_reactor.config import Configuration
 from atomic_reactor.source import Source, DummySource
@@ -332,151 +332,6 @@ class TagConf(ISerializer):
         }
 
 
-class Registry(ISerializer):
-    def __init__(self, uri, insecure=False):
-        """
-        abstraction for all registry classes
-
-        :param uri: str, uri for pulling (in case of docker-registry, pushing too)
-        :param insecure: bool
-        """
-        self.uri = uri
-        self.insecure = insecure
-
-    @classmethod
-    def load(cls, data: Dict[str, Any]):
-        uri = data.get("uri")
-        if not uri:
-            raise ValueError(
-                f"Missing uri from data {data!r} to create a {cls.__name__} object."
-            )
-        return Registry(uri, insecure=data.get("insecure", False))
-
-    def dump(self) -> Dict[str, Any]:
-        return {"uri": self.uri, "insecure": self.insecure}
-
-
-class DockerRegistry(Registry):
-    """ v2 docker registry """
-    def __init__(self, uri, insecure=False):
-        """
-        :param uri: str, uri for pushing/pulling
-        :param insecure: bool
-        """
-        super(DockerRegistry, self).__init__(uri, insecure=insecure)
-        # maps a tag (str) to a ManifestDigest instance, if available
-        self.digests: Dict[str, ManifestDigest] = {}
-        self.config: Optional[Dict[str, Any]] = None  # stores image config from the registry,
-        # media type of the config is application/vnd.docker.container.image.v1+json
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, type(self)):
-            return False
-        return (
-            self.uri == other.uri and
-            self.insecure == other.insecure and
-            self.digests == other.digests and
-            self.config == other.config
-        )
-
-    @classmethod
-    def load(cls, data: Dict[str, Any]):
-        registry = super().load(data)
-        docker_reg = DockerRegistry(registry.uri, registry.insecure)
-        for name, value in data.items():
-            if name == "digests":
-                for tag, data in value.items():
-                    docker_reg.digests[tag] = ManifestDigest.load(data)
-            elif name == "config":
-                docker_reg.config = value
-        return docker_reg
-
-    def dump(self) -> Dict[str, Any]:
-        result = super().dump()
-        result["digests"] = {
-            tag: manifest_digest.dump()
-            for tag, manifest_digest in self.digests.items()
-        }
-        result["config"] = self.config
-        return result
-
-
-class PushConf(ISerializer):
-    """
-    configuration of remote registries: docker-registry
-    """
-
-    def __init__(self):
-        self._registries: Dict[str, Dict[str, DockerRegistry]] = {
-            "docker": {},  # URI -> DockerRegistry instance
-        }
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, PushConf):
-            return NotImplemented
-        return self._registries == other._registries
-
-    @property
-    def is_empty(self):
-        for registries in self._registries.values():
-            if len(registries) > 0:
-                return False
-        return True
-
-    def add_docker_registry(self, registry_uri, insecure=False):
-        if registry_uri is None:
-            raise RuntimeError("registry URI cannot be None")
-        try:
-            return self._registries["docker"][registry_uri]
-        except KeyError:
-            r = DockerRegistry(registry_uri, insecure=insecure)
-            self._registries["docker"][registry_uri] = r
-
-        return r
-
-    def remove_docker_registry(self, docker_registry):
-        for uri, registry in self._registries["docker"].items():
-            if registry == docker_registry:
-                del self._registries["docker"][uri]
-                return
-
-    @property
-    def has_some_docker_registry(self):
-        return bool(self.docker_registries)
-
-    @property
-    def docker_registries(self) -> List[DockerRegistry]:
-        return list(self._registries["docker"].values())
-
-    @property
-    def all_registries(self) -> List[DockerRegistry]:
-        return self.docker_registries
-
-    @classmethod
-    def load(cls, data: Dict[str, Any]):
-        push_conf = cls()
-        # uri -> docker registry info
-        docker_regs: Optional[Dict[str, Dict[str, Any]]] = data.get("docker")
-        if not docker_regs:
-            return push_conf
-        for uri, docker_reg_info in docker_regs.items():
-            push_conf.add_docker_registry(uri)
-            added_reg = [reg for reg in push_conf.docker_registries if reg.uri == uri][0]
-            loaded_reg = DockerRegistry.load(docker_reg_info)
-            added_reg.insecure = loaded_reg.insecure
-            added_reg.digests = loaded_reg.digests
-            added_reg.config = loaded_reg.config
-        return push_conf
-
-    def dump(self) -> Dict[str, Any]:
-        result = {}
-        for registry_type, registries in self._registries.items():
-            result[registry_type] = {
-                uri: registry.dump() for uri, registry in registries.items()
-            }
-        return result
-
-
 class FSWatcher(threading.Thread):
     """
     Poll the filesystem every second in the background and keep a record of highest usage.
@@ -547,7 +402,6 @@ class ImageBuildWorkflowData(ISerializer):
 
     dockerfile_images: DockerfileImages = field(default_factory=DockerfileImages)
     tag_conf: TagConf = field(default_factory=TagConf)
-    push_conf: PushConf = field(default_factory=PushConf)
 
     prebuild_results: Dict[str, Any] = field(default_factory=dict)
     buildstep_result: Dict[str, Any] = field(default_factory=dict)
@@ -623,7 +477,6 @@ class ImageBuildWorkflowData(ISerializer):
         data_conv: Dict[str, Callable] = {
             "dockerfile_images": DockerfileImages.load,
             "tag_conf": TagConf.load,
-            "push_conf": PushConf.load,
             "build_result": BuildResult.load,
         }
 

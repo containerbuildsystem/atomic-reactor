@@ -1,5 +1,5 @@
 """
-Copyright (c) 2015, 2019 Red Hat, Inc
+Copyright (c) 2015-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -14,6 +14,8 @@ from flexmock import flexmock
 from osbs.api import OSBS
 import osbs.conf
 from osbs.exceptions import OsbsResponseException
+from osbs.utils import ImageName
+
 from atomic_reactor.constants import (PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
                                       PLUGIN_VERIFY_MEDIA_KEY,
                                       PLUGIN_FETCH_SOURCES_KEY,
@@ -23,9 +25,9 @@ from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.exit_store_metadata import StoreMetadataPlugin
-from atomic_reactor.util import LazyGit, ManifestDigest, df_parser, DockerfileImages
+from atomic_reactor.util import LazyGit, ManifestDigest, df_parser, DockerfileImages, RegistryClient
 import pytest
-from tests.constants import (LOCALHOST_REGISTRY, DOCKER0_REGISTRY, TEST_IMAGE, TEST_IMAGE_NAME,
+from tests.constants import (LOCALHOST_REGISTRY, TEST_IMAGE, TEST_IMAGE_NAME,
                              INPUT_IMAGE)
 from tests.util import add_koji_map_in_workflow, is_string_type
 
@@ -36,9 +38,9 @@ DIGEST_NOT_USED = "not-used"
 pytestmark = pytest.mark.usefixtures('user_params')
 
 
-def prepare(workflow, docker_registries=None):
-    if docker_registries is None:
-        docker_registries = (LOCALHOST_REGISTRY, DOCKER0_REGISTRY,)
+def prepare(workflow, registry=None):
+    if not registry:
+        registry = LOCALHOST_REGISTRY
 
     def update_annotations_on_build(build_id, annotations):
         pass
@@ -68,21 +70,35 @@ def prepare(workflow, docker_registries=None):
         'insecure': False,
         'auth': {'enable': True},
     }
-    rcm = {'version': 1, 'openshift': openshift_map}
+    registries_conf = [{'url': registry,
+                        'insecure': True}]
+    rcm = {'version': 1, 'openshift': openshift_map, 'registries': registries_conf}
     workflow.conf.conf = rcm
     add_koji_map_in_workflow(workflow, hub_url='/', root_url='')
 
     tag_conf = workflow.data.tag_conf
-    tag_conf.add_floating_image(TEST_IMAGE)
-    tag_conf.add_primary_image("namespace/image:version-release")
 
-    tag_conf.add_unique_image("namespace/image:asd123")
+    tag_conf.add_floating_image(f'{registry}/{TEST_IMAGE}')
+    tag_conf.add_primary_image(f'{registry}/namespace/image:version-release')
+    tag_conf.add_unique_image(f'{registry}/namespace/image:asd123')
 
-    for docker_registry in docker_registries:
-        r = workflow.data.push_conf.add_docker_registry(docker_registry)
-        r.digests[TEST_IMAGE_NAME] = ManifestDigest(v1=DIGEST_NOT_USED, v2=DIGEST1)
-        r.digests["namespace/image:asd123"] = ManifestDigest(v1=DIGEST_NOT_USED,
-                                                             v2=DIGEST2)
+    (flexmock(RegistryClient)
+     .should_receive('get_manifest_digests')
+     .with_args(image=ImageName.parse(f'{registry}/{TEST_IMAGE_NAME}'),
+                versions=('v1', 'v2', 'v2_list', 'oci', 'oci_index'), require_digest=True)
+     .and_return(ManifestDigest(v1=DIGEST_NOT_USED, v2=DIGEST1)))
+
+    (flexmock(RegistryClient)
+     .should_receive('get_manifest_digests')
+     .with_args(image=ImageName.parse(f'{registry}/namespace/image:version-release'),
+                versions=('v1', 'v2', 'v2_list', 'oci', 'oci_index'), require_digest=True)
+     .and_return(None))
+
+    (flexmock(RegistryClient)
+     .should_receive('get_manifest_digests')
+     .with_args(image=ImageName.parse(f'{registry}/namespace/image:asd123'),
+                versions=('v1', 'v2', 'v2_list', 'oci', 'oci_index'), require_digest=True)
+     .and_return(ManifestDigest(v1=DIGEST_NOT_USED, v2=DIGEST2)))
 
     flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return({'Id': '01234567'})
     workflow.build_logs = [
@@ -248,30 +264,6 @@ CMD blabla"""
     assert is_string_type(annotations['digests'])
     digests = json.loads(annotations['digests'])
     expected = [{
-        "registry": DOCKER0_REGISTRY,
-        "repository": TEST_IMAGE,
-        "tag": 'latest',
-        "digest": DIGEST_NOT_USED,
-        "version": "v1"
-    }, {
-        "registry": DOCKER0_REGISTRY,
-        "repository": TEST_IMAGE,
-        "tag": 'latest',
-        "digest": DIGEST1,
-        "version": "v2"
-    }, {
-        "registry": DOCKER0_REGISTRY,
-        "repository": "namespace/image",
-        "tag": 'asd123',
-        "digest": DIGEST_NOT_USED,
-        "version": "v1"
-    }, {
-        "registry": DOCKER0_REGISTRY,
-        "repository": "namespace/image",
-        "tag": 'asd123',
-        "digest": DIGEST2,
-        "version": "v2"
-    }, {
         "registry": LOCALHOST_REGISTRY,
         "repository": TEST_IMAGE,
         "tag": 'latest',
@@ -415,30 +407,6 @@ def test_metadata_plugin_source(image_id, br_annotations, expected_br_annotation
     assert is_string_type(annotations['digests'])
     digests = json.loads(annotations['digests'])
     expected = [{
-        "registry": DOCKER0_REGISTRY,
-        "repository": TEST_IMAGE,
-        "tag": 'latest',
-        "digest": DIGEST_NOT_USED,
-        "version": "v1"
-    }, {
-        "registry": DOCKER0_REGISTRY,
-        "repository": TEST_IMAGE,
-        "tag": 'latest',
-        "digest": DIGEST1,
-        "version": "v2"
-    }, {
-        "registry": DOCKER0_REGISTRY,
-        "repository": "namespace/image",
-        "tag": 'asd123',
-        "digest": DIGEST_NOT_USED,
-        "version": "v1"
-    }, {
-        "registry": DOCKER0_REGISTRY,
-        "repository": "namespace/image",
-        "tag": 'asd123',
-        "digest": DIGEST2,
-        "version": "v2"
-    }, {
         "registry": LOCALHOST_REGISTRY,
         "repository": TEST_IMAGE,
         "tag": 'latest',
@@ -660,31 +628,22 @@ def test_store_metadata_fail_update_labels(workflow, caplog):
     assert 'labels:' in caplog.text
 
 
-@pytest.mark.parametrize(('docker_registries', 'prefixes'), [
-    [[], []],
+@pytest.mark.parametrize(('registry', 'prefixes'), [
     [
-        [],
-        ['spam:8888', ],
-    ],
-    [
-        [],
-        ['spam:8888', 'maps:9999'],
-    ],
-    [
-        ['spam:8888'],
+        'spam:8888',
         ['spam:8888', ]
     ],
     [
-        ['spam:8888', 'maps:9999'],
+        'spam:8888',
         ['spam:8888', 'maps:9999']
     ],
     [
-        ['bacon:8888'],
+        'bacon:8888',
         ['spam:8888', 'bacon:8888']
     ],
 ])
-def test_filter_repositories(workflow, source_dir, docker_registries, prefixes):
-    prepare(workflow, docker_registries=docker_registries)
+def test_filter_repositories(workflow, source_dir, registry, prefixes):
+    prepare(workflow, registry=registry)
     df_content = """
 FROM fedora
 RUN yum install -y python-django

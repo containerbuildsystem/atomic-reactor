@@ -1,5 +1,5 @@
 """
-Copyright (c) 2015, 2019 Red Hat, Inc
+Copyright (c) 2015-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -31,14 +31,13 @@ import signal
 
 from atomic_reactor.inner import (BuildResults, BuildResultsEncoder,
                                   BuildResultsJSONDecoder, DockerBuildWorkflow,
-                                  FSWatcher, ImageBuildWorkflowData, PushConf, DockerRegistry,
-                                  BuildResult, TagConf)
+                                  FSWatcher, ImageBuildWorkflowData, BuildResult, TagConf)
 from atomic_reactor.constants import (INSPECT_ROOTFS,
                                       INSPECT_ROOTFS_LAYERS,
                                       PLUGIN_BUILD_ORCHESTRATE_KEY)
 from atomic_reactor.source import PathSource, DummySource
 from atomic_reactor.util import (
-    DockerfileImages, ManifestDigest, df_parser, validate_with_schema, graceful_chain_get
+    DockerfileImages, df_parser, validate_with_schema, graceful_chain_get
 )
 from atomic_reactor.utils import imageutil
 from atomic_reactor.tasks.plugin_based import PluginsDef
@@ -1155,93 +1154,9 @@ def test_fs_watcher(monkeypatch):
     assert "mb_used" in w.get_usage_data()
 
 
-class TestPushConf(object):
-    def test_new_push_conf(self):
-        push_conf = PushConf()
-        assert not push_conf.has_some_docker_registry
-        assert push_conf.docker_registries == []
-        assert push_conf.all_registries == push_conf.docker_registries
-
-    @pytest.mark.parametrize('num_registries', [1, 2])
-    def test_add_docker_registry(self, num_registries):
-        push_conf = PushConf()
-        for n in range(num_registries):
-            r = push_conf.add_docker_registry('https://registry{}.example.com'
-                                              .format(n),
-                                              insecure=False)
-            assert isinstance(r, DockerRegistry)
-            assert push_conf.has_some_docker_registry
-            assert len(push_conf.docker_registries) == n + 1
-            assert push_conf.all_registries == push_conf.docker_registries
-
-    @pytest.mark.parametrize('insecure_differs', [False, True])
-    def test_readd_docker_registry(self, insecure_differs):
-        push_conf = PushConf()
-        uri = 'https://registry.example.com'
-        first = push_conf.add_docker_registry(uri, insecure=False)
-        second = push_conf.add_docker_registry(uri, insecure=insecure_differs)
-        assert isinstance(second, DockerRegistry)
-        assert first == second
-        assert len(push_conf.docker_registries) == 1
-        assert push_conf.all_registries == push_conf.docker_registries
-
-    def test_remove_docker_registry(self):
-        push_conf = PushConf()
-        r = push_conf.add_docker_registry('https://registry.example.com')
-        push_conf.remove_docker_registry(r)
-        assert not push_conf.has_some_docker_registry
-        assert len(push_conf.docker_registries) == 0
-        assert push_conf.all_registries == push_conf.docker_registries
-
-    @pytest.mark.parametrize("uri,expected_dump", [
-        [
-            "http://registry.example.com",
-            {
-                "docker": {
-                    "http://registry.example.com": {
-                        "uri": "http://registry.example.com",
-                        "insecure": True,
-                        "digests": {},
-                        "config": None,
-                    },
-                },
-            }
-        ],
-        [None, {"docker": {}}],  # Test dump an "empty" push conf
-    ])
-    def test_dump(self, uri, expected_dump):
-        push_conf = PushConf()
-        if uri is not None:
-            push_conf.add_docker_registry(uri, insecure=True)
-        assert expected_dump == push_conf.dump()
-
-    @pytest.mark.parametrize("input_data", [{}, {"podman": {}}])
-    def test_parse_no_registry_is_parsed(self, input_data):
-        push_conf = PushConf.load(input_data)
-        assert len(push_conf.all_registries) == 0
-
-    @pytest.mark.parametrize("input_data", [
-        {
-            "docker": {
-                "https://registry.host/": {
-                    "uri": "https://registry.host/",
-                    "insecure": True,
-                    "digests": {},
-                    "config": None,
-                },
-            },
-        },
-    ])
-    def test_parse(self, input_data):
-        push_conf = PushConf.load(input_data)
-        registries = push_conf.all_registries
-        docker_regs = input_data["docker"]
-        for reg in registries:
-            docker_reg_info = docker_regs[reg.uri]
-            assert docker_reg_info["uri"] == reg.uri
-            assert docker_reg_info["insecure"] == reg.insecure
-            assert docker_reg_info["digests"] == reg.digests
-            assert docker_reg_info["config"] == reg.config
+def test_build_result():
+    with pytest.raises(AssertionError):
+        BuildResult(fail_reason='it happens', image_id='spam')
 
 
 class TestBuildResult:
@@ -1384,86 +1299,6 @@ class TestTagConf:
         assert expected_floating_images == tag_conf.floating_images
 
 
-class TestDockerRegistry:
-    """Test DockerRegistry class"""
-
-    @pytest.mark.parametrize("insecure", [True, False])
-    @pytest.mark.parametrize("digests", [
-        {},
-        {
-            "tag1": ManifestDigest(v1="v1-digest"),
-            "tag2": ManifestDigest(v2="v2-digest", oci="oci-digest"),
-        },
-    ])
-    @pytest.mark.parametrize("config", [
-        {},
-        {"key": "value"},
-    ])
-    def test_dump(self, insecure, digests, config):
-        docker_reg = DockerRegistry("uri", insecure=insecure)
-        docker_reg.digests = digests
-        docker_reg.config = config
-        expected = {
-            "uri": "uri",
-            "insecure": insecure,
-            "digests": digests,
-            "config": config,
-        }
-        if digests:
-            expected["digests"] = {
-                "tag1": digests["tag1"].dump(),
-                "tag2": digests["tag2"].dump(),
-            }
-        assert expected == docker_reg.dump()
-
-    @pytest.mark.parametrize("insecure", [True, False])
-    @pytest.mark.parametrize("digests", [
-        {},
-        {
-            "tag1": {
-                "v1": "v1-digests",
-                "v2": "v2-digest",
-                "v2_list": "v2-list-digest",
-                "oci": "oci-digests",
-                "oci_index": "oci-index-digests",
-            },
-            "tag2": {
-                "v1": None,
-                "v2": "v2-digest",
-                "v2_list": None,
-                "oci": "oci-digests",
-                "oci_index": None,
-            },
-        },
-    ])
-    @pytest.mark.parametrize("config", [
-        {},
-        {"key": "value"},
-    ])
-    def test_parse(self, insecure, digests, config):
-        input_data = {
-            "uri": "https://registry.host/",
-            "insecure": insecure,
-            "digests": digests,
-            "config": config,
-        }
-        docker_reg = DockerRegistry.load(input_data)
-
-        assert input_data["uri"] == docker_reg.uri
-        assert input_data["insecure"] == docker_reg.insecure
-        assert input_data["config"] == docker_reg.config
-
-        if digests:
-            expected = {
-                "tag1": ManifestDigest.load(digests["tag1"]),
-                "tag2": ManifestDigest.load(digests["tag2"]),
-            }
-        else:
-            expected = digests
-
-        assert expected == docker_reg.digests
-
-
 class TestWorkflowData:
     """Test class ImageBuildWorkflowData."""
 
@@ -1471,7 +1306,6 @@ class TestWorkflowData:
         data = ImageBuildWorkflowData()
         assert data.dockerfile_images.is_empty
         assert data.tag_conf.is_empty
-        assert data.push_conf.is_empty
         assert "not built" == data.build_result.fail_reason
         assert {} == data.prebuild_results
 
@@ -1513,7 +1347,6 @@ class TestWorkflowData:
         data = ImageBuildWorkflowData(dockerfile_images=DockerfileImages(["f:35"]))
         data.tag_conf.add_floating_image("registry/app:latest")
         data.tag_conf.add_floating_image("registry/app:devel")
-        data.push_conf.add_docker_registry("https://registry.host/v007", insecure=True)
         try:
             validate_with_schema(data.dump(), "schemas/workflow_data.json")
         except osbs.exceptions.OsbsValidationException as e:
@@ -1541,16 +1374,6 @@ class TestWorkflowData:
                     ImageName.parse("registry/httpd:2.4").to_str(),
                 ],
             },
-            "push_conf": {
-                "docker": {
-                    "https://registry.host/": {
-                        "uri": "https://registry.host/",
-                        "insecure": True,
-                        "digests": {},
-                        "config": None,
-                    }
-                }
-            },
         }
         wf_data = ImageBuildWorkflowData.load(input_data)
 
@@ -1558,7 +1381,6 @@ class TestWorkflowData:
         assert expected_df_images == wf_data.dockerfile_images
         assert input_data["prebuild_results"] == wf_data.prebuild_results
         assert TagConf.load(input_data["tag_conf"]) == wf_data.tag_conf
-        assert PushConf.load(input_data["push_conf"]) == wf_data.push_conf
 
     def test_load_from_empty_directory(self, tmpdir):
         context_dir = tmpdir.join("context_dir").mkdir()
@@ -1566,7 +1388,6 @@ class TestWorkflowData:
         wf_data = ImageBuildWorkflowData.load_from_dir(ContextDir(context_dir))
         assert wf_data.dockerfile_images.is_empty
         assert wf_data.tag_conf.is_empty
-        assert wf_data.push_conf.is_empty
         assert {} == wf_data.prebuild_results
 
     def test_load_from_directory(self, tmpdir):
@@ -1574,8 +1395,6 @@ class TestWorkflowData:
         workflow_json = context_dir.join("workflow.json")
         data = ImageBuildWorkflowData(dockerfile_images=DockerfileImages(["scratch"]))
         data.tag_conf.add_floating_image("registry/httpd:2.4")
-        docker_reg = data.push_conf.add_docker_registry("https://registry.host/", insecure=True)
-        docker_reg.digests["tag1"] = ManifestDigest(v2="v2-digest", oci="oci-digest")
         data.prebuild_results["plugin_1"] = "result"
         dump_data = data.dump()
         workflow_json.write_text(json.dumps(dump_data), encoding="utf-8")
@@ -1589,20 +1408,13 @@ class TestWorkflowData:
         expected_df_images = DockerfileImages.load(input_data["dockerfile_images"])
         assert expected_df_images == wf_data.dockerfile_images
         assert TagConf.load(input_data["tag_conf"]) == wf_data.tag_conf
-        assert PushConf.load(input_data["push_conf"]) == wf_data.push_conf
         assert input_data["prebuild_results"] == wf_data.prebuild_results
-
-        docker_reg = wf_data.push_conf.all_registries[0]
-        expected_manifest_digest = {
-            "v1": None, "v2": "v2-digest", "v2_list": None, "oci": "oci-digest", "oci_index": None
-        }
-        assert expected_manifest_digest == docker_reg.digests["tag1"]
 
     @pytest.mark.parametrize("data_path,prop_name,wrong_value", [
         # digests should map to an object rather than a string
-        [["push_conf", "docker", "uri"], "digests", "wrong value"],
+        [["tag_conf"], "original_parents", "wrong value"],
         # tag name should map to an object rather than a string
-        [["push_conf", "docker", "uri", "digests"], "tag1", "wrong value"],
+        [["tag_conf"], "floating_images", "wrong value"],
     ])
     def test_load_invalid_data_from_directory(self, data_path, prop_name, wrong_value, tmpdir):
         """Test the workflow data is validated by JSON schema when reading from context_dir."""
@@ -1611,7 +1423,6 @@ class TestWorkflowData:
 
         data = ImageBuildWorkflowData(dockerfile_images=DockerfileImages(["scratch"]))
         data.tag_conf.add_floating_image("registry/httpd:2.4")
-        data.push_conf.add_docker_registry("uri", insecure=True)
         data.prebuild_results["plugin_1"] = "result"
         dump_data = data.dump()
 
@@ -1642,5 +1453,4 @@ class TestWorkflowData:
 
         assert wf_data.dockerfile_images == loaded_wf_data.dockerfile_images
         assert wf_data.tag_conf == loaded_wf_data.tag_conf
-        assert wf_data.push_conf == loaded_wf_data.push_conf
         assert wf_data.prebuild_results == loaded_wf_data.prebuild_results

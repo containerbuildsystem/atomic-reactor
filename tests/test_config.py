@@ -1,5 +1,5 @@
 """
-Copyright (c) 2021 Red Hat, Inc
+Copyright (c) 2021-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -556,7 +556,7 @@ odcs:
         'artifacts_allowed_domains', 'yum_repo_allowed_domains', 'image_labels',
         'image_label_info_url_format', 'image_equal_labels', 'fail_on_digest_mismatch',
         'openshift', 'group_manifests', 'platform_descriptors', 'prefer_schema1_digest',
-        'content_versions', 'registries', 'yum_proxy', 'source_registry', 'sources_command',
+        'content_versions', 'registry', 'yum_proxy', 'source_registry', 'sources_command',
         'required_secrets', 'worker_token_secrets', 'clusters', 'hide_files',
         'skip_koji_check_for_base_image', 'deep_manifest_list_inspection'
     ])
@@ -576,22 +576,23 @@ odcs:
 
         output = real_attr
 
-        expected = yaml.safe_load(REACTOR_CONFIG_MAP)[method]
+        if method == 'registry':
+            # map `registry` to `registries` in config so that neither use nor devs are confused
+            expected = yaml.safe_load(REACTOR_CONFIG_MAP)['registries']
+        else:
+            expected = yaml.safe_load(REACTOR_CONFIG_MAP)[method]
 
-        if method == 'registries':
-            registries_cm = {}
-            for registry in expected:
-                reguri = RegistryURI(registry.get('url'))
-                regdict = {}
-                regdict['version'] = reguri.version
-                if registry.get('auth'):
-                    regdict['secret'] = registry['auth']['cfg_path']
-                regdict['insecure'] = registry.get('insecure', False)
-                regdict['expected_media_types'] = registry.get('expected_media_types', [])
+        if method == 'registry':
+            # since there will only be exactly one registry
+            registry = expected[0]
+            reguri = RegistryURI(registry.get('url'))
+            regdict = {'uri': reguri.docker_uri, 'version': reguri.version}
+            if registry.get('auth'):
+                regdict['secret'] = registry['auth']['cfg_path']
+            regdict['insecure'] = registry.get('insecure', False)
+            regdict['expected_media_types'] = registry.get('expected_media_types', [])
 
-                registries_cm[reguri.docker_uri] = regdict
-
-            assert output == registries_cm
+            assert output == regdict
             return
 
         if method == 'source_registry':

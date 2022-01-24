@@ -550,20 +550,20 @@ class Dockercfg(object):
             logger.error(msg, exc_info=True)
             raise RuntimeError(msg) from exc
 
-    def get_credentials(self, docker_registry):
+    def get_credentials(self, registry):
         # For maximal robustness we check the host:port of the passed in
         # registry against the host:port of the items in the secret. This is
         # somewhat similar to what the Docker CLI does.
         #
-        docker_registry = registry_hostname(docker_registry)
+        registry = registry_hostname(registry)
         try:
-            return self.json_secret[docker_registry]
+            return self.json_secret[registry]
         except KeyError:
             for reg, creds in self.json_secret.items():
-                if registry_hostname(reg) == docker_registry:
+                if registry_hostname(reg) == registry:
                     return creds
 
-            logger.warning('%s not found in .dockercfg', docker_registry)
+            logger.warning('%s not found in .dockercfg', registry)
             return {}
 
     def unpack_auth_b64(self, docker_registry):
@@ -1182,7 +1182,7 @@ def get_manifest_digests(image, registry, insecure=False, dockercfg_path=None,
     """
     registry_session = RegistrySession(registry, insecure=insecure, dockercfg_path=dockercfg_path)
     registry_client = RegistryClient(registry_session)
-    return registry_client.get_manifest_digests(image,
+    return registry_client.get_manifest_digests(image=image,
                                                 versions=versions,
                                                 require_digest=require_digest)
 

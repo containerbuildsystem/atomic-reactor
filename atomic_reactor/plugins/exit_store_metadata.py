@@ -1,5 +1,5 @@
 """
-Copyright (c) 2015, 2019 Red Hat, Inc
+Copyright (c) 2015-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -17,6 +17,7 @@ from atomic_reactor.constants import (PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
                                       SCRATCH_FROM)
 from atomic_reactor.config import get_openshift_session
 from atomic_reactor.plugin import ExitPlugin
+from atomic_reactor.util import get_manifest_digests
 
 
 class StoreMetadataPlugin(ExitPlugin):
@@ -61,50 +62,37 @@ class StoreMetadataPlugin(ExitPlugin):
         """
 
         digests = {}  # repository -> digest
-        wf_data = self.workflow.data
-        for registry in wf_data.push_conf.docker_registries:
-            for image in wf_data.tag_conf.images:
-                image_str = image.to_str()
-                if image_str in registry.digests:
-                    digest = registry.digests[image_str]
-                    digests[image.to_str(registry=False)] = digest
+        registry = self.workflow.conf.registry
+
+        for image in self.workflow.data.tag_conf.images:
+            image_digests = get_manifest_digests(image, registry['uri'], registry['insecure'],
+                                                 registry.get('secret', None))
+            if image_digests:
+                digests[image.to_str()] = image_digests
 
         return digests
 
-    def _get_registries(self):
-        """
-        Return a list of registries that this build updated
-        """
-        return self.workflow.data.push_conf.all_registries
-
     def get_repositories(self):
-        tag_conf = self.workflow.data.tag_conf
-
         # usually repositories formed from NVR labels
         # these should be used for pulling and layering
         primary_repositories = []
-        for registry in self._get_registries():
-            for image in tag_conf.primary_images:
-                registry_image = image.copy()
-                registry_image.registry = registry.uri
-                primary_repositories.append(registry_image.to_str())
+
+        for image in self.workflow.data.tag_conf.primary_images:
+            primary_repositories.append(image.to_str())
 
         # unique unpredictable repositories
         unique_repositories = []
-        for registry in self._get_registries():
-            for image in tag_conf.unique_images:
-                registry_image = image.copy()
-                registry_image.registry = registry.uri
-                unique_repositories.append(registry_image.to_str())
+
+        for image in self.workflow.data.tag_conf.unique_images:
+            unique_repositories.append(image.to_str())
 
         # floating repositories
         # these should be used for pulling and layering
         floating_repositories = []
-        for registry in self._get_registries():
-            for image in tag_conf.floating_images:
-                registry_image = image.copy()
-                registry_image.registry = registry.uri
-                floating_repositories.append(registry_image.to_str())
+
+        for image in self.workflow.data.tag_conf.floating_images:
+            floating_repositories.append(image.to_str())
+
         return {
             "primary": primary_repositories,
             "unique": unique_repositories,
@@ -114,22 +102,21 @@ class StoreMetadataPlugin(ExitPlugin):
     def get_pullspecs(self, digests):
         # v2 registry digests
         pullspecs = []
-        images = self.workflow.data.tag_conf.images
-        for registry in self._get_registries():
-            for image in images:
-                image_str = image.to_str()
-                if image_str in digests:
-                    digest = digests[image_str]
-                    for digest_version in digest.content_type:
-                        if digest_version not in digest:
-                            continue
-                        pullspecs.append({
-                            "registry": registry.uri,
-                            "repository": image.to_str(registry=False, tag=False),
-                            "tag": image.tag,
-                            "digest": digest[digest_version],
-                            "version": digest_version
-                        })
+
+        for image in self.workflow.data.tag_conf.images:
+            image_str = image.to_str()
+            if image_str in digests:
+                digest = digests[image_str]
+                for digest_version in digest.content_type:
+                    if digest_version not in digest:
+                        continue
+                    pullspecs.append({
+                        "registry": image.registry,
+                        "repository": image.to_str(registry=False, tag=False),
+                        "tag": image.tag,
+                        "digest": digest[digest_version],
+                        "version": digest_version
+                    })
 
         return pullspecs
 

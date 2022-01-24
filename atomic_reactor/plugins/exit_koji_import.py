@@ -1,12 +1,11 @@
 """
-Copyright (c) 2017 Red Hat, Inc
+Copyright (c) 2017-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
-import copy
 import json
 import koji
 import os
@@ -307,24 +306,22 @@ class KojiImportBase(ExitPlugin):
             build_image = get_unique_images(self.workflow)[0]
             repo = ImageName.parse(build_image).to_str(registry=False, tag=False)
             # group_manifests added the registry, so this should be valid
-            registries = self.workflow.data.push_conf.all_registries
+            registry = self.workflow.conf.registry
 
             digest_version = get_manifest_media_version(manifest_digest)
             digest = manifest_digest.default
 
-            for registry in registries:
-                pullspec = "{0}/{1}@{2}".format(registry.uri, repo, digest)
-                index['pull'] = [pullspec]
-                pullspec = "{0}/{1}:{2}".format(registry.uri, repo,
-                                                version_release)
-                index['pull'].append(pullspec)
+            pullspec = "{0}/{1}@{2}".format(registry['uri'], repo, digest)
+            index['pull'] = [pullspec]
+            pullspec = "{0}/{1}:{2}".format(registry['uri'], repo,
+                                            version_release)
+            index['pull'].append(pullspec)
 
-                # Store each digest with according media type
-                index['digests'] = {}
-                media_type = get_manifest_media_type(digest_version)
-                index['digests'][media_type] = digest
+            # Store each digest with according media type
+            index['digests'] = {}
+            media_type = get_manifest_media_type(digest_version)
+            index['digests'][media_type] = digest
 
-                break
             extra['image']['index'] = index
         # group_manifests returns None if didn't run, {} if group=False
         else:
@@ -734,11 +731,7 @@ class KojiImportSourceContainerPlugin(KojiImportBase):
     key = PLUGIN_KOJI_IMPORT_SOURCE_CONTAINER_PLUGIN_KEY  # type: ignore
 
     def get_output(self, worker_metadatas, buildroot_id):
-        registry = self.workflow.data.push_conf.docker_registries[0]
-
-        build_name = get_unique_images(self.workflow)[0]
-        pullspec = copy.deepcopy(build_name)
-        pullspec.registry = registry.uri
+        pullspec = get_unique_images(self.workflow)[0]
 
         return koji_get_output(workflow=self.workflow, buildroot_id=buildroot_id,
                                pullspec=pullspec, platform=os.uname()[4],

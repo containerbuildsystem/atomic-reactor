@@ -1,5 +1,5 @@
 """
-Copyright (c) 2019 Red Hat, Inc
+Copyright (c) 2019-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -179,7 +179,6 @@ def mock_environment(workflow,
 
 
 REGISTRY_V2 = 'registry_v2.example.com'
-OTHER_V2 = 'registry.example.com:5001'
 
 
 GROUPED_V2_RESULTS = {
@@ -281,44 +280,38 @@ NOGROUP_OCI_RESULTS = {
                           'floating_tags',
                           'workers', 'expected_exception'), [
     ("simple_grouped_v2",
-     [REGISTRY_V2, OTHER_V2], GROUPED_V2_RESULTS, 'v2',
+     [REGISTRY_V2], GROUPED_V2_RESULTS, 'v2',
      ['namespace/httpd:2.4-1'],
      {
          'ppc64le': {
              REGISTRY_V2: ['namespace/httpd:worker-build-ppc64le-latest'],
-             OTHER_V2: ['namespace/httpd:worker-build-ppc64le-latest'],
          },
          'x86_64': {
              REGISTRY_V2: ['namespace/httpd:worker-build-x86_64-latest'],
-             OTHER_V2: ['namespace/httpd:worker-build-x86_64-latest'],
          }
      },
      None),
     ("simple_grouped_oci",
-     [REGISTRY_V2, OTHER_V2], GROUPED_OCI_RESULTS, 'oci',
+     [REGISTRY_V2], GROUPED_OCI_RESULTS, 'oci',
      ['namespace/httpd:2.4-1'],
      {
          'ppc64le': {
              REGISTRY_V2: ['namespace/httpd:worker-build-ppc64le-latest'],
-             OTHER_V2: ['namespace/httpd:worker-build-ppc64le-latest'],
          },
          'x86_64': {
              REGISTRY_V2: ['namespace/httpd:worker-build-x86_64-latest'],
-             OTHER_V2: ['namespace/httpd:worker-build-x86_64-latest'],
          }
      },
      None),
     ("multi_v2",
-     [REGISTRY_V2, OTHER_V2], GROUPED_V2_RESULTS, 'v2',
+     [REGISTRY_V2], GROUPED_V2_RESULTS, 'v2',
      ['namespace/httpd:2.4-1', 'namespace/httpd:latest'],
      {
          'ppc64le': {
              REGISTRY_V2: ['namespace/httpd:worker-build-ppc64le-latest'],
-             OTHER_V2: ['namespace/httpd:worker-build-ppc64le-latest'],
          },
          'x86_64': {
              REGISTRY_V2: ['namespace/httpd:worker-build-x86_64-latest'],
-             OTHER_V2: ['namespace/httpd:worker-build-x86_64-latest'],
          }
      },
      None),
@@ -359,35 +352,31 @@ NOGROUP_OCI_RESULTS = {
      },
      None),
     ("No tags",
-     [REGISTRY_V2, OTHER_V2], GROUPED_V2_RESULTS, 'v2',
+     [REGISTRY_V2], GROUPED_V2_RESULTS, 'v2',
      None,
      {
          'ppc64le': {
              REGISTRY_V2: ['namespace/httpd:worker-build-ppc64le-latest'],
-             OTHER_V2: ['namespace/httpd:worker-build-ppc64le-latest'],
          },
          'x86_64': {
              REGISTRY_V2: ['namespace/httpd:worker-build-x86_64-latest'],
-             OTHER_V2: ['namespace/httpd:worker-build-x86_64-latest'],
          }
      },
      'No floating images to tag, skipping push_floating_tags'),
     ("called_from_worker",
-     [REGISTRY_V2, OTHER_V2], GROUPED_V2_RESULTS, 'v2',
+     [REGISTRY_V2], GROUPED_V2_RESULTS, 'v2',
      ['namespace/httpd:2.4-1', 'namespace/httpd:latest'],
      {},
      'push_floating_tags cannot be used by a worker builder'),
     ("No_results",
-     [REGISTRY_V2, OTHER_V2], None, 'oci',
+     [REGISTRY_V2], None, 'oci',
      ['namespace/httpd:2.4-1', 'namespace/httpd:latest'],
      {
          'ppc64le': {
              REGISTRY_V2: ['namespace/httpd:worker-build-ppc64le-latest'],
-             OTHER_V2: ['namespace/httpd:worker-build-ppc64le-latest'],
          },
          'x86_64': {
              REGISTRY_V2: ['namespace/httpd:worker-build-x86_64-latest'],
-             OTHER_V2: ['namespace/httpd:worker-build-x86_64-latest'],
          }
      },
      'No manifest digest available, skipping push_floating_tags'),
@@ -405,7 +394,6 @@ def test_floating_tags_push(workflow, tmpdir, test_name, registries, manifest_re
 
     all_registry_conf = {
         REGISTRY_V2: {'version': 'v2', 'insecure': True},
-        OTHER_V2: {'version': 'v2', 'insecure': False},
     }
 
     temp_dir = mkdtemp(dir=str(tmpdir))
@@ -432,12 +420,6 @@ def test_floating_tags_push(workflow, tmpdir, test_name, registries, manifest_re
                            floating_images=floating_tags,
                            manifest_results=manifest_results,
                            annotations=annotations)
-
-    for registry, opts in registry_conf.items():
-        kwargs = {}
-        if 'insecure' in opts:
-            kwargs['insecure'] = opts['insecure']
-        env.workflow.data.push_conf.add_docker_registry(registry, **kwargs)
 
     if workers:
         env.make_orchestrator()

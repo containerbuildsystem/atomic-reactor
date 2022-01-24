@@ -1,5 +1,5 @@
 """
-Copyright (c) 2015 Red Hat, Inc
+Copyright (c) 2015-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -16,8 +16,8 @@ from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI,
 from atomic_reactor.config import get_koji_session
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
-from atomic_reactor.util import (get_manifest_digests, get_config_from_registry, Dockercfg,
-                                 get_all_manifests, map_to_user_params)
+from atomic_reactor.util import (Dockercfg, get_all_manifests, map_to_user_params,
+                                 get_manifest_digests)
 from atomic_reactor.utils import retries
 from osbs.utils import ImageName
 import osbs.utils
@@ -33,7 +33,7 @@ class ExceedsImageSizeError(RuntimeError):
 
 class TagAndPushPlugin(PostBuildPlugin):
     """
-    Use tags from workflow.data.tag_conf and push the images to workflow.data.push_conf
+    Use tags from workflow.data.tag_conf and push the images to workflow.conf.registry
     """
 
     key = "tag_and_push"
@@ -51,7 +51,7 @@ class TagAndPushPlugin(PostBuildPlugin):
         # call parent constructor
         super(TagAndPushPlugin, self).__init__(workflow)
 
-        self.registries = self.workflow.conf.registries
+        self.registry = self.workflow.conf.registry
         self.group = self.workflow.conf.group_manifests
         self.koji_target = koji_target
 
@@ -125,7 +125,7 @@ class TagAndPushPlugin(PostBuildPlugin):
         organization = self.workflow.conf.registries_organization
         if organization:
             source_image_spec.enclose(organization)
-        source_image_spec.registry = None
+        source_image_spec.registry = self.workflow.conf.registry['uri']
         return source_image_spec
 
     def run(self):
@@ -143,94 +143,67 @@ class TagAndPushPlugin(PostBuildPlugin):
             else:
                 tag_conf.add_unique_image(self.workflow.image)
 
-        config_manifest_digest = None
-        config_manifest_type = None
-        config_registry_image = None
         image_size_limit = self.workflow.conf.image_size_limit
 
-        for registry, registry_conf in self.registries.items():
-            insecure = registry_conf.get('insecure', False)
-            push_conf_registry = wf_data.push_conf.add_docker_registry(registry, insecure=insecure)
+        insecure = self.registry.get('insecure', False)
 
-            docker_push_secret = registry_conf.get('secret', None)
-            self.log.info("Registry %s secret %s", registry, docker_push_secret)
+        docker_push_secret = self.registry.get('secret', None)
+        self.log.info("Registry %s secret %s", self.registry['uri'], docker_push_secret)
 
-            for image in wf_data.tag_conf.images:
-                if image.registry:
-                    raise RuntimeError("Image name must not contain registry: %r" % image.registry)
+        for image in wf_data.tag_conf.images:
+            if not source_docker_archive:
+                image_size = sum(item['size'] for item in self.workflow.data.layer_sizes)
+                config_image_size = image_size_limit['binary_image']
+                # Only handle the case when size is set > 0 in config
+                if config_image_size and image_size > config_image_size:
+                    raise ExceedsImageSizeError(
+                        'The size {} of image {} exceeds the limitation {} '
+                        'configured in reactor config.'
+                        .format(image_size, image, image_size_limit)
+                    )
 
-                if not source_docker_archive:
-                    image_size = sum(item['size'] for item in self.workflow.data.layer_sizes)
-                    config_image_size = image_size_limit['binary_image']
-                    # Only handle the case when size is set > 0 in config
-                    if config_image_size and image_size > config_image_size:
-                        raise ExceedsImageSizeError(
-                            'The size {} of image {} exceeds the limitation {} '
-                            'configured in reactor config.'
-                            .format(image_size, image, image_size_limit)
-                        )
+            registry_image = image.copy()
+            max_retries = DOCKER_PUSH_MAX_RETRIES
 
-                registry_image = image.copy()
-                registry_image.registry = registry
-                max_retries = DOCKER_PUSH_MAX_RETRIES
+            for retry in range(max_retries + 1):
+                if self.need_skopeo_push() or source_docker_archive:
+                    self.push_with_skopeo(registry_image, insecure, docker_push_secret,
+                                          source_docker_archive)
+                else:
+                    # OSBS2 TBD either use store manifest from ManifestUtil
+                    # or tag_imag from utils.image
+                    # we won't need pushing
+                    # self.tasker.tag_and_push_image(self.workflow.data.image_id,
+                    #                                registry_image, insecure=insecure,
+                    #                                force=True, dockercfg=docker_push_secret)
+                    pass
 
-                for retry in range(max_retries + 1):
-                    if self.need_skopeo_push() or source_docker_archive:
-                        self.push_with_skopeo(registry_image, insecure, docker_push_secret,
-                                              source_docker_archive)
-                    else:
-                        # OSBS2 TBD either use store manifest from ManifestUtil
-                        # or tag_imag from utils.image
-                        # we won't need pushing
-                        # self.tasker.tag_and_push_image(self.workflow.data.image_id,
-                        #                                registry_image, insecure=insecure,
-                        #                                force=True, dockercfg=docker_push_secret)
-                        pass
+                if source_docker_archive:
+                    manifests_dict = get_all_manifests(registry_image, self.registry['uri'],
+                                                       insecure,
+                                                       docker_push_secret, versions=('v2',))
+                    try:
+                        koji_source_manifest_response = manifests_dict['v2']
+                    except KeyError as exc:
+                        raise RuntimeError(
+                            f'Unable to fetch v2 schema 2 digest for {registry_image.to_str()}'
+                        ) from exc
 
-                    if source_docker_archive:
-                        manifests_dict = get_all_manifests(registry_image, registry, insecure,
-                                                           docker_push_secret, versions=('v2',))
-                        try:
-                            koji_source_manifest_response = manifests_dict['v2']
-                        except KeyError as exc:
-                            raise RuntimeError(
-                                f'Unable to fetch v2 schema 2 digest for {registry_image.to_str()}'
-                            ) from exc
+                    wf_data.koji_source_manifest = koji_source_manifest_response.json()
 
-                        wf_data.koji_source_manifest = koji_source_manifest_response.json()
+                digests = get_manifest_digests(registry_image, self.registry['uri'],
+                                               insecure, docker_push_secret)
 
-                    digests = get_manifest_digests(registry_image, registry,
-                                                   insecure, docker_push_secret)
+                if not (digests.v2 or digests.oci) and (retry < max_retries):
+                    sleep_time = DOCKER_PUSH_BACKOFF_FACTOR * (2 ** retry)
+                    self.log.info("Retrying push because V2 schema 2 or "
+                                  "OCI manifest not found in %is", sleep_time)
 
-                    if (not (digests.v2 or digests.oci) and (retry < max_retries)):
-                        sleep_time = DOCKER_PUSH_BACKOFF_FACTOR * (2 ** retry)
-                        self.log.info("Retrying push because V2 schema 2 or "
-                                      "OCI manifest not found in %is", sleep_time)
+                    time.sleep(sleep_time)
+                else:
+                    break
 
-                        time.sleep(sleep_time)
-                    else:
-                        break
-
-                pushed_images.append(registry_image)
-
-                tag = registry_image.to_str(registry=False)
-                push_conf_registry.digests[tag] = digests
-
-                if not config_manifest_digest and (digests.v2 or digests.oci):
-                    if digests.v2:
-                        config_manifest_digest = digests.v2
-                        config_manifest_type = 'v2'
-                    else:
-                        config_manifest_digest = digests.oci
-                        config_manifest_type = 'oci'
-                    config_registry_image = registry_image
-
-            if config_manifest_digest:
-                push_conf_registry.config = get_config_from_registry(
-                    config_registry_image, registry, config_manifest_digest, insecure,
-                    docker_push_secret, config_manifest_type)
-            else:
-                self.log.info("V2 schema 2 or OCI manifest is not available to get config from")
+            pushed_images.append(registry_image)
 
         self.log.info("All images were tagged and pushed")
         return pushed_images
