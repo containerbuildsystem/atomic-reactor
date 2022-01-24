@@ -7,6 +7,8 @@ of the BSD license. See the LICENSE file for details.
 """
 
 import time
+from typing import Optional, Tuple
+
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import df_parser
 from osbs.utils import Labels
@@ -248,44 +250,12 @@ class BumpReleasePlugin(PreBuildPlugin):
 
         parser = df_parser(self.workflow.df_path, workflow=self.workflow)
         dockerfile_labels = parser.labels
-        labels = Labels(dockerfile_labels)
-        missing_labels = {}
-        missing_value = 'missing'
-        empty_value = 'empty'
 
-        component_label = labels.get_name(Labels.LABEL_TYPE_COMPONENT)
-        try:
-            component = dockerfile_labels[component_label]
-        except KeyError:
-            self.log.error("%s label: %s", missing_value, component_label)
-            missing_labels[component_label] = missing_value
-
-        version_label = labels.get_name(Labels.LABEL_TYPE_VERSION)
-        try:
-            version = dockerfile_labels[version_label]
-            if not version:
-                self.log.error('%s label: %s', empty_value, version_label)
-                missing_labels[version_label] = empty_value
-        except KeyError:
-            self.log.error('%s label: %s', missing_value, version_label)
-            missing_labels[version_label] = missing_value
-
-        try:
-            release_label, release = labels.get_name_and_value(Labels.LABEL_TYPE_RELEASE)
-        except KeyError:
-            release = None
-        else:
-            if not release:
-                self.log.error('%s label: %s', empty_value, release_label)
-                missing_labels[release_label] = empty_value
-
-        if missing_labels:
-            raise RuntimeError('Required labels are missing or empty or using'
-                               ' undefined variables: {}'.format(missing_labels))
+        component, version, release = self._get_nvr(dockerfile_labels)
 
         # Always set preferred release label - other will be set if old-style
         # label is present
-        release_label = labels.LABEL_NAMES[Labels.LABEL_TYPE_RELEASE][0]
+        release_label = Labels.LABEL_NAMES[Labels.LABEL_TYPE_RELEASE][0]
 
         # Reserve build for isolated builds as well (or any build with supplied release)
         user_provided_release = self.workflow.user_params.get('release')
@@ -319,3 +289,43 @@ class BumpReleasePlugin(PreBuildPlugin):
         if self.reserve_build and not is_scratch_build(self.workflow):
             self.reserve_build_in_koji(component, version, release, release_label,
                                        dockerfile_labels)
+
+    def _get_nvr(self, dockerfile_labels) -> Tuple[str, str, Optional[str]]:
+        """Get the component, version and release labels from the Dockerfile."""
+        labels = Labels(dockerfile_labels)
+
+        component_label = labels.get_name(Labels.LABEL_TYPE_COMPONENT)
+        component: Optional[str] = dockerfile_labels.get(component_label)
+
+        version_label = labels.get_name(Labels.LABEL_TYPE_VERSION)
+        version: Optional[str] = dockerfile_labels.get(version_label)
+
+        release_label = labels.get_name(Labels.LABEL_TYPE_RELEASE)
+        release: Optional[str] = dockerfile_labels.get(release_label)
+
+        missing_labels = {}
+
+        # component, version: must be present and not empty
+        for label, value in (component_label, component), (version_label, version):
+            if value is None:
+                self.log.error("missing label: %s", label)
+                missing_labels[label] = "missing"
+            elif not value:
+                self.log.error("empty label: %s", label)
+                missing_labels[label] = "empty"
+
+        # release: if present, must not be empty
+        if (release is not None) and not release:
+            self.log.error("empty label: %s", release_label)
+            missing_labels[release_label] = "empty"
+
+        if missing_labels:
+            raise RuntimeError(
+                "Required labels are missing or empty or using undefined variables: {}"
+                .format(missing_labels)
+            )
+
+        # For type-checkers: narrow the type of component and version to str
+        assert component is not None and version is not None
+
+        return component, version, release
