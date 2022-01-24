@@ -149,39 +149,38 @@ class BumpReleasePlugin(PreBuildPlugin):
         self,
         component: str,
         version: str,
-        release: Optional[str],
-        release_label: str,
-        dockerfile_labels,
+        release: str,
         source_build: bool = False,
-        user_provided_release: bool = False,
-    ) -> None:
+        explicitly_provided_release: bool = False,
+    ) -> str:
+        """Reserve build in koji, and set reserved build id an token in workflow for koji_import.
+
+        :param component: the component label from the Dockerfile
+        :param version: the version label from the Dockerfile
+        :param release: the release value (from the Dockerfile / from user params / auto-bumped)
+        :param source_build: True if this is a source container build
+        :param explicitly_provided_release: True if the release value was explicitly specified,
+            either in the Dockerfile or in user_params (i.e. via CLI)
         """
-        reserve build in koji, and set reserved build id an token in workflow
-        for koji_import
-        """
+        next_release = release
+
         for counter in range(KOJI_RESERVE_MAX_RETRIES + 1):
             nvr_data = {
                 'name': component,
                 'version': version,
+                'release': next_release,
             }
-            if source_build or user_provided_release:
-                nvr_data['release'] = release
-            else:
-                nvr_data['release'] = dockerfile_labels[release_label]
 
             try:
                 self.log.info("reserving build in koji: %r", nvr_data)
                 reserve = self.xmlrpc.CGInitBuild(PROG, nvr_data)
                 break
             except GenericError as exc:
-                if release and user_provided_release:
-                    self.log.error("CGInitBuild failed, not retrying because"
-                                   " release was explicitly provided by user")
-                    raise RuntimeError(exc) from exc
-
-                if release and not source_build:
-                    self.log.error("CGInitBuild failed, not retrying because"
-                                   " release was explicitly specified in Dockerfile")
+                if explicitly_provided_release:
+                    self.log.error(
+                        "CGInitBuild failed, not retrying because release was explicitly provided "
+                        "by user (in Dockerfile labels or via CLI option)"
+                    )
                     raise RuntimeError(exc) from exc
 
                 if counter < KOJI_RESERVE_MAX_RETRIES:
@@ -189,10 +188,9 @@ class BumpReleasePlugin(PreBuildPlugin):
                     time.sleep(KOJI_RESERVE_RETRY_DELAY)
                     if not source_build:
                         next_release = self.next_release_general(component, version)
-                        dockerfile_labels[release_label] = next_release
                     else:
-                        base_rel, base_suffix = release.rsplit('.', 1)
-                        release = self.get_next_release_append(
+                        base_rel, base_suffix = next_release.rsplit('.', 1)
+                        next_release = self.get_next_release_append(
                             component, version, base_rel, base_suffix=int(base_suffix) + 1
                         )
                 else:
@@ -207,6 +205,8 @@ class BumpReleasePlugin(PreBuildPlugin):
         self.workflow.reserved_token = reserve['token']
         if source_build:
             self.workflow.koji_source_nvr = nvr_data
+
+        return next_release
 
     def check_build_existence_for_explicit_release(self, component, version, release):
         build_info = {'name': component, 'version': version, 'release': release}
@@ -250,19 +250,19 @@ class BumpReleasePlugin(PreBuildPlugin):
             self.workflow.koji_source_nvr = source_nvr
 
             if self.reserve_build and not is_scratch_build(self.workflow):
-                self.reserve_build_in_koji(source_nvr['name'], source_nvr['version'],
-                                           source_nvr['release'], None, None, source_build=True)
+                self.reserve_build_in_koji(
+                    source_nvr['name'],
+                    source_nvr['version'],
+                    source_nvr['release'],
+                    source_build=True,
+                )
 
             return
 
         parser = df_parser(self.workflow.df_path, workflow=self.workflow)
         dockerfile_labels = parser.labels
 
-        component, version, release = self._get_nvr(dockerfile_labels)
-
-        # Always set preferred release label - other will be set if old-style
-        # label is present
-        release_label = Labels.LABEL_NAMES[Labels.LABEL_TYPE_RELEASE][0]
+        component, version, original_release = self._get_nvr(dockerfile_labels)
 
         # Reserve build for isolated builds as well (or any build with supplied release)
         user_provided_release = self.workflow.user_params.get('release')
@@ -274,28 +274,33 @@ class BumpReleasePlugin(PreBuildPlugin):
                                                             user_provided_release)
 
             if self.reserve_build:
-                self.reserve_build_in_koji(component, version, user_provided_release,
-                                           release_label, dockerfile_labels,
-                                           user_provided_release=True)
+                self.reserve_build_in_koji(
+                    component, version, user_provided_release, explicitly_provided_release=True
+                )
             return
 
-        if release and not self.append:
+        if original_release and not self.append:
             self.log.debug("release set explicitly so not incrementing")
+            release = original_release
 
             if not is_scratch_build(self.workflow):
                 self.check_build_existence_for_explicit_release(component, version, release)
-                dockerfile_labels[release_label] = release
         else:
             # release not set or release should be appended
-            next_release = self.next_release_general(component, version, release)
-            dockerfile_labels[release_label] = next_release
+            release = self.next_release_general(component, version, original_release)
 
         if self.reserve_build and not is_scratch_build(self.workflow):
-            self.reserve_build_in_koji(
-                component, version, release, release_label, dockerfile_labels
+            release = self.reserve_build_in_koji(
+                component, version, release, explicitly_provided_release=bool(original_release)
             )
 
-        # TODO: add the log message about setting release label
+        # Always set preferred release label - other will be set if old-style label is present
+        preferred_release_label = Labels.LABEL_NAMES[Labels.LABEL_TYPE_RELEASE][0]
+
+        if dockerfile_labels.get(preferred_release_label) != release:
+            self.log.info("setting %s=%s", preferred_release_label, release)
+            # Write the label back to the file (this is a property setter)
+            dockerfile_labels[preferred_release_label] = release
 
     def _get_nvr(self, dockerfile_labels) -> Tuple[str, str, Optional[str]]:
         """Get the component, version and release labels from the Dockerfile."""
