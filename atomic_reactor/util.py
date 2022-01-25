@@ -829,7 +829,7 @@ class RegistryClient(object):
         return 'sha256:{}'.format(digest_dict['sha256sum'])
 
     def get_all_manifests(
-        self, image: ImageName, versions: Tuple[str] = ('v1', 'v2', 'v2_list')
+        self, image: ImageName, versions: Sequence[str] = ('v1', 'v2', 'v2_list')
     ) -> Dict[str, requests.Response]:
         """Return manifest digests for image.
 
