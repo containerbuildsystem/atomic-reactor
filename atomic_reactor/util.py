@@ -899,7 +899,7 @@ class RegistryClient(object):
                 f"which does not match specified architecture {arch}"
             )
 
-        image_inspect = {
+        image_inspect: ImageInspectionData = {
             # set Id, which isn't in config blob
             # Won't be set for v1,as for that image has to be pulled
             'Id': config_digest,
