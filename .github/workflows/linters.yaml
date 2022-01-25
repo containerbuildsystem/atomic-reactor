@@ -55,6 +55,19 @@ jobs:
       - name: Run markdownlint
         uses: containerbuildsystem/actions/markdownlint@master
 
+  mypy:
+    name: mypy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v2
+
+      - name: Run mypy
+        uses: containerbuildsystem/actions/mypy@master
+        with:
+          package: 'atomic_reactor'
+
   pylint:
     name: Pylint analyzer for Python ${{ matrix.os.python }}
     runs-on: ubuntu-latest
