@@ -861,6 +861,8 @@ class RegistryClient(object):
         """
         all_man_digests = self.get_all_manifests(image)
 
+        config_digest: Optional[str]
+
         # we have manifest list
         if 'v2_list' in all_man_digests:
             manifest_list = all_man_digests['v2_list'].json()
@@ -871,6 +873,7 @@ class RegistryClient(object):
         elif 'v2' in all_man_digests:
             v2_json = all_man_digests['v2'].json()
             config_digest = v2_json['config']['digest']
+            assert isinstance(config_digest, str)
             blob_config = self._blob_config_by_digest(image, config_digest)
         # read config from v1
         elif 'v1' in all_man_digests:
