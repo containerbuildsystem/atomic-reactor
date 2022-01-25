@@ -388,11 +388,12 @@ def get_checksums(filename: Union[str, BinaryIO], algorithms: List[str]) -> Dict
         raise ValueError('Algorithms supported {}. Found {}'.format(allowed_algorithms, algorithms))
 
     hash_objs = [getattr(hashlib, algorithm)() for algorithm in algorithms]
-    if hasattr(filename, 'read'):
-        _compute_checksums(filename, hash_objs)
-    else:
+
+    if isinstance(filename, str):
         with open(filename, mode='rb') as f:
             _compute_checksums(f, hash_objs)
+    else:
+        _compute_checksums(filename, hash_objs)
 
     checksums = {}
     for hash_obj in hash_objs:
