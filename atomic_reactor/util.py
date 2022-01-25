@@ -17,7 +17,7 @@ import requests
 from requests.exceptions import SSLError, HTTPError, RetryError
 import shutil
 import tempfile
-from typing import Iterator, Sequence, Dict, Union, List, BinaryIO, Tuple, Optional
+from typing import Any, Iterator, Sequence, Dict, Union, List, BinaryIO, Tuple, Optional
 import logging
 import uuid
 import yaml
@@ -1936,13 +1936,13 @@ def read_content_sets(workflow):
     return read_user_config_file(workflow, REPO_CONTENT_SETS_CONFIG)
 
 
-def terminal_key_paths(obj: dict) -> Iterator[Sequence]:
+def terminal_key_paths(obj: dict) -> Iterator[Tuple[str, ...]]:
     """Generates path to all terminal keys of nested dicts by yielding
     tuples of nested dict keys represented as path
 
     From `{'a': {'b': {'c': 1, 'd': 2}}}` yields `('a', 'b', 'c')`, `('a', 'b', 'd')`
     """
-    stack = [
+    stack: List[Tuple[Any, Tuple[str, ...]]] = [
         (obj, tuple())
     ]
     while stack:
