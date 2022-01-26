@@ -42,7 +42,7 @@ from atomic_reactor.constants import (
 )
 from atomic_reactor.types import ISerializer
 from atomic_reactor.util import (ManifestDigest, exception_message, DockerfileImages, df_parser,
-                                 base_image_is_custom, print_version_of_tools)
+                                 base_image_is_custom, print_version_of_tools, validate_with_schema)
 from atomic_reactor.config import Configuration
 from atomic_reactor.source import Source, DummySource
 from atomic_reactor.tasks import PluginsDef
@@ -489,11 +489,11 @@ class PushConf(ISerializer):
         return bool(self.docker_registries)
 
     @property
-    def docker_registries(self):
+    def docker_registries(self) -> List[DockerRegistry]:
         return list(self._registries["docker"].values())
 
     @property
-    def all_registries(self):
+    def all_registries(self) -> List[DockerRegistry]:
         return self.docker_registries
 
     @classmethod
@@ -720,7 +720,9 @@ class ImageBuildWorkflowData(ISerializer):
         if not workflow_json.exists():
             return cls()
         with open(workflow_json, "r") as f:
-            return cls.load(json.load(f))
+            workflow_data = json.load(f)
+        validate_with_schema(workflow_data, "schemas/workflow_data.json")
+        return cls.load(workflow_data)
 
     def save(self, data_dir: Path) -> None:
         """Save workflow data into the files under a specific directory.

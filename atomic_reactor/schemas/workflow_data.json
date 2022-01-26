@@ -1,0 +1,225 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "title": "atomic-reactor container build workflow data",
+  "type": "object",
+  "properties": {
+    "dockerfile_images": {"$ref": "#/definitions/dockerfile_images"},
+    "tag_conf": {"$ref": "#/definitions/tag_conf"},
+    "push_conf": {"$ref": "#/definitions/push_conf"},
+
+    "prebuild_results": {"type": "object"},
+    "buildstep_result": {"type": "object"},
+    "postbuild_results": {"type": "object"},
+    "prepub_results": {"type": "object"},
+    "exit_results": {"type": "object"},
+    "plugin_workspace": {"type": "object"},
+
+    "plugins_timestamps": {"type": "object"},
+    "plugins_durations": {"type": "object"},
+    "plugins_errors": {"type": "object"},
+    "build_canceled": {"type": "boolean"},
+    "plugin_failed": {"type": "boolean"},
+
+    "reserved_build_id": {"type": ["integer", "null"], "minimum": 1},
+    "reserved_token": {"type": ["string", "null"]},
+    "koji_source_nvr": {
+      "type": "object",
+      "properties": {
+        "name": {"type": "string"},
+        "version": {"type": "string"},
+        "release": {"type": "string"}
+      }
+    },
+    "koji_source_source_url": {"type": ["string", "null"]},
+    "koji_source_manifest": {"type": ["object", "null"]},
+
+    "buildargs": {"type": "object"},
+    "built_image_inspect": {"type": ["object", "null"]},
+    "layer_sizes": {
+      "type": "array",
+      "items": {"$ref": "#/definitions/layer_size"}
+    },
+    "pulled_base_images": {"type": "array", "uniqueItems": true},
+
+    "exported_image_sequence": {
+      "type": "array",
+      "items": {"$ref": "#/definitions/exported_image_info"}
+    },
+
+    "files": {"type": "object"},
+    "image_components": {
+      "type": ["array", "null"],
+      "items": {"$ref": "#/definitions/rpm_info"}
+    },
+    "all_yum_repourls": {
+      "type": ["array", "null"],
+      "items": {"type": "string"}
+    },
+
+    "annotations": {"type": "object"},
+    "labels": {"type": "object"},
+
+    "image_id": {"type": ["string", "null"]},
+    "parent_images_digests": {"type": "object"},
+
+    "build_result": {"$ref": "#/definitions/build_result"}
+  },
+  "required": [
+    "dockerfile_images", "tag_conf", "push_conf",
+    "prebuild_results", "buildstep_result", "postbuild_results", "prepub_results", "exit_results",
+    "plugin_workspace",
+    "plugins_timestamps", "plugins_durations", "plugins_errors", "build_canceled", "plugin_failed",
+    "reserved_build_id", "reserved_token", "koji_source_nvr", "koji_source_source_url", "koji_source_manifest",
+    "buildargs", "built_image_inspect", "layer_sizes",
+    "pulled_base_images", "exported_image_sequence", "files", "image_components", "all_yum_repourls",
+    "annotations", "labels", "image_id", "parent_images_digests",
+    "build_result"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "exported_image_info": {
+      "type": "object",
+      "properties": {
+        "path": {"type": "string"},
+        "type": {"enum": ["docker-archive", "oci", "oci-tar"]},
+        "size": {"type": "integer", "minimum": 0},
+        "md5sum": {"type": "string", "pattern": "^[0-9a-zA-Z]+$"},
+        "sha256sum": {"type": "string", "pattern": "^[0-9a-zA-Z]+$"}
+      },
+      "additionalProperties": true
+    },
+    "rpm_info": {
+      "type": "object",
+      "properties": {
+        "type": {"const": "rpm"},
+        "name": {"type": "string"},
+        "version": {"type": "string"},
+        "release": {"type": "string"},
+        "arch": {"type": "string"},
+        "sigmd5": {"type": "string"},
+        "signature": {"type": "string"},
+        "epoch": {"type": "integer", "minimum": 0}
+      },
+      "required": ["type", "name", "version", "release", "arch", "sigmd5", "signature", "epoch"],
+      "additionalProperties": false
+    },
+    "dockerfile_images": {
+      "type": "object",
+      "properties": {
+        "original_parents": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "source_registry": {"type": ["string", "null"]},
+        "organization": {"type": ["string", "null"]},
+        "local_parents": {
+          "type": "array",
+          "items": {
+            "type": ["string", "null"]
+          }
+        }
+      },
+      "required": [
+        "original_parents",
+        "source_registry",
+        "organization",
+        "local_parents"
+      ],
+      "additionalProperties": false
+    },
+    "tag_conf": {
+      "type": "object",
+      "properties": {
+        "primary_images": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "unique_images": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "floating_images": {
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      },
+      "required": ["primary_images", "unique_images", "floating_images"],
+      "additionalProperties": false
+    },
+    "push_conf": {
+      "type": "object",
+      "properties": {
+        "docker": {
+          "type": "object",
+          "patternProperties": {
+            "^[^ ]+$": {"$ref": "#/definitions/docker_registry"}
+          }
+        }
+      },
+      "required": ["docker"],
+      "additionalProperties": false
+    },
+    "build_result": {
+      "type": "object",
+      "properties": {
+        "logs": {
+          "type": ["array", "null"],
+          "items": {"type": "string"}
+        },
+        "fail_reason": {"type": ["string", "null"]},
+        "image_id": {"type": ["string", "null"]},
+        "annotations": {"type": ["object", "null"]},
+        "labels": {"type": ["object", "null"]},
+        "skip_layer_squash": {"type": "boolean"},
+        "source_docker_archive": {"type": ["string", "null"]}
+      },
+      "required": [
+        "logs",
+        "fail_reason",
+        "image_id",
+        "annotations",
+        "labels",
+        "skip_layer_squash",
+        "source_docker_archive"
+      ],
+      "additionalProperties": false
+    },
+    "layer_size": {
+      "type": "object",
+      "properties": {
+        "diff_id": {"type": "string"},
+        "size": {"type": "integer", "minimum": 0}
+      },
+      "required": ["diff_id", "size"],
+      "additionalProperties": false
+    },
+    "manifest_digest": {
+      "type": "object",
+      "properties": {
+        "v1": {"type": ["string", "null"]},
+        "v2": {"type": ["string", "null"]},
+        "v2_list": {"type": ["string", "null"]},
+        "oci": {"type": ["string", "null"]},
+        "oci_index": {"type": ["string", "null"]}
+      },
+      "required": ["v1", "v2", "v2_list", "oci", "oci_index"],
+      "additionalProperties": false
+    },
+    "docker_registry": {
+      "type": "object",
+      "properties": {
+        "uri": {"type": "string"},
+        "insecure": {"type": "boolean"},
+        "config": {"type": ["object", "null"]},
+        "digests": {
+          "type": "object",
+          "patternProperties": {
+            "^[^ ]+$": {"$ref": "#/definitions/manifest_digest"}
+          }
+        }
+      },
+      "required": ["uri", "insecure", "digests", "config"],
+      "additionalProperties": false
+    }
+  }
+}

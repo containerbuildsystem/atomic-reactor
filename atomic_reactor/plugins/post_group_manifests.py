@@ -139,7 +139,7 @@ class GroupManifestsPlugin(PostBuildPlugin):
 
         return self.manifest_util.sort_annotations(all_annotations)
 
-    def tag_manifest_into_registry(self, session, source_digest, source_repo, images):
+    def tag_manifest_into_registry(self, session, source_digest: str, source_repo, images):
         manifest, media, digest = self.manifest_util.tag_manifest_into_registry(session,
                                                                                 source_digest,
                                                                                 source_repo,
