@@ -176,7 +176,7 @@ class ManifestUtil(object):
             # add a tag for any plugins running later that expect it
             push_conf_registry.digests[image.tag] = manifest_digest
 
-    def tag_manifest_into_registry(self, session, digest, source_repo, configured_tags):
+    def tag_manifest_into_registry(self, session, digest: str, source_repo, configured_tags):
         """
         Tags the manifest identified by worker_digest into session.registry with all the
         configured_tags
