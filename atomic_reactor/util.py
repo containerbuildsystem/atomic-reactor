@@ -957,7 +957,7 @@ class RegistryClient(object):
         v2_digest = manifest["digest"]
         return self.get_config_and_id_from_registry(image, v2_digest, version='v2')
 
-    def get_config_and_id_from_registry(self, image, digest, version='v2') -> Tuple[Dict, str]:
+    def get_config_and_id_from_registry(self, image, digest: str, version='v2') -> Tuple[Dict, str]:
         """Return image config by digest
 
         :param image: ImageName, the remote image to inspect
@@ -1025,9 +1025,8 @@ class ManifestDigest(ISerializer, dict):
     @classmethod
     def load(cls, data: Dict[str, Any]):
         md = ManifestDigest()
-        default_value = cls.NOT_SET
         for type_name in cls.content_type:
-            setattr(md, type_name, data.get(type_name, default_value))
+            md[type_name] = data[type_name]
         return md
 
     def dump(self) -> Dict[str, Any]:
@@ -1240,7 +1239,7 @@ def get_inspect_for_image(image, registry, insecure=False, dockercfg_path=None, 
 
 
 def get_config_and_id_from_registry(
-    image, registry, digest, insecure=False, dockercfg_path=None, version='v2'
+    image, registry, digest: str, insecure=False, dockercfg_path=None, version='v2'
 ) -> Tuple[Dict, str]:
     """Return image config by digest
 
@@ -1260,7 +1259,7 @@ def get_config_and_id_from_registry(
 
 
 def get_config_from_registry(
-    image, registry, digest, insecure=False, dockercfg_path=None, version='v2'
+    image, registry, digest: str, insecure=False, dockercfg_path=None, version='v2'
 ) -> Dict[str, Any]:
     """Return image config by digest
 
@@ -2070,10 +2069,10 @@ def map_to_user_params(*args_to_params: str) -> Callable[[dict], dict]:
     return get_args
 
 
-def graceful_chain_get(d, *args):
+def graceful_chain_get(d, *args, make_copy=True):
     if not d:
         return None
-    t = deepcopy(d)
+    t = deepcopy(d) if make_copy else d
     for arg in args:
         try:
             t = t[arg]

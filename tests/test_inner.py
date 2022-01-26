@@ -17,6 +17,7 @@ import time
 from dockerfile_parse import DockerfileParser
 from textwrap import dedent
 
+import osbs.exceptions
 from atomic_reactor.plugin import (PreBuildPlugin, PrePublishPlugin, PostBuildPlugin, ExitPlugin,
                                    PluginFailedException,
                                    BuildStepPlugin, InappropriateBuildStepError)
@@ -35,7 +36,9 @@ from atomic_reactor.constants import (INSPECT_ROOTFS,
                                       INSPECT_ROOTFS_LAYERS,
                                       PLUGIN_BUILD_ORCHESTRATE_KEY)
 from atomic_reactor.source import PathSource
-from atomic_reactor.util import DockerfileImages, ManifestDigest, df_parser
+from atomic_reactor.util import (
+    DockerfileImages, ManifestDigest, df_parser, validate_with_schema, graceful_chain_get
+)
 from atomic_reactor.utils import imageutil
 from atomic_reactor.tasks.plugin_based import PluginsDef
 from osbs.utils import ImageName
@@ -1395,8 +1398,20 @@ class TestDockerRegistry:
     @pytest.mark.parametrize("digests", [
         {},
         {
-            "tag1": {"v1": "v1-digests", "oci-index": "oci-index-digests"},
-            "tag2": {"v2": "v2-digest"},
+            "tag1": {
+                "v1": "v1-digests",
+                "v2": "v2-digest",
+                "v2_list": "v2-list-digest",
+                "oci": "oci-digests",
+                "oci_index": "oci-index-digests",
+            },
+            "tag2": {
+                "v1": None,
+                "v2": "v2-digest",
+                "v2_list": None,
+                "oci": "oci-digests",
+                "oci_index": None,
+            },
         },
     ])
     @pytest.mark.parametrize("config", [
@@ -1472,6 +1487,16 @@ class TestWorkflowData:
         }
         assert expected_build_result == dump["build_result"]
 
+    def test_dump_data_matches_the_schema(self):
+        """Ensure the dump data matches the predefined JSON schema."""
+        data = ImageBuildWorkflowData(dockerfile_images=DockerfileImages(["f:35"]))
+        data.tag_conf.add_floating_images(["registry/app:latest", "registry/app:devel"])
+        data.push_conf.add_docker_registry("https://registry.host/v007", insecure=True)
+        try:
+            validate_with_schema(data.dump(), "schemas/workflow_data.json")
+        except osbs.exceptions.OsbsValidationException as e:
+            pytest.fail(f"The dumped workflow data does not match JSON schema: {e}")
+
     def test_load_from_empty_dump(self):
         wf_data = ImageBuildWorkflowData.load({})
         empty_data = ImageBuildWorkflowData()
@@ -1525,40 +1550,56 @@ class TestWorkflowData:
     def test_load_from_directory(self, tmpdir):
         context_dir = tmpdir.join("context_dir").mkdir()
         workflow_json = context_dir.join("workflow.json")
-        input_data = {
-            "dockerfile_images": {
-                "original_parents": ["scratch"],
-                "local_parents": [],
-            },
-            "prebuild_results": {"plugin_1": "result"},
-            "tag_conf": {
-                "floating_images": [
-                    ImageName.parse("registry/httpd:2.4").to_str(),
-                ],
-            },
-            "push_conf": {
-                "docker": {
-                    "https://registry.host/": {
-                        "uri": "https://registry.host/",
-                        "insecure": True,
-                        "digests": {},
-                        "config": None,
-                    }
-                }
-            },
-        }
-        workflow_json.write_text(json.dumps(input_data), encoding="utf-8")
+        data = ImageBuildWorkflowData(dockerfile_images=DockerfileImages(["scratch"]))
+        data.tag_conf.add_floating_image("registry/httpd:2.4")
+        docker_reg = data.push_conf.add_docker_registry("https://registry.host/", insecure=True)
+        docker_reg.digests["tag1"] = ManifestDigest(v2="v2-digest", oci="oci-digest")
+        data.prebuild_results["plugin_1"] = "result"
+        dump_data = data.dump()
+        workflow_json.write_text(json.dumps(dump_data), encoding="utf-8")
 
         # TBD: when implementing the build step, build_result.json may be
         #      created here and test the loaded BuildResult object.
 
         wf_data = ImageBuildWorkflowData.load_from_dir(context_dir)
 
+        input_data = dump_data
         expected_df_images = DockerfileImages.load(input_data["dockerfile_images"])
         assert expected_df_images == wf_data.dockerfile_images
         assert TagConf.load(input_data["tag_conf"]) == wf_data.tag_conf
         assert PushConf.load(input_data["push_conf"]) == wf_data.push_conf
         assert input_data["prebuild_results"] == wf_data.prebuild_results
+
+        docker_reg = wf_data.push_conf.all_registries[0]
+        expected_manifest_digest = {
+            "v1": None, "v2": "v2-digest", "v2_list": None, "oci": "oci-digest", "oci_index": None
+        }
+        assert expected_manifest_digest == docker_reg.digests["tag1"]
+
+    @pytest.mark.parametrize("data_path,prop_name,wrong_value", [
+        # digests should map to an object rather than a string
+        [["push_conf", "docker", "uri"], "digests", "wrong value"],
+        # tag name should map to an object rather than a string
+        [["push_conf", "docker", "uri", "digests"], "tag1", "wrong value"],
+    ])
+    def test_load_invalid_data_from_directory(self, data_path, prop_name, wrong_value, tmpdir):
+        """Test the workflow data is validated by JSON schema when reading from context_dir."""
+        context_dir = tmpdir.join("context_dir").mkdir()
+        workflow_json = context_dir.join("workflow.json")
+
+        data = ImageBuildWorkflowData(dockerfile_images=DockerfileImages(["scratch"]))
+        data.tag_conf.add_floating_image("registry/httpd:2.4")
+        data.push_conf.add_docker_registry("uri", insecure=True)
+        data.prebuild_results["plugin_1"] = "result"
+        dump_data = data.dump()
+
+        # Make data invalid
+        graceful_chain_get(dump_data, *data_path, make_copy=False)[prop_name] = wrong_value
+
+        workflow_json.write_text(json.dumps(dump_data), encoding="utf-8")
+
+        with pytest.raises(osbs.exceptions.OsbsValidationException):
+            ImageBuildWorkflowData.load_from_dir(ContextDir(context_dir))
 
     def test_save(self, tmpdir):
         wf_data = ImageBuildWorkflowData(

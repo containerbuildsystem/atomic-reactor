@@ -999,19 +999,6 @@ def test_manifest_digest(v1, v2, v2_list, oci, oci_index, default, expected_dump
     assert expected_dump == md.dump()
 
 
-@pytest.mark.parametrize("input_data", [
-    {},
-    {"v2": "v2-digest", "oci_index": "oci-index-digest"},
-])
-def test_manifest_digest_parse_partial_input_data(input_data):
-    md = ManifestDigest.load(input_data)
-    for type_name in ManifestDigest.content_type:
-        if type_name in input_data:
-            assert getattr(md, type_name) == input_data[type_name]
-        else:
-            assert getattr(md, type_name) is None
-
-
 @pytest.mark.parametrize("v1", [None, "v1-digest"])
 @pytest.mark.parametrize("v2", [None, "v2-digest"])
 @pytest.mark.parametrize("v2_list", [None, "v2-list-digest"])
