@@ -1332,7 +1332,8 @@ class TestTagConf:
     def test_dump_images(self):
         conf = TagConf()
         conf.add_primary_image('r.fp.o/f:35')
-        conf.add_floating_images(['ns/img:latest', 'ns1/img2:devel'])
+        conf.add_floating_image('ns/img:latest')
+        conf.add_floating_image('ns1/img2:devel')
         expected = {
             'primary_images': ['r.fp.o/f:35'],
             'unique_images': [],
@@ -1511,7 +1512,8 @@ class TestWorkflowData:
     def test_dump_data_matches_the_schema(self):
         """Ensure the dump data matches the predefined JSON schema."""
         data = ImageBuildWorkflowData(dockerfile_images=DockerfileImages(["f:35"]))
-        data.tag_conf.add_floating_images(["registry/app:latest", "registry/app:devel"])
+        data.tag_conf.add_floating_image("registry/app:latest")
+        data.tag_conf.add_floating_image("registry/app:devel")
         data.push_conf.add_docker_registry("https://registry.host/v007", insecure=True)
         try:
             validate_with_schema(data.dump(), "schemas/workflow_data.json")

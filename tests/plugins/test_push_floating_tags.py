@@ -169,7 +169,9 @@ def mock_environment(workflow,
         wf_data.tag_conf.add_unique_image(primary_images[0])
 
     if floating_images:
-        wf_data.tag_conf.add_floating_images(floating_images)
+        image: str
+        for image in floating_images:
+            wf_data.tag_conf.add_floating_image(image)
 
     wf_data.build_result = BuildResult(image_id='123456', annotations=annotations or {})
 
