@@ -233,12 +233,14 @@ def mock_environment(workflow, source_dir: Path, session=None, name=None, compon
     if name and version:
         tag_conf.add_unique_image(f'user/test-image:{version}-timestamp')
     if name and version and release:
-        tag_conf.add_primary_images([f"{name}:{version}-{release}",
-                                     f"{name}:{version}",
-                                     f"{name}:latest"])
+        tag_conf.add_primary_image(f"{name}:{version}-{release}")
+        tag_conf.add_primary_image(f"{name}:{version}")
+        tag_conf.add_primary_image(f"{name}:latest")
 
     if additional_tags:
-        tag_conf.add_primary_images([f"{name}:{tag}" for tag in additional_tags])
+        image: str
+        for image in [f"{name}:{tag}" for tag in additional_tags]:
+            tag_conf.add_primary_image(image)
 
     flexmock(rpm, TransactionSet=MockedTS)
     flexmock(koji, ClientSession=lambda hub, opts: session)

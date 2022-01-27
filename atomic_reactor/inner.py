@@ -248,8 +248,6 @@ class TagConf(ISerializer):
         """
         primary image names are static and should be used for layering
 
-        this is consumed by metadata plugin
-
         :return: list of ImageName
         """
         return self._primary_images
@@ -268,8 +266,6 @@ class TagConf(ISerializer):
         """
         unique image names are unpredictable and should be used for tracking only
 
-        this is consumed by metadata plugin
-
         :return: list of ImageName
         """
         return self._unique_images
@@ -279,17 +275,12 @@ class TagConf(ISerializer):
         """
         floating image names are floating and should be used for layering
 
-        this is consumed by metadata plugin
-
         :return: list of ImageName
         """
         return self._floating_images
 
     def add_primary_image(self, image: str) -> None:
-        """
-        add new primary image
-
-        used by tag_from_config plugin
+        """add new primary image
 
         :param image: str, name of image (e.g. "namespace/httpd:2.4")
         :return: None
@@ -297,10 +288,7 @@ class TagConf(ISerializer):
         self._primary_images.append(ImageName.parse(image))
 
     def add_unique_image(self, image: str) -> None:
-        """
-        add image with unpredictable name
-
-        used by tag_from_config plugin
+        """add image with unpredictable name
 
         :param image: str, name of image (e.g. "namespace/httpd:2.4")
         :return: None
@@ -308,39 +296,12 @@ class TagConf(ISerializer):
         self._unique_images.append(ImageName.parse(image))
 
     def add_floating_image(self, image: str) -> None:
-        """
-        add image with floating name
-
-        used by tag_from_config plugin
+        """add image with floating name
 
         :param image: str, name of image (e.g. "namespace/httpd:2.4")
         :return: None
         """
         self._floating_images.append(ImageName.parse(image))
-
-    def add_primary_images(self, images: List[str]) -> None:
-        """
-        add new primary images in bulk
-
-        used by tag_from_config plugin
-
-        :param images: list of str, list of image names
-        :return: None
-        """
-        for image in images:
-            self.add_primary_image(image)
-
-    def add_floating_images(self, images: List[str]) -> None:
-        """
-        add new floating images in bulk
-
-        used by tag_from_config plugin
-
-        :param images: list of str, list of image names
-        :return: None
-        """
-        for image in images:
-            self.add_floating_image(image)
 
     def get_unique_images_with_platform(self, platform):
         """
@@ -351,22 +312,16 @@ class TagConf(ISerializer):
         """
         return list(map(lambda unique_image: f'{unique_image}-{platform}', self._unique_images))
 
-    def add_unique_images(self, images: List[str]) -> None:
-        """
-        add new unique images in bulk
-
-        :param images: list of str, list of image names
-        :return: None
-        """
-        for image in images:
-            self.add_unique_image(image)
-
     @classmethod
     def load(cls, data: Dict[str, Any]):
         tag_conf = TagConf()
-        tag_conf.add_primary_images(data.get("primary_images", []))
-        tag_conf.add_unique_images(data.get("unique_images", []))
-        tag_conf.add_floating_images(data.get("floating_images", []))
+        image: str
+        for image in data.get("primary_images", []):
+            tag_conf.add_primary_image(image)
+        for image in data.get("unique_images", []):
+            tag_conf.add_unique_image(image)
+        for image in data.get("floating_images", []):
+            tag_conf.add_floating_image(image)
         return tag_conf
 
     def dump(self) -> Dict[str, Any]:
