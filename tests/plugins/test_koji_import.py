@@ -304,9 +304,12 @@ def mock_environment(workflow, source_dir: Path, session=None, name=None,
         tag_conf.add_unique_image('{}:{}-timestamp'.format(name, version))
     if name and version and release and add_tag_conf_primaries:
         tag_conf.add_primary_image("{0}:{1}-{2}".format(name, version, release))
-        tag_conf.add_floating_images(["{0}:{1}".format(name, version), "{0}:latest".format(name)])
+        tag_conf.add_floating_image(f"{name}:{version}")
+        tag_conf.add_floating_image(f"{name}:latest")
     if additional_tags:
-        tag_conf.add_floating_images(["{0}:{1}".format(name, tag) for tag in additional_tags])
+        image: str
+        for image in [f"{name}:{tag}" for tag in additional_tags]:
+            tag_conf.add_floating_image(image)
 
     flexmock(subprocess, Popen=fake_Popen)
     flexmock(koji, ClientSession=lambda hub, opts: session)
