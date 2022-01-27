@@ -1481,7 +1481,6 @@ class TestWorkflowData:
         dump = data.dump()
 
         assert {} == dump["prebuild_results"]
-        assert [] == dump["pulled_base_images"]
 
         expected_df_images = {
             "original_parents": ["f:35"],

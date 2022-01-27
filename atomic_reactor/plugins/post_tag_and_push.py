@@ -15,7 +15,6 @@ from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI,
                                       DOCKER_PUSH_MAX_RETRIES, DOCKER_PUSH_BACKOFF_FACTOR)
 from atomic_reactor.config import get_koji_session
 from atomic_reactor.plugin import PostBuildPlugin
-from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.util import (get_manifest_digests, get_config_from_registry, Dockercfg,
                                  get_all_manifests, map_to_user_params)
@@ -210,8 +209,6 @@ class TagAndPushPlugin(PostBuildPlugin):
 
                         time.sleep(sleep_time)
                     else:
-                        if not self.need_skopeo_push():
-                            defer_removal(self.workflow, registry_image)
                         break
 
                 pushed_images.append(registry_image)

@@ -19,7 +19,7 @@ import time
 import re
 from dataclasses import dataclass, field, fields
 from textwrap import dedent
-from typing import Any, Callable, Dict, List, Optional, Set, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from atomic_reactor.dirs import ContextDir, RootBuildDir
 from atomic_reactor.plugin import (
@@ -574,9 +574,6 @@ class ImageBuildWorkflowData(ISerializer):
     built_image_inspect: Dict[str, Any] = None
     layer_sizes: List[Dict[str, Union[str, int]]] = field(default_factory=list)
 
-    # list of images pulled during the build, to be deleted after the build
-    pulled_base_images: Set = field(default_factory=set)
-
     # When an image is exported into tarball, it can then be processed by various plugins.
     #  Each plugin that transforms the image should save it as a new file and append it to
     #  the end of exported_image_sequence. Other plugins should then operate with last
@@ -626,7 +623,6 @@ class ImageBuildWorkflowData(ISerializer):
             "tag_conf": TagConf.load,
             "push_conf": PushConf.load,
             "build_result": BuildResult.load,
-            "pulled_base_images": set,
         }
 
         def _return_directly(value):
@@ -648,8 +644,6 @@ class ImageBuildWorkflowData(ISerializer):
             value = getattr(self, name)
             if isinstance(value, ISerializer):
                 result[name] = value.dump()
-            elif isinstance(value, set):
-                result[name] = list(value)
             else:
                 result[name] = value
         return result

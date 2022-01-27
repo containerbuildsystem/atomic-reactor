@@ -10,7 +10,6 @@ import koji
 
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_inject_parent_image import InjectParentImage
-from atomic_reactor.plugins.exit_remove_built_image import GarbageCollectionPlugin
 from atomic_reactor.util import DockerfileImages, graceful_chain_del
 from flexmock import flexmock
 from tests.util import add_koji_map_in_workflow
@@ -239,9 +238,3 @@ class TestKojiParent(object):
         else:
             # Koji build ID is always used, even when NVR is given.
             assert result[InjectParentImage.key] == KOJI_BUILD_ID
-            self.assert_images_to_remove(workflow)
-
-    def assert_images_to_remove(self, workflow):
-        expected = {str(workflow.data.dockerfile_images.base_image)}
-        actual = workflow.data.plugin_workspace[GarbageCollectionPlugin.key]['images_to_remove']
-        assert actual == expected
