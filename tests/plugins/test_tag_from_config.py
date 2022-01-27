@@ -13,6 +13,7 @@ import pytest
 
 from atomic_reactor.plugins.pre_tag_from_config import TagFromConfigPlugin
 from atomic_reactor.constants import INSPECT_CONFIG
+from atomic_reactor.inner import TagConf
 
 
 DF_CONTENT_LABELS = '''\
@@ -222,3 +223,16 @@ def test_tag_suffixes_from_user_params(user_params, is_orchestrator, expect_suff
     flexmock(plugin).should_receive("is_in_orchestrator").and_return(is_orchestrator)
 
     assert plugin.tag_suffixes == expect_suffixes
+
+
+def test_tag_conf_get_unique_images_with_platform():
+    image = 'registry.com/org/hello:world-16111-20220103213046'
+    platform = 'x86_64'
+
+    tag_conf = TagConf()
+    tag_conf.add_unique_image(image)
+
+    expected = [f'{image}-{platform}']
+    actual = tag_conf.get_unique_images_with_platform(platform)
+
+    assert actual == expected

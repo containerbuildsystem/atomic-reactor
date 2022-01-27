@@ -1,5 +1,5 @@
 """
-Copyright (c) 2015, 2019 Red Hat, Inc
+Copyright (c) 2015-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -281,6 +281,15 @@ class TagConf(object):
         """
         for image in images:
             self.add_floating_image(image)
+
+    def get_unique_images_with_platform(self, platform):
+        """
+        Add platform to unique images
+
+        :param platform: str, platform to be added to unique images
+        return: list of unique images with added platform
+        """
+        return list(map(lambda unique_image: f'{unique_image}-{platform}', self._unique_images))
 
 
 class Registry(object):
