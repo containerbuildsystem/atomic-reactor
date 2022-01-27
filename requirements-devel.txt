@@ -10,10 +10,15 @@ attrs==21.2.0
     #   pytest
 backoff==1.11.1
     # via -r requirements.in
+bcrypt==3.2.0
+    # via paramiko
 certifi==2021.10.8
     # via requests
 cffi==1.15.0
-    # via cryptography
+    # via
+    #   bcrypt
+    #   cryptography
+    #   pynacl
 charset-normalizer==2.0.7
     # via requests
 coverage[toml]==6.1.1
@@ -21,6 +26,7 @@ coverage[toml]==6.1.1
 cryptography==3.4.8
     # via
     #   -r requirements.in
+    #   paramiko
     #   pyspnego
     #   requests-kerberos
 decorator==5.1.0
@@ -63,6 +69,8 @@ osbs-client @ git+https://github.com/containerbuildsystem/osbs-client@3a67d8a1b5
     # via -r requirements.in
 packaging==21.2
     # via pytest
+paramiko==2.9.2
+    # via -r requirements.in
 pep8==1.7.1
     # via -r requirements-devel.in
 pluggy==1.0.0
@@ -81,6 +89,8 @@ pyflakes==2.4.0
     #   flake8
 pygobject==3.42.0
     # via -r requirements.in
+pynacl==1.5.0
+    # via paramiko
 pyparsing==2.4.7
     # via packaging
 pypng==0.0.21
@@ -133,6 +143,7 @@ ruamel.yaml.clib==0.2.6
     # via ruamel.yaml
 six==1.16.0
     # via
+    #   bcrypt
     #   docker
     #   docker-squash
     #   dockerfile-parse
