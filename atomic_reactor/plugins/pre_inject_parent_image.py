@@ -6,7 +6,6 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.util import map_to_user_params, graceful_chain_get
 from osbs.utils import ImageName
 from atomic_reactor.constants import PLUGIN_INJECT_PARENT_IMAGE_KEY
@@ -132,5 +131,3 @@ class InjectParentImage(PreBuildPlugin):
         df_images = self.workflow.data.dockerfile_images
         base_image_key = df_images.base_image_key
         df_images[base_image_key] = self._new_parent_image
-
-        defer_removal(self.workflow, self._new_parent_image)

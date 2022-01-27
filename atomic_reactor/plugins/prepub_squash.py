@@ -12,7 +12,6 @@ import os
 
 from atomic_reactor.constants import EXPORTED_SQUASHED_IMAGE_NAME, IMAGE_TYPE_DOCKER_ARCHIVE
 from atomic_reactor.plugin import PrePublishPlugin
-from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.util import get_exported_image_metadata, is_flatpak_build
 from docker_squash.squash import Squash
 
@@ -120,4 +119,3 @@ class PrePublishSquashPlugin(PrePublishPlugin):
         if self.save_archive:
             metadata.update(get_exported_image_metadata(output_path, IMAGE_TYPE_DOCKER_ARCHIVE))
             self.workflow.data.exported_image_sequence.append(metadata)
-        defer_removal(self.workflow, self.image)
