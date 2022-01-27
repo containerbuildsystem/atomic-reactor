@@ -1,4 +1,4 @@
-# Atomic Reactor
+# Atomic Reactor 👹
 
 [![unittests status badge]][unittests status link]
 [![coveralls status badge]][coveralls status link]
