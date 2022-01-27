@@ -18,6 +18,7 @@ from dockerfile_parse import DockerfileParser
 from textwrap import dedent
 
 import osbs.exceptions
+from atomic_reactor.dirs import ContextDir
 from atomic_reactor.plugin import (PreBuildPlugin, PrePublishPlugin, PostBuildPlugin, ExitPlugin,
                                    PluginFailedException,
                                    BuildStepPlugin, InappropriateBuildStepError)
@@ -35,7 +36,7 @@ from atomic_reactor.inner import (BuildResults, BuildResultsEncoder,
 from atomic_reactor.constants import (INSPECT_ROOTFS,
                                       INSPECT_ROOTFS_LAYERS,
                                       PLUGIN_BUILD_ORCHESTRATE_KEY)
-from atomic_reactor.source import PathSource
+from atomic_reactor.source import PathSource, DummySource
 from atomic_reactor.util import (
     DockerfileImages, ManifestDigest, df_parser, validate_with_schema, graceful_chain_get
 )
@@ -898,6 +899,29 @@ def test_workflow_plugin_results(buildstep_plugin, buildstep_raises, build_dir):
     assert workflow.data.exit_results == {'exit_value': 'exit_value_result'}
 
 
+def test_parse_dockerfile_again_after_data_is_loaded(build_dir, tmpdir):
+    context_dir = ContextDir(Path(tmpdir.join("context_dir")))
+    wf_data = ImageBuildWorkflowData.load_from_dir(context_dir)
+    # Note that argument source is None, that causes a DummySource is created
+    # and "FROM scratch" is included in the Dockerfile.
+    workflow = DockerBuildWorkflow(build_dir, wf_data)
+    assert ["scratch"] == workflow.data.dockerfile_images.original_parents
+
+    # Now, save the workflow data and load it again
+    wf_data.save(context_dir)
+
+    another_source = DummySource("git", "https://git.host/")
+    dfp = df_parser(another_source.source_path)
+    dfp.content = 'FROM fedora:35\nCMD ["bash", "--version"]'
+
+    wf_data = ImageBuildWorkflowData.load_from_dir(context_dir)
+    flexmock(DockerBuildWorkflow).should_receive("_parse_dockerfile_images").never()
+    flexmock(wf_data.dockerfile_images).should_receive("set_source_registry").never()
+    workflow = DockerBuildWorkflow(build_dir, wf_data, source=another_source)
+    assert ["scratch"] == workflow.data.dockerfile_images.original_parents, \
+        "The dockerfile_images should not be changed."
+
+
 @pytest.mark.parametrize('fail_at', ['pre', 'prepub', 'buildstep', 'post', 'exit'])
 def test_cancel_build(fail_at, build_dir, caplog):
     """
@@ -1054,15 +1078,12 @@ def test_parent_images_to_str(caplog, build_dir):
     assert "None in: base bacon:latest has parent None" in caplog.text
 
 
-def test_no_base_image(build_dir, source_dir):
-    workflow = DockerBuildWorkflow(build_dir, source=None)
-
-    dfp = df_parser(str(source_dir))
+def test_no_base_image(build_dir):
+    source = DummySource("git", "https://git.host/")
+    dfp = df_parser(source.source_path)
     dfp.content = "# no FROM\nADD spam /eggs"
-
-    with pytest.raises(RuntimeError) as exc:
-        workflow.reset_dockerfile_images(str(source_dir))
-    assert "no base image specified" in str(exc.value)
+    with pytest.raises(RuntimeError, match="no base image specified"):
+        DockerBuildWorkflow(build_dir, source=source)
 
 
 def test_different_custom_base_images(build_dir, source_dir):
@@ -1541,7 +1562,7 @@ class TestWorkflowData:
     def test_load_from_empty_directory(self, tmpdir):
         context_dir = tmpdir.join("context_dir").mkdir()
         # Note: no data file is created here, e.g. workflow.json.
-        wf_data = ImageBuildWorkflowData.load_from_dir(Path(context_dir))
+        wf_data = ImageBuildWorkflowData.load_from_dir(ContextDir(context_dir))
         assert wf_data.dockerfile_images.is_empty
         assert wf_data.tag_conf.is_empty
         assert wf_data.push_conf.is_empty
@@ -1561,7 +1582,7 @@ class TestWorkflowData:
         # TBD: when implementing the build step, build_result.json may be
         #      created here and test the loaded BuildResult object.
 
-        wf_data = ImageBuildWorkflowData.load_from_dir(context_dir)
+        wf_data = ImageBuildWorkflowData.load_from_dir(ContextDir(context_dir))
 
         input_data = dump_data
         expected_df_images = DockerfileImages.load(input_data["dockerfile_images"])
@@ -1610,7 +1631,7 @@ class TestWorkflowData:
         )
 
         context_dir = tmpdir.join("context_dir").mkdir()
-        wf_data.save(Path(context_dir))
+        wf_data.save(ContextDir(Path(context_dir)))
 
         workflow_json = context_dir.join("workflow.json")
         assert workflow_json.exists()

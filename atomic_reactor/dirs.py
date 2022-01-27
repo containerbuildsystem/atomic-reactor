@@ -283,3 +283,40 @@ class RootBuildDir(object):
                     copy2(src_file, dest)
 
         return the_new_files
+
+
+class ContextDir:
+    """Represents the context directory holding data through the whole image build pipeline."""
+
+    def __init__(self, path: Path):
+        if not path.exists():
+            logger.debug("Context directory %s does not exist yet. Create it.", path)
+            path.mkdir(parents=True)
+        self._path = path
+        self.workflow_json = path / "workflow.json"
+
+    def get_platform_dir(self, platform: str) -> Path:
+        """Get the directory specific to the specified platform.
+
+        :param str platform: the platform of the directory. The value must be a
+            valid platform supported by OSBS, e.g. x86_64.
+        :return: path of the platform specific directory.
+        :rtype: pathlib.Path
+        :raise ValueError: if value of argument ``platform`` is empty or None.
+        """
+        if not platform:
+            raise ValueError("No platform is specified.")
+        platform_dir = self._path / platform
+        platform_dir.mkdir(exist_ok=True)
+        return platform_dir
+
+    def get_build_result_file(self, platform: str) -> Path:
+        """Get the build_result.json filename specific to specified platform.
+
+        :param str platform: the platform of the directory. The value must be a
+            valid platform supported by OSBS, e.g. x86_64.
+        :return: path of build_result.json file.
+        :rtype: pathlib.Path
+        :raise ValueError: if value of argument ``platform`` is empty or None.
+        """
+        return self.get_platform_dir(platform) / "build_result.json"
