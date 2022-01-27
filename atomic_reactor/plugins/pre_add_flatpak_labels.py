@@ -10,8 +10,9 @@ Pre build plugin which adds additional labels to the Dockerfile automatically
 created for a flatpak, based on the flatpak: labels key in container.yaml.
 """
 
+from atomic_reactor.dirs import BuildDir
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.util import df_parser, label_to_string, is_flatpak_build
+from atomic_reactor.util import label_to_string, is_flatpak_build
 
 
 class AddFlatpakLabelsPlugin(PreBuildPlugin):
@@ -42,15 +43,13 @@ class AddFlatpakLabelsPlugin(PreBuildPlugin):
         if not labels:
             return
 
-        dockerfile = df_parser(self.workflow.df_path, workflow=self.workflow)
-        lines = dockerfile.lines
+        labels_str = " ".join(label_to_string(k, v) for k, v in sorted(labels.items()))
+        label_line = f"\nLABEL {labels_str}\n"
 
-        # Sort to get repeatable results with Python2
-        formatted_labels = []
-        for k in sorted(labels):
-            formatted_labels.append(label_to_string(k, labels[k]))
+        def add_labels_to_df(build_dir: BuildDir) -> None:
+            dockerfile = build_dir.dockerfile
+            # put labels at the end of dockerfile (since they change metadata and do not interact
+            # with FS, this should cause no harm)
+            dockerfile.lines = dockerfile.lines + [label_line]
 
-        # put labels at the end of dockerfile (since they change metadata and do not interact
-        # with FS, this should cause no harm)
-        lines.append('\nLABEL ' + " ".join(formatted_labels) + '\n')
-        dockerfile.lines = lines
+        self.workflow.build_dir.for_each_platform(add_labels_to_df)

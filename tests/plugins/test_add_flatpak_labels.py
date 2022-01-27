@@ -6,7 +6,6 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
-import os
 from pathlib import Path
 
 import pytest
@@ -18,7 +17,6 @@ from atomic_reactor.plugins.pre_add_flatpak_labels import AddFlatpakLabelsPlugin
 
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.source import SourceConfig
-from atomic_reactor.util import df_parser
 from osbs.utils import ImageName
 
 
@@ -60,11 +58,9 @@ def mock_workflow(workflow, source_dir: Path, container_yaml, user_params=None):
         f.write(container_yaml)
     workflow.source.config = SourceConfig(str(source_dir))
 
-    df = df_parser(str(source_dir))
-    df.content = DF_CONTENT
+    (source_dir / "Dockerfile").write_text(DF_CONTENT)
 
-    workflow.df_dir = str(source_dir)
-    flexmock(workflow, df_path=df.dockerfile_path)
+    workflow.build_dir.init_build_dirs(["aarch64", "x86_64"], workflow.source)
 
 
 @pytest.mark.parametrize('labels,expected', [
@@ -93,16 +89,14 @@ def test_add_flatpak_labels(workflow, source_dir, labels, expected):
 
     runner.run()
 
-    assert os.path.exists(workflow.df_path)
-    with open(workflow.df_path) as f:
-        df = f.read()
+    def check_last_line_in_df(build_dir):
+        lines = build_dir.dockerfile_path.read_text().splitlines()
+        if expected:
+            assert lines[-1] == expected
+        else:
+            assert lines[-1] == "CMD sleep 1000"
 
-    last_line = df.strip().split('\n')[-1]
-
-    if expected:
-        assert last_line == expected
-    else:
-        assert last_line == "CMD sleep 1000"
+    workflow.build_dir.for_each_platform(check_last_line_in_df)
 
 
 def test_skip_plugin(workflow, source_dir, caplog, user_params):
