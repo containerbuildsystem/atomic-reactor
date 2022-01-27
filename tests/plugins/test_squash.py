@@ -15,7 +15,6 @@ from flexmock import flexmock
 from atomic_reactor.constants import EXPORTED_SQUASHED_IMAGE_NAME, IMAGE_TYPE_DOCKER_ARCHIVE
 from atomic_reactor.inner import BuildResult
 from atomic_reactor.plugin import PrePublishPluginsRunner, PluginFailedException
-from atomic_reactor.plugins import exit_remove_built_image
 from atomic_reactor.plugins.prepub_squash import PrePublishSquashPlugin
 from atomic_reactor.util import DockerfileImages
 from docker_squash.squash import Squash
@@ -139,8 +138,6 @@ class TestSquashPlugin(object):
 
         flexmock(Squash).should_receive('run').replace_with(mock_run)
         flexmock(Squash).should_receive('__init__').with_args(**kwargs)
-
-        flexmock(exit_remove_built_image).should_receive('defer_removal')
 
     def run_plugin_with_args(self, workflow, plugin_args):
         runner = PrePublishPluginsRunner(

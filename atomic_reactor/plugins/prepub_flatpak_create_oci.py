@@ -17,7 +17,6 @@ from flatpak_module_tools.flatpak_builder import FlatpakBuilder, FLATPAK_METADAT
 
 from atomic_reactor.constants import IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR
 from atomic_reactor.plugin import PrePublishPlugin
-from atomic_reactor.plugins.exit_remove_built_image import defer_removal
 from atomic_reactor.plugins.pre_flatpak_update_dockerfile import get_flatpak_source_info
 from atomic_reactor.utils import retries
 from atomic_reactor.utils.rpm import parse_rpm_output
@@ -157,7 +156,6 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
 
         # OSBS2 TBD
         self.log.info('Marking filesystem image "%s" for removal', self.workflow.data.image_id)
-        defer_removal(self.workflow, self.workflow.data.image_id)
 
         image_id = self._get_oci_image_id(outfile)
         self.log.info('New OCI image ID is %s', image_id)
