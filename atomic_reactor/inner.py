@@ -12,7 +12,6 @@ Script for building docker image. This is expected to run inside container.
 import functools
 import json
 import logging
-from pathlib import Path
 import signal
 import threading
 import os
@@ -22,7 +21,7 @@ from dataclasses import dataclass, field, fields
 from textwrap import dedent
 from typing import Any, Callable, Dict, List, Optional, Set, Union
 
-from atomic_reactor.dirs import RootBuildDir
+from atomic_reactor.dirs import ContextDir, RootBuildDir
 from atomic_reactor.plugin import (
     BuildCanceledException,
     BuildStepPluginsRunner,
@@ -701,12 +700,12 @@ class ImageBuildWorkflowData(ISerializer):
         return result
 
     @classmethod
-    def load_from_dir(cls, data_dir: Path) -> "ImageBuildWorkflowData":
+    def load_from_dir(cls, context_dir: ContextDir) -> "ImageBuildWorkflowData":
         """Load workflow data from the data directory.
 
-        :param data_dir: a directory holding the files containing the serialized
+        :param context_dir: a directory holding the files containing the serialized
             workflow data.
-        :type data_dir: pathlib.Path
+        :type context_dir: ContextDir
         :return: the workflow data containing data loaded from the specified directory.
         :rtype: ImageBuildWorkflowData
         """
@@ -716,27 +715,25 @@ class ImageBuildWorkflowData(ISerializer):
         #      multi-platforms and they should be written in to separate
         #      build_result.json file in each platform directory.
 
-        workflow_json = data_dir / "workflow.json"
-        if not workflow_json.exists():
+        if not context_dir.workflow_json.exists():
             return cls()
-        with open(workflow_json, "r") as f:
+        with open(context_dir.workflow_json, "r") as f:
             workflow_data = json.load(f)
         validate_with_schema(workflow_data, "schemas/workflow_data.json")
         return cls.load(workflow_data)
 
-    def save(self, data_dir: Path) -> None:
+    def save(self, context_dir: ContextDir) -> None:
         """Save workflow data into the files under a specific directory.
 
-        :param data_dir: a directory holding the files containing the serialized
+        :param context_dir: a directory holding the files containing the serialized
             workflow data.
-        :type data_dir: pathlib.Path
+        :type context_dir: ContextDir
         """
 
         # TBD: same comment as above for build_result
 
-        workflow_json = data_dir / "workflow.json"
-        logger.info("Writing workflow data into %s", workflow_json)
-        with open(workflow_json, "w+") as f:
+        logger.info("Writing workflow data into %s", context_dir.workflow_json)
+        with open(context_dir.workflow_json, "w+") as f:
             json.dump(self.dump(), f)
 
 
@@ -758,6 +755,7 @@ class DockerBuildWorkflow(object):
     def __init__(
         self,
         build_dir: RootBuildDir,
+        data: Optional[ImageBuildWorkflowData] = None,
         source: Source = None,
         plugins: PluginsDef = None,
         user_params: dict = None,
@@ -768,6 +766,8 @@ class DockerBuildWorkflow(object):
         """
         :param build_dir: a directory holding all the artifacts to build an image.
         :type build_dir: RootBuildDir
+        :param data:
+        :type data: ImageBuildWorkflowData
         :param source: where/how to get source code to put in image
         :param plugins: the plugins to be executed in this workflow
         :param user_params: user (and other) params that control various aspects of the build
@@ -776,7 +776,7 @@ class DockerBuildWorkflow(object):
         :param client_version: osbs-client version used to render build json
         """
         self.build_dir = build_dir
-        self.data = ImageBuildWorkflowData()
+        self.data = data or ImageBuildWorkflowData()
 
         self.source = source or DummySource(None, None)
         self.plugins = plugins or PluginsDef()
@@ -828,11 +828,19 @@ class DockerBuildWorkflow(object):
         """
         self._df_path = path  # OSBS2 TBD: delete this
 
-        new_dockerfile_images = self._parse_dockerfile_images(path)
-        self.conf.update_dockerfile_images_from_config(new_dockerfile_images)
+        df_images = self.data.dockerfile_images
 
-        self.imageutil.set_dockerfile_images(new_dockerfile_images)
-        self.data.dockerfile_images = new_dockerfile_images
+        # Consider dockerfile_images data was saved when previous task ended,
+        # e.g. prebuild, now subsequent task starts to run and the saved data
+        # is loaded into the dockerfile_images object. In this case, no need
+        # to update the restored dockerfile_images data.
+        if df_images.is_empty:
+            df_images = self._parse_dockerfile_images(path)
+            self.data.dockerfile_images = df_images
+            self.conf.update_dockerfile_images_from_config(df_images)
+
+        # But, still need to do this
+        self.imageutil.set_dockerfile_images(df_images)
 
     def _parse_dockerfile_images(self, path: str) -> DockerfileImages:
         dfp = df_parser(path)

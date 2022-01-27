@@ -16,6 +16,7 @@ from atomic_reactor.constants import DOCKERFILE_FILENAME
 from atomic_reactor.dirs import (
     BuildDir,
     BuildDirIsNotInitialized,
+    ContextDir,
     DockerfileNotExist,
     FileCreationFunc,
     ImageInspectionData,
@@ -334,3 +335,50 @@ def test_rootbuilddir_for_all_platforms_copy_preserve_permissions(build_dir, moc
     for platform in ["aarch64", "x86_64"]:
         check_rwx_perms(root.path / platform / "400.txt", 0o400)
         check_rwx_perms(root.path / platform / "some-dir" / "666.txt", 0o666)
+
+
+class TestContextDir:
+    """Test ContextDir class implementation"""
+
+    @pytest.mark.parametrize("parent_exists", [True, False])
+    def test_ensure_dir_exists(self, parent_exists, tmpdir):
+        parent_path = tmpdir.join("mounted_volume")
+        if parent_exists:
+            parent_path.mkdir()
+        context_dir = ContextDir(Path(parent_path.join("context_dir")))
+        assert context_dir._path.exists()
+
+    def test_get_workflow_json(self, tmpdir):
+        expected = Path(tmpdir.join("workflow.json"))
+        assert expected == ContextDir(Path(tmpdir)).workflow_json
+        # The ContextDir does not ensure workflow.json is created by itself.
+        assert not expected.exists()
+
+    @pytest.mark.parametrize("platform,error", [
+        [None, pytest.raises(ValueError, match="No platform is specified")],
+        ["", pytest.raises(ValueError, match="No platform is specified")],
+        ["x86_64", None],
+        ["some_arch", None],
+    ])
+    def test_get_platform_dir(self, platform, error, tmpdir):
+        if error is None:
+            dir_path = Path(tmpdir.join(platform))
+            assert dir_path == ContextDir(Path(tmpdir)).get_platform_dir(platform)
+            assert dir_path.exists()
+        else:
+            with error:
+                ContextDir(Path(tmpdir)).get_platform_dir(platform)
+
+    @pytest.mark.parametrize("platform,error", [
+        [None, pytest.raises(ValueError, match="No platform is specified")],
+        ["", pytest.raises(ValueError, match="No platform is specified")],
+        ["x86_64", None],
+        ["some_arch", None],
+    ])
+    def test_get_build_result_file(self, platform, error, tmpdir):
+        if error is None:
+            file_path = Path(tmpdir.join(platform, "build_result.json"))
+            assert file_path == ContextDir(Path(tmpdir)).get_build_result_file(platform)
+        else:
+            with error:
+                ContextDir(Path(tmpdir)).get_build_result_file(platform)
