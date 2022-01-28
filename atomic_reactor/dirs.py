@@ -93,6 +93,7 @@ class BuildDir(object):
             return envs
         if isinstance(envs, list):
             return dict(item.split("=", 1) for item in envs)
+        raise TypeError(f"Unexpected envs type: {type(envs)}; {envs!r}")
 
     def dockerfile_with_parent_env(self, parent_inspect: ImageInspectionData) -> DockerfileParser:
         """Get the parsed Dockerfile with parent information injected.
@@ -129,7 +130,7 @@ class RootBuildDir(object):
         if not path.exists():
             raise FileNotFoundError(f"Path {path} does not exist.")
         self.path = path
-        self.platforms: Optional[List[str]] = None
+        self.platforms: List[str] = []
 
     @property
     def source_container_sources_dir(self) -> Path:
