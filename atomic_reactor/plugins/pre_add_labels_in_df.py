@@ -54,16 +54,19 @@ with different values, the value from the first in the list will be used
 to set value for the missing ones.
 """
 
+import datetime
+import json
+import platform
+from typing import Dict
+
+from osbs.utils import Labels
+
 from atomic_reactor import start_time as atomic_reactor_start_time
-from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.constants import INSPECT_CONFIG
+from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import (df_parser,
                                  label_to_string,
                                  LabelFormatter)
-from osbs.utils import Labels
-import json
-import datetime
-import platform
 
 
 class AddLabelsPlugin(PreBuildPlugin):
@@ -120,7 +123,7 @@ class AddLabelsPlugin(PreBuildPlugin):
             else:
                 labels = image_labels
 
-        self.labels = labels
+        self.labels = labels or {}
 
         self.dont_overwrite = dont_overwrite or ()
         self.dont_overwrite_if_in_dockerfile = dont_overwrite_if_in_dockerfile
@@ -132,23 +135,18 @@ class AddLabelsPlugin(PreBuildPlugin):
         if not isinstance(self.equal_labels, list):
             raise RuntimeError("equal_labels have to be list")
 
-    def generate_auto_labels(self, base_labels, df_labels, plugin_labels):
-        generated = {}
-        all_labels = base_labels.copy()
-        all_labels.update(df_labels)
-        all_labels.update(plugin_labels)
-
+    def generate_auto_labels(self) -> Dict[str, str]:
         # build date
         dt = datetime.datetime.utcfromtimestamp(atomic_reactor_start_time)
-        generated['build-date'] = dt.isoformat()
 
-        # architecture - assuming host and image architecture is the same
-        # OSBS2 TBD
-        generated['architecture'] = platform.processor()
-        # build host
-        # generated['com.redhat.build-host'] = docker_info['Name']
-        # OSBS2 TBD get host somehow
-        generated['com.redhat.build-host'] = 'dummy_host'
+        generated = {
+            'build-date': dt.isoformat(),
+            # architecture - assuming host and image architecture is the same
+            # OSBS2 TBD
+            'architecture': platform.processor(),
+            # OSBS2 TBD get host somehow
+            'com.redhat.build-host': 'dummy_host',
+        }
 
         # VCS info
         vcs = self.workflow.source.get_vcs_info()
@@ -157,28 +155,29 @@ class AddLabelsPlugin(PreBuildPlugin):
             generated['vcs-url'] = vcs.vcs_url
             generated['vcs-ref'] = vcs.vcs_ref
 
+        generated_auto_labels = {}
+
         for lbl in self.auto_labels:
             if lbl not in generated:
                 self.log.warning("requested automatic label %r is not available", lbl)
-
             else:
-                self.labels[lbl] = generated[lbl]
+                generated_auto_labels[lbl] = generated[lbl]
                 self.log.info("automatic label %r is generated to %r", lbl, generated[lbl])
 
-    def add_aliases(self, base_labels, df_labels, plugin_labels):
-        all_labels = base_labels.copy()
-        all_labels.update(df_labels)
-        all_labels.update(plugin_labels)
-        new_labels = df_labels.copy()
-        new_labels.update(plugin_labels)
+        return generated_auto_labels
+
+    def add_aliases(self, base_labels, df_labels, plugin_labels) -> Dict[str, str]:
+        all_labels = {**base_labels, **df_labels, **plugin_labels}
+        new_labels = {**df_labels, **plugin_labels}
+        alias_labels = {}
 
         applied_alias = False
         not_applied = []
 
         def add_as_an_alias(set_to, set_from):
             self.log.warning("adding label %r as an alias for label %r", set_to, set_from)
-            self.labels[set_to] = all_labels[set_from]
-            self.log.info(self.labels)
+            alias_labels[set_to] = all_labels[set_from]
+            self.log.info(alias_labels)
             return True
 
         for old, new in self.aliases.items():
@@ -222,7 +221,7 @@ class AddLabelsPlugin(PreBuildPlugin):
                     self.log.debug("skipping label %r because it is set correctly in base image",
                                    set_label)
                 else:
-                    self.labels[set_label] = value_from[labels_found[0]]
+                    alias_labels[set_label] = value_from[labels_found[0]]
                     self.log.warning("adding equal label %r with value %r",
                                      set_label, value_from[labels_found[0]])
 
@@ -244,13 +243,12 @@ class AddLabelsPlugin(PreBuildPlugin):
             elif found_labels_base:
                 set_missing_labels(found_labels_base, all_equal, base_labels)
 
-    def add_info_url(self, base_labels, df_labels, plugin_labels):
-        all_labels = base_labels.copy()
-        all_labels.update(df_labels)
-        all_labels.update(plugin_labels)
+        return alias_labels
 
+    def get_info_url(self, base_labels, df_labels, plugin_labels) -> str:
+        all_labels = {**base_labels, **df_labels, **plugin_labels}
         info_url = LabelFormatter().vformat(self.info_url_format, [], all_labels)
-        self.labels['url'] = info_url
+        return info_url
 
     def add_release_env_var(self, df_parser):
         release_env_var = self.workflow.source.config.release_env_var
@@ -286,17 +284,26 @@ class AddLabelsPlugin(PreBuildPlugin):
             else:
                 base_image_labels = config["Labels"] or {}
 
-        self.generate_auto_labels(base_image_labels.copy(), dockerfile.labels.copy(),
-                                  self.labels.copy())
+        add_labels = self.labels.copy()
+
+        generated_labels = self.generate_auto_labels()
+        add_labels.update(generated_labels)
+
         # changing dockerfile.labels writes out modified Dockerfile - err on
         # the safe side and make a copy
-        self.add_aliases(base_image_labels.copy(), dockerfile.labels.copy(), self.labels.copy())
+        alias_labels = self.add_aliases(
+            base_image_labels.copy(), dockerfile.labels.copy(), add_labels.copy()
+        )
+        add_labels.update(alias_labels)
+
         if self.info_url_format:
-            self.add_info_url(base_image_labels.copy(), dockerfile.labels.copy(),
-                              self.labels.copy())
+            info_url = self.get_info_url(
+                base_image_labels.copy(), dockerfile.labels.copy(), add_labels.copy()
+            )
+            add_labels["url"] = info_url
 
         labels = []
-        for key, value in self.labels.items():
+        for key, value in add_labels.items():
 
             if key not in dockerfile.labels or dockerfile.labels[key] != value:
 
