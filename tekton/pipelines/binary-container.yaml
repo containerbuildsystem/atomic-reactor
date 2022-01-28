@@ -59,7 +59,7 @@ spec:
           value: "$(params.OSBS_IMAGE)"
         - name: USER_PARAMS
           value: "$(params.USER_PARAMS)"
-    - name: binary-container-build-x86_64
+    - name: binary-container-build-x86-64
       runAfter:
         - binary-container-prebuild
       taskRef:
@@ -153,7 +153,7 @@ spec:
           value: aarch64
     - name: binary-container-postbuild
       runAfter:
-        - binary-container-build-x86_64
+        - binary-container-build-x86-64
         - binary-container-build-s390x
         - binary-container-build-ppc64le
         - binary-container-build-aarch64
