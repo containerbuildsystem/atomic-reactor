@@ -140,8 +140,9 @@ class AddLabelsPlugin(PreBuildPlugin):
         generated = {
             'build-date': dt.isoformat(),
             'architecture': platform,
-            # OSBS2 TBD get host somehow
-            'com.redhat.build-host': 'dummy_host',
+            # OSBS2 TBD: the build-host label will either be dropped or will require
+            #   extra logic in the build task implementation
+            # 'com.redhat.build-host': <not yet known>,
         }
 
         # VCS info
