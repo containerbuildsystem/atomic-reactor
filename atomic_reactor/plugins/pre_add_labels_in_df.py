@@ -56,17 +56,15 @@ to set value for the missing ones.
 
 import datetime
 import json
-import platform
 from typing import Dict
 
 from osbs.utils import Labels
 
 from atomic_reactor import start_time as atomic_reactor_start_time
 from atomic_reactor.constants import INSPECT_CONFIG
+from atomic_reactor.dirs import BuildDir
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.util import (df_parser,
-                                 label_to_string,
-                                 LabelFormatter)
+from atomic_reactor.util import label_to_string, LabelFormatter
 
 
 class AddLabelsPlugin(PreBuildPlugin):
@@ -135,15 +133,13 @@ class AddLabelsPlugin(PreBuildPlugin):
         if not isinstance(self.equal_labels, list):
             raise RuntimeError("equal_labels have to be list")
 
-    def generate_auto_labels(self) -> Dict[str, str]:
+    def generate_auto_labels(self, platform: str) -> Dict[str, str]:
         # build date
         dt = datetime.datetime.utcfromtimestamp(atomic_reactor_start_time)
 
         generated = {
             'build-date': dt.isoformat(),
-            # architecture - assuming host and image architecture is the same
-            # OSBS2 TBD
-            'architecture': platform.processor(),
+            'architecture': platform,
             # OSBS2 TBD get host somehow
             'com.redhat.build-host': 'dummy_host',
         }
@@ -262,21 +258,17 @@ class AddLabelsPlugin(PreBuildPlugin):
                 self.log.warning("environment release variable %s could not be set because no "
                                  "release label found", release_env_var)
 
-    def run(self):
-        """
-        run the plugin
-        """
-        dockerfile = df_parser(self.workflow.df_path, workflow=self.workflow)
-
-        lines = dockerfile.lines
+    def add_labels_to_df(self, build_dir: BuildDir) -> str:
+        """Add labels to a platform-specific Dockerfile."""
+        base_image_inspect = self.workflow.imageutil.base_image_inspect(build_dir.platform)
+        dockerfile = build_dir.dockerfile_with_parent_env(base_image_inspect)
 
         if (self.workflow.dockerfile_images.custom_base_image or
                 self.workflow.dockerfile_images.base_from_scratch):
             base_image_labels = {}
         else:
             try:
-                # OSBS2 TBD: inspect the correct architecture
-                config = self.workflow.imageutil.base_image_inspect()[INSPECT_CONFIG]
+                config = base_image_inspect[INSPECT_CONFIG]
             except KeyError as exc:
                 message = "base image was not inspected"
                 self.log.error(message)
@@ -286,7 +278,7 @@ class AddLabelsPlugin(PreBuildPlugin):
 
         add_labels = self.labels.copy()
 
-        generated_labels = self.generate_auto_labels()
+        generated_labels = self.generate_auto_labels(build_dir.platform)
         add_labels.update(generated_labels)
 
         # changing dockerfile.labels writes out modified Dockerfile - err on
@@ -320,14 +312,14 @@ class AddLabelsPlugin(PreBuildPlugin):
                     self.log.info("setting label %r", label)
                     labels.append(label)
 
-        content = ""
         if labels:
-            content = 'LABEL ' + " ".join(labels)
+            label_line = f"LABEL {' '.join(labels)}\n"
             # put labels at the end of dockerfile (since they change metadata and do not interact
             # with FS, this should cause no harm)
-            lines.append('\n' + content + '\n')
-            dockerfile.lines = lines
+            dockerfile.lines = dockerfile.lines + ["\n", label_line]
 
         self.add_release_env_var(dockerfile)
 
-        return content
+    def run(self):
+        """Run the plugin."""
+        self.workflow.build_dir.for_each_platform(self.add_labels_to_df)
