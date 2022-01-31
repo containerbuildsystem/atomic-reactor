@@ -1,0 +1,17 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+
+  "title": "Resource manager lock file schema",
+  "type": "object",
+  "properties": {
+    "prid": {
+          "description": "pipeline run id",
+          "type": "string"
+        },
+    "locked": {
+          "description": "timestamp",
+          "type": "string"
+        }
+  },
+  "required": ["prid", "locked"]
+}
