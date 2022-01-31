@@ -15,13 +15,12 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from dockerfile_parse import DockerfileParser
-
 import pytest
 from flexmock import flexmock
 
 from atomic_reactor import start_time as atomic_reactor_start_time
 from atomic_reactor.constants import INSPECT_CONFIG
+from atomic_reactor.dirs import BuildDir
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_add_labels_in_df import AddLabelsPlugin
 from atomic_reactor.source import VcsInfo
@@ -158,9 +157,11 @@ def mock_env(
 
     df_path = Path(workflow.source.path) / "Dockerfile"
     df_path.write_text(df_content)
-    env.set_dockerfile_images(DockerfileParser(str(df_path)).parent_images)
 
-    flexmock(workflow, df_path=str(df_path))
+    workflow.build_dir.init_build_dirs(["aarch64", "x86_64"], workflow.source)
+
+    env.set_dockerfile_images(workflow.build_dir.any_platform.dockerfile.parent_images)
+
     flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return(base_inspect)
     flexmock(workflow.source).should_receive('get_vcs_info').and_return(
         VcsInfo(vcs_type="git", vcs_url=DOCKERFILE_GIT, vcs_ref=DOCKERFILE_SHA1)
@@ -212,7 +213,7 @@ def test_add_labels_plugin(workflow, df_content, labels_conf_base, labels_conf, 
         dont_overwrite=dont_overwrite,
         aliases=aliases,
     ).create_runner()
-    df_path = Path(workflow.df_path)
+    df_path = workflow.build_dir.any_platform.dockerfile_path
 
     if isinstance(expected_output, RuntimeError):
         with pytest.raises(PluginFailedException):
@@ -248,7 +249,7 @@ def test_add_labels(workflow, release, use_reactor):
 
     runner.run()
 
-    df_content = Path(workflow.df_path).read_text()
+    df_content = workflow.build_dir.any_platform.dockerfile_path.read_text()
 
     assert AddLabelsPlugin.key is not None
     assert 'label1' in df_content
@@ -261,7 +262,7 @@ def test_add_labels(workflow, release, use_reactor):
 
 @pytest.mark.parametrize('auto_label, value_re_part', [  # noqa
     ('build-date', r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?'),
-    ('architecture', 'x86_64'),
+    ('architecture', '(x86_64|aarch64)'),
     ('vcs-type', 'git'),
     ('vcs-url', DOCKERFILE_GIT),
     ('vcs-ref', DOCKERFILE_SHA1),
@@ -279,14 +280,20 @@ def test_add_labels_plugin_generated(workflow, auto_label, value_re_part, reacto
     ).create_runner()
 
     runner.run()
-    df = DockerfileParser(workflow.df_path)
 
-    if value_re_part:
-        assert re.match(value_re_part, df.labels[auto_label])
+    def check_labels(build_dir: BuildDir) -> None:
+        df = build_dir.dockerfile
 
-    if auto_label == "build-date":
-        utc_dt = datetime.datetime.utcfromtimestamp(atomic_reactor_start_time).isoformat()
-        assert df.labels[auto_label] == utc_dt
+        if value_re_part:
+            assert re.match(value_re_part, df.labels[auto_label])
+
+        if auto_label == "build-date":
+            utc_dt = datetime.datetime.utcfromtimestamp(atomic_reactor_start_time).isoformat()
+            assert df.labels[auto_label] == utc_dt
+        elif auto_label == "platform":
+            assert df.labels[auto_label] == build_dir.platform
+
+    workflow.build_dir.for_each_platform(check_labels)
 
 
 @pytest.mark.parametrize('df_old_as_plugin_arg', [True, False])  # noqa
@@ -377,7 +384,7 @@ def test_add_labels_aliases(workflow, caplog, df_old_as_plugin_arg, df_new_as_pl
     ).create_runner()
     runner.run()
 
-    df = DockerfileParser(workflow.df_path)
+    df = workflow.build_dir.any_platform.dockerfile
 
     assert AddLabelsPlugin.key is not None
     result_old = df.labels.get("label_old") or \
@@ -434,7 +441,7 @@ def test_add_labels_equal_aliases(workflow, caplog, base_l, df_l, expected, expe
     ).create_runner()
     runner.run()
 
-    df = DockerfileParser(workflow.df_path)
+    df = workflow.build_dir.any_platform.dockerfile
 
     assert AddLabelsPlugin.key is not None
     result_fst = df.labels.get("description") or \
@@ -494,7 +501,7 @@ def test_add_labels_equal_aliases2(workflow, caplog, base_l, df_l, expected, exp
     else:
         runner.run()
 
-        df = DockerfileParser(workflow.df_path)
+        df = workflow.build_dir.any_platform.dockerfile
 
         assert AddLabelsPlugin.key is not None
         result_fst = df.labels.get("description") or \
@@ -554,7 +561,7 @@ def test_dont_overwrite_if_in_dockerfile(workflow, label_names, dont_overwrite,
     ).create_runner()
     runner.run()
 
-    df = DockerfileParser(workflow.df_path)
+    df = workflow.build_dir.any_platform.dockerfile
 
     for label_name in label_names:
         result = df.labels.get(label_name)
@@ -583,7 +590,7 @@ def test_url_label(workflow, url_format, info_url):
 
     runner = env.create_runner()
 
-    df = DockerfileParser(workflow.df_path)
+    df = workflow.build_dir.any_platform.dockerfile
 
     if info_url is not None:
         runner.run()
@@ -627,7 +634,7 @@ def test_add_labels_plugin_explicit(workflow, auto_label, labels_docker, labels_
     ).create_runner()
     runner.run()
 
-    df = DockerfileParser(workflow.df_path)
+    df = workflow.build_dir.any_platform.dockerfile
 
     assert df.labels[auto_label] != 'explicit_value'
 
@@ -652,7 +659,7 @@ def test_add_labels_base_image(workflow, parent, should_fail, caplog, reactor_co
         aliases={'Build_Host': 'com.redhat.build-host'},
     ).create_runner()
 
-    df = DockerfileParser(workflow.df_path)
+    df = workflow.build_dir.any_platform.dockerfile
 
     if should_fail:
         with caplog.at_level(logging.ERROR):
@@ -716,7 +723,7 @@ def test_release_label(workflow, caplog, base_new, df_new, plugin_new,
 
     runner.run()
 
-    df = DockerfileParser(workflow.df_path)
+    df = workflow.build_dir.any_platform.dockerfile
 
     assert AddLabelsPlugin.key is not None
     result_new = df.labels.get("release")
