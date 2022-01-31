@@ -6,33 +6,29 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
-from collections import OrderedDict
-from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
-from atomic_reactor.plugins.pre_add_labels_in_df import AddLabelsPlugin
-from atomic_reactor.util import df_parser, DockerfileImages
-from atomic_reactor.source import VcsInfo
-from atomic_reactor.constants import INSPECT_CONFIG
-from atomic_reactor import start_time as atomic_reactor_start_time
 import datetime
-import re
 import json
 import logging
-import pytest
+import re
+from collections import OrderedDict
 from copy import deepcopy
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+from dockerfile_parse import DockerfileParser
+
+import pytest
 from flexmock import flexmock
+
+from atomic_reactor import start_time as atomic_reactor_start_time
+from atomic_reactor.constants import INSPECT_CONFIG
+from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
+from atomic_reactor.plugins.pre_add_labels_in_df import AddLabelsPlugin
+from atomic_reactor.source import VcsInfo
+from atomic_reactor.types import ImageInspectionData
+
 from tests.constants import DOCKERFILE_GIT, DOCKERFILE_SHA1
-
-
-class MockSource(object):
-    dockerfile_path = None
-    path = None
-
-    def __init__(self, release_env=None):
-        self.config = flexmock()
-        setattr(self.config, 'release_env_var', release_env)
-
-    def get_vcs_info(self):
-        return VcsInfo(vcs_type="git", vcs_url=DOCKERFILE_GIT, vcs_ref=DOCKERFILE_SHA1)
+from tests.mock_env import MockEnv
 
 
 DF_CONTENT = """\
@@ -130,14 +126,52 @@ LABEL "version"="x" "release"="1"
 """]
 
 
-def make_and_store_reactor_config_map(workflow, additional=None):
-    reactor_map = {
-        'version': 1
-    }
-    if additional:
-        reactor_map.update(additional)
+def mock_env(
+    workflow,
+    *,
+    df_content: str,
+    base_inspect: ImageInspectionData,
+    # (dict[str, str] | str | None), but some tests intentionally pass the wrong type
+    labels_plugin_arg: Optional[Any] = None,
+    labels_reactor_conf: Optional[Dict[str, str]] = None,
+    # list[list[str]], but same as above
+    eq_conf: Optional[Any] = None,
+    dont_overwrite: Optional[List[str]] = None,
+    dont_overwrite_if_in_dockerfile: Optional[List[str]] = None,
+    aliases: Optional[Dict[str, str]] = None,
+    auto_labels: Optional[List[str]] = None,
+) -> MockEnv:
 
-    workflow.conf.conf = reactor_map
+    env = MockEnv(workflow).for_plugin("prebuild", AddLabelsPlugin.key)
+
+    args = {
+        'labels': labels_plugin_arg,
+        'dont_overwrite': dont_overwrite,
+        'auto_labels': auto_labels,
+        'aliases': aliases,
+        'equal_labels': eq_conf,
+    }
+    if dont_overwrite_if_in_dockerfile is not None:
+        args['dont_overwrite_if_in_dockerfile'] = dont_overwrite_if_in_dockerfile
+
+    env.set_plugin_args(args)
+
+    df_path = Path(workflow.source.path) / "Dockerfile"
+    df_path.write_text(df_content)
+    env.set_dockerfile_images(DockerfileParser(str(df_path)).parent_images)
+
+    flexmock(workflow, df_path=str(df_path))
+    flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return(base_inspect)
+    flexmock(workflow.source).should_receive('get_vcs_info').and_return(
+        VcsInfo(vcs_type="git", vcs_url=DOCKERFILE_GIT, vcs_ref=DOCKERFILE_SHA1)
+    )
+
+    if labels_reactor_conf is not None:
+        env.reactor_config.conf["image_labels"] = deepcopy(labels_reactor_conf)
+    if eq_conf is not None:
+        env.reactor_config.conf["image_equal_labels"] = eq_conf
+
+    return env
 
 
 @pytest.mark.parametrize(
@@ -167,38 +201,18 @@ def make_and_store_reactor_config_map(workflow, additional=None):
         (DF_CONTENT, LABELS_CONF_BASE_EXPLICIT, LABELS_CONF_EXPLICIT, [], [], {}, EXPECTED_OUTPUT9),
     ],
 )
-def test_add_labels_plugin(tmpdir, workflow, df_content, labels_conf_base, labels_conf, eq_conf,
+def test_add_labels_plugin(workflow, df_content, labels_conf_base, labels_conf, eq_conf,
                            dont_overwrite, aliases, expected_output, caplog):
-    df = df_parser(str(tmpdir))
-    df.content = df_content
-
-    flexmock(workflow, df_path=df.dockerfile_path)
-    flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return(labels_conf_base)
-    workflow.dockerfile_images = DockerfileImages(df.parent_images)
-    flexmock(workflow, source=MockSource())
-
-    if isinstance(labels_conf, str):
-        image_labels = json.loads(labels_conf)
-    else:
-        image_labels = deepcopy(labels_conf)
-    make_and_store_reactor_config_map(workflow, {
-        'image_labels': image_labels,
-        'image_equal_labels': eq_conf,
-    })
-
-    runner = PreBuildPluginsRunner(
+    runner = mock_env(
         workflow,
-        [{
-            'name': AddLabelsPlugin.key,
-            'args': {
-                'labels': labels_conf,
-                'dont_overwrite': dont_overwrite,
-                'auto_labels': [],
-                'aliases': aliases,
-                'equal_labels': eq_conf,
-            }
-        }]
-    )
+        df_content=df_content,
+        base_inspect=labels_conf_base,
+        labels_plugin_arg=labels_conf,
+        eq_conf=eq_conf,
+        dont_overwrite=dont_overwrite,
+        aliases=aliases,
+    ).create_runner()
+    df_path = Path(workflow.df_path)
 
     if isinstance(expected_output, RuntimeError):
         with pytest.raises(PluginFailedException):
@@ -209,53 +223,40 @@ def test_add_labels_plugin(tmpdir, workflow, df_content, labels_conf_base, label
     else:
         runner.run()
         assert AddLabelsPlugin.key is not None
-        assert df.content in expected_output
+        assert df_path.read_text() in expected_output
 
 
 @pytest.mark.parametrize('use_reactor', [True, False])  # noqa
 @pytest.mark.parametrize('release', [None, 'test'])
-def test_add_labels(tmpdir, workflow, release, use_reactor):
-    df = df_parser(str(tmpdir))
-    df.content = DF_CONTENT
-
-    flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return(LABELS_CONF_BASE)
-    workflow.dockerfile_images = DockerfileImages(df.parent_images)
-    flexmock(workflow, df_path=df.dockerfile_path)
-    flexmock(workflow, source=MockSource())
-
+def test_add_labels(workflow, release, use_reactor):
     if use_reactor:
-        make_and_store_reactor_config_map(workflow, {'image_labels': LABELS_CONF})
-        if release is not None:
-            labels = {'release': release}
-        else:
-            labels = None
+        labels_conf = LABELS_CONF
+        labels_arg = {'release': release} if release is not None else None
     else:
-        labels = LABELS_CONF
+        labels_conf = None
+        labels_arg = LABELS_CONF.copy()
         if release is not None:
-            labels.update({'release': release})
+            labels_arg.update({'release': release})
 
-    runner = PreBuildPluginsRunner(
+    runner = mock_env(
         workflow,
-        [{
-            'name': AddLabelsPlugin.key,
-            'args': {
-                'labels': labels,
-                'dont_overwrite': [],
-                'auto_labels': [],
-                'aliases': [],
-                'equal_labels': [],
-            }
-        }]
-    )
+        df_content=DF_CONTENT,
+        base_inspect=LABELS_CONF_BASE,
+        labels_plugin_arg=labels_arg,
+        labels_reactor_conf=labels_conf,
+    ).create_runner()
 
     runner.run()
+
+    df_content = Path(workflow.df_path).read_text()
+
     assert AddLabelsPlugin.key is not None
-    assert 'label1' in df.content
+    assert 'label1' in df_content
     if release:
-        assert 'release' in df.content
-        assert release in df.content
+        assert 'release' in df_content
+        assert release in df_content
     else:
-        assert 'release' not in df.content
+        assert 'release' not in df_content
 
 
 @pytest.mark.parametrize('auto_label, value_re_part', [  # noqa
@@ -267,29 +268,19 @@ def test_add_labels(tmpdir, workflow, release, use_reactor):
     ('com.redhat.build-host', 'dummy_host'),
     ('wrong_label', None)
 ])
-def test_add_labels_plugin_generated(tmpdir, workflow, auto_label, value_re_part,
-                                     reactor_config_map):
-    df = df_parser(str(tmpdir))
-    df.content = DF_CONTENT
-
-    flexmock(workflow, df_path=df.dockerfile_path)
-    flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return(LABELS_CONF_BASE)
-    workflow.dockerfile_images = DockerfileImages(df.parent_images)
-    flexmock(workflow, source=MockSource())
-
-    if reactor_config_map:
-        make_and_store_reactor_config_map(workflow, {'image_labels': {}})
-
-    runner = PreBuildPluginsRunner(
+def test_add_labels_plugin_generated(workflow, auto_label, value_re_part, reactor_config_map):
+    runner = mock_env(
         workflow,
-        [{
-            'name': AddLabelsPlugin.key,
-            'args': {'labels': {}, "dont_overwrite": [], "auto_labels": [auto_label],
-                     'aliases': {'Build_Host': 'com.redhat.build-host'}}
-        }]
-    )
+        df_content=DF_CONTENT,
+        base_inspect=LABELS_CONF_BASE,
+        labels_reactor_conf={} if reactor_config_map else None,
+        aliases={'Build_Host': 'com.redhat.build-host'},
+        auto_labels=[auto_label],
+    ).create_runner()
 
     runner.run()
+    df = DockerfileParser(workflow.df_path)
+
     if value_re_part:
         assert re.match(value_re_part, df.labels[auto_label])
 
@@ -354,7 +345,7 @@ def test_add_labels_plugin_generated(tmpdir, workflow, auto_label, value_re_part
     ('A',   'B',   'C',   'C',   'C',   'C',   'already exists'),
     ('A',   'B',   'C',   'D',   'D',   'D',   'as an alias for label'),
 ])
-def test_add_labels_aliases(tmpdir, workflow, caplog, df_old_as_plugin_arg, df_new_as_plugin_arg,
+def test_add_labels_aliases(workflow, caplog, df_old_as_plugin_arg, df_new_as_plugin_arg,
                             base_old, base_new, df_old, df_new, exp_old, exp_new, exp_log,
                             reactor_config_map):
     df_content = "FROM fedora\n"
@@ -376,31 +367,18 @@ def test_add_labels_aliases(tmpdir, workflow, caplog, df_old_as_plugin_arg, df_n
     if base_new:
         base_labels[INSPECT_CONFIG]["Labels"]["label_new"] = base_new
 
-    df = df_parser(str(tmpdir))
-    df.content = df_content
-
-    flexmock(workflow, df_path=df.dockerfile_path)
-    flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return(base_labels)
-    workflow.dockerfile_images = DockerfileImages(df.parent_images)
-    flexmock(workflow, source=MockSource())
-
-    if reactor_config_map:
-        make_and_store_reactor_config_map(workflow, {'image_labels': plugin_labels})
-
-    runner = PreBuildPluginsRunner(
+    runner = mock_env(
         workflow,
-        [{
-            'name': AddLabelsPlugin.key,
-            'args': {
-                'labels': plugin_labels,
-                'dont_overwrite': [],
-                'auto_labels': [],
-                'aliases': {"label_old": "label_new"},
-            }
-        }]
-    )
-
+        df_content=df_content,
+        base_inspect=base_labels,
+        labels_plugin_arg=plugin_labels,
+        labels_reactor_conf=plugin_labels if reactor_config_map else None,
+        aliases={"label_old": "label_new"},
+    ).create_runner()
     runner.run()
+
+    df = DockerfileParser(workflow.df_path)
+
     assert AddLabelsPlugin.key is not None
     result_old = df.labels.get("label_old") or \
         base_labels[INSPECT_CONFIG]["Labels"].get("label_old")
@@ -435,9 +413,8 @@ def test_add_labels_aliases(tmpdir, workflow, caplog, df_old_as_plugin_arg, df_n
     (('A', None), (None, 'A'), ('A', 'A'), 'skipping label'),
     ((None, 'A'), ('A', None), ('A', 'A'), 'skipping label'),
 ])
-def test_add_labels_equal_aliases(tmpdir, workflow, caplog, base_l, df_l, expected, expected_log):
+def test_add_labels_equal_aliases(workflow, caplog, base_l, df_l, expected, expected_log):
     df_content = "FROM fedora\n"
-    plugin_labels = {}
     if df_l[0]:
         df_content += 'LABEL description="{0}"\n'.format(df_l[0])
     if df_l[1]:
@@ -449,35 +426,16 @@ def test_add_labels_equal_aliases(tmpdir, workflow, caplog, base_l, df_l, expect
     if base_l[1]:
         base_labels[INSPECT_CONFIG]["Labels"]["io.k8s.description"] = base_l[1]
 
-    df = df_parser(str(tmpdir))
-    df.content = df_content
-
-    flexmock(workflow, df_path=df.dockerfile_path)
-    flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return(base_labels)
-    workflow.dockerfile_images = DockerfileImages(df.parent_images)
-    flexmock(workflow, source=MockSource())
-
-    make_and_store_reactor_config_map(
+    runner = mock_env(
         workflow,
-        {
-            'image_labels': plugin_labels,
-            'image_equal_labels': [['description', 'io.k8s.description']]})
-
-    runner = PreBuildPluginsRunner(
-        workflow,
-        [{
-            'name': AddLabelsPlugin.key,
-            'args': {
-                'labels': plugin_labels,
-                'dont_overwrite': [],
-                'auto_labels': [],
-                'aliases': {},
-                'equal_labels': [['description', 'io.k8s.description']]
-            }
-        }]
-    )
-
+        df_content=df_content,
+        base_inspect=base_labels,
+        eq_conf=[['description', 'io.k8s.description']],
+    ).create_runner()
     runner.run()
+
+    df = DockerfileParser(workflow.df_path)
+
     assert AddLabelsPlugin.key is not None
     result_fst = df.labels.get("description") or \
         base_labels[INSPECT_CONFIG]["Labels"].get("description")
@@ -503,12 +461,11 @@ def test_add_labels_equal_aliases(tmpdir, workflow, caplog, base_l, df_l, expect
     (('A', 'A', 'A'), (None, 'C', 'D'), ('C', 'C', 'D'), 'adding equal label'),
     (('A', 'A', 'A'), ('B', None, 'D'), ('B', 'B', 'D'), 'adding equal label'),
 ])
-def test_add_labels_equal_aliases2(tmpdir, workflow, caplog, base_l, df_l, expected, expected_log):
+def test_add_labels_equal_aliases2(workflow, caplog, base_l, df_l, expected, expected_log):
     """
     test with 3 equal labels
     """
     df_content = "FROM fedora\n"
-    plugin_labels = {}
     if df_l[0]:
         df_content += 'LABEL description="{0}"\n'.format(df_l[0])
     if df_l[1]:
@@ -524,41 +481,21 @@ def test_add_labels_equal_aliases2(tmpdir, workflow, caplog, base_l, df_l, expec
     if base_l[2]:
         base_labels[INSPECT_CONFIG]["Labels"]["description_third"] = base_l[2]
 
-    df = df_parser(str(tmpdir))
-    df.content = df_content
-
-    flexmock(workflow, df_path=df.dockerfile_path)
-    flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return(base_labels)
-    workflow.dockerfile_images = DockerfileImages(df.parent_images)
-    flexmock(workflow, source=MockSource())
-
-    make_and_store_reactor_config_map(
+    runner = mock_env(
         workflow,
-        {
-            'image_labels': plugin_labels,
-            'image_equal_labels': [['description',
-                                    'io.k8s.description',
-                                    'description_third']]})
-
-    runner = PreBuildPluginsRunner(
-        workflow,
-        [{
-            'name': AddLabelsPlugin.key,
-            'args': {
-                'labels': plugin_labels,
-                'dont_overwrite': [],
-                'auto_labels': [],
-                'aliases': {},
-                'equal_labels': [['description', 'io.k8s.description', 'description_third']]
-            }
-        }]
-    )
+        df_content=df_content,
+        base_inspect=base_labels,
+        eq_conf=[['description', 'io.k8s.description', 'description_third']],
+    ).create_runner()
 
     if isinstance(expected_log, RuntimeError):
         with pytest.raises(PluginFailedException):
             runner.run()
     else:
         runner.run()
+
+        df = DockerfileParser(workflow.df_path)
+
         assert AddLabelsPlugin.key is not None
         result_fst = df.labels.get("description") or \
             base_labels[INSPECT_CONFIG]["Labels"].get("description")
@@ -587,7 +524,7 @@ def test_add_labels_equal_aliases2(tmpdir, workflow, caplog, base_l, df_l, expec
     (None, "docker_value", "docker_value"),
     ("parent_value", "parent_value", "parent_value"),
 ])
-def test_dont_overwrite_if_in_dockerfile(tmpdir, workflow, label_names, dont_overwrite,
+def test_dont_overwrite_if_in_dockerfile(workflow, label_names, dont_overwrite,
                                          parent_val, docker_val, result_val, reactor_config_map):
     default_value = 'default_value'
     df_content = "FROM fedora\n"
@@ -603,37 +540,21 @@ def test_dont_overwrite_if_in_dockerfile(tmpdir, workflow, label_names, dont_ove
     else:
         labels_conf_base = {INSPECT_CONFIG: {"Labels": {}}}
 
-    df = df_parser(str(tmpdir))
-    df.content = df_content
-
-    flexmock(workflow, df_path=df.dockerfile_path)
-    flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return(labels_conf_base)
-    workflow.dockerfile_images = DockerfileImages(df.parent_images)
-    flexmock(workflow, source=MockSource())
-
     image_labels = {}
     for label_name in label_names:
         image_labels[label_name] = default_value
-    wf_args = {
-        'labels': image_labels,
-        'auto_labels': [],
-        'aliases': {},
-    }
-    if dont_overwrite:
-        wf_args["dont_overwrite_if_in_dockerfile"] = label_names
 
-    if reactor_config_map:
-        make_and_store_reactor_config_map(workflow, {'image_labels': image_labels})
-
-    runner = PreBuildPluginsRunner(
+    runner = mock_env(
         workflow,
-        [{
-            'name': AddLabelsPlugin.key,
-            'args': wf_args
-        }]
-    )
-
+        df_content=df_content,
+        base_inspect=labels_conf_base,
+        labels_plugin_arg=image_labels,
+        labels_reactor_conf=image_labels if reactor_config_map else None,
+        dont_overwrite_if_in_dockerfile=label_names if dont_overwrite else None,
+    ).create_runner()
     runner.run()
+
+    df = DockerfileParser(workflow.df_path)
 
     for label_name in label_names:
         result = df.labels.get(label_name)
@@ -650,34 +571,19 @@ def test_dont_overwrite_if_in_dockerfile(tmpdir, workflow, label_names, dont_ove
      'url_pre authoritative-source-url_value com.redhat.component_value '
      'com.redhat.build-host_value url_post'),
 ])
-def test_url_label(tmpdir, workflow, url_format, info_url):
-    plugin_labels = {}
+def test_url_label(workflow, url_format, info_url):
     base_labels = {INSPECT_CONFIG: {"Labels": {}}}
-    df = df_parser(str(tmpdir))
-    df.content = DF_CONTENT_LABELS
 
-    flexmock(workflow, df_path=df.dockerfile_path)
-    flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return(base_labels)
-    workflow.dockerfile_images = DockerfileImages(df.parent_images)
-    flexmock(workflow, source=MockSource())
-
-    make_and_store_reactor_config_map(workflow, {
-        'image_labels': plugin_labels,
-        'image_label_info_url_format': url_format,
-    })
-
-    runner = PreBuildPluginsRunner(
+    env = mock_env(
         workflow,
-        [{
-            'name': AddLabelsPlugin.key,
-            'args': {
-                'labels': plugin_labels,
-                'dont_overwrite': [],
-                'auto_labels': [],
-                'info_url_format': url_format
-            }
-        }]
+        df_content=DF_CONTENT_LABELS,
+        base_inspect=base_labels
     )
+    env.reactor_config.conf['image_label_info_url_format'] = url_format
+
+    runner = env.create_runner()
+
+    df = DockerfileParser(workflow.df_path)
 
     if info_url is not None:
         runner.run()
@@ -706,32 +612,22 @@ def test_url_label(tmpdir, workflow, url_format, info_url):
     LABELS_CONF_BASE_NONE,
     LABELS_CONF_WITH_LABELS,
 ])
-def test_add_labels_plugin_explicit(tmpdir, workflow, auto_label, labels_docker,
-                                    labels_base, reactor_config_map):
-    df = df_parser(str(tmpdir))
-    df.content = labels_docker
+def test_add_labels_plugin_explicit(workflow, auto_label, labels_docker, labels_base,
+                                    reactor_config_map):
+    prov_labels = {auto_label: 'explicit_value'}
 
-    flexmock(workflow, df_path=df.dockerfile_path)
-    flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return(labels_base)
-    workflow.dockerfile_images = DockerfileImages(df.parent_images)
-    flexmock(workflow, source=MockSource())
-
-    prov_labels = {}
-    prov_labels[auto_label] = 'explicit_value'
-
-    if reactor_config_map:
-        make_and_store_reactor_config_map(workflow, {'image_labels': prov_labels})
-
-    runner = PreBuildPluginsRunner(
+    runner = mock_env(
         workflow,
-        [{
-            'name': AddLabelsPlugin.key,
-            'args': {'labels': prov_labels, "dont_overwrite": [], "auto_labels": [auto_label],
-                     'aliases': {'Build_Host': 'com.redhat.build-host'}}
-        }]
-    )
-
+        df_content=labels_docker,
+        base_inspect=labels_base,
+        labels_plugin_arg=prov_labels,
+        labels_reactor_conf=prov_labels if reactor_config_map else None,
+        auto_labels=[auto_label],
+        aliases={'Build_Host': 'com.redhat.build-host'},
+    ).create_runner()
     runner.run()
+
+    df = DockerfileParser(workflow.df_path)
 
     assert df.labels[auto_label] != 'explicit_value'
 
@@ -741,31 +637,22 @@ def test_add_labels_plugin_explicit(tmpdir, workflow, auto_label, labels_docker,
     ('scratch', False),
     ('fedora', True),
 ])
-def test_add_labels_base_image(tmpdir, workflow, parent, should_fail, caplog, reactor_config_map):
-    df = df_parser(str(tmpdir))
-    df.content = "FROM {}\n".format(parent)
-
-    flexmock(workflow, df_path=df.dockerfile_path)
-    flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return({})
-    workflow.dockerfile_images = DockerfileImages(df.parent_images)
-    flexmock(workflow, source=MockSource())
-
+def test_add_labels_base_image(workflow, parent, should_fail, caplog, reactor_config_map):
     # When a 'release' label is provided by parameter and used to
     # configure the plugin, it should be set in the Dockerfile even
     # when processing base images.
     prov_labels = {'release': '5'}
 
-    if reactor_config_map:
-        make_and_store_reactor_config_map(workflow, {'image_labels': prov_labels})
-
-    runner = PreBuildPluginsRunner(
+    runner = mock_env(
         workflow,
-        [{
-            'name': AddLabelsPlugin.key,
-            'args': {'labels': prov_labels, "dont_overwrite": [],
-                     'aliases': {'Build_Host': 'com.redhat.build-host'}}
-        }]
-    )
+        df_content=f"FROM {parent}\n",
+        base_inspect={},
+        labels_plugin_arg=prov_labels,
+        labels_reactor_conf=prov_labels if reactor_config_map else None,
+        aliases={'Build_Host': 'com.redhat.build-host'},
+    ).create_runner()
+
+    df = DockerfileParser(workflow.df_path)
 
     if should_fail:
         with caplog.at_level(logging.ERROR):
@@ -802,7 +689,7 @@ def test_add_labels_base_image(tmpdir, workflow, parent, should_fail, caplog, re
     ('A',   'B',   'C',   'C',   'setting label'),
 ])
 @pytest.mark.parametrize('release_env', ['TEST_RELEASE_VAR', None])
-def test_release_label(tmpdir, workflow, caplog, base_new, df_new, plugin_new,
+def test_release_label(workflow, caplog, base_new, df_new, plugin_new,
                        expected_in_df, expected_log, release_env, reactor_config_map):
     df_content = "FROM fedora\n"
     plugin_labels = {}
@@ -817,31 +704,20 @@ def test_release_label(tmpdir, workflow, caplog, base_new, df_new, plugin_new,
     if base_new:
         base_labels[INSPECT_CONFIG]["Labels"]["release"] = base_new
 
-    df = df_parser(str(tmpdir))
-    df.content = df_content
-
-    flexmock(workflow, df_path=df.dockerfile_path)
-    flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return(base_labels)
-    workflow.dockerfile_images = DockerfileImages(df.parent_images)
-    flexmock(workflow, source=MockSource(release_env))
-
-    if reactor_config_map:
-        make_and_store_reactor_config_map(workflow, {'image_labels': plugin_labels})
-
-    runner = PreBuildPluginsRunner(
+    env = mock_env(
         workflow,
-        [{
-            'name': AddLabelsPlugin.key,
-            'args': {
-                'labels': plugin_labels,
-                'dont_overwrite': [],
-                'auto_labels': [],
-                'aliases': {}
-            }
-        }]
+        df_content=df_content,
+        base_inspect=base_labels,
+        labels_plugin_arg=plugin_labels,
+        labels_reactor_conf=plugin_labels if reactor_config_map else None,
     )
+    env.workflow.source.config.release_env_var = release_env
+    runner = env.create_runner()
 
     runner.run()
+
+    df = DockerfileParser(workflow.df_path)
+
     assert AddLabelsPlugin.key is not None
     result_new = df.labels.get("release")
     assert result_new == expected_in_df
