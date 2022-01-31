@@ -42,9 +42,7 @@ LABEL "build-date" = "docker value"
 LABEL "architecture" = "docker value"
 LABEL "vcs-type" = "docker value"
 LABEL "vcs-url" = "docker value"
-LABEL "vcs-ref" = "docker value"
-LABEL "com.redhat.build-host" = "docker value"
-LABEL "Build_Host" = "docker value"'''
+LABEL "vcs-ref" = "docker value"'''
 DF_CONTENT_SINGLE_LINE = """\
 FROM fedora"""
 DF_CONTENT_LABEL = '''\
@@ -56,16 +54,13 @@ LABEL "label1"="label1_value"
 LABEL "label2"="label2_value"
 LABEL "Authoritative_Registry"="authoritative-source-url_value"
 LABEL "BZComponent"="com.redhat.component_value"
-LABEL "Build_Host"="com.redhat.build-host_value"
 LABEL "Version"="version_value"'''
 LABELS_CONF_WITH_LABELS = {INSPECT_CONFIG: {"Labels": {
                                                 "build-date": "base value",
                                                 "architecture": "base value",
                                                 "vcs-type": "base value",
                                                 "vcs-url": "base value",
-                                                "vcs-ref": "base value",
-                                                "com.redhat.build-host": "base value",
-                                                "Build_Host": "base value"}}}
+                                                "vcs-ref": "base value"}}}
 LABELS_CONF_BASE = {INSPECT_CONFIG: {"Labels": {"label1": "base value"}}}
 LABELS_CONF_BASE_EXPLICIT = {INSPECT_CONFIG: {"Labels": {"version": "x", "release": "1"}}}
 LABELS_CONF_BASE_NONE = {INSPECT_CONFIG: {"Labels": None}}
@@ -266,7 +261,6 @@ def test_add_labels(workflow, release, use_reactor):
     ('vcs-type', 'git'),
     ('vcs-url', DOCKERFILE_GIT),
     ('vcs-ref', DOCKERFILE_SHA1),
-    ('com.redhat.build-host', 'dummy_host'),
     ('wrong_label', None)
 ])
 def test_add_labels_plugin_generated(workflow, auto_label, value_re_part, reactor_config_map):
@@ -275,7 +269,6 @@ def test_add_labels_plugin_generated(workflow, auto_label, value_re_part, reacto
         df_content=DF_CONTENT,
         base_inspect=LABELS_CONF_BASE,
         labels_reactor_conf={} if reactor_config_map else None,
-        aliases={'Build_Host': 'com.redhat.build-host'},
         auto_labels=[auto_label],
     ).create_runner()
 
@@ -574,9 +567,8 @@ def test_dont_overwrite_if_in_dockerfile(workflow, label_names, dont_overwrite,
     ('url_pre {label1} {label2} {label3_non_existent} url_post', None),
     ('url_pre {label1} {label2} {version} url_post', 'url_pre label1_value label2_value '
      'version_value url_post'),
-    ('url_pre {authoritative-source-url} {com.redhat.component} {com.redhat.build-host} url_post',
-     'url_pre authoritative-source-url_value com.redhat.component_value '
-     'com.redhat.build-host_value url_post'),
+    ('url_pre {authoritative-source-url} {com.redhat.component} url_post',
+     'url_pre authoritative-source-url_value com.redhat.component_value url_post'),
 ])
 def test_url_label(workflow, url_format, info_url):
     base_labels = {INSPECT_CONFIG: {"Labels": {}}}
@@ -609,7 +601,6 @@ def test_url_label(workflow, url_format, info_url):
     'vcs-type',
     'vcs-url',
     'vcs-ref',
-    'com.redhat.build-host',
 ])
 @pytest.mark.parametrize('labels_docker', [
     DF_CONTENT,
@@ -630,7 +621,6 @@ def test_add_labels_plugin_explicit(workflow, auto_label, labels_docker, labels_
         labels_plugin_arg=prov_labels,
         labels_reactor_conf=prov_labels if reactor_config_map else None,
         auto_labels=[auto_label],
-        aliases={'Build_Host': 'com.redhat.build-host'},
     ).create_runner()
     runner.run()
 
@@ -656,7 +646,6 @@ def test_add_labels_base_image(workflow, parent, should_fail, caplog, reactor_co
         base_inspect={},
         labels_plugin_arg=prov_labels,
         labels_reactor_conf=prov_labels if reactor_config_map else None,
-        aliases={'Build_Host': 'com.redhat.build-host'},
     ).create_runner()
 
     df = workflow.build_dir.any_platform.dockerfile
