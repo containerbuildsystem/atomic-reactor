@@ -7,8 +7,13 @@ OS=${OS:="centos"}
 OS_VERSION=${OS_VERSION:="8"}
 PYTHON_VERSION=${PYTHON_VERSION:="3.8"}
 ACTION=${ACTION:="test"}
-IMAGE="$OS:$OS_VERSION"
 CONTAINER_NAME="atomic-reactor-$OS-$OS_VERSION-py$PYTHON_VERSION"
+
+if [[ "$OS" == centos ]]; then
+    IMAGE="quay.io/centos/centos:stream$OS_VERSION"
+else
+    IMAGE="$OS:$OS_VERSION"
+fi
 
 # Use arrays to prevent globbing and word splitting
 engine_mounts=(-v "$PWD":"$PWD":z)
