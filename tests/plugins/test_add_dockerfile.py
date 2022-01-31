@@ -9,7 +9,6 @@ of the BSD license. See the LICENSE file for details.
 from flexmock import flexmock
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.plugins.pre_add_dockerfile import AddDockerfilePlugin
-from atomic_reactor.plugins.pre_add_labels_in_df import AddLabelsPlugin
 from atomic_reactor.util import df_parser
 from tests.stubs import StubSource
 
@@ -90,35 +89,6 @@ CMD blabla"""
     runner = PreBuildPluginsRunner(
         workflow,
         [{
-            'name': AddDockerfilePlugin.key
-        }]
-    )
-    runner.run()
-    assert AddDockerfilePlugin.key is not None
-
-    assert "ADD Dockerfile-jboss-eap-6-docker-6.4-77 /root/buildinfo/Dockerfile-jboss-eap-6-docker-6.4-77" in df.content  # noqa
-
-
-def test_adddockerfile_nvr_from_labels2(tmpdir, workflow):  # noqa
-    df_content = """
-FROM fedora
-RUN yum install -y python-django
-CMD blabla"""
-    df = df_parser(str(tmpdir))
-    df.content = df_content
-
-    prepare(workflow, df.dockerfile_path)
-
-    runner = PreBuildPluginsRunner(
-        workflow,
-        [{
-            'name': AddLabelsPlugin.key,
-            'args': {'labels': {'Name': 'jboss-eap-6-docker',
-                                'Version': '6.4',
-                                'Release': '77'},
-                     'auto_labels': []}
-         },
-         {
             'name': AddDockerfilePlugin.key
         }]
     )
