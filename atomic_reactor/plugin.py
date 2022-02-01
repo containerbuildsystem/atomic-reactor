@@ -260,17 +260,17 @@ class PluginsRunner(object):
                 self.save_plugin_timestamp(plugin.plugin_class.key, start_time)
                 plugin_response = plugin_instance.run()
                 plugin_successful = True
-                if buildstep_phase:
-                    assert isinstance(plugin_response, atomic_reactor.inner.BuildResult)
-                    if plugin_response.is_failed():
-                        logger.error("Build step plugin %s failed: %s",
-                                     plugin.plugin_class.key,
-                                     plugin_response.fail_reason)
-                        self.on_plugin_failed(plugin.plugin_class.key,
-                                              plugin_response.fail_reason)
-                        plugin_successful = False
-                        self.plugins_results[plugin.plugin_class.key] = plugin_response
-                        break
+                # if buildstep_phase:
+                #     assert isinstance(plugin_response, atomic_reactor.inner.BuildResult)
+                #     if plugin_response.is_failed():
+                #         logger.error("Build step plugin %s failed: %s",
+                #                      plugin.plugin_class.key,
+                #                      plugin_response.fail_reason)
+                #         self.on_plugin_failed(plugin.plugin_class.key,
+                #                               plugin_response.fail_reason)
+                #         plugin_successful = False
+                #         self.plugins_results[plugin.plugin_class.key] = plugin_response
+                #         break
 
             except InappropriateBuildStepError:
                 logger.debug('Build step %s is not appropriate', plugin.plugin_class.key)
