@@ -5,11 +5,11 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
+import dataclasses
 import functools
 import hashlib
-from collections import namedtuple
 from pathlib import Path
-from typing import Iterator, Sequence
+from typing import Iterator, Sequence, Dict
 
 import koji
 
@@ -29,7 +29,12 @@ try:
 except ImportError:
     from urllib.parse import urlparse
 
-DownloadRequest = namedtuple('DownloadRequest', 'url dest checksums')
+
+@dataclasses.dataclass(frozen=True)
+class DownloadRequest:
+    url: str
+    dest: str
+    checksums: Dict[str, str]
 
 
 class FetchMavenArtifactsPlugin(PreBuildPlugin):
@@ -189,5 +194,7 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
 
         pnc_artifact_ids = self.get_pnc_artifact_ids(pnc_requests)
 
-        return {'download_queue': download_queue,
-                'pnc_artifact_ids': pnc_artifact_ids}
+        return {
+            'download_queue': [dataclasses.asdict(download) for download in download_queue],
+            'pnc_artifact_ids': pnc_artifact_ids,
+        }

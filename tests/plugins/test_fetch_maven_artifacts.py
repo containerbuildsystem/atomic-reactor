@@ -446,7 +446,9 @@ def mock_pnc_downloads(contents=None, pnc_responses=None, overrides=None):
 def check_downloads_exist(plugin_result):
     def check_in_build_dir(build_dir):
         for download in plugin_result['download_queue']:
-            download_path = build_dir.path / FetchMavenArtifactsPlugin.DOWNLOAD_DIR / download.dest
+            download_path = (
+                build_dir.path / FetchMavenArtifactsPlugin.DOWNLOAD_DIR / download['dest']
+            )
             assert download_path.exists()
 
     return check_in_build_dir
@@ -518,8 +520,8 @@ def test_fetch_maven_artifacts_nvr_filtering(workflow, source_path, nvr_requests
 
     assert len(plugin_result['download_queue']) == len(expected)
     for download in plugin_result['download_queue']:
-        assert len(download.checksums.values()) == 1
-    assert (set(list(download.checksums.values())[0] for download in plugin_result[
+        assert len(download['checksums'].values()) == 1
+    assert (set(list(download['checksums'].values())[0] for download in plugin_result[
         'download_queue']) == set(expectation['checksum'] for expectation in expected))
 
     workflow.build_dir.for_each_platform(check_downloads_exist(plugin_result))
@@ -736,8 +738,8 @@ def test_fetch_maven_artifacts_url_with_target(workflow, source_path,
     workflow.build_dir.for_each_platform(check_downloads_exist(plugin_result))
 
     download = plugin_result['download_queue'][0]
-    assert download.dest == REMOTE_FILE_WITH_TARGET['target']
-    assert not REMOTE_FILE_WITH_TARGET['url'].endswith(download.dest)
+    assert download['dest'] == REMOTE_FILE_WITH_TARGET['target']
+    assert not REMOTE_FILE_WITH_TARGET['url'].endswith(download['dest'])
 
 
 @responses.activate  # noqa
