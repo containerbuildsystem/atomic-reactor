@@ -5,18 +5,22 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
+import functools
 import hashlib
+from collections import namedtuple
+from pathlib import Path
+from typing import Iterator, Sequence
+
 import koji
-import os
 
 from atomic_reactor import util
 from atomic_reactor.constants import (PLUGIN_FETCH_MAVEN_KEY,
                                       REPO_FETCH_ARTIFACTS_URL,
                                       REPO_FETCH_ARTIFACTS_KOJI)
 from atomic_reactor.config import get_koji_session
+from atomic_reactor.dirs import BuildDir
 from atomic_reactor.download import download_url
 from atomic_reactor.plugin import PreBuildPlugin
-from collections import namedtuple
 from atomic_reactor.utils.koji import NvrRequest
 from atomic_reactor.utils.pnc import PNCUtil
 
@@ -44,7 +48,6 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
 
         all_allowed_domains = self.workflow.conf.artifacts_allowed_domains
         self.allowed_domains = set(domain.lower() for domain in all_allowed_domains or [])
-        self.workdir = self.workflow.source.get_build_file_path()[1]
         self.session = None
         self._pnc_util = None
 
@@ -141,8 +144,11 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
 
         return download_queue
 
-    def download_files(self, downloads):
-        artifacts_path = os.path.join(self.workdir, self.DOWNLOAD_DIR)
+    def download_files(
+        self, downloads: Sequence[DownloadRequest], build_dir: BuildDir
+    ) -> Iterator[Path]:
+        """Download maven artifacts to a build dir."""
+        artifacts_path = build_dir.path / self.DOWNLOAD_DIR
         koji_config = self.workflow.conf.koji
         insecure = koji_config.get('insecure_download', False)
 
@@ -150,18 +156,19 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
         session = util.get_retrying_requests_session()
 
         for index, download in enumerate(downloads):
-            dest_path = os.path.join(artifacts_path, download.dest)
-            dest_dir = dest_path.rsplit('/', 1)[0]
-            dest_filename = dest_path.rsplit('/', 1)[-1]
+            dest_path = artifacts_path / download.dest
+            dest_dir = dest_path.parent
+            dest_filename = dest_path.name
 
-            if not os.path.exists(dest_dir):
-                os.makedirs(dest_dir)
+            if not dest_dir.exists():
+                dest_dir.mkdir(parents=True)
 
             self.log.debug('%d/%d downloading %s', index + 1, len(downloads),
                            download.url)
 
             download_url(url=download.url, dest_dir=dest_dir, insecure=insecure, session=session,
                          dest_filename=dest_filename, expected_checksums=download.checksums)
+            yield dest_path
 
     def run(self):
         self.session = get_koji_session(self.workflow.conf)
@@ -177,7 +184,8 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
                           self.process_pnc_requests(pnc_requests) +
                           self.process_by_url(url_requests))
 
-        self.download_files(download_queue)
+        download_to_build_dir = functools.partial(self.download_files, download_queue)
+        self.workflow.build_dir.for_all_platforms_copy(download_to_build_dir)
 
         pnc_artifact_ids = self.get_pnc_artifact_ids(pnc_requests)
 

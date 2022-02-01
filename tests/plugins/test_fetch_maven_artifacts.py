@@ -17,7 +17,7 @@ import yaml
 
 from atomic_reactor.constants import (REPO_FETCH_ARTIFACTS_KOJI,
                                       REPO_FETCH_ARTIFACTS_PNC,
-                                      REPO_FETCH_ARTIFACTS_URL, DOCKERFILE_FILENAME)
+                                      REPO_FETCH_ARTIFACTS_URL)
 from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.pre_fetch_maven_artifacts import FetchMavenArtifactsPlugin
 from osbs.utils import ImageName
@@ -283,15 +283,6 @@ DEFAULT_PNC_RESPONSES = {
 }
 
 
-class MockSource(object):
-    def __init__(self, source_dir: Path):
-        self.dockerfile_path = str(source_dir / DOCKERFILE_FILENAME)
-        self.path = str(source_dir)
-
-    def get_build_file_path(self):
-        return self.dockerfile_path, self.path
-
-
 class X(object):
     image_id = "xxx"
     base_image = ImageName.parse("fedora/jboss")
@@ -310,7 +301,7 @@ class MockedPathInfo(object):
         return '{group_id}/{artifact_id}/{version}/{filename}'.format(**maveninfo)
 
 
-def mock_env(workflow, source_dir: Path, r_c_m=None, domains_override=None):
+def mock_env(workflow, r_c_m=None, domains_override=None):
     if not r_c_m:
         r_c_m = {
             'version': 1,
@@ -333,8 +324,7 @@ def mock_env(workflow, source_dir: Path, r_c_m=None, domains_override=None):
            .make_orchestrator()
            .set_reactor_config(r_c_m))
 
-    env.workflow.source = MockSource(source_dir)
-
+    workflow.build_dir.init_build_dirs(["aarch64", "x86_64"], workflow.source)
     return env
 
 
@@ -374,27 +364,27 @@ def mock_koji_session(koji_proxyuser=None, koji_ssl_certs_dir=None,
     return session
 
 
-def mock_fetch_artifacts_by_nvr(source_dir: Path, contents=None):
+def mock_fetch_artifacts_by_nvr(source_path: Path, contents=None):
     if contents is None:
         contents = dedent("""\
             - nvr: com.sun.xml.bind.mvn-jaxb-parent-2.2.11.4-1
             """)
 
-    source_dir.joinpath(REPO_FETCH_ARTIFACTS_KOJI).write_text(contents, "utf-8")
+    source_path.joinpath(REPO_FETCH_ARTIFACTS_KOJI).write_text(contents, "utf-8")
 
 
-def mock_fetch_artifacts_from_pnc(source_dir: Path, contents=None):
+def mock_fetch_artifacts_from_pnc(source_path: Path, contents=None):
     if contents is None:
         contents = yaml.safe_dump(DEFAULT_PNC_ARTIFACTS)
 
-    source_dir.joinpath(REPO_FETCH_ARTIFACTS_PNC).write_text(contents, "utf-8")
+    source_path.joinpath(REPO_FETCH_ARTIFACTS_PNC).write_text(contents, "utf-8")
 
 
-def mock_fetch_artifacts_by_url(source_dir: Path, contents=None):
+def mock_fetch_artifacts_by_url(source_path: Path, contents=None):
     if contents is None:
         contents = yaml.safe_dump(DEFAULT_REMOTE_FILES)
 
-    source_dir.joinpath(REPO_FETCH_ARTIFACTS_URL).write_text(contents, "utf-8")
+    source_path.joinpath(REPO_FETCH_ARTIFACTS_URL).write_text(contents, "utf-8")
 
 
 def mock_nvr_downloads(build_info=None, archives=None, overrides=None):
@@ -453,27 +443,39 @@ def mock_pnc_downloads(contents=None, pnc_responses=None, overrides=None):
                           status=status)
 
 
+def check_downloads_exist(plugin_result):
+    def check_in_build_dir(build_dir):
+        for download in plugin_result['download_queue']:
+            download_path = build_dir.path / FetchMavenArtifactsPlugin.DOWNLOAD_DIR / download.dest
+            assert download_path.exists()
+
+    return check_in_build_dir
+
+
+@pytest.fixture
+def source_path(workflow) -> Path:
+    return Path(workflow.source.path)
+
+
 @responses.activate  # noqa
-def test_fetch_maven_artifacts(workflow, source_dir):
+def test_fetch_maven_artifacts(workflow, source_path):
     mock_koji_session()
-    mock_fetch_artifacts_by_nvr(source_dir)
-    mock_fetch_artifacts_by_url(source_dir)
-    mock_fetch_artifacts_from_pnc(source_dir)
+    mock_fetch_artifacts_by_nvr(source_path)
+    mock_fetch_artifacts_by_url(source_path)
+    mock_fetch_artifacts_from_pnc(source_path)
     mock_nvr_downloads()
     mock_url_downloads()
     mock_pnc_downloads()
 
-    results = mock_env(workflow, source_dir).create_runner().run()
+    results = mock_env(workflow).create_runner().run()
 
     plugin_result = results[FetchMavenArtifactsPlugin.key]
 
     assert len(plugin_result['download_queue']) == (len(DEFAULT_ARCHIVES) + len(
         DEFAULT_REMOTE_FILES) + len(DEFAULT_PNC_ARTIFACTS['builds']))
     assert len(plugin_result['pnc_artifact_ids']) == len(DEFAULT_PNC_ARTIFACTS['builds'])
-    for download in plugin_result['download_queue']:
-        assert source_dir.joinpath(
-            FetchMavenArtifactsPlugin.DOWNLOAD_DIR, download.dest
-        ).exists()
+
+    workflow.build_dir.for_each_platform(check_downloads_exist(plugin_result))
 
 
 @pytest.mark.parametrize(('nvr_requests', 'expected'), (  # noqa
@@ -504,13 +506,13 @@ def test_fetch_maven_artifacts(workflow, source_dir):
     ], [ARCHIVE_JAXB_GLASSFISH_JAR, ARCHIVE_JAXB_JAVADOC_GLASSFIX_JAR, ARCHIVE_JAXB_GLASSFISH_POM]),
 ))
 @responses.activate
-def test_fetch_maven_artifacts_nvr_filtering(workflow, source_dir, nvr_requests, expected):
+def test_fetch_maven_artifacts_nvr_filtering(workflow, source_path, nvr_requests, expected):
     """Test filtering of archives in a Koji build."""
     mock_koji_session()
-    mock_fetch_artifacts_by_nvr(source_dir, contents=yaml.safe_dump(nvr_requests))
+    mock_fetch_artifacts_by_nvr(source_path, contents=yaml.safe_dump(nvr_requests))
     mock_nvr_downloads(archives=expected)
 
-    results = mock_env(workflow, source_dir).create_runner().run()
+    results = mock_env(workflow).create_runner().run()
 
     plugin_result = results[FetchMavenArtifactsPlugin.key]
 
@@ -519,10 +521,8 @@ def test_fetch_maven_artifacts_nvr_filtering(workflow, source_dir, nvr_requests,
         assert len(download.checksums.values()) == 1
     assert (set(list(download.checksums.values())[0] for download in plugin_result[
         'download_queue']) == set(expectation['checksum'] for expectation in expected))
-    for download in plugin_result['download_queue']:
-        assert source_dir.joinpath(
-            FetchMavenArtifactsPlugin.DOWNLOAD_DIR, download.dest
-        ).exists()
+
+    workflow.build_dir.for_each_platform(check_downloads_exist(plugin_result))
 
 
 @pytest.mark.parametrize(('nvr_requests', 'error_msg'), (  # noqa
@@ -546,58 +546,58 @@ def test_fetch_maven_artifacts_nvr_filtering(workflow, source_dir, nvr_requests,
     ], 'glassfish.org'),
 ))
 @responses.activate
-def test_fetch_maven_artifacts_nvr_no_match(workflow, source_dir,
+def test_fetch_maven_artifacts_nvr_no_match(workflow, source_path,
                                             nvr_requests, error_msg):
     """Err when a requested archive is not found in Koji build."""
     mock_koji_session()
-    mock_fetch_artifacts_by_nvr(source_dir, contents=yaml.safe_dump(nvr_requests))
+    mock_fetch_artifacts_by_nvr(source_path, contents=yaml.safe_dump(nvr_requests))
     mock_nvr_downloads()
 
     with pytest.raises(PluginFailedException) as e:
-        mock_env(workflow, source_dir).create_runner().run()
+        mock_env(workflow).create_runner().run()
 
     assert 'failed to find archives' in str(e.value)
     assert error_msg in str(e.value)
 
 
 @responses.activate  # noqa
-def test_fetch_maven_artifacts_nvr_bad_checksum(workflow, source_dir):
+def test_fetch_maven_artifacts_nvr_bad_checksum(workflow, source_path):
     """Err when downloaded archive from Koji build has unexpected checksum."""
     mock_koji_session()
-    mock_fetch_artifacts_by_nvr(source_dir)
+    mock_fetch_artifacts_by_nvr(source_path)
     mock_nvr_downloads(overrides={1269850: {'body': 'corrupted-file'}})
 
     with pytest.raises(PluginFailedException) as e:
-        mock_env(workflow, source_dir).create_runner().run()
+        mock_env(workflow).create_runner().run()
 
     assert 'does not match expected checksum' in str(e.value)
 
 
 @responses.activate  # noqa
-def test_fetch_maven_artifacts_nvr_bad_url(workflow, source_dir):
+def test_fetch_maven_artifacts_nvr_bad_url(workflow, source_path):
     """Err on download errors for artifact from Koji build."""
     mock_koji_session()
-    mock_fetch_artifacts_by_nvr(source_dir)
+    mock_fetch_artifacts_by_nvr(source_path)
     mock_nvr_downloads(overrides={1269850: {'status': 404}})
 
     with pytest.raises(PluginFailedException) as e:
-        mock_env(workflow, source_dir).create_runner().run()
+        mock_env(workflow).create_runner().run()
 
     assert '404 Client Error' in str(e.value)
 
 
 @responses.activate  # noqa
-def test_fetch_maven_artifacts_nvr_bad_nvr(workflow, source_dir):
+def test_fetch_maven_artifacts_nvr_bad_nvr(workflow, source_path):
     """Err when given nvr is not a valid build in Koji."""
     mock_koji_session()
     contents = dedent("""\
         - nvr: where-is-this-build-3.0-2
         """)
-    mock_fetch_artifacts_by_nvr(source_dir, contents=contents)
+    mock_fetch_artifacts_by_nvr(source_path, contents=contents)
     mock_nvr_downloads()
 
     with pytest.raises(PluginFailedException) as e:
-        mock_env(workflow, source_dir).create_runner().run()
+        mock_env(workflow).create_runner().run()
 
     assert 'Build where-is-this-build-3.0-2 not found' in str(e.value)
 
@@ -624,14 +624,14 @@ def test_fetch_maven_artifacts_nvr_bad_nvr(workflow, source_dir):
 
 ))
 @responses.activate
-def test_fetch_maven_artifacts_nvr_schema_error(workflow, source_dir, contents):
+def test_fetch_maven_artifacts_nvr_schema_error(workflow, source_path, contents):
     """Err on invalid format for fetch-artifacts-koji.yaml"""
     mock_koji_session()
-    mock_fetch_artifacts_by_nvr(source_dir, contents=contents)
+    mock_fetch_artifacts_by_nvr(source_path, contents=contents)
     mock_nvr_downloads()
 
     with pytest.raises(PluginFailedException) as e:
-        mock_env(workflow, source_dir).create_runner().run()
+        mock_env(workflow).create_runner().run()
 
     assert 'OsbsValidationException' in str(e.value)
 
@@ -679,19 +679,19 @@ def test_fetch_maven_artifacts_nvr_schema_error(workflow, source_dir, contents):
 
 ))
 @responses.activate
-def test_fetch_maven_artifacts_pnc_schema_error(workflow, source_dir, contents):
+def test_fetch_maven_artifacts_pnc_schema_error(workflow, source_path, contents):
     """Err on invalid format for fetch-artifacts-pnc.yaml"""
     mock_koji_session()
-    mock_fetch_artifacts_from_pnc(source_dir, contents=contents)
+    mock_fetch_artifacts_from_pnc(source_path, contents=contents)
 
     with pytest.raises(PluginFailedException) as e:
-        mock_env(workflow, source_dir).create_runner().run()
+        mock_env(workflow).create_runner().run()
 
     assert 'OsbsValidationException' in str(e.value)
 
 
 @responses.activate
-def test_fetch_maven_artifacts_no_pnc_config(workflow, source_dir):
+def test_fetch_maven_artifacts_no_pnc_config(workflow, source_path):
     r_c_m = {
         'version': 1,
         'koji': {
@@ -703,9 +703,9 @@ def test_fetch_maven_artifacts_no_pnc_config(workflow, source_dir):
 
     with pytest.raises(PluginFailedException) as exc:
         mock_koji_session()
-        mock_fetch_artifacts_from_pnc(source_dir)
+        mock_fetch_artifacts_from_pnc(source_path)
         mock_pnc_downloads()
-        mock_env(workflow, source_dir, r_c_m=r_c_m).create_runner().run()
+        mock_env(workflow, r_c_m=r_c_m).create_runner().run()
 
     msg = 'No PNC configuration found in reactor config map'
 
@@ -717,15 +717,15 @@ def test_fetch_maven_artifacts_no_pnc_config(workflow, source_dir):
     ([REMOTE_FILE_WITH_TARGET], [REMOTE_FILE_WITH_TARGET]),
 ))
 @responses.activate
-def test_fetch_maven_artifacts_url_with_target(workflow, source_dir,
+def test_fetch_maven_artifacts_url_with_target(workflow, source_path,
                                                contents, expected):
     """Remote file is downloaded into specified filename."""
     mock_koji_session()
     remote_files = contents
-    mock_fetch_artifacts_by_url(source_dir, contents=yaml.safe_dump(remote_files))
+    mock_fetch_artifacts_by_url(source_path, contents=yaml.safe_dump(remote_files))
     mock_url_downloads(remote_files)
 
-    results = mock_env(workflow, source_dir).create_runner().run()
+    results = mock_env(workflow).create_runner().run()
     plugin_result = results[FetchMavenArtifactsPlugin.key]
 
     assert len(plugin_result['download_queue']) == len(expected)
@@ -733,36 +733,35 @@ def test_fetch_maven_artifacts_url_with_target(workflow, source_dir,
     if not expected:
         return
 
+    workflow.build_dir.for_each_platform(check_downloads_exist(plugin_result))
+
     download = plugin_result['download_queue'][0]
-    assert source_dir.joinpath(
-        FetchMavenArtifactsPlugin.DOWNLOAD_DIR, download.dest
-    ).exists()
     assert download.dest == REMOTE_FILE_WITH_TARGET['target']
     assert not REMOTE_FILE_WITH_TARGET['url'].endswith(download.dest)
 
 
 @responses.activate  # noqa
-def test_fetch_maven_artifacts_url_bad_checksum(workflow, source_dir):
+def test_fetch_maven_artifacts_url_bad_checksum(workflow, source_path):
     """Err when downloaded remote file has unexpected checksum."""
     mock_koji_session()
-    mock_fetch_artifacts_by_url(source_dir)
+    mock_fetch_artifacts_by_url(source_path)
     mock_url_downloads(overrides={REMOTE_FILE_SPAM['url']: {'body': 'corrupted-file'}})
 
     with pytest.raises(PluginFailedException) as e:
-        mock_env(workflow, source_dir).create_runner().run()
+        mock_env(workflow).create_runner().run()
 
     assert 'does not match expected checksum' in str(e.value)
 
 
 @responses.activate  # noqa
-def test_fetch_maven_artifacts_url_bad_url(workflow, source_dir):
+def test_fetch_maven_artifacts_url_bad_url(workflow, source_path):
     """Err on download errors for remote file."""
     mock_koji_session()
-    mock_fetch_artifacts_by_url(source_dir)
+    mock_fetch_artifacts_by_url(source_path)
     mock_url_downloads(overrides={REMOTE_FILE_SPAM['url']: {'status': 404}})
 
     with pytest.raises(PluginFailedException) as e:
-        mock_env(workflow, source_dir).create_runner().run()
+        mock_env(workflow).create_runner().run()
 
     assert '404 Client Error' in str(e.value)
 
@@ -802,14 +801,14 @@ def test_fetch_maven_artifacts_url_bad_url(workflow, source_dir):
         """),
 ))
 @responses.activate
-def test_fetch_maven_artifacts_url_schema_error(workflow, source_dir, contents):
+def test_fetch_maven_artifacts_url_schema_error(workflow, source_path, contents):
     """Err on invalid format for fetch-artifacts-url.yaml"""
     mock_koji_session()
-    mock_fetch_artifacts_by_url(source_dir, contents=contents)
+    mock_fetch_artifacts_by_url(source_path, contents=contents)
     mock_url_downloads()
 
     with pytest.raises(PluginFailedException) as e:
-        mock_env(workflow, source_dir).create_runner().run()
+        mock_env(workflow).create_runner().run()
 
     assert 'OsbsValidationException' in str(e.value)
 
@@ -832,13 +831,13 @@ def test_fetch_maven_artifacts_url_schema_error(workflow, source_dir, contents):
     (['spam.com', 'bacon.bz'], True),
 ))
 @responses.activate
-def test_fetch_maven_artifacts_url_allowed_domains(workflow, source_dir, domains, raises):
+def test_fetch_maven_artifacts_url_allowed_domains(workflow, source_path, domains, raises):
     """Validate URL domain is allowed when fetching remote file."""
     mock_koji_session()
-    mock_fetch_artifacts_by_url(source_dir)
+    mock_fetch_artifacts_by_url(source_path)
     mock_url_downloads()
 
-    runner = mock_env(workflow, source_dir, domains_override=domains).create_runner()
+    runner = mock_env(workflow, domains_override=domains).create_runner()
 
     if raises:
         with pytest.raises(PluginFailedException) as e:
@@ -848,14 +847,11 @@ def test_fetch_maven_artifacts_url_allowed_domains(workflow, source_dir, domains
     else:
         results = runner.run()
         plugin_result = results[FetchMavenArtifactsPlugin.key]
-        for download in plugin_result['download_queue']:
-            assert source_dir.joinpath(
-                FetchMavenArtifactsPlugin.DOWNLOAD_DIR, download.dest
-            ).exists()
+        workflow.build_dir.for_each_platform(check_downloads_exist(plugin_result))
 
 
 @responses.activate  # noqa
-def test_fetch_maven_artifacts_commented_out_files(workflow, source_dir):
+def test_fetch_maven_artifacts_commented_out_files(workflow, source_path):
     mock_koji_session()
     contents = dedent("""\
         # This file
@@ -864,13 +860,15 @@ def test_fetch_maven_artifacts_commented_out_files(workflow, source_dir):
         # and absolutely
         # commented out!
         """)
-    mock_fetch_artifacts_by_nvr(source_dir, contents=contents)
-    mock_fetch_artifacts_by_url(source_dir, contents=contents)
+    mock_fetch_artifacts_by_nvr(source_path, contents=contents)
+    mock_fetch_artifacts_by_url(source_path, contents=contents)
     mock_nvr_downloads()
     mock_url_downloads()
 
-    results = mock_env(workflow, source_dir).create_runner().run()
+    results = mock_env(workflow).create_runner().run()
     plugin_result = results[FetchMavenArtifactsPlugin.key]
 
     assert len(plugin_result['download_queue']) == 0
-    assert not source_dir.joinpath(FetchMavenArtifactsPlugin.DOWNLOAD_DIR).exists()
+    assert not workflow.build_dir.any_platform.path.joinpath(
+        FetchMavenArtifactsPlugin.DOWNLOAD_DIR
+    ).exists()
