@@ -38,10 +38,12 @@ or
 
 import os
 import shutil
-from atomic_reactor.constants import DOCKERFILE_FILENAME, IMAGE_BUILD_INFO_DIR
-from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.util import df_parser
+
 from osbs.utils import Labels
+
+from atomic_reactor.constants import DOCKERFILE_FILENAME, IMAGE_BUILD_INFO_DIR
+from atomic_reactor.dirs import BuildDir
+from atomic_reactor.plugin import PreBuildPlugin
 
 
 class AddDockerfilePlugin(PreBuildPlugin):
@@ -67,45 +69,47 @@ class AddDockerfilePlugin(PreBuildPlugin):
         self.use_final_dockerfile = use_final_dockerfile
 
         if nvr is None:
-            labels = Labels(df_parser(self.workflow.df_path).labels)
-            try:
-                _, name = labels.get_name_and_value(Labels.LABEL_TYPE_NAME)
-                _, version = labels.get_name_and_value(Labels.LABEL_TYPE_VERSION)
-                _, release = labels.get_name_and_value(Labels.LABEL_TYPE_RELEASE)
-            except KeyError as exc:
-                raise ValueError(
-                    "You have to specify either nvr arg or name/version/release labels."
-                ) from exc
-            nvr = "{0}-{1}-{2}".format(name, version, release)
-            nvr = nvr.replace("/", "-")
-        self.df_name = '{0}-{1}'.format(DOCKERFILE_FILENAME, nvr)
-        self.df_dir = destdir
-        self.df_path = os.path.join(self.df_dir, self.df_name)
+            nvr = self._nvr_from_dockerfile()
 
-        # we are not using final dockerfile, so let's copy current snapshot
-        if not self.use_final_dockerfile:
-            local_df_path = os.path.join(self.workflow.df_dir, self.df_name)
-            shutil.copy2(self.workflow.df_path, local_df_path)
+        self.df_name = f"{DOCKERFILE_FILENAME}-{nvr}"
+        self.df_path = os.path.join(destdir, self.df_name)
 
-    def run(self):
-        """
-        run the plugin
-        """
-        dockerfile = df_parser(self.workflow.df_path, workflow=self.workflow)
+    def _nvr_from_dockerfile(self) -> str:
+        # any_platform: the N-V-R labels should be equal for all platforms
+        dockerfile = self.workflow.build_dir.any_platform.dockerfile_with_parent_env(
+            self.workflow.imageutil.base_image_inspect()
+        )
+        labels = Labels(dockerfile.labels)
+        try:
+            _, name = labels.get_name_and_value(Labels.LABEL_TYPE_NAME)
+            _, version = labels.get_name_and_value(Labels.LABEL_TYPE_VERSION)
+            _, release = labels.get_name_and_value(Labels.LABEL_TYPE_RELEASE)
+        except KeyError as exc:
+            raise ValueError(
+                "Required name/version/release labels not found in Dockerfile"
+            ) from exc
+        nvr = f"{name}-{version}-{release}"
+        return nvr.replace("/", "-")
+
+    def add_dockerfile(self, build_dir: BuildDir) -> None:
+        dockerfile = build_dir.dockerfile
         lines = dockerfile.lines
 
-        # when using final dockerfile, we should use DOCKERFILE_FILENAME
-        # otherwise we should use the copied version
         if self.use_final_dockerfile:
-            content = 'ADD {0} {1}'.format(DOCKERFILE_FILENAME, self.df_path)
+            # when using final dockerfile, we should use DOCKERFILE_FILENAME
+            add_line = f'ADD {DOCKERFILE_FILENAME} {self.df_path}\n'
         else:
-            content = 'ADD {0} {1}'.format(self.df_name, self.df_path)
+            # otherwise we should copy current snapshot and use the copied version
+            shutil.copy2(build_dir.dockerfile_path, build_dir.path / self.df_name)
+            add_line = f'ADD {self.df_name} {self.df_path}\n'
 
         # put it before last instruction
-        lines.insert(-1, content + '\n')
+        lines.insert(-1, add_line)
 
         dockerfile.lines = lines
 
-        self.log.info("added %s", self.df_path)
+        self.log.info("added %s for the %s build", self.df_path, build_dir.platform)
 
-        return content
+    def run(self):
+        """Run the plugin."""
+        self.workflow.build_dir.for_each_platform(self.add_dockerfile)
