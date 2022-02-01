@@ -10,6 +10,7 @@ definition of plugin system
 
 plugins are supposed to be run when image is built and we need to extract some information
 """
+from abc import ABC, abstractmethod
 import copy
 import logging
 import os
@@ -41,13 +42,9 @@ class InappropriateBuildStepError(Exception):
     """Requested build step is not appropriate"""
 
 
-class Plugin(object):
+class Plugin(ABC):
     """ abstract plugin class """
 
-    # unique plugin identification
-    # output of this plugin can be found in results specified with this key,
-    # same thing goes for input: use this key for providing input for this plugin
-    key = None
     # by default, if plugin fails (raises exc), execution continues
     is_allowed_to_fail = True
 
@@ -58,6 +55,28 @@ class Plugin(object):
         self.log = logging.getLogger("atomic_reactor.plugins." + self.key)
         self.args = args
         self.kwargs = kwargs
+
+    @property
+    @abstractmethod
+    def key(self) -> str:
+        """Unique plugin identification
+
+        Output of this plugin can be found in results specified with this key,
+        same thing goes for input: use this key for providing input for this plugin
+
+        In subclass it can be specified just as "key" attribute
+        """
+
+        # Implementation notes: because this must be defined in each plugin it's abstract
+        # property. For easy implementation it's just instance property not a class
+        # property (with py<=3.8 it requires metaprogramming).
+        # For py>3.8:
+        #  ```
+        #  @classmethod
+        #  @property
+        #  def key(cls) -> str
+        #  ```
+        return "plugin"
 
     def __str__(self):
         return "%s" % self.key
