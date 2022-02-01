@@ -295,6 +295,9 @@ class TestBuildPluginsRunner(object):
         workflow.user_params = {'shrubbery': 'yrebburhs'}
 
         class MyPlugin(BuildPlugin):
+
+            key = 'my_plugin'
+
             @staticmethod
             def args_from_user_params(user_params):
                 return {'shrubbery': user_params['shrubbery']}
@@ -325,6 +328,9 @@ class TestBuildPluginsRunner(object):
         workflow.user_params = {}
 
         class MyPlugin(BuildPlugin):
+
+            key = 'my_plugin'
+
             def __init__(self, workflow, spam=None, **kwargs):
                 self.spam = spam
                 for key, value in kwargs.items():
