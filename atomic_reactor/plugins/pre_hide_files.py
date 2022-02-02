@@ -5,27 +5,32 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
-import os
+from pathlib import Path
+from typing import NamedTuple, Dict, Any, Optional, List
+
+from dockerfile_parse import DockerfileParser
 
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import df_parser
 from atomic_reactor.constants import INSPECT_CONFIG, SCRATCH_FROM
 
 
+class DockerfileStage(NamedTuple):
+    """Delimits a single stage in a Dockerfile.
+
+    from_structure: information about the FROM instruction for this stage
+    end_structure: information about the last instruction in this stage
+    user_line: the last USER line in this stage, if any
+    """
+
+    from_structure: Dict[str, Any]
+    end_structure: Dict[str, Any]
+    user_line: Optional[str]
+
+
 class HideFilesPlugin(PreBuildPlugin):
     key = 'hide_files'
     is_allowed_to_fail = True
-
-    def __init__(self, workflow):
-        """
-        Plugin initializer
-
-        :param workflow: DockerBuildWorkflow instance
-        """
-        super(HideFilesPlugin, self).__init__(workflow)
-        self.start_lines = []
-        self.end_lines = []
-        self.dfp = None
 
     def run(self):
         """
@@ -36,22 +41,34 @@ class HideFilesPlugin(PreBuildPlugin):
             self.log.info("Skipping hide files: no files to hide")
             return
 
-        self._populate_start_file_lines(hide_files)
-        self._populate_end_file_lines(hide_files)
+        files_to_hide = list(map(Path, hide_files["files"]))
+        tmpdir = Path(hide_files["tmpdir"])
 
-        self.dfp = df_parser(self.workflow.df_path)
-        stages = self._find_stages()
+        # At the start of the build, hide files by moving them to the configured tmpdir
+        start_lines = [
+            f"RUN mv -f {file_to_hide} {tmpdir} || :" for file_to_hide in files_to_hide
+        ]
+        # At the end of the build, move the hidden files back to their original locations
+        end_lines = [
+            f"RUN mv -fZ {tmpdir / file_to_hide.name} {file_to_hide} || :"
+            for file_to_hide in files_to_hide
+        ]
+
+        dockerfile = df_parser(self.workflow.df_path)
+        stages = self._find_stages(dockerfile)
 
         # For each stage, wrap it with the extra lines we want.
         # Work backwards to preserve line numbers.
         for stage in reversed(stages):
-            self._update_dockerfile(**stage)
+            self._update_dockerfile(dockerfile, stage, start_lines, end_lines)
 
-    def _find_stages(self):
+    def _find_stages(self, dockerfile: DockerfileParser) -> List[DockerfileStage]:
         """Find limits of each Dockerfile stage"""
         stages = []
-        end = last_user_found = None
-        for part in reversed(self.dfp.structure):
+        end = None
+        last_user_found = None
+
+        for part in reversed(dockerfile.structure):
             if end is None:
                 end = part
 
@@ -60,26 +77,27 @@ class HideFilesPlugin(PreBuildPlugin):
                 last_user_found = part['content']
 
             if part['instruction'] == 'FROM':
-                stages.insert(0, {'from_structure': part,
-                                  'end_structure': end,
-                                  'stage_user': last_user_found})
-                end = last_user_found = None
+                stage = DockerfileStage(
+                    from_structure=part, end_structure=end, user_line=last_user_found
+                )
+                stages.append(stage)
+                end = None
+                last_user_found = None
 
+        # we found the stages in reverse order, return them in the correct order
+        stages.reverse()
         return stages
 
-    def _populate_start_file_lines(self, hide_files):
-        for file_to_hide in hide_files['files']:
-            self.start_lines.append('RUN mv -f {} {} || :'.format(file_to_hide,
-                                                                  hide_files['tmpdir']))
+    def _update_dockerfile(
+        self,
+        dockerfile: DockerfileParser,
+        stage: DockerfileStage,
+        start_lines: List[str],
+        end_lines: List[str]
+    ) -> None:
+        """Add the specified lines at the start and end of the specified stage in the Dockerfile."""
+        from_structure, end_structure, stage_user = stage
 
-    def _populate_end_file_lines(self, hide_files):
-        for file_to_hide in hide_files['files']:
-            file_base = os.path.basename(file_to_hide)
-            tmp_dest = os.path.join(hide_files['tmpdir'], file_base)
-
-            self.end_lines.append('RUN mv -fZ {} {} || :'.format(tmp_dest, file_to_hide))
-
-    def _update_dockerfile(self, from_structure, end_structure, stage_user):
         self.log.debug("updating stage starting line %d, ending at %d",
                        from_structure['startline'], end_structure['endline'])
         add_start_lines = []
@@ -97,7 +115,7 @@ class HideFilesPlugin(PreBuildPlugin):
         if inherited_user:
             add_start_lines.append('USER root')
 
-        add_start_lines.extend(self.start_lines)
+        add_start_lines.extend(start_lines)
 
         if inherited_user:
             add_start_lines.append('USER {}'.format(inherited_user))
@@ -110,12 +128,12 @@ class HideFilesPlugin(PreBuildPlugin):
         if final_user_line:
             add_end_lines.append('USER root')
 
-        add_end_lines.extend(self.end_lines)
+        add_end_lines.extend(end_lines)
 
         if final_user_line:
             add_end_lines.append(final_user_line)
 
         self.log.debug("append after: %r", add_end_lines)
         self.log.debug("insert before: %r", add_start_lines)
-        self.dfp.add_lines_at(end_structure, *add_end_lines, after=True)
-        self.dfp.add_lines_at(from_structure, *add_start_lines, after=True)
+        dockerfile.add_lines_at(end_structure, *add_end_lines, after=True)
+        dockerfile.add_lines_at(from_structure, *add_start_lines, after=True)
