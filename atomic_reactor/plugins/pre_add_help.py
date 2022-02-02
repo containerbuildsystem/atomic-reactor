@@ -96,7 +96,7 @@ class AddHelpPlugin(PreBuildPlugin):
                 lines.insert(0, "%% %s (1) Container Image Pages\n" % name)
                 lines.insert(1, "%% %s\n" % maintainer)
                 lines.insert(2, "%% %s\n" % dt.fromtimestamp(atomic_reactor_start_time)
-                             .strftime(format="%B %-d, %Y"))
+                             .strftime("%B %-d, %Y"))
 
                 help_file.seek(0)
                 help_file.truncate()
