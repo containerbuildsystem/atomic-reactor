@@ -179,7 +179,7 @@ class AddLabelsPlugin(PreBuildPlugin):
 
         for old, new in self.aliases.items():
             if old not in all_labels:
-                applied_alias = not_applied.append(old)
+                not_applied.append(old)
                 continue
 
             # new label doesn't exists but old label does
@@ -259,8 +259,10 @@ class AddLabelsPlugin(PreBuildPlugin):
                 self.log.warning("environment release variable %s could not be set because no "
                                  "release label found", release_env_var)
 
-    def add_labels_to_df(self, build_dir: BuildDir) -> str:
+    def add_labels_to_df(self, build_dir: BuildDir) -> None:
         """Add labels to a platform-specific Dockerfile."""
+        base_image_labels: Dict[str, str]
+
         base_image_inspect = self.workflow.imageutil.base_image_inspect(build_dir.platform)
         dockerfile = build_dir.dockerfile_with_parent_env(base_image_inspect)
 
