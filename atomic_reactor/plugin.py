@@ -124,7 +124,7 @@ class BuildPlugin(Plugin):
         return self.workflow.is_orchestrator_build()
 
     @staticmethod
-    def args_from_user_params(user_params: dict) -> dict:
+    def args_from_user_params(user_params: dict, /) -> dict:
         """Get keyword arguments for this plugin based on values in user params.
 
         Plugin runners will set these automatically for all plugins.
