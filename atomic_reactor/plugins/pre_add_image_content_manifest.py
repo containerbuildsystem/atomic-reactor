@@ -10,6 +10,7 @@ import functools
 import json
 import os
 from copy import deepcopy
+from typing import Any, Dict
 
 from osbs.utils import Labels
 
@@ -73,7 +74,7 @@ class AddImageContentManifestPlugin(PreBuildPlugin):
     """
     key = PLUGIN_ADD_IMAGE_CONTENT_MANIFEST
     is_allowed_to_fail = False
-    minimal_icm = {
+    minimal_icm: Dict[str, Any] = {
         'metadata': {
             'icm_version': 1,
             'icm_spec': ('https://raw.githubusercontent.com/containerbuildsystem/atomic-reactor/'
