@@ -5,6 +5,7 @@ dockerfile-parse>=0.0.13
 flatpak-module-tools >= 0.11,<0.13;python_version<"3.9"
 flatpak-module-tools >= 0.11;python_version>="3.9"
 jsonschema
+paramiko
 PyYAML
 ruamel.yaml
 git+https://github.com/containerbuildsystem/osbs-client@3a67d8a1b5e961cd35cbf9293ee98ea2bbd4ebb7#egg=osbs-client
