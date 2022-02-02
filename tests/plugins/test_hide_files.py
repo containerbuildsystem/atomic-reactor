@@ -6,31 +6,35 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
-import os
+from pathlib import Path
 from textwrap import dedent
-from flexmock import flexmock
 
 import pytest
+from flexmock import flexmock
 
 from atomic_reactor.constants import INSPECT_CONFIG
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.plugins.pre_hide_files import HideFilesPlugin
-from atomic_reactor.util import df_parser
+
+
+def check_df_content(expected_content, workflow):
+    def check_in_build_dir(build_dir):
+        assert build_dir.dockerfile_path.read_text() == expected_content
+
+    workflow.build_dir.for_each_platform(check_in_build_dir)
 
 
 @pytest.mark.usefixtures('user_params')
 class TestHideFilesPlugin(object):
 
-    def test_missing_config(self, workflow, source_dir):
+    def test_missing_config(self, workflow):
         df_content = dedent("""\
             FROM fedora
             RUN yum install -y python-flask
             CMD /bin/bash
             """)
-        df = df_parser(str(source_dir))
-        df.content = df_content
 
-        self.prepare(workflow, df.dockerfile_path)
+        self.prepare(workflow, df_content)
 
         runner = PreBuildPluginsRunner(workflow, [
             {'name': HideFilesPlugin.key, 'args': {}},
@@ -39,7 +43,7 @@ class TestHideFilesPlugin(object):
 
         assert runner_results[HideFilesPlugin.key] is None
         # Verify Dockerfile contents have not changed
-        assert df.content == df_content
+        check_df_content(df_content, workflow)
 
     @pytest.mark.parametrize(('df_content', 'expected_df', 'inherited_user'), [
         (
@@ -144,9 +148,7 @@ class TestHideFilesPlugin(object):
             "inherited_user"
         ),
     ])
-    def test_hide_files(self, workflow, source_dir, df_content, expected_df, inherited_user):
-        df = df_parser(str(source_dir))
-        df.content = df_content
+    def test_hide_files(self, workflow, df_content, expected_df, inherited_user):
         hide_files = {'tmpdir': '/tmp', 'files': ['/etc/yum.repos.d/repo_ignore_1.repo',
                                                   '/etc/yum.repos.d/repo_ignore_2.repo']}
         parent_images = [
@@ -154,7 +156,7 @@ class TestHideFilesPlugin(object):
         ]
 
         self.prepare(workflow,
-                     df.dockerfile_path,
+                     df_content,
                      hide_files=hide_files,
                      parent_images=parent_images,
                      inherited_user=inherited_user)
@@ -164,9 +166,9 @@ class TestHideFilesPlugin(object):
         ])
         runner.run()
 
-        assert df.content == expected_df
+        check_df_content(expected_df, workflow)
 
-    def test_hide_files_multi_stage(self, workflow, source_dir):
+    def test_hide_files_multi_stage(self, workflow):
         df_content = dedent("""\
             FROM sha256:123456 as builder
             RUN blah
@@ -181,8 +183,6 @@ class TestHideFilesPlugin(object):
             USER custom_user2
             CMD /bin/bash
             """)
-        df = df_parser(str(source_dir))
-        df.content = df_content
         hide_files = {'tmpdir': '/tmp', 'files': ['/etc/yum.repos.d/repo_ignore_1.repo',
                                                   '/etc/yum.repos.d/repo_ignore_2.repo']}
         parent_images = [
@@ -191,7 +191,7 @@ class TestHideFilesPlugin(object):
         ]
 
         self.prepare(workflow,
-                     df.dockerfile_path,
+                     df_content,
                      hide_files=hide_files,
                      parent_images=parent_images,
                      inherited_user="inherited_user")
@@ -239,11 +239,11 @@ class TestHideFilesPlugin(object):
             RUN mv -fZ /tmp/repo_ignore_2.repo /etc/yum.repos.d/repo_ignore_2.repo || :
             USER custom_user2
             """)
-        assert df.content == expected_df_content
+        check_df_content(expected_df_content, workflow)
 
-    def prepare(self, workflow, df_path, inherited_user='', hide_files=None, parent_images=None):
-        workflow.source = MockSource(df_path)
-        flexmock(workflow, df_path=df_path)
+    def prepare(self, workflow, df_content, inherited_user='', hide_files=None, parent_images=None):
+        (Path(workflow.source.path) / "Dockerfile").write_text(df_content)
+        workflow.build_dir.init_build_dirs(["aarch64", "x86_64"], workflow.source)
 
         for parent in parent_images or []:
             (flexmock(workflow.imageutil)
@@ -254,16 +254,3 @@ class TestHideFilesPlugin(object):
         if hide_files is not None:
             reactor_config = {'version': 1, 'hide_files': hide_files}
             workflow.conf.conf = reactor_config
-
-
-class MockSource(object):
-    def __init__(self, dockerfile_path):
-        self.dockerfile_path = dockerfile_path
-        self.path = os.path.dirname(dockerfile_path)
-
-    def get_build_file_path(self):
-        return self.dockerfile_path, self.path
-
-    @property
-    def workdir(self):
-        return self.path

@@ -5,13 +5,14 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
+import functools
 from pathlib import Path
 from typing import NamedTuple, Dict, Any, Optional, List
 
 from dockerfile_parse import DockerfileParser
 
+from atomic_reactor.dirs import BuildDir
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.util import df_parser
 from atomic_reactor.constants import INSPECT_CONFIG, SCRATCH_FROM
 
 
@@ -54,7 +55,14 @@ class HideFilesPlugin(PreBuildPlugin):
             for file_to_hide in files_to_hide
         ]
 
-        dockerfile = df_parser(self.workflow.df_path)
+        hide_in_build_dir = functools.partial(self._add_hide_lines, start_lines, end_lines)
+        self.workflow.build_dir.for_each_platform(hide_in_build_dir)
+
+    def _add_hide_lines(
+        self, start_lines: List[str], end_lines: List[str], build_dir: BuildDir
+    ) -> None:
+        """Add the hide instructions to every stage of the Dockerfile in this build dir."""
+        dockerfile = build_dir.dockerfile
         stages = self._find_stages(dockerfile)
 
         # For each stage, wrap it with the extra lines we want.
@@ -108,7 +116,7 @@ class HideFilesPlugin(PreBuildPlugin):
         if parent_image_id == SCRATCH_FROM:
             return
 
-        # OSBS2 TBD: decide if we need to inspect a specific arch
+        # inspect any platform, the parent user should be the same for all platforms
         inspect = self.workflow.imageutil.get_inspect_for_image(parent_image_id)
         inherited_user = inspect.get(INSPECT_CONFIG, {}).get('User', '')
 
