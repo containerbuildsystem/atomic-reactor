@@ -134,7 +134,7 @@ def prepare(workflow, build_dir, inherited_user='', dockerfile=DEFAULT_DOCKERFIL
     workflow.build_dir.init_build_dirs(platforms, workflow.source)
     df = df_parser(str(build_dir))
     df.content = dockerfile
-    workflow.dockerfile_images = DockerfileImages(df.parent_images)
+    workflow.data.dockerfile_images = DockerfileImages(df.parent_images)
     if include_koji_repo:
         session = MockedClientSession(hub='', opts=None)
         workflow.koji_session = session
@@ -839,7 +839,7 @@ def test_include_koji(workflow, build_dir, caplog, parent_images, base_from_scra
         dockerfile_images.append('parent_image:latest')
     if base_from_scratch:
         dockerfile_images.append('scratch')
-    workflow.dockerfile_images = DockerfileImages(dockerfile_images)
+    workflow.data.dockerfile_images = DockerfileImages(dockerfile_images)
 
     args = {'target': target}
 
@@ -980,7 +980,7 @@ def test_multiple_repourls(workflow, build_dir, caplog, base_from_scratch, paren
         dockerfile_images.append('parent_image:latest')
     if base_from_scratch:
         dockerfile_images.append('scratch')
-    workflow.dockerfile_images = DockerfileImages(dockerfile_images)
+    workflow.data.dockerfile_images = DockerfileImages(dockerfile_images)
     repo_content = '''[repo]\n'''
 
     for repofile_url in repos:
