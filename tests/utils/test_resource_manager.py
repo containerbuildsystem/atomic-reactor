@@ -26,7 +26,7 @@ class TestHost:
 
     def test_host_check_avail():
         HOST_INFO = '{"hostname": "tst", "arch": "x86", "max_slot_count": 1}'
-        SLOT_INFO ´= '{"prid": "abc", "locked": "2022-02-03 08:33:33.404274"}'
+        SLOT_INFO = '{"prid": "abc", "locked": "2022-02-03 08:33:33.404274"}'
         mock.patch.object(Host, '_read_info_data', HOST_INFO)
         mock.patch.object(Host, '_read_slot_data', SLOT_INFO)
         my_host = Host('user', 'hostname')
