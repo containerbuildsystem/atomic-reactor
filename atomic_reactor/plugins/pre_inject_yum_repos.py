@@ -82,7 +82,7 @@ class InjectYumReposPlugin(PreBuildPlugin):
         if user:
             return user
 
-        if not self.workflow.dockerfile_images.base_from_scratch:
+        if not self.workflow.data.dockerfile_images.base_from_scratch:
             # Inspect any platform: the User should be equal for all platforms
             inspect = self.workflow.imageutil.base_image_inspect()
             user = inspect.get(INSPECT_CONFIG, {}).get('User')
@@ -213,14 +213,14 @@ class InjectYumReposPlugin(PreBuildPlugin):
                 all_stages=True, at_start=True, skip_scratch=True
             )
 
-        if not self.workflow.dockerfile_images.base_from_scratch:
+        if not self.workflow.data.dockerfile_images.base_from_scratch:
             build_dir.dockerfile.add_lines(*self._cleanup_lines(build_dir.platform))
 
     def run(self):
         """
         run the plugin
         """
-        if not self.workflow.dockerfile_images:
+        if not self.workflow.data.dockerfile_images:
             self.log.info("Skipping plugin, from scratch stage(s) can't add repos")
             return
 
