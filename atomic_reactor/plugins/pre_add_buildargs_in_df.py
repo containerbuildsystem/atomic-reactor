@@ -8,8 +8,8 @@ of the BSD license. See the LICENSE file for details.
 Adds all provided buildargs as ARG after each FROM in Dockerfile
 """
 
+from atomic_reactor.dirs import BuildDir
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.util import df_parser
 
 
 class AddBuildargsPlugin(PreBuildPlugin):
@@ -22,19 +22,17 @@ class AddBuildargsPlugin(PreBuildPlugin):
         """
         super(AddBuildargsPlugin, self).__init__(workflow)
 
+    def add_buildargs(self, build_dir: BuildDir) -> None:
+        """Add ARG instructions for each build argument to the Dockerfile."""
+        buildarg_lines = [
+            f"ARG {buildarg}" for buildarg in sorted(self.workflow.data.buildargs.keys())
+        ]
+        build_dir.dockerfile.add_lines(*buildarg_lines, at_start=True, all_stages=True)
+
     def run(self):
-        """
-        Run the plugin.
-        """
+        """Run the plugin."""
         if not self.workflow.data.buildargs:
             self.log.info('No buildargs specified, skipping plugin')
             return
 
-        buildarg_lines = []
-
-        for buildarg in sorted(self.workflow.data.buildargs.keys()):
-            buildarg_lines.append("ARG {}".format(buildarg))
-
-        df = df_parser(self.workflow.df_path, workflow=self.workflow)
-
-        df.add_lines(*buildarg_lines, at_start=True, all_stages=True)
+        self.workflow.build_dir.for_each_platform(self.add_buildargs)
