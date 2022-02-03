@@ -6,26 +6,26 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
+import logging
+from pathlib import Path
+
+import pytest
+from flexmock import flexmock
+
 from atomic_reactor.constants import INSPECT_CONFIG
 from atomic_reactor.plugins.pre_distribution_scope import (DistributionScopePlugin,
                                                            DisallowedDistributionScope)
 from atomic_reactor.util import DockerfileImages
-from flexmock import flexmock
-import logging
-import os
-import pytest
 
 
 class TestDistributionScope(object):
     def instantiate_plugin(self, workflow, parent_labels, current_scope, base_from_scratch=False):
-        filename = os.path.join(workflow.source.workdir, 'Dockerfile')
-        with open(filename, 'wt') as df:
+        with open(Path(workflow.source.path) / "Dockerfile", 'wt') as df:
             df.write('FROM scratch\n')
             if current_scope:
                 df.write('LABEL distribution-scope={}\n'.format(current_scope))
 
-        # TEMP solution until the plugin is updated to read Dockerfiles from build dirs
-        workflow._df_path = filename
+        workflow.build_dir.init_build_dirs(["x86_64"], workflow.source)
 
         if not base_from_scratch:
             (flexmock(workflow.imageutil)

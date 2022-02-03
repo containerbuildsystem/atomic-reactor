@@ -7,7 +7,6 @@ of the BSD license. See the LICENSE file for details.
 """
 from atomic_reactor.constants import INSPECT_CONFIG
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.util import df_parser
 
 
 class NothingToCheck(Exception):
@@ -83,16 +82,18 @@ class DistributionScopePlugin(PreBuildPlugin):
 
     def run(self):
         try:
+            # Inspect any platform, the scope labels should be equal for all platforms
+            base_inspect = self.workflow.imageutil.base_image_inspect()
+            df = self.workflow.build_dir.any_platform.dockerfile_with_parent_env(base_inspect)
+
             # Find out the intended scope for this image
-            labels = df_parser(self.workflow.df_path, workflow=self.workflow).labels
+            labels = df.labels
             scope = self.get_scope('current', labels)
 
             # Find out the parent's intended scope
-            # OSBS2 TBD: decide if we need to inspect a specific arch
-            inspect = self.workflow.imageutil.base_image_inspect()
             parent_labels = {}
             if not self.workflow.data.dockerfile_images.base_from_scratch:
-                parent_labels = inspect.get(INSPECT_CONFIG, {}).get('Labels', {})
+                parent_labels = base_inspect.get(INSPECT_CONFIG, {}).get('Labels', {})
             parent_scope = self.get_scope('parent', parent_labels)
         except NothingToCheck:
             self.log.debug("no checks performed")
