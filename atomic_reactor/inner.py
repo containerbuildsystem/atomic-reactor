@@ -564,10 +564,10 @@ class ImageBuildWorkflowData(ISerializer):
     plugin_failed: bool = False
 
     # info about pre-declared build, build-id and token
-    reserved_build_id: int = None
-    reserved_token: str = None
+    reserved_build_id: Optional[int] = None
+    reserved_token: Optional[str] = None
     koji_source_nvr: Dict[str, str] = field(default_factory=dict)
-    koji_source_source_url: str = None
+    koji_source_source_url: Optional[str] = None
     koji_source_manifest: Dict[str, Any] = field(default_factory=dict)
 
     buildargs: Dict[str, str] = field(default_factory=dict)  # --buildargs for container build
@@ -588,7 +588,7 @@ class ImageBuildWorkflowData(ISerializer):
 
     # List of RPMs that go into the final result, as per utils.rpm.parse_rpm_output
     # Each RPM inside is a mapping containing the name, version, release and other attributes.
-    image_components: List[Dict[str, Union[int, str]]] = None
+    image_components: Optional[List[Dict[str, Union[int, str]]]] = None
 
     # List of all yum repos. The provided repourls might be changed (by resolve_composes) when
     # inheritance is enabled. This property holds the updated list of repos, allowing
@@ -601,7 +601,7 @@ class ImageBuildWorkflowData(ISerializer):
     labels: Dict[str, Any] = field(default_factory=dict)
 
     # OSBS2 TBD
-    image_id: str = None
+    image_id: Optional[str] = None
     parent_images_digests: Dict[str, Dict[str, str]] = field(default_factory=dict)
 
     build_result: BuildResult = field(init=False)
