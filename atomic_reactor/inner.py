@@ -186,7 +186,7 @@ class BuildResult(ISerializer):
         return self._source_docker_archive
 
     def is_image_available(self) -> bool:
-        return self._image_id and self._image_id is not self.REMOTE_IMAGE
+        return bool(self._image_id and self._image_id is not self.REMOTE_IMAGE)
 
     @classmethod
     def load(cls, data: Dict[str, Any]):
