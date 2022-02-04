@@ -568,10 +568,10 @@ class ImageBuildWorkflowData(ISerializer):
     reserved_token: str = None
     koji_source_nvr: Dict[str, str] = field(default_factory=dict)
     koji_source_source_url: str = None
-    koji_source_manifest: Dict[str, Any] = None
+    koji_source_manifest: Dict[str, Any] = field(default_factory=dict)
 
     buildargs: Dict[str, str] = field(default_factory=dict)  # --buildargs for container build
-    built_image_inspect: Dict[str, Any] = None
+    built_image_inspect: Dict[str, Any] = field(default_factory=dict)
     layer_sizes: List[Dict[str, Union[str, int]]] = field(default_factory=list)
 
     # When an image is exported into tarball, it can then be processed by various plugins.
@@ -593,7 +593,7 @@ class ImageBuildWorkflowData(ISerializer):
     # List of all yum repos. The provided repourls might be changed (by resolve_composes) when
     # inheritance is enabled. This property holds the updated list of repos, allowing
     # post-build plugins (such as koji_import) to record them.
-    all_yum_repourls: List[str] = None
+    all_yum_repourls: List[str] = field(default_factory=list)
 
     # Plugins can store info here using the @annotation, @annotation_map,
     # @label and @label_map decorators from atomic_reactor.metadata
