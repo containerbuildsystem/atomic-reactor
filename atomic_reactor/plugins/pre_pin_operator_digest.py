@@ -20,7 +20,7 @@ from atomic_reactor.constants import (
 from atomic_reactor.util import (RegistrySession,
                                  RegistryClient,
                                  has_operator_bundle_manifest,
-                                 read_yaml_from_url, df_parser,
+                                 read_yaml_from_url,
                                  terminal_key_paths,
                                  map_to_user_params)
 from osbs.utils.yaml import (
@@ -289,7 +289,10 @@ class PinOperatorDigestsPlugin(PreBuildPlugin):
         site_config = self.workflow.conf.operator_manifests
         allowed_packages = site_config.get("skip_all_allow_list", [])
 
-        parser = df_parser(self.workflow.df_path, workflow=self.workflow)
+        # any_platform: the component label should be equal for all platforms
+        parser = self.workflow.build_dir.any_platform.dockerfile_with_parent_env(
+            self.workflow.imageutil.base_image_inspect()
+        )
         dockerfile_labels = parser.labels
         labels = Labels(dockerfile_labels)
 
