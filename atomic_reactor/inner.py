@@ -701,7 +701,7 @@ class DockerBuildWorkflow(object):
     """
 
     # The only reason this is here is to have something that unit tests can monkeypatch
-    _default_user_params = {}
+    _default_user_params: Dict[str, Any] = {}
 
     def __init__(
         self,
@@ -745,7 +745,7 @@ class DockerBuildWorkflow(object):
         build_file_path, build_file_dir = self.source.get_build_file_path()
 
         self.df_dir = build_file_dir
-        self._df_path = None
+        self._df_path: Optional[str] = None
 
         # openshift in configuration needs namespace, it was reading it from get_builds_json()
         # we should have it in user_params['namespace']
