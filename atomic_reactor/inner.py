@@ -412,6 +412,8 @@ class PushConf(ISerializer):
         }
 
     def __eq__(self, other: object) -> bool:
+        if not isinstance(other, PushConf):
+            return NotImplemented
         return self._registries == other._registries
 
     @property
