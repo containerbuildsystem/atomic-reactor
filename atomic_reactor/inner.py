@@ -196,7 +196,7 @@ class BuildResult(ISerializer):
             image_id=data.get("image_id"),
             annotations=data.get("annotations"),
             labels=data.get("labels"),
-            skip_layer_squash=data.get("skip_layer_squash"),
+            skip_layer_squash=data.get("skip_layer_squash", False),
             source_docker_archive=data.get("source_docker_archive"),
         )
 
