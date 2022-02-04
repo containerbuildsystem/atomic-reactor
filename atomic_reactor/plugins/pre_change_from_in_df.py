@@ -9,8 +9,9 @@ of the BSD license. See the LICENSE file for details.
 Pre-build plugin that changes the parent images used in FROM instructions
 to the more specific names given by the builder.
 """
+from atomic_reactor.dirs import BuildDir
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.util import df_parser, base_image_is_scratch
+from atomic_reactor.util import base_image_is_scratch
 
 
 class BaseImageMismatch(RuntimeError):
@@ -48,9 +49,11 @@ class ChangeFromPlugin(PreBuildPlugin):
                 .format(image, df_base, builder_base)
             )
 
-    def run(self):
-        dfp = df_parser(self.workflow.df_path)
-        df_base = dfp.baseimage
+    def change_from_in_df(self, build_dir: BuildDir) -> None:
+        self.log.info(
+            "Updating FROM instructions in %s Dockerfile to pin parent images", build_dir.platform
+        )
+        dfp = build_dir.dockerfile
 
         df_images = self.workflow.data.dockerfile_images
         build_base = df_images.base_image
@@ -58,13 +61,6 @@ class ChangeFromPlugin(PreBuildPlugin):
         if not df_images.base_from_scratch:
             # do some sanity checks to defend against bugs and rogue plugins
             self._sanity_check(dfp.baseimage, build_base)
-
-        self.log.info("parent_images '%s'", df_images.keys())
-        unresolved = [key for key, val in df_images.items() if not val]
-        if unresolved:
-            # this would generally mean check_base_image didn't run and/or
-            # custom plugins modified parent_images; treat it as an error.
-            raise ParentImageUnresolved("Parent image(s) unresolved: {}".format(unresolved))
 
         # check for lost parent images
         missing_set = set()
@@ -95,9 +91,22 @@ class ChangeFromPlugin(PreBuildPlugin):
         dfp.parent_images = new_parents
 
         if df_images.base_from_scratch:
-            return
+            self.log.debug("base image '%s' left unchanged", dfp.baseimage)
+        else:
+            self.log.debug(
+                "for base image '%s' using image with pullspec '%s'",
+                dfp.baseimage, build_base
+            )
 
-        self.log.debug(
-            "for base image '%s' using image with pullspec '%s'",
-            df_base, build_base
-        )
+    def run(self):
+        """Run the plugin."""
+        df_images = self.workflow.data.dockerfile_images
+
+        self.log.info("parent_images '%s'", df_images.keys())
+        unresolved = [key for key, val in df_images.items() if not val]
+        if unresolved:
+            # this would generally mean check_base_image didn't run and/or
+            # custom plugins modified parent_images; treat it as an error.
+            raise ParentImageUnresolved("Parent image(s) unresolved: {}".format(unresolved))
+
+        self.workflow.build_dir.for_each_platform(self.change_from_in_df)
