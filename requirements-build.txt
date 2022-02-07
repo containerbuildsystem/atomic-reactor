@@ -133,9 +133,9 @@ pyparsing==2.4.7 \
     # via
     #   -r requirements-build.in
     #   packaging
-semantic-version==2.8.5 \
-    --hash=sha256:45e4b32ee9d6d70ba5f440ec8cc5221074c7f4b0e8918bdab748cc37912440a9 \
-    --hash=sha256:d2cb2de0558762934679b9a104e82eca7af448c9f4974d1f3eeccff651df8a54
+semantic-version==2.9.0 \
+    --hash=sha256:abf54873553e5e07a6fd4d5f653b781f5ae41297a493666b59dcf214006a12b2 \
+    --hash=sha256:db2504ab37902dd2c9876ece53567aa43a5b2a417fbe188097b2048fff46da3d
     # via
     #   -r requirements-build.in
     #   setuptools-rust
