@@ -7,22 +7,19 @@ of the BSD license. See the LICENSE file for details.
 """
 
 import backoff
-import json
-import jsonschema
 import logging
-import paramiko
-import random
 import os
+import paramiko
 from contextlib import contextmanager
 from datetime import datetime
 from shlex import quote
-from typing import List
+from typing import List, Optional
 
-RESOURCE_LOCK_SCHEMA = 'schemas/resource-lock-content.json'
 SSH_COMMAND_TIMEOUT = 45
-TIMEOUT_FAIL_BUILD = 3000
-RELATIVE_PATH = 'resource_manager'
-RESOURCE_INFO_JSON = 'info.json'
+TIMEOUT_FAIL_BUILD = 30
+FLOCK_TIMEOUT = 10
+FLOCK_CMD = f"flock -w {FLOCK_TIMEOUT}"
+SLOTS_RELATIVE_PATH = "osbs_slots"
 RETRY_ON_SSH_EXCEPTIONS = (paramiko.ssh_exception.NoValidConnectionsError,
                            paramiko.ssh_exception.SSHException)
 BACKOFF_FACTOR = 5
@@ -31,29 +28,20 @@ MAX_RETRIES = 3
 logger = logging.getLogger(__name__)
 
 
-class ResourceManagerError(RuntimeError):
-    """ Base module exception """
-
-
-class LockError(ResourceManagerError):
-    """ Attempt for resource locking returned non-zero exitcode """
-
-
-class LockRetry(ResourceManagerError):
-    """ Retry locking, no resources were available """
-
-
 class RemoteHost:
 
-    def __init__(self, *, hostname: str, username: str, ssh_keyfile: str):
+    def __init__(self, *, hostname: str, username: str, ssh_keyfile: str, slots: int):
         """
         :param hostname: str, remote hostname for ssh connection
         :param username: str, username for ssh connection
         :param ssh_keyfile: str, filepath to ssh private key
+        :param slots: int, number of max allowed slots on remote host
         """
         self._hostname = hostname
         self._username = username
         self._ssh_keyfile = ssh_keyfile
+        self.slots = slots
+        self._slots_dir = None
 
     @property
     def hostname(self):
@@ -67,21 +55,131 @@ class RemoteHost:
     def ssh_keyfile(self):
         return self._ssh_keyfile
 
-    def _validate_resource_lock(self, payload: dict):
-        """ Validate resource lock json file against schema """
-        with open(RESOURCE_LOCK_SCHEMA, 'r') as f:
-            schema_data = f.read()
-        schema = json.loads(schema_data)
+    @property
+    def slots_dir(self):
+        if self._slots_dir is None:
+            home, _, _ = self._run("pwd")
+            self._slots_dir = os.path.join(home, SLOTS_RELATIVE_PATH)
+        return self._slots_dir
+
+    def _get_slot_path(self, slot_id: int) -> str:
+        return os.path.join(self.slots_dir, f"slot_{slot_id}")
+
+    def _is_valid_slot_id(self, slot_id: int) -> bool:
+        valid_slots = range(self.slots)
+        if slot_id not in valid_slots:
+            logger.error("%s: invalid slot id %s, should be in: %s",
+                         self.hostname, slot_id, list(valid_slots))
+            return False
+        return True
+
+    @property
+    def is_operational(self) -> bool:
+        """ Check whether this host is operational """
         try:
-            jsonschema.validate(payload, schema)
-        except jsonschema.ValidationError as err:
-            logger.warning("Invalid json file: %s", err)
+            _, _, code = self._run(f"mkdir -p {self.slots_dir}")
+        except Exception as e:
+            logger.exception("%s: host is not operational: %s", self.hostname, e)
+            return False
+        if code != 0:
+            logger.error("%s: cann't prepare slots directory", self.hostname)
+            return False
+        return True
+
+    def is_free(self, slot_id: int) -> bool:
+        """
+        Check whether a slot is in free state
+
+        :param slot_id: int, slot ID
+        :return: True if slot is in free state, otherwise False
+        """
+        if not self._is_valid_slot_id(slot_id):
+            return False
+
+        slot_path = self._get_slot_path(slot_id)
+
+        # If slot file is empty, it means slot is not occupied by any pipelinerun.
+        # Check the echo output instead of just exit code to distinguish command
+        # error and file size test failure
+        try:
+            stdout, _, _ = self._flock_run(slot_path, f"test -s {slot_path} || echo EMPTY")
+        except Exception as e:
+            logger.warning("%s: failed to get state of slot %s: %s", self.hostname, slot_id, e)
+            return False
+
+        return stdout == "EMPTY"
+
+    def lock(self, slot_id: int, prid: str) -> bool:
+        """
+        Lock slot for a pipelinerun
+
+        :param slot_id: int, slot ID
+        :param prid: str, pipeline ID
+        :return: True if slot is locked for pipelinerun successfully, otherwise False
+        """
+        if not self._is_valid_slot_id(slot_id):
+            return False
+
+        slot_path = self._get_slot_path(slot_id)
+        try:
+            data = f"{prid}@{datetime.utcnow().isoformat()}"
+            logger.debug("%s: try to lock slot %s for pipelinerun %s",
+                         self.hostname, slot_id, prid)
+            # Only write lock content when slot file is empty, when slot file is not
+            # empty, command output is "NONEMPTY"
+            cmd = f"test -s {slot_path} && echo NONEMPTY || echo {data} > {slot_path}"
+            stdout, stderr, code = self._flock_run(slot_path, cmd)
+        except Exception as e:
+            logger.info("%s: unable to lock slot %s for pipelinerun %s: %s",
+                        self.hostname, slot_id, prid, e)
+            return False
+
+        if code != 0:
+            logger.info("%s: unable to lock slot %s for pipelinerun %s: %s",
+                        self.hostname, slot_id, prid, stderr)
+            return False
+
+        if stdout == "NONEMPTY":
+            logger.error("%s: slot %s is not free", self.hostname, slot_id)
+            return False
+
+        logger.info("%s: slot %s is locked for pipelinerun %s", self.hostname, slot_id, prid)
+        return True
+
+    def unlock(self, slot_id: int, prid: str) -> bool:
+        """
+        Unlock slot for a pipelinerun
+
+        :param slot_id: int, slot ID
+        :param prid: str, pipelinerun ID
+        :return: True if slot is unlocked successfully, otherwise False
+        """
+        slot_path = self._get_slot_path(slot_id)
+        # Only unlock the slot if it's occupied by this pipelinerun
+        cmd = f"grep '{prid}@' {slot_path} && truncate -s 0 {slot_path}"
+
+        try:
+            _, _, code = self._flock_run(slot_path, cmd)
+        except Exception as e:
+            logger.warning("%s: cannot unlock slot %s for pipelinerun %s: %s",
+                           self.hostname, slot_id, prid, e)
+            return False
+
+        if code == 0:
+            logger.info("%s: pipelinerun %s's slot %s is unlocked", self.hostname, prid, slot_id)
+            return True
+
+        # XXX: command failed, there are 2 possible reasons, but should we just
+        # ignore the exact reason?
+        # 1. slot is not occupied by pipelinerun
+        # 2. truncate command failed, though unlikely to happen
+        return False
 
     @contextmanager
     def _ssh_session(self):
         """ Create an SSH connection."""
+        client = self._open_ssh_session()
         try:
-            client = self._open_ssh_session()
             yield client
         finally:
             client.close()
@@ -100,9 +198,8 @@ class RemoteHost:
         """
         client = paramiko.SSHClient()
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        logger.debug("Open SSH connection in remote host %s", self.hostname)
-        client.connect(
-            self.hostname, username=self.username, key_filename=self.ssh_keyfile)
+        logger.debug("%s: opening SSH connection", self.hostname)
+        client.connect(self.hostname, username=self.username, key_filename=self.ssh_keyfile)
         return client
 
     @backoff.on_exception(
@@ -113,126 +210,48 @@ class RemoteHost:
         jitter=None,  # use deterministic backoff, do not apply random jitter
         logger=logger,
     )
-    def _ssh_run_remote_cmd(self, client, cmd: List):
+    def _run(self, cmd: str):
         """
-        Run a Shell command on a remote host
+        Run a shell command on a remote host
 
         :return: stdout, stderr and exitcode of shell command
         """
-        logger.debug("Try to run command %s on remote host %s", cmd, self.hostname)
-        _, stdout, stderr = client.exec_command(cmd, timeout=SSH_COMMAND_TIMEOUT)
-        return stdout, stderr, stdout.channel.recv_exit_status()
+        with self._ssh_session() as session:
+            logger.debug("%s: try to run command: %s", self.hostname, cmd)
+            _, out, err = session.exec_command(cmd, timeout=SSH_COMMAND_TIMEOUT)
+            stdout = out.read().decode().strip()
+            stderr = err.read().decode().strip()
+            exitcode = out.channel.recv_exit_status()
+        return stdout, stderr, exitcode
 
-    def _ssh_run_remote_cmd_to_get_json(self, client, cmd: List):
-        _, stdout, _ = self._ssh_run_remote_cmd(client, cmd)
-        try:
-            json_stdout = json.loads(stdout)
-        except ValueError as ex:  # Not valid JSON
-            logger.warning("Json load failed. Not a valid JSON. %s", ex)
-            return None
-        except TypeError as ex:  # Not an object
-            logger.warning("Json load failed. Not an object. %s", ex)
-            return None
-        return json_stdout
+    def _flock_run(self, lockfile: str, cmd: str):
+        """
+        Lock a file and run the command
+
+        :param lockfile: str, path to lockfile
+        :param cmd: str, command string
+        """
+        _c = f"flock --conflict-exit-code 42 --timeout {FLOCK_TIMEOUT} {lockfile} -c {quote(cmd)}"
+        stdout, stderr, exitcode = self._run(_c)
+        # Flock has timeout already, so don't retry, just logging it
+        if exitcode == 42:
+            logger.warning("%s: unable to acquire lock on %s", self.hostname, lockfile)
+        return stdout, stderr, exitcode
 
     def available_slots(self) -> List[int]:
         """
-        Returns list of available slots
+        Returns id list of available slots
         """
-        logger.debug("Retrieve list of available slots on host %s", self.hostname)
+        logger.debug("%s: retrieve list of available slots", self.hostname)
 
-        with self._ssh_session() as client:
-            cmd = self.get_cmd_to_read_from_json(RESOURCE_INFO_JSON)
-            resource_info = self._ssh_run_remote_cmd_to_get_json(client, cmd)
-
-            available_slots = []
-            for slot_id in range(resource_info.get('max_slot_count', 1)):
-                cmd = self.get_cmd_to_read_from_json(f'slot_{slot_id}.json')
-                slot = self._ssh_run_remote_cmd_to_get_json(client, cmd)
-
-                if slot is None:  # Json load failed - file on remote host might be corrupted
-                    logger.warning("%s - slot %s - json load failed",
-                                   resource_info['hostname'], slot_id)
-                elif slot:  # Non-empty json file was loaded
-                    prid = slot.get('prid')
-                    logger.debug("%s - slot %s is occupied by %s",
-                                 resource_info['hostname'], slot_id, prid)
-                    self._validate_resource_lock(slot)
-                elif not slot:  # Empty json file was loaded
-                    logger.debug("%s - slot %s is available",
-                                 resource_info['hostname'], slot_id)
-                    available_slots.append(slot_id)
-                else:  # Undefined state - should not happen
-                    logger.warning("%s - slot %s invalid state!",
-                                   resource_info['hostname'], slot_id)
+        available_slots = []
+        for slot_id in range(self.slots):
+            if not self.is_free(slot_id):
+                logger.debug("%s: slot %s is not free", self.hostname, slot_id)
+                continue
+            available_slots.append(slot_id)
 
         return available_slots
-
-    def get_cmd_to_read_from_json(self, file_name: str):
-        """ Create a command to retrieve content of json file from remote host """
-        return ['cat', os.path.join(RELATIVE_PATH, file_name)]
-
-    def get_cmd_to_write_empty_slot(self, slot_id: int):
-        """ Create a command to unlock slot on remote host """
-        return ['echo', '{}', '>', os.path.join(RELATIVE_PATH, f'slot_{slot_id}.json')]
-
-    def get_cmd_to_write_slot_in_progress(self, file_name: str, payload: str):
-        """ Create a command to lock slot for pipelinerun on remote host """
-        filepath = os.path.join(RELATIVE_PATH, file_name)
-
-        # TBD: Test with remote host that this is actually working with Paramiko
-        _cmd = (f'if grep -qw {{}} {filepath} ; then echo {quote(payload)} > '
-                f'{filepath} ;else exit 1; fi')
-        return f'flock {filepath} -c {quote(_cmd)}'
-
-    @backoff.on_exception(
-        backoff.expo,
-        LockError,
-        factor=BACKOFF_FACTOR,
-        max_tries=MAX_RETRIES,
-        jitter=None,  # use deterministic backoff, do not apply random jitter
-        logger=logger,
-    )
-    def lock(self, slot_id: int, prid: str):
-        logger.debug("Locking slot %s on host %s with pipelinerun ID %s",
-                     slot_id, self.hostname, prid)
-
-        payload = json.dumps({'prid': prid, 'locked': str(datetime.utcnow().isoformat())})
-
-        with self._ssh_session() as client:
-            cmd = self.get_cmd_to_write_slot_in_progress(f'slot_{slot_id}.json', payload)
-            _, _, exitcode = self._ssh_run_remote_cmd(client, cmd)
-
-            if exitcode != 0:
-                raise LockError(f'Attempt to lock slot {slot_id} with pipelinerun ID {prid} '
-                                'returned non-zero exitcode')
-
-        logger.debug("%s - slot %s locked with pipelinerun ID %s", self.hostname, slot_id, prid)
-
-    def unlock(self, slot_id: int, prid: int):
-        logger.debug("Unlocking slot %s on host %s with pipelinerun ID %s",
-                     slot_id, self.hostname, prid)
-
-        with self._ssh_session() as client:
-            cmd = self.get_cmd_to_read_from_json(f'slot_{slot_id}.json')
-            slot = self._ssh_run_remote_cmd_to_get_json(client, cmd)
-
-            if slot:
-                self._validate_resource_lock(slot)
-
-                if slot['prid'] != prid:
-                    logger.warning("%s - slot %s, Found pipelinerun ID: %s, expected %s. Unlocking"
-                                   " skipped!", self.hostname, slot_id, slot['prid'], prid)
-                    return
-
-                cmd = self.get_cmd_to_write_empty_slot(slot_id)
-                _, _, exitcode = self._ssh_run_remote_cmd(client, cmd)
-
-                if exitcode != 0:
-                    logger.warning("Unlocking slot %s on host %s failed!", slot_id, self.hostname)
-            else:
-                logger.warning("%s - slot %s is available. Unlocking skipped!",
-                               self.hostname, slot_id)
 
 
 class LockedResource:
@@ -270,45 +289,63 @@ class RemoteHostsPool:
           enabled: true
           auth: qa-vm-secret-filepath
           username: cloud-user
+          slots: 3
           ...
         hostname-remote-host2:
           ...
         """
-
-        # Add enabled clusters to list hosts
-        hosts = [RemoteHost(hostname=hostname, username=attr['username'], ssh_keyfile=attr['auth'])
-                 for hostname, attr in config.items() if attr['enabled']]
+        hosts = []
+        for hostname, attr in config.items():
+            if not attr.get("enabled", False):
+                continue
+            host = RemoteHost(
+                hostname=hostname, username=attr["username"], ssh_keyfile=attr["auth"],
+                slots=attr.get("slots", 1)
+            )
+            # Check whether host is operational before use it
+            if host.is_operational:
+                hosts.append(host)
 
         return cls(hosts)
 
-    @backoff.on_exception(
-        backoff.constant,
-        LockRetry,
-        max_time=TIMEOUT_FAIL_BUILD,
-        jitter=None,
-    )
-    def lock_resource(self, prid: str) -> LockedResource:
-        """ Lock resources for build """
+    def lock_resource(self, prid: str) -> Optional[LockedResource]:
+        """
+        Lock resource for a pipelinerun
 
-        # Slots should be randomized here to avoid always locking the lowest numbers first
+        :param prid: str, pipelinerun ID
+        """
+
+        if not self.hosts:
+            logger.error("This is no available remote host in pool")
+            return None
+
         resources = []
         for host in self.hosts:
             available_slots = host.available_slots()
-            random.shuffle(available_slots)
+            if not available_slots:
+                logger.info("%s: no available slots", host.hostname)
+                continue
+            logger.info("%s: available slots: %s", host.hostname, available_slots)
             resources.append((host, available_slots))
 
-        # Sort list based on number of available slots
-        resources.sort(key=lambda x: len(x[1]), reverse=True)
+        if not resources:
+            logger.error("There is no remote host slot available for pipelinerun %s", prid)
+            return None
 
-        # Try to lock resources
+        # Sort list based on ratio of available_slots/all_slots
+        resources.sort(key=lambda x: len(x[1])/x[0].slots, reverse=True)
+
+        # Try to lock a remote host slot for pipelinerun
         for host, slots in resources:
             for slot in slots:
                 try:
                     host.lock(slot, prid)
-                except Exception as ex:
+                except Exception as e:
                     # Specific exceptions should be handled in nested methods
-                    logger.warning("Locking failed on slot %s, host %s - %s", slot, host, ex)
+                    logger.warning("%s: unable to lock slot %s for pipelinerun %s: %s",
+                                   host.hostname, slot, prid, e)
                 else:
                     return LockedResource(host, slot, prid)
 
-        raise LockRetry(f'No remote host resources were available for pipelinerun ID {prid}')
+        logger.info("Cannot find remote host resource for pipelinerun %s", prid)
+        return None
