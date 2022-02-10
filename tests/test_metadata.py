@@ -80,45 +80,6 @@ def test_store_metadata_map(metadata_map_decorator, metadata_attr, workflow):
 
 
 @pytest.mark.parametrize('metadata_decorator, expected_err_msg', [
-    (annotation_map, '[annotations] run() method did not return a dict'),
-    (label_map, '[labels] run() method did not return a dict')
-])
-def test_store_metadata_wrong_return_type(metadata_decorator, expected_err_msg, workflow):
-    @metadata_decorator('foo')
-    class BP(BuildPlugin):
-        key = 'bp'
-
-        def run(self):
-            return 1
-
-    p = BP(workflow)
-
-    with pytest.raises(TypeError) as exc_info:
-        p.run()
-
-    assert str(exc_info.value) == expected_err_msg
-
-
-@pytest.mark.parametrize('metadata_decorator, expected_err_msg', [
-    (annotation_map, '[annotations] Not found in result: {!r}'.format('bar')),
-    (label_map, '[labels] Not found in result: {!r}'.format('bar'))
-])
-def test_store_metadata_missing_key(metadata_decorator, expected_err_msg, workflow):
-    @metadata_decorator('foo', 'bar')
-    class BP(BuildPlugin):
-        key = 'bp'
-
-        def run(self):
-            return {'foo': 1}
-
-    p = BP(workflow)
-
-    with pytest.raises(RuntimeError) as exc_info:
-        p.run()
-    assert str(exc_info.value) == expected_err_msg
-
-
-@pytest.mark.parametrize('metadata_decorator, expected_err_msg', [
     (annotation, '[annotations] Already set: {!r}'.format('foo')),
     (annotation_map, '[annotations] Already set: {!r}'.format('foo')),
     (label, '[labels] Already set: {!r}'.format('foo')),

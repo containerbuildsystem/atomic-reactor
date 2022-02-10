@@ -7,7 +7,7 @@ of the BSD license. See the LICENSE file for details.
 """
 
 import functools
-from typing import Callable, Literal, Sequence, Type, TypeVar
+from typing import Any, Callable, Dict, Literal, Type, TypeVar
 
 from atomic_reactor.plugin import BuildPlugin
 
@@ -16,6 +16,18 @@ from atomic_reactor.plugin import BuildPlugin
 BPT = TypeVar('BPT', bound=Type[BuildPlugin])
 # Takes a BuildPlugin class, modifies it in place and returns it
 BuildPluginDecorator = Callable[[BPT], BPT]
+
+PluginResult = Any
+# Generates any number of metadata keys from a plugin result
+MetadataFn = Callable[[PluginResult], Dict[str, Any]]
+
+
+def _as_key(key: str) -> MetadataFn:
+    return lambda result: {key: result}
+
+
+def _match_keys(*keys: str) -> MetadataFn:
+    return lambda result: {key: result[key] for key in keys}
 
 
 def annotation(key: str) -> BuildPluginDecorator:
@@ -40,7 +52,7 @@ def annotation(key: str) -> BuildPluginDecorator:
     :param key: Key to annotate the plugin with
     :return: Decorator that will turn the plugin into an annotated one
     """
-    return _decorate_metadata('annotations', [key], match_keys=False)
+    return _decorate_metadata('annotations', result_to_metadata=_as_key(key))
 
 
 def annotation_map(*keys: str) -> BuildPluginDecorator:
@@ -61,7 +73,7 @@ def annotation_map(*keys: str) -> BuildPluginDecorator:
     :param keys: Keys to annotate the plugin with
     :return: Decorator that will turn the plugin into an annotated one
     """
-    return _decorate_metadata('annotations', keys, match_keys=True)
+    return _decorate_metadata('annotations', result_to_metadata=_match_keys(*keys))
 
 
 def label(key: str) -> BuildPluginDecorator:
@@ -72,7 +84,7 @@ def label(key: str) -> BuildPluginDecorator:
     :param key: Key to label the plugin with
     :return: Decorator that will turn the plugin into a labeled one
     """
-    return _decorate_metadata('labels', [key], match_keys=False)
+    return _decorate_metadata('labels', result_to_metadata=_as_key(key))
 
 
 def label_map(*keys: str) -> BuildPluginDecorator:
@@ -83,11 +95,11 @@ def label_map(*keys: str) -> BuildPluginDecorator:
     :param keys: Keys to label the plugin with
     :return: Decorator that will turn the plugin into a labeled one
     """
-    return _decorate_metadata('labels', keys, match_keys=True)
+    return _decorate_metadata('labels', result_to_metadata=_match_keys(*keys))
 
 
 def _decorate_metadata(
-    metadata_type: Literal['annotations', 'labels'], keys: Sequence[str], match_keys: bool
+    metadata_type: Literal['annotations', 'labels'], *, result_to_metadata: MetadataFn
 ) -> BuildPluginDecorator:
 
     def metadata_decorator(cls: BPT) -> BPT:
@@ -98,21 +110,15 @@ def _decorate_metadata(
             result = run(self)
             if result is None:
                 return None
-            if match_keys and not isinstance(result, dict):
-                raise TypeError('[{}] run() method did not return a dict'.format(metadata_type))
 
-            metadata = getattr(self.workflow.data, metadata_type)
-            for key in keys:
-                if match_keys and key not in result:
-                    raise RuntimeError('[{}] Not found in result: {!r}'.format(metadata_type, key))
-                if key in metadata:
+            metadata: Dict[str, Any] = result_to_metadata(result)
+            workflow_metadata: Dict[str, Any] = getattr(self.workflow.data, metadata_type)
+
+            for key in metadata:
+                if key in workflow_metadata:
                     raise RuntimeError('[{}] Already set: {!r}'.format(metadata_type, key))
 
-                if match_keys:
-                    metadata[key] = result[key]
-                else:
-                    metadata[key] = result
-
+            workflow_metadata.update(metadata)
             return result
 
         setattr(cls, 'run', run_and_store_metadata)
