@@ -91,9 +91,6 @@ def _decorate_metadata(
 ) -> BuildPluginDecorator:
 
     def metadata_decorator(cls: BPT) -> BPT:
-        if not issubclass(cls, BuildPlugin):
-            raise TypeError('[{}] Not a subclass of BuildPlugin'.format(metadata_type))
-
         run = cls.run
 
         @functools.wraps(run)
