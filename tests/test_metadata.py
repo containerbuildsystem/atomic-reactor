@@ -8,7 +8,7 @@ of the BSD license. See the LICENSE file for details.
 
 import pytest
 
-from atomic_reactor.plugin import Plugin, BuildPlugin
+from atomic_reactor.plugin import BuildPlugin
 from atomic_reactor.metadata import (
     annotation,
     annotation_map,
@@ -77,20 +77,6 @@ def test_store_metadata_map(metadata_map_decorator, metadata_attr, workflow):
     other_attr = 'labels' if metadata_attr == 'annotations' else 'annotations'
     assert getattr(workflow.data, metadata_attr) == {'foo': 1, 'bar': 2}
     assert getattr(workflow.data, other_attr) == {}
-
-
-@pytest.mark.parametrize('metadata_decorator, expected_err_msg', [
-    (annotation, '[annotations] Not a subclass of BuildPlugin'),
-    (annotation_map, '[annotations] Not a subclass of BuildPlugin'),
-    (label, '[labels] Not a subclass of BuildPlugin'),
-    (label_map, '[labels] Not a subclass of BuildPlugin'),
-])
-def test_store_metadata_wrong_class(metadata_decorator, expected_err_msg):
-    decorate = metadata_decorator('foo')
-
-    with pytest.raises(TypeError) as exc_info:
-        decorate(Plugin)
-    assert str(exc_info.value) == expected_err_msg
 
 
 @pytest.mark.parametrize('metadata_decorator, expected_err_msg', [
