@@ -7,11 +7,18 @@ of the BSD license. See the LICENSE file for details.
 """
 
 import functools
+from typing import Callable, Literal, Sequence, Type, TypeVar
 
 from atomic_reactor.plugin import BuildPlugin
 
 
-def annotation(key):
+# Generic BuildPlugin type (the type of the class itself, not of its instances)
+BPT = TypeVar('BPT', bound=Type[BuildPlugin])
+# Takes a BuildPlugin class, modifies it in place and returns it
+BuildPluginDecorator = Callable[[BPT], BPT]
+
+
+def annotation(key: str) -> BuildPluginDecorator:
     """
     Annotate a `BuildPlugin` subclass. The `run()` method of this plugin will
     store its result in the plugin's workflow as an annotation.
@@ -36,7 +43,7 @@ def annotation(key):
     return _decorate_metadata('annotations', [key], match_keys=False)
 
 
-def annotation_map(*keys):
+def annotation_map(*keys: str) -> BuildPluginDecorator:
     """
     Annotate a `BuildPlugin` subclass. Works like `annotation`, but instead of
     storing the run() result as is, annotations are set by matching the given
@@ -57,7 +64,7 @@ def annotation_map(*keys):
     return _decorate_metadata('annotations', keys, match_keys=True)
 
 
-def label(key):
+def label(key: str) -> BuildPluginDecorator:
     """
     Label a `BuildPlugin` subclass. Identical to `annotation`, but will save
     the result as a label, not an annotation.
@@ -68,7 +75,7 @@ def label(key):
     return _decorate_metadata('labels', [key], match_keys=False)
 
 
-def label_map(*keys):
+def label_map(*keys: str) -> BuildPluginDecorator:
     """
     Label a `BuildPlugin` subclass. Identical to `annotation_map`, but will
     save results as labels, not annotations.
@@ -79,9 +86,11 @@ def label_map(*keys):
     return _decorate_metadata('labels', keys, match_keys=True)
 
 
-def _decorate_metadata(metadata_type, keys, match_keys):
+def _decorate_metadata(
+    metadata_type: Literal['annotations', 'labels'], keys: Sequence[str], match_keys: bool
+) -> BuildPluginDecorator:
 
-    def metadata_decorator(cls):
+    def metadata_decorator(cls: BPT) -> BPT:
         if not issubclass(cls, BuildPlugin):
             raise TypeError('[{}] Not a subclass of BuildPlugin'.format(metadata_type))
 
@@ -109,7 +118,7 @@ def _decorate_metadata(metadata_type, keys, match_keys):
 
             return result
 
-        cls.run = run_and_store_metadata
+        setattr(cls, 'run', run_and_store_metadata)
         return cls
 
     return metadata_decorator
