@@ -36,7 +36,7 @@ try:
     from atomic_reactor.plugins.pre_flatpak_update_dockerfile import get_flatpak_compose_info
 except ImportError:
     # modulemd not available
-    def get_flatpak_compose_info(_):
+    def get_flatpak_compose_info(workflow):
         return None
 
 from atomic_reactor.constants import (
@@ -95,7 +95,6 @@ class KojiImportBase(ExitPlugin):
     plugins.
     """
 
-    key = None
     is_allowed_to_fail = False
 
     args_from_user_params = map_to_user_params("userdata")
