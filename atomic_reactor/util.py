@@ -1465,12 +1465,12 @@ def get_parent_image_koji_data(workflow):
     koji_parent = workflow.data.prebuild_results.get(PLUGIN_KOJI_PARENT_KEY) or {}
     image_metadata = {}
 
-    parents = {}
+    parents: Dict[str, Optional[Dict[str, Any]]] = {}
     for img, build in (koji_parent.get(PARENT_IMAGES_KOJI_BUILDS) or {}).items():
         if not build:
-            parents[str(img)] = None
+            parents[img] = None
         else:
-            parents[str(img)] = {key: val for key, val in build.items() if key in ('id', 'nvr')}
+            parents[img] = {key: val for key, val in build.items() if key in ('id', 'nvr')}
     image_metadata[PARENT_IMAGE_BUILDS_KEY] = parents
 
     df_images = workflow.data.dockerfile_images
