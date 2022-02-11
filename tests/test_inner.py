@@ -1201,7 +1201,7 @@ class TestBuildResult:
 
         assert not BuildResult.make_remote_image_result().is_failed()
 
-    def test_dump(self):
+    def test_as_dict(self):
         build_result = BuildResult(
             logs=["start build", "fetch sources"],
             image_id="registry/image:1.2",
@@ -1216,7 +1216,7 @@ class TestBuildResult:
             "skip_layer_squash": False,
             "source_docker_archive": None,
         }
-        assert expected == build_result.dump()
+        assert expected == build_result.as_dict()
 
     def test_parse(self):
         input_data = {
@@ -1242,19 +1242,22 @@ class TestTagConf:
             'unique_images': [],
             'floating_images': [],
         }
-        assert expected == TagConf().dump()
+        assert expected == TagConf().as_dict()
 
-    def test_dump_images(self):
-        conf = TagConf()
-        conf.add_primary_image('r.fp.o/f:35')
-        conf.add_floating_image('ns/img:latest')
-        conf.add_floating_image('ns1/img2:devel')
+    def test_as_dict(self):
+        tag_conf = TagConf()
+        tag_conf.add_primary_image('r.fp.o/f:35')
+        tag_conf.add_floating_image('ns/img:latest')
+        tag_conf.add_floating_image('ns1/img2:devel')
         expected = {
-            'primary_images': ['r.fp.o/f:35'],
+            'primary_images': [ImageName.parse('r.fp.o/f:35')],
             'unique_images': [],
-            'floating_images': ['ns/img:latest', 'ns1/img2:devel'],
+            'floating_images': [
+                ImageName.parse('ns/img:latest'),
+                ImageName.parse('ns1/img2:devel'),
+            ],
         }
-        assert expected == conf.dump()
+        assert expected == tag_conf.as_dict()
 
     @pytest.mark.parametrize(
         'input_data,expected_primary_images,expected_unique_images,expected_floating_images',
@@ -1309,49 +1312,6 @@ class TestWorkflowData:
         assert "not built" == data.build_result.fail_reason
         assert {} == data.prebuild_results
 
-    def test_dump(self):
-        """Test the result from dump method."""
-        data = ImageBuildWorkflowData(dockerfile_images=DockerfileImages(["f:35"]))
-        dump = data.dump()
-
-        assert {} == dump["prebuild_results"]
-
-        expected_df_images = {
-            "original_parents": ["f:35"],
-            "local_parents": [None],
-            "source_registry": None,
-            "organization": None,
-        }
-        assert expected_df_images == dump["dockerfile_images"]
-
-        expected_tag_conf = {
-            "primary_images": [],
-            "unique_images": [],
-            "floating_images": [],
-        }
-        assert expected_tag_conf == dump["tag_conf"]
-
-        expected_build_result = {
-            "logs": [],
-            "fail_reason": "not built",
-            "annotations": None,
-            "image_id": None,
-            "labels": None,
-            "skip_layer_squash": False,
-            "source_docker_archive": None,
-        }
-        assert expected_build_result == dump["build_result"]
-
-    def test_dump_data_matches_the_schema(self):
-        """Ensure the dump data matches the predefined JSON schema."""
-        data = ImageBuildWorkflowData(dockerfile_images=DockerfileImages(["f:35"]))
-        data.tag_conf.add_floating_image("registry/app:latest")
-        data.tag_conf.add_floating_image("registry/app:devel")
-        try:
-            validate_with_schema(data.dump(), "schemas/workflow_data.json")
-        except osbs.exceptions.OsbsValidationException as e:
-            pytest.fail(f"The dumped workflow data does not match JSON schema: {e}")
-
     def test_load_from_empty_dump(self):
         wf_data = ImageBuildWorkflowData.load({})
         empty_data = ImageBuildWorkflowData()
@@ -1390,26 +1350,6 @@ class TestWorkflowData:
         assert wf_data.tag_conf.is_empty
         assert {} == wf_data.prebuild_results
 
-    def test_load_from_directory(self, tmpdir):
-        context_dir = tmpdir.join("context_dir").mkdir()
-        workflow_json = context_dir.join("workflow.json")
-        data = ImageBuildWorkflowData(dockerfile_images=DockerfileImages(["scratch"]))
-        data.tag_conf.add_floating_image("registry/httpd:2.4")
-        data.prebuild_results["plugin_1"] = "result"
-        dump_data = data.dump()
-        workflow_json.write_text(json.dumps(dump_data), encoding="utf-8")
-
-        # TBD: when implementing the build step, build_result.json may be
-        #      created here and test the loaded BuildResult object.
-
-        wf_data = ImageBuildWorkflowData.load_from_dir(ContextDir(context_dir))
-
-        input_data = dump_data
-        expected_df_images = DockerfileImages.load(input_data["dockerfile_images"])
-        assert expected_df_images == wf_data.dockerfile_images
-        assert TagConf.load(input_data["tag_conf"]) == wf_data.tag_conf
-        assert input_data["prebuild_results"] == wf_data.prebuild_results
-
     @pytest.mark.parametrize("data_path,prop_name,wrong_value", [
         # digests should map to an object rather than a string
         [["tag_conf"], "original_parents", "wrong value"],
@@ -1418,39 +1358,70 @@ class TestWorkflowData:
     ])
     def test_load_invalid_data_from_directory(self, data_path, prop_name, wrong_value, tmpdir):
         """Test the workflow data is validated by JSON schema when reading from context_dir."""
-        context_dir = tmpdir.join("context_dir").mkdir()
-        workflow_json = context_dir.join("workflow.json")
+        context_dir = ContextDir(Path(tmpdir.join("context_dir").mkdir()))
 
         data = ImageBuildWorkflowData(dockerfile_images=DockerfileImages(["scratch"]))
         data.tag_conf.add_floating_image("registry/httpd:2.4")
         data.prebuild_results["plugin_1"] = "result"
-        dump_data = data.dump()
+        data.save(context_dir)
 
+        saved_data = json.loads(context_dir.workflow_json.read_bytes())
         # Make data invalid
-        graceful_chain_get(dump_data, *data_path, make_copy=False)[prop_name] = wrong_value
-
-        workflow_json.write_text(json.dumps(dump_data), encoding="utf-8")
+        graceful_chain_get(saved_data, *data_path, make_copy=False)[prop_name] = wrong_value
+        context_dir.workflow_json.write_text(json.dumps(saved_data), encoding="utf-8")
 
         with pytest.raises(osbs.exceptions.OsbsValidationException):
-            ImageBuildWorkflowData.load_from_dir(ContextDir(context_dir))
+            ImageBuildWorkflowData.load_from_dir(context_dir)
 
-    def test_save(self, tmpdir):
+    def test_save_and_load(self, tmpdir):
+        """Test save workflow data and then load them back properly."""
+        tag_conf = TagConf()
+        tag_conf.add_floating_image(ImageName.parse("registry/image:latest"))
+        tag_conf.add_primary_image(ImageName.parse("registry/image:1.0"))
+
         wf_data = ImageBuildWorkflowData(
             dockerfile_images=DockerfileImages(["scratch", "registry/f:35"]),
-            tag_conf=TagConf.load(
-                {"floating_images": [ImageName.parse("registry/image:1.0").to_str()]}
-            ),
+            # Test object in dict values is serialized
+            buildstep_result={"image_build": BuildResult(logs=["Build succeeds."])},
+            postbuild_results={
+                "tag_and_push": [
+                    # Such object in a list should be handled properly.
+                    ImageName(registry="localhost:5000", repo='image', tag='latest'),
+                ]
+            },
+            tag_conf=tag_conf,
+            prebuild_results={
+                "plugin_a": {
+                    'parent-images-koji-builds': {
+                        ImageName(repo='base', tag='latest').to_str(): {
+                            'id': 123456789,
+                            'nvr': 'base-image-1.0-99',
+                            'state': 1,
+                        },
+                    },
+                },
+                # bytes should be handled properly.
+                "plugin_b": {"data": "OSBS".encode()},
+            },
         )
 
-        context_dir = tmpdir.join("context_dir").mkdir()
-        wf_data.save(ContextDir(Path(context_dir)))
+        context_dir = ContextDir(Path(tmpdir.join("context_dir").mkdir()))
+        wf_data.save(context_dir)
 
-        workflow_json = context_dir.join("workflow.json")
-        assert workflow_json.exists()
+        assert context_dir.workflow_json.exists()
 
-        dump_data = json.loads(workflow_json.read())
-        loaded_wf_data = ImageBuildWorkflowData.load(dump_data)
+        # Verify the saved data matches the schema
+        saved_data = json.loads(context_dir.workflow_json.read_bytes())
+        try:
+            validate_with_schema(saved_data, "schemas/workflow_data.json")
+        except osbs.exceptions.OsbsValidationException as e:
+            pytest.fail(f"The dumped workflow data does not match JSON schema: {e}")
+
+        # Load and verify the loaded data
+        loaded_wf_data = ImageBuildWorkflowData.load_from_dir(context_dir)
 
         assert wf_data.dockerfile_images == loaded_wf_data.dockerfile_images
         assert wf_data.tag_conf == loaded_wf_data.tag_conf
+        assert wf_data.buildstep_result == loaded_wf_data.buildstep_result
+        assert wf_data.postbuild_results == loaded_wf_data.postbuild_results
         assert wf_data.prebuild_results == loaded_wf_data.prebuild_results
