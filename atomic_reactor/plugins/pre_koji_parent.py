@@ -5,6 +5,7 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
+from typing import Any, Dict, Optional
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.constants import (
     INSPECT_CONFIG, PLUGIN_KOJI_PARENT_KEY, BASE_IMAGE_KOJI_BUILD, PARENT_IMAGES_KOJI_BUILDS,
@@ -16,7 +17,7 @@ from atomic_reactor.util import (
     get_platforms, RegistrySession, RegistryClient
 )
 from copy import copy
-from osbs.utils import Labels
+from osbs.utils import ImageName, Labels
 
 import json
 import koji
@@ -88,25 +89,28 @@ class KojiParentPlugin(PreBuildPlugin):
 
         manifest_mismatches = []
         for img, local_tag in df_images.items():
-            if base_image_is_custom(img.to_str()):
+            img_str = img.to_str()
+            if base_image_is_custom(img_str):
                 continue
 
             nvr = self.detect_parent_image_nvr(local_tag) if local_tag else None
-            self._parent_builds[img] = self.wait_for_parent_image_build(nvr) if nvr else None
-            if nvr == self._base_image_nvr:
-                self._base_image_build = self._parent_builds[img]
+            parent_build_info = self.wait_for_parent_image_build(nvr) if nvr else None
+            self._parent_builds[img_str] = parent_build_info
 
-            if self._parent_builds[img]:
+            if nvr == self._base_image_nvr:
+                self._base_image_build = parent_build_info
+
+            if parent_build_info:
                 # we need the possible floating tag
                 check_img = copy(local_tag)
                 check_img.tag = img.tag
                 try:
-                    self.check_manifest_digest(check_img, self._parent_builds[img])
+                    self.check_manifest_digest(check_img, parent_build_info)
                 except ValueError as exc:
                     manifest_mismatches.append(exc)
             else:
-                err_msg = ('Could not get koji build info for parent image {}. '
-                           'Was this image built in OSBS?'.format(img.to_str()))
+                err_msg = (f'Could not get koji build info for parent image {img_str}. '
+                           f'Was this image built in OSBS?')
                 if self.workflow.conf.skip_koji_check_for_base_image:
                     self.log.warning(err_msg)
                 else:
@@ -123,7 +127,7 @@ class KojiParentPlugin(PreBuildPlugin):
             self.log.warning(mismatch_msg, manifest_mismatches)
         return self.make_result()
 
-    def check_manifest_digest(self, image, build_info):
+    def check_manifest_digest(self, image: ImageName, build_info: Dict[str, Any]) -> None:
         """Check if the manifest list digest is correct.
 
         Compares the manifest list digest with the value in koji metadata.
@@ -273,12 +277,13 @@ class KojiParentPlugin(PreBuildPlugin):
 
         return '-'.join(label_values)
 
-    def wait_for_parent_image_build(self, nvr):
+    def wait_for_parent_image_build(self, nvr: str) -> Dict[str, Any]:
         """
         Given image NVR, wait for the build that produced it to show up in koji.
         If it doesn't within the timeout, raise an error.
 
-        :return build info dict with 'nvr' and 'id' keys
+        :return: build info mapping that is the return value from Koji getBuild API.
+        :rtype: dict[str, any]
         """
 
         self.log.info('Waiting for Koji build for parent image %s', nvr)
@@ -296,7 +301,7 @@ class KojiParentPlugin(PreBuildPlugin):
             time.sleep(self.poll_interval)
         raise KojiParentBuildMissing('Parent image Koji build NOT found for {}!'.format(nvr))
 
-    def make_result(self):
+    def make_result(self) -> Optional[Dict[str, Any]]:
         """Construct the result dict to be preserved in the build metadata."""
         result = {}
         if self._base_image_build:

@@ -203,7 +203,11 @@ class TestKojiParent(object):
                                               external_base=external)
                 assert 'Was this image built in OSBS?' in str(exc.value)
             else:
-                result = {PARENT_IMAGES_KOJI_BUILDS: {ImageName.parse('base'): None}}
+                result = {
+                    PARENT_IMAGES_KOJI_BUILDS: {
+                        ImageName.parse('base').to_str(): None,
+                    }
+                }
                 self.run_plugin_with_args(workflow, expect_result=result,
                                           external_base=external)
                 assert 'Was this image built in OSBS?' in caplog.text
@@ -266,7 +270,7 @@ class TestKojiParent(object):
             (koji_session.should_receive('getBuild')
                 .with_args(koji_builds[img]['nvr'])
                 .and_return(koji_builds[img]))
-            koji_expects[ImageName.parse(img)] = build
+            koji_expects[ImageName.parse(img).to_str()] = build
 
         dockerfile_images = []
         for parent in parent_images:
@@ -388,9 +392,12 @@ class TestKojiParent(object):
          .should_receive('get_manifest')
          .and_return((response, None)))
 
-        expected_result = {BASE_IMAGE_KOJI_BUILD: KOJI_BUILD,
-                           PARENT_IMAGES_KOJI_BUILDS: {
-                               ImageName.parse(image_str): KOJI_BUILD}}
+        expected_result = {
+            BASE_IMAGE_KOJI_BUILD: KOJI_BUILD,
+            PARENT_IMAGES_KOJI_BUILDS: {
+                ImageName.parse(image_str).to_str(): KOJI_BUILD,
+            },
+        }
 
         workflow.data.parent_images_digests = {image_str+':latest': {V2_LIST: parent_tag}}
         workflow.data.dockerfile_images = DockerfileImages([image_str])
@@ -485,7 +492,7 @@ class TestKojiParent(object):
         result = runner.run()
         if user_params:
             return
-        base_img = ImageName.parse('base:latest')
+        base_img = ImageName.parse('base:latest').to_str()
         if expect_result is True:
             expected_result = {BASE_IMAGE_KOJI_BUILD: KOJI_BUILD,
                                PARENT_IMAGES_KOJI_BUILDS: {
@@ -593,9 +600,12 @@ class TestKojiParent(object):
          .should_receive('get_manifest')
          .and_return((response, None)))
 
-        expected_result = {BASE_IMAGE_KOJI_BUILD: KOJI_BUILD,
-                           PARENT_IMAGES_KOJI_BUILDS: {
-                               ImageName.parse(image_str): KOJI_BUILD}}
+        expected_result = {
+            BASE_IMAGE_KOJI_BUILD: KOJI_BUILD,
+            PARENT_IMAGES_KOJI_BUILDS: {
+                ImageName.parse(image_str).to_str(): KOJI_BUILD,
+            },
+        }
 
         workflow.data.parent_images_digests = {image_str: {V2_LIST: parent_tag}}
         workflow.data.dockerfile_images = DockerfileImages([image_str])

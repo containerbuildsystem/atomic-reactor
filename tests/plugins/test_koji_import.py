@@ -1159,7 +1159,7 @@ class TestKojiImport(object):
         koji_parent_result = {
             BASE_IMAGE_KOJI_BUILD: dict(id=16, extra='build info'),
             PARENT_IMAGES_KOJI_BUILDS: {
-                ImageName.parse('base'): dict(nvr='base-16.0-1', id=16, extra='build_info'),
+                str(ImageName.parse('base')): dict(nvr='base-16.0-1', id=16, extra='build_info'),
             },
         }
         workflow.data.prebuild_results[PLUGIN_KOJI_PARENT_KEY] = koji_parent_result
