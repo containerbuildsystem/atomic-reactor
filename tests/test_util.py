@@ -902,119 +902,6 @@ def test_image_name_get_repo(namespace, repo, explicit, expected):
     assert image.get_repo(explicit) == expected
 
 
-@pytest.mark.parametrize('v1,v2,v2_list,oci,oci_index,default,expected_dump', [
-    (
-        'v1-digest', 'v2-digest', None, None, None, 'v2-digest',
-        {'v1': 'v1-digest', 'v2': 'v2-digest', 'v2_list': None, 'oci': None, 'oci_index': None},
-    ),
-    (
-        'v1-digest', None, None, None, None, 'v1-digest',
-        {'v1': 'v1-digest', 'v2': None, 'v2_list': None, 'oci': None, 'oci_index': None},
-    ),
-    (
-        None, 'v2-digest', None, None, None, 'v2-digest',
-        {'v1': None, 'v2': 'v2-digest', 'v2_list': None, 'oci': None, 'oci_index': None},
-    ),
-    (
-        None, None, None, 'oci-digest', None, 'oci-digest',
-        {'v1': None, 'v2': None, 'v2_list': None, 'oci': 'oci-digest', 'oci_index': None},
-    ),
-    (
-        None, None, None, None, 'oci-index-digest', 'oci-index-digest',
-        {'v1': None, 'v2': None, 'v2_list': None, 'oci': None, 'oci_index': 'oci-index-digest'},
-    ),
-    (
-        None, 'v2-digest', None, 'oci-digest', None, 'oci-digest',
-        {'v1': None, 'v2': 'v2-digest', 'v2_list': None, 'oci': 'oci-digest', 'oci_index': None},
-    ),
-    (
-        'v1-digest',
-        'v2-digest',
-        'v2-list-digest',
-        'oci-digest',
-        'oci-index-digest',
-        'v2-list-digest',
-        {
-            'v1': 'v1-digest',
-            'v2': 'v2-digest',
-            'v2_list': 'v2-list-digest',
-            'oci': 'oci-digest',
-            'oci_index': 'oci-index-digest',
-        },
-    ),
-    (
-        None, 'v2-digest', 'v2-list-digest', 'oci-digest', None, 'v2-list-digest',
-        {
-            'v1': None,
-            'v2': 'v2-digest',
-            'v2_list': 'v2-list-digest',
-            'oci': 'oci-digest',
-            'oci_index': None,
-        },
-    ),
-    (
-        'v1-digest', None, 'v2-list-digest', 'oci-digest', None, 'v2-list-digest',
-        {
-            'v1': 'v1-digest',
-            'v2': None,
-            'v2_list': 'v2-list-digest',
-            'oci': 'oci-digest',
-            'oci_index': None,
-        },
-    ),
-    (
-        'v1-digest', 'v2-digest', 'v2-list-digest', None, None, 'v2-list-digest',
-        {
-            'v1': 'v1-digest',
-            'v2': 'v2-digest',
-            'v2_list': 'v2-list-digest',
-            'oci': None,
-            'oci_index': None,
-        },
-    ),
-    (
-        None, None, None, 'oci-digest', 'oci-index-digest', 'oci-index-digest',
-        {
-            'v1': None,
-            'v2': None,
-            'v2_list': None,
-            'oci': 'oci-digest',
-            'oci_index': 'oci-index-digest',
-        },
-    ),
-    (
-        None, None, None, None, None, None,
-        {'v1': None, 'v2': None, 'v2_list': None, 'oci': None, 'oci_index': None},
-    ),
-])
-def test_manifest_digest(v1, v2, v2_list, oci, oci_index, default, expected_dump):
-    md = ManifestDigest(v1=v1, v2=v2, v2_list=v2_list, oci=oci, oci_index=oci_index)
-    assert md.v1 == v1
-    assert md.v2 == v2
-    assert md.v2_list == v2_list
-    assert md.oci == oci
-    assert md.default == default
-    with pytest.raises(AttributeError):
-        assert md.no_such_version
-    assert expected_dump == md.dump()
-
-
-@pytest.mark.parametrize("v1", [None, "v1-digest"])
-@pytest.mark.parametrize("v2", [None, "v2-digest"])
-@pytest.mark.parametrize("v2_list", [None, "v2-list-digest"])
-@pytest.mark.parametrize("oci", [None, "oci-digest"])
-@pytest.mark.parametrize("oci_index", [None, "oci-index-digest"])
-def test_manifest_digest_parse(v1, v2, v2_list, oci, oci_index):
-    md = ManifestDigest.load(
-        {'v1': v1, 'v2': v2, 'v2_list': v2_list, 'oci': oci, 'oci_index': oci_index}
-    )
-    assert md.v1 == v1
-    assert md.v2 == v2
-    assert md.v2_list == v2_list
-    assert md.oci == oci
-    assert md.oci_index == oci_index
-
-
 def test_get_manifest_media_version_unknown():
     with pytest.raises(RuntimeError):
         assert get_manifest_media_version(ManifestDigest())
@@ -2150,7 +2037,7 @@ def test_dockerfile_images_dump_empty_object():
         "organization": None,
         "local_parents": [],
     }
-    assert expected == df_images.dump()
+    assert expected == df_images.as_dict()
 
 
 @pytest.mark.parametrize(
@@ -2170,7 +2057,7 @@ def test_dockerfile_images_dump_with_images(
         "source_registry": None,
         "organization": None,
     }
-    assert expected == df_images.dump()
+    assert expected == df_images.as_dict()
 
 
 def test_dockerfile_images_load():
@@ -2203,7 +2090,7 @@ def test_dockerfile_images_load():
 def test_dockerfile_images_dump_and_load():
     """Test the original object can be restored from the dump data."""
     orig_df_images = DockerfileImages(["scratch", "registry/httpd:2.4"])
-    loaded_df_images = DockerfileImages.load(orig_df_images.dump())
+    loaded_df_images = DockerfileImages.load(orig_df_images.as_dict())
     assert id(orig_df_images) != id(loaded_df_images)
     assert orig_df_images == loaded_df_images
 

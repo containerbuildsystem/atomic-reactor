@@ -991,7 +991,7 @@ class RegistryClient(object):
         return blob_config
 
 
-class ManifestDigest(ISerializer, dict):
+class ManifestDigest(dict):
     """Wrapper for digests for a docker manifest."""
 
     NOT_SET: Final = None
@@ -1021,22 +1021,6 @@ class ManifestDigest(ISerializer, dict):
             raise AttributeError("Unknown version: %s" % attr)
         else:
             return self.get(attr, self.NOT_SET)
-
-    @classmethod
-    def load(cls, data: Dict[str, Any]):
-        md = ManifestDigest()
-        for type_name in cls.content_type:
-            md[type_name] = data[type_name]
-        return md
-
-    def dump(self) -> Dict[str, Any]:
-        return {
-            'v1': self.v1,
-            'v2': self.v2,
-            'v2_list': self.v2_list,
-            'oci': self.oci,
-            'oci_index': self.oci_index,
-        }
 
 
 def is_manifest_list(version):
@@ -1957,7 +1941,7 @@ class DockerfileImages(ISerializer):
             df_images.set_source_registry(registry, data["organization"])
         return df_images
 
-    def dump(self) -> Dict[str, Any]:
+    def as_dict(self) -> Dict[str, Any]:
         """Convert this object into a dictionary.
 
         A DockerfileImages object has attributes that are set from outside and

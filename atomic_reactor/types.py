@@ -31,11 +31,11 @@ class ISerializer(ABC):
         """
 
     @abstractmethod
-    def dump(self) -> Dict[str, Any]:
-        """Dump current object to a dictionary.
+    def as_dict(self) -> Dict[str, Any]:
+        """Convert current object to a dictionary.
 
         :return: a mapping containing key/value pairs that corresponds to the
-            object attributes. The return value must be in a proper type as
-            well as the data inside, so that it can be handled as JSON data.
+            object attributes. The return value can be input of the ``load``
+            method to recover an equivalent object.
         :rtype: dict[str, any]
         """

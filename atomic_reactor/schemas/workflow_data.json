@@ -104,6 +104,7 @@
     "dockerfile_images": {
       "type": "object",
       "properties": {
+        "__type__": {"type": "string"},
         "original_parents": {
           "type": "array",
           "items": {"type": "string"}
@@ -121,32 +122,47 @@
         "original_parents",
         "source_registry",
         "organization",
-        "local_parents"
+        "local_parents",
+        "__type__"
       ],
+      "additionalProperties": false
+    },
+    "ImageName": {
+      "type": "object",
+      "properties": {
+        "__type__": {"type": "string"},
+        "str": {
+          "type": "string",
+          "description": "The return value from ImageName.to_str or str(ImageName object)."
+        }
+      },
+      "required": ["__type__", "str"],
       "additionalProperties": false
     },
     "tag_conf": {
       "type": "object",
       "properties": {
+        "__type__": {"type": "string"},
         "primary_images": {
           "type": "array",
-          "items": {"type": "string"}
+          "items": {"$ref": "#/definitions/ImageName"}
         },
         "unique_images": {
           "type": "array",
-          "items": {"type": "string"}
+          "items": {"$ref": "#/definitions/ImageName"}
         },
         "floating_images": {
           "type": "array",
-          "items": {"type": "string"}
+          "items": {"$ref": "#/definitions/ImageName"}
         }
       },
-      "required": ["primary_images", "unique_images", "floating_images"],
+      "required": ["primary_images", "unique_images", "floating_images", "__type__"],
       "additionalProperties": false
     },
     "build_result": {
       "type": "object",
       "properties": {
+        "__type__": {"type": "string"},
         "logs": {
           "type": ["array", "null"],
           "items": {"type": "string"}
@@ -165,7 +181,8 @@
         "annotations",
         "labels",
         "skip_layer_squash",
-        "source_docker_archive"
+        "source_docker_archive",
+        "__type__"
       ],
       "additionalProperties": false
     },

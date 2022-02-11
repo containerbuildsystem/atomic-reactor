@@ -9,6 +9,7 @@ of the BSD license. See the LICENSE file for details.
 Script for building docker image. This is expected to run inside container.
 """
 
+import base64
 import functools
 import json
 import logging
@@ -19,7 +20,7 @@ import time
 import re
 from dataclasses import dataclass, field, fields
 from textwrap import dedent
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, Final, List, Optional, Union
 
 from atomic_reactor.dirs import ContextDir, RootBuildDir
 from atomic_reactor.plugin import (
@@ -200,7 +201,7 @@ class BuildResult(ISerializer):
             source_docker_archive=data.get("source_docker_archive"),
         )
 
-    def dump(self) -> Dict[str, Any]:
+    def as_dict(self) -> Dict[str, Any]:
         return {
             "annotations": self.annotations,
             "fail_reason": self.fail_reason,
@@ -279,7 +280,7 @@ class TagConf(ISerializer):
         """
         return self._floating_images
 
-    def add_primary_image(self, image: str) -> None:
+    def add_primary_image(self, image: Union[str, "ImageName"]) -> None:
         """add new primary image
 
         :param image: str, name of image (e.g. "namespace/httpd:2.4")
@@ -287,7 +288,7 @@ class TagConf(ISerializer):
         """
         self._primary_images.append(ImageName.parse(image))
 
-    def add_unique_image(self, image: str) -> None:
+    def add_unique_image(self, image: Union[str, "ImageName"]) -> None:
         """add image with unpredictable name
 
         :param image: str, name of image (e.g. "namespace/httpd:2.4")
@@ -295,7 +296,7 @@ class TagConf(ISerializer):
         """
         self._unique_images.append(ImageName.parse(image))
 
-    def add_floating_image(self, image: str) -> None:
+    def add_floating_image(self, image: Union[str, "ImageName"]) -> None:
         """add image with floating name
 
         :param image: str, name of image (e.g. "namespace/httpd:2.4")
@@ -315,7 +316,7 @@ class TagConf(ISerializer):
     @classmethod
     def load(cls, data: Dict[str, Any]):
         tag_conf = TagConf()
-        image: str
+        image: ImageName
         for image in data.get("primary_images", []):
             tag_conf.add_primary_image(image)
         for image in data.get("unique_images", []):
@@ -324,11 +325,11 @@ class TagConf(ISerializer):
             tag_conf.add_floating_image(image)
         return tag_conf
 
-    def dump(self) -> Dict[str, Any]:
+    def as_dict(self) -> Dict[str, Any]:
         return {
-            "primary_images": [image.to_str() for image in self._primary_images],
-            "unique_images": [image.to_str() for image in self._unique_images],
-            "floating_images": [image.to_str() for image in self.floating_images],
+            "primary_images": self.primary_images,
+            "unique_images": self.unique_images,
+            "floating_images": self.floating_images,
         }
 
 
@@ -491,18 +492,6 @@ class ImageBuildWorkflowData(ISerializer):
             setattr(wf_data, name, data_conv.get(name, _return_directly)(value))
         return wf_data
 
-    def dump(self) -> Dict[str, Any]:
-        """Dump workflow data into JSON data."""
-        result = {}
-        defined_field_names = [f.name for f in fields(self)]
-        for name in defined_field_names:
-            value = getattr(self, name)
-            if isinstance(value, ISerializer):
-                result[name] = value.dump()
-            else:
-                result[name] = value
-        return result
-
     @classmethod
     def load_from_dir(cls, context_dir: ContextDir) -> "ImageBuildWorkflowData":
         """Load workflow data from the data directory.
@@ -521,10 +510,23 @@ class ImageBuildWorkflowData(ISerializer):
 
         if not context_dir.workflow_json.exists():
             return cls()
+
         with open(context_dir.workflow_json, "r") as f:
-            workflow_data = json.load(f)
-        validate_with_schema(workflow_data, "schemas/workflow_data.json")
-        return cls.load(workflow_data)
+            file_content = f.read()
+
+        raw_data = json.loads(file_content)
+        validate_with_schema(raw_data, "schemas/workflow_data.json")
+
+        # NOTE: json.loads twice since the data is validated at the first time.
+        workflow_data = json.loads(file_content, object_hook=WorkflowDataDecoder())
+
+        build_result = workflow_data.pop("build_result")
+        loaded_data = cls(**workflow_data)
+        loaded_data.build_result = build_result
+        return loaded_data
+
+    def as_dict(self) -> Dict[str, Any]:
+        return {field.name: getattr(self, field.name) for field in fields(self)}
 
     def save(self, context_dir: ContextDir) -> None:
         """Save workflow data into the files under a specific directory.
@@ -538,7 +540,63 @@ class ImageBuildWorkflowData(ISerializer):
 
         logger.info("Writing workflow data into %s", context_dir.workflow_json)
         with open(context_dir.workflow_json, "w+") as f:
-            json.dump(self.dump(), f)
+            json.dump(self.as_dict(), f, cls=WorkflowDataEncoder)
+
+
+class WorkflowDataEncoder(json.JSONEncoder):
+    """Convert custom serializable objects into dict as JSON data."""
+
+    def default(self, o: object) -> Any:
+        if isinstance(o, ISerializer):
+            data = o.as_dict()
+            # Data type name used to know which type of object to recover.
+            data["__type__"] = o.__class__.__name__
+            return data
+        elif isinstance(o, ImageName):
+            return {
+                "__type__": o.__class__.__name__,
+                "str": o.to_str(),
+            }
+        elif isinstance(o, bytes):
+            return {
+                "__type__": "bytes",
+                "value": base64.b64encode(o).decode(),
+            }
+        return super().default(o)
+
+
+class WorkflowDataDecoder:
+    """Custom JSON decoder for workflow data."""
+
+    def _restore_image_name(self, data: Dict[str, str]) -> ImageName:
+        """Factor to create an ImageName object."""
+        return ImageName.parse(data["str"])
+
+    def _restore_bytes(self, data: Dict[str, str]) -> bytes:
+        """Restore the encoded bytes."""
+        return base64.b64decode(data["value"])
+
+    def __call__(self, data: Dict[str, Any]) -> Any:
+        """Restore custom serializable objects."""
+        loader_meths: Final[Dict[str, Callable]] = {
+            BuildResult.__name__: BuildResult.load,
+            DockerfileImages.__name__: DockerfileImages.load,
+            TagConf.__name__: TagConf.load,
+            ImageName.__name__: self._restore_image_name,
+            bytes.__name__: self._restore_bytes,
+        }
+        if "__type__" not in data:
+            # __type__ is an identifier to indicate a dict object represents an
+            # object that should be recovered. If no type is included, just
+            # treat it as a normal dict and return.
+            return data
+        obj_type = data.pop("__type__")
+        loader_meth = loader_meths.get(obj_type)
+        if loader_meth is None:
+            raise ValueError(
+                f"Unknown object type {obj_type} to restore an object from data {data!r}."
+            )
+        return loader_meth(data)
 
 
 class DockerBuildWorkflow(object):
