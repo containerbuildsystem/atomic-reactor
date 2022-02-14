@@ -100,4 +100,4 @@ class CheckAndSetPlatformsPlugin(PreBuildPlugin):
 
         self.workflow.build_dir.init_build_dirs(list(final_platforms), self.workflow.source)
 
-        return final_platforms
+        return list(final_platforms)

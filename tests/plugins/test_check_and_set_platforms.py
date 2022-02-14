@@ -150,7 +150,7 @@ def test_check_and_set_platforms(workflow, source_dir, caplog,
         koji_msg = "Koji platforms are {0}".format(sorted(platforms.keys()))
         assert koji_msg in caplog.text
         assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
-        assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] == set(result)
+        assert sorted(plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]) == sorted(result)
     else:
         assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] is None
         assert "No platforms found in koji target" in caplog.text
@@ -210,7 +210,7 @@ def test_check_isolated_or_scratch(workflow, source_dir, caplog,
 
     if result:
         assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
-        assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] == set(result)
+        assert sorted(plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]) == sorted(result)
     else:
         assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] is None
 
@@ -241,7 +241,7 @@ def test_check_and_set_platforms_no_koji(workflow, source_dir, caplog,
         user_msg = no_koji_msg + platform_msg
         assert user_msg in caplog.text
         assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
-        assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] == set(result)
+        assert sorted(plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]) == sorted(result)
     else:
         with pytest.raises(Exception) as e:
             runner.run()
@@ -295,7 +295,7 @@ def test_platforms_from_cluster_config(workflow, source_dir,
     plugin_result = runner.run()
     if platforms:
         assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
-        assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] == set(result)
+        assert sorted(plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]) == sorted(result)
     else:
         assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] is None
 
@@ -343,7 +343,7 @@ def test_disabled_clusters(workflow, source_dir, caplog, koji_platforms,
             koji_msg = "Koji platforms are {0}".format(sorted(koji_platforms))
             assert koji_msg in caplog.text
             assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
-            assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] == set(result)
+            assert sorted(plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]) == sorted(result)
 
             if skips:
                 for skip in skips:
