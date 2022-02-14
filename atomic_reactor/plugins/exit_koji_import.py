@@ -22,7 +22,7 @@ from atomic_reactor.plugins.build_orchestrate_build import (get_worker_build_inf
                                                             get_koji_upload_dir)
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.util import (OSBSLogs, get_parent_image_koji_data, get_manifest_media_version,
-                                 is_manifest_list, map_to_user_params)
+                                 get_platforms, is_manifest_list, map_to_user_params)
 from atomic_reactor.utils.koji import get_buildroot as koji_get_buildroot
 from atomic_reactor.utils.koji import get_output as koji_get_output
 from atomic_reactor.utils.koji import (
@@ -428,7 +428,7 @@ class KojiImportBase(ExitPlugin):
         buildroot = self.get_buildroot(worker_metadatas)
         buildroot_id = buildroot[0]['id']
         output, output_file = self.get_output(worker_metadatas, buildroot_id)
-        osbs_logs = OSBSLogs(self.log)
+        osbs_logs = OSBSLogs(self.log, get_platforms(self.workflow))
         output_files = [add_log_type(add_buildroot_id(md, buildroot_id))
                         for md in osbs_logs.get_log_files(self.osbs, self.pipeline_run_name)]
 

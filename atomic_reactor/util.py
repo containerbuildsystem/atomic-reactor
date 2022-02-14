@@ -1478,8 +1478,9 @@ def get_parent_image_koji_data(workflow):
 
 
 class OSBSLogs(object):
-    def __init__(self, log):
+    def __init__(self, log, platforms: list):
         self.log = log
+        self.platforms = platforms
 
     def get_log_metadata(self, path, filename):
         """
@@ -1504,30 +1505,45 @@ class OSBSLogs(object):
         """
 
         logs = None
-        output = []
+        outputs = []
 
         # Collect logs from server
         try:
             logs = osbs.get_build_logs(pipeline_run_name)
         except OsbsException as ex:
             self.log.error("unable to get build logs: %s", ex)
-            return output
+            return outputs
 
-        # OSBS2 TBD logs for specific arches for binary builds
         filename = 'osbs-build'
-        logfile = NamedTemporaryFile(prefix=f"{pipeline_run_name}-{filename}",
-                                     suffix=".log", mode='wb')
+        logfiles = {'noarch': NamedTemporaryFile(prefix=f'{pipeline_run_name}-{filename}-noarch-',
+                                                 suffix='.log', mode='wb')}
 
         # Correct log order depends on dict iteration order
         # and on osbs.get_build_logs returning correctly ordered dict
-        for containers in logs.values():
-            for log_message in containers.values():
-                logfile.write((log_message + '\n').encode('utf-8'))
-        logfile.flush()
-        metadata = self.get_log_metadata(logfile.name, f"{filename}.log")
-        output.append(Output(file=logfile, metadata=metadata))
+        for task_run_name, containers in logs.items():
+            task_platform = next(
+                (platform for platform in self.platforms if
+                 platform.replace('_', '-') in task_run_name),
+                'noarch'
+            )
+            if task_platform not in logfiles:
+                logfiles[task_platform] = NamedTemporaryFile(prefix=f'{pipeline_run_name}-'
+                                                                    f'{filename}-{task_platform}-',
+                                                             suffix='.log', mode='wb')
 
-        return output
+            for log_message in containers.values():
+                logfiles[task_platform].write((log_message + '\n').encode('utf-8'))
+            logfiles[task_platform].flush()
+
+        for platform, logfile in logfiles.items():
+            if platform == 'noarch':
+                log_filename = filename
+            else:
+                log_filename = platform
+            metadata = self.get_log_metadata(logfile.name, f'{log_filename}.log')
+            outputs.append(Output(file=logfile, metadata=metadata))
+
+        return outputs
 
 
 # As defined in pyhton docs example for format_map:
