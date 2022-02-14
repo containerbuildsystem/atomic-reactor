@@ -75,7 +75,6 @@ from osbs.utils import ImageName
 from osbs.exceptions import OsbsValidationException
 from tests.mock_env import MockEnv
 from tests.stubs import StubSource
-from tests.constants import OSBS_BUILD_LOG_FILENAME
 
 if MOCK:
     from tests.retry_mock import mock_get_retry_session
@@ -1198,22 +1197,47 @@ def test_osbs_logs_get_log_files(tmpdir):
             logs = {
                 "taskRun1": {"containerA": "log message A", "containerB": "log message B"},
                 "taskRun2": {"containerC": "log message C"},
+                "taskRun3-s390x": {"containerD": "log message D"},
+                "taskRun4-ppc64le": {"containerE": "log message E"},
+                "taskRun5-aarch64": {"containerF": "log message F"},
+                "taskRun6-x86-64": {"containerG": "log message G"},
             }
             return logs
 
-    osbs_logfile_metadata = {
-        'checksum': '1b6c0f6e47915b0d0d12cc0fc863750a',
-        'checksum_type': 'md5',
-        'filename': OSBS_BUILD_LOG_FILENAME,
-        'filesize': 42
-    }
+    osbs_logfiles_metadata = [{'checksum': '1b6c0f6e47915b0d0d12cc0fc863750a',
+                               'checksum_type': 'md5',
+                               'filename': 'osbs-build.log',
+                               'filesize': 42
+                               },
+                              {'checksum': '1d1756214255fcd6941a9ddb37d71020',
+                               'checksum_type': 'md5',
+                               'filename': 's390x.log',
+                               'filesize': 14
+                               },
+                              {'checksum': '790b112736bdb108969589658b069c5b',
+                               'checksum_type': 'md5',
+                               'filename': 'ppc64le.log',
+                               'filesize': 14
+                               },
+                              {'checksum': 'bb6976a430d9a614fe09e87f3ae26a39',
+                               'checksum_type': 'md5',
+                               'filename': 'aarch64.log',
+                               'filesize': 14
+                               },
+                              {'checksum': '782797acf067a76034d5ae0f58618e2f',
+                               'checksum_type': 'md5',
+                               'filename': 'x86_64.log',
+                               'filesize': 14
+                               }
+                              ]
 
     logger = flexmock()
     flexmock(logger).should_receive('error')
-    osbs_logs = OSBSLogs(logger)
+    osbs_logs = OSBSLogs(logger, ['x86_64', 'ppc64le', 'aarch64', 's390x'])
     osbs = OSBS()
-    output = osbs_logs.get_log_files(osbs, 'test-pipeline-run')
-    assert output[0].metadata == osbs_logfile_metadata
+    outputs = osbs_logs.get_log_files(osbs, 'test-pipeline-run')
+    for index, output in enumerate(outputs):
+        assert output.metadata == osbs_logfiles_metadata[index]
 
 
 @pytest.mark.parametrize('raise_error', [

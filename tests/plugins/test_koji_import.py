@@ -51,7 +51,7 @@ from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI_
                                       KOJI_SUBTYPE_OP_BUNDLE,
                                       KOJI_SOURCE_ENGINE,
                                       DOCKERFILE_FILENAME,
-                                      REPO_CONTAINER_CONFIG)
+                                      REPO_CONTAINER_CONFIG, PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
 from tests.flatpak import (MODULEMD_AVAILABLE,
                            setup_flatpak_composes,
                            setup_flatpak_source_info)
@@ -267,6 +267,9 @@ def mock_environment(workflow, source_dir: Path, session=None, name=None, oci=Fa
     if source is None:
         source = GitSource('git', 'git://hostname/path')
 
+    platforms = ['x86_64']
+    workflow.data.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = platforms
+
     mock_reactor_config(workflow)
     workflow.user_params['scratch'] = scratch
 
@@ -327,7 +330,7 @@ def mock_environment(workflow, source_dir: Path, session=None, name=None, oci=Fa
     setattr(workflow.source.lg, 'commit_id', '123456')
     setattr(workflow.source.lg, 'git_path', str(source_dir))
 
-    workflow.build_dir.init_build_dirs(["x86_64"], workflow.source)
+    workflow.build_dir.init_build_dirs(platforms, workflow.source)
 
     def custom_get(method, url, headers, **kwargs):
         if url == manifest_url:
