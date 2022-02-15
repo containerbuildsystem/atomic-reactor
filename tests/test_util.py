@@ -70,7 +70,6 @@ from atomic_reactor.util import (LazyGit, figure_out_build_file,
 from tests.constants import MOCK, REACTOR_CONFIG_MAP
 import atomic_reactor.util
 from atomic_reactor.constants import INSPECT_CONFIG
-from atomic_reactor.source import SourceConfig
 from osbs.utils import ImageName
 from osbs.exceptions import OsbsValidationException
 from tests.mock_env import MockEnv
@@ -1445,105 +1444,49 @@ def test_get_all_manifests(tmpdir, image, registry, insecure, creds, path, versi
         assert all_manifests == {}
 
 
-@pytest.mark.parametrize(('valid'), [
-    True,
-    False
-])
-@pytest.mark.parametrize(('platforms', 'config_dict', 'result'), [
+@pytest.mark.parametrize('input_platforms,excludes,only,expected', [
+    (['x86_64', 'ppc64le'], [], ['ppc64le'], ['ppc64le']),
     (
-        ['x86_64', 'ppc64le'],
-        {'platforms': {'only': 'ppc64le'}},
-        ['ppc64le']
-    ), (
         ['x86_64', 'spam', 'bacon', 'toast', 'ppc64le'],
-        {'platforms': {'not': ['spam', 'bacon', 'eggs', 'toast']}},
-        ['x86_64', 'ppc64le']
-    ), (
-        ['ppc64le', 'spam', 'bacon', 'toast'],
-        {'platforms': {'not': ['spam', 'bacon', 'eggs', 'toast'], 'only': ['ppc64le']}},
-        ['ppc64le']
-    ), (
-        ['x86_64', 'bacon', 'toast'],
-        {'platforms': {'not': 'toast', 'only': ['x86_64', 'ppc64le']}},
-        ['x86_64']
-    ), (
-        ['x86_64', 'toast'],
-        {'platforms': {'not': 'toast', 'only': 'x86_64'}},
-        ['x86_64']
-    ), (
-        ['x86_64', 'spam', 'bacon', 'toast'],
-        {'platforms': {
-            'not': ['spam', 'bacon', 'eggs', 'toast'],
-            'only': ['x86_64', 'ppc64le']
-        }},
-        ['x86_64']
-    ), (
+        ['spam', 'bacon', 'eggs', 'toast'],
+        [],
         ['x86_64', 'ppc64le'],
-        {},
-        ['x86_64', 'ppc64le']
-    ), (
-        ['x86_64', 'ppc64le'],
-        {'platforms': {'not': 'x86_64', 'only': 'x86_64'}},
-        []
-    ), (
-        ['x86_64', 'ppc64le'],
-        {'platforms': None},
-        ['x86_64', 'ppc64le']
     ),
+    (
+        ['ppc64le', 'spam', 'bacon', 'toast'],
+        ['spam', 'bacon', 'eggs', 'toast'],
+        ['ppc64le'],
+        ['ppc64le'],
+    ),
+    # only takes the priority
+    (
+        ['ppc64le', 'spam', 'bacon', 'toast'],
+        ['bacon', 'eggs', 'toast'],
+        ['ppc64le'],
+        ['ppc64le'],  # spam is not excluded, but only include ppc64le
+    ),
+    (
+        ['x86_64', 'bacon', 'toast'],
+        ['toast'],
+        ['x86_64', 'ppc64le'],
+        ['x86_64']
+    ),
+    (
+        ['x86_64', 'spam', 'bacon', 'toast'],
+        ['spam', 'bacon', 'eggs', 'toast'],
+        ['x86_64', 'ppc64le'],
+        ['x86_64'],
+    ),
+    (['x86_64', 'ppc64le'], [], [], ['x86_64', 'ppc64le']),
+    (['x86_64', 'ppc64le'], ["x86_64"], ["x86_64"], []),
 ])
-def test_get_platforms_in_limits(tmpdir, platforms, config_dict, result, valid, caplog):
-    class MockSource(object):
-        def __init__(self, build_dir):
-            self.build_dir = build_dir
-            self._config = None
+def test_get_platforms_in_limits(input_platforms, excludes, only, expected, caplog):
+    assert set(expected) == get_platforms_in_limits(
+        input_platforms, excludes=excludes, only=only
+    )
 
-        def get_build_file_path(self):
-            return self.build_dir, self.build_dir
-
-        @property
-        def config(self):
-            self._config = self._config or SourceConfig(self.build_dir)
-            return self._config
-
-    class MockWorkflow(object):
-        def __init__(self, build_dir):
-            self.source = MockSource(build_dir)
-
-    def configured_same_not_and_only(conf):
-
-        def to_set(conf):
-            return set([conf] if not isinstance(conf, list) else conf)
-
-        platforms_conf = conf.get('platforms', {})
-        if not platforms_conf:
-            return False
-
-        excluded_platforms_conf = platforms_conf.get('not', [])
-        excluded_platforms = to_set(excluded_platforms_conf)
-        if not excluded_platforms:
-            return False
-
-        only_platforms_conf = platforms_conf.get('only', [])
-        only_platforms = to_set(only_platforms_conf)
-        return excluded_platforms == only_platforms
-
-    with open(os.path.join(str(tmpdir), 'container.yaml'), 'w') as f:
-        f.write(yaml.safe_dump(config_dict))
-        f.flush()
-    if valid and platforms:
-        workflow = MockWorkflow(str(tmpdir))
-        final_platforms = get_platforms_in_limits(workflow, platforms)
-        if configured_same_not_and_only(config_dict):
-            assert 'only and not platforms are the same' in caplog.text
-        assert final_platforms == set(result)
-    elif valid:
-        workflow = MockWorkflow(str(tmpdir))
-        final_platforms = get_platforms_in_limits(workflow, platforms)
-        assert final_platforms is None
-    else:
-        workflow = MockWorkflow('bad_dir')
-        final_platforms = get_platforms_in_limits(workflow, platforms)
-        assert final_platforms == set(platforms)
+    if only and sorted(only) == sorted(excludes):
+        assert "only and not platforms are the same" in caplog.text
 
 
 MOCK_INSPECT_DATA = {

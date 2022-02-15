@@ -15,6 +15,7 @@ import os
 import shutil
 import tempfile
 from textwrap import dedent
+from typing import Any, List
 import collections
 try:
     from urlparse import urlparse
@@ -31,6 +32,12 @@ logger = logging.getLogger(__name__)
 # Intended for use as vcs-type, vcs-url and vcs-ref docker labels as defined
 # in https://github.com/projectatomic/ContainerApplicationGenericLabels
 VcsInfo = collections.namedtuple('VcsInfo', ['vcs_type', 'vcs_url', 'vcs_ref'])
+
+
+def make_list(value: Any) -> List[Any]:
+    if not isinstance(value, list):
+        return [value]
+    return value
 
 
 class SourceConfig(object):
@@ -64,6 +71,18 @@ class SourceConfig(object):
         self.remote_source = self.data.get('remote_source')
         self.remote_sources = self.data.get('remote_sources')
         self.operator_manifests = self.data.get('operator_manifests')
+
+        self.platforms = self.data.get('platforms') or {'not': [], 'only': []}
+        self.platforms['not'] = make_list(self.platforms.get('not', []))
+        self.platforms['only'] = make_list(self.platforms.get('only', []))
+
+    @property
+    def excluded_platforms(self) -> List[str]:
+        return self.platforms['not']
+
+    @property
+    def only_platforms(self) -> List[str]:
+        return self.platforms['only']
 
 
 class Source(object):

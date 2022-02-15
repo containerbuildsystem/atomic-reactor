@@ -109,26 +109,26 @@ class TestSourceConfigSchemaValidation(object):
             # empty config
             """\
             """,
-            {'data': {}}
+            {'platforms': {'not': [], 'only': []}},
         ), (
             """\
             platforms:
               only: s390x
             """,
-            {'data': {'platforms': {'only': 's390x'}}}
+            {'platforms': {'only': ['s390x'], 'not': []}},
         ), (
             """\
             platforms:
               not: s390x
             """,
-            {'data': {'platforms': {'not': 's390x'}}}
+            {'platforms': {'not': ['s390x'], 'only': []}},
         ), (
             """\
             platforms:
               not: s390x
               only: s390x
             """,
-            {'data': {'platforms': {'only': 's390x', 'not': 's390x'}}}
+            {'platforms': {'only': ['s390x'], 'not': ['s390x']}},
         ), (
             """\
             platforms:
@@ -137,12 +137,12 @@ class TestSourceConfigSchemaValidation(object):
               only:
                - s390x
             """,
-            {'data': {'platforms': {'only': ['s390x'], 'not': ['s390x']}}}
+            {'platforms': {'only': ['s390x'], 'not': ['s390x']}},
         ), (
             """\
             platforms:
             """,
-            {'data': {'platforms': None}}
+            {'platforms': {'not': [], 'only': []}},
         ), (
             """\
             flatpak:
@@ -309,6 +309,8 @@ class TestSourceConfigSchemaValidation(object):
               "enable_repo_replacements": False,
               "enable_registry_replacements": True,
           }}
+        ), (
+            "", {'platforms': {'not': [], 'only': []}},
         ),
     ])
     def test_valid_source_config(self, tmpdir, yml_config, attrs_updated):

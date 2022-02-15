@@ -90,7 +90,12 @@ class CheckAndSetPlatformsPlugin(PreBuildPlugin):
                   ' {}'.format(defined_but_disabled)
             raise RuntimeError(msg)
 
-        final_platforms = get_platforms_in_limits(self.workflow, enabled_platforms)
+        source_config = self.workflow.source.config
+        final_platforms = get_platforms_in_limits(
+            enabled_platforms,
+            source_config.excluded_platforms,
+            source_config.only_platforms,
+        )
 
         self.log.info("platforms in limits : %s", final_platforms)
 
