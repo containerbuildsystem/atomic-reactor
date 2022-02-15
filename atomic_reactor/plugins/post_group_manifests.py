@@ -134,7 +134,11 @@ class GroupManifestsPlugin(PostBuildPlugin):
                                                                                 source_digest,
                                                                                 source_repo,
                                                                                 images)
-        return {'manifest': manifest, 'media_type': media, 'manifest_digest': digest}
+        return {
+            'manifest': manifest.decode('utf-8'),
+            'media_type': media,
+            'manifest_digest': digest,
+        }
 
     def run(self):
         primary_images = get_primary_images(self.workflow)

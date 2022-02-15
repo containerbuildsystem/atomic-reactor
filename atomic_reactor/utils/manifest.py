@@ -7,6 +7,7 @@ of the BSD license. See the LICENSE file for details.
 """
 
 import json
+from typing import Tuple
 import requests
 
 from atomic_reactor.plugin import PluginFailedException
@@ -64,7 +65,7 @@ class ManifestUtil(object):
 
         return sources
 
-    def get_manifest(self, session, repository, ref):
+    def get_manifest(self, session, repository, ref) -> Tuple[bytes, str, str, int]:
         """
         Downloads a manifest from a registry. ref can be a digest, or a tag.
         """
@@ -134,7 +135,7 @@ class ManifestUtil(object):
         for digest in references:
             self.link_blob_into_repository(session, digest, source_repo, target_repo)
 
-    def store_manifest_in_repository(self, session, manifest, media_type,
+    def store_manifest_in_repository(self, session, manifest: bytes, media_type,
                                      source_repo, target_repo, ref=None):
         """
         Stores the manifest into target_repo, possibly tagging it. This may involve
@@ -160,7 +161,7 @@ class ManifestUtil(object):
                                dockercfg_path=secret_path,
                                access=('pull', 'push'))
 
-    def add_tag_and_manifest(self, session, image_manifest, media_type,
+    def add_tag_and_manifest(self, session, image_manifest: bytes, media_type,
                              source_repo, configured_tags):
         for image in configured_tags:
             target_repo = image.to_str(registry=False, tag=False)

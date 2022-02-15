@@ -1400,8 +1400,6 @@ class TestWorkflowData:
                         },
                     },
                 },
-                # bytes should be handled properly.
-                "plugin_b": {"data": "OSBS".encode()},
             },
         )
 
