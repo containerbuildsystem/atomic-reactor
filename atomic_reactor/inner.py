@@ -9,7 +9,6 @@ of the BSD license. See the LICENSE file for details.
 Script for building docker image. This is expected to run inside container.
 """
 
-import base64
 import functools
 import json
 import logging
@@ -557,11 +556,6 @@ class WorkflowDataEncoder(json.JSONEncoder):
                 "__type__": o.__class__.__name__,
                 "str": o.to_str(),
             }
-        elif isinstance(o, bytes):
-            return {
-                "__type__": "bytes",
-                "value": base64.b64encode(o).decode(),
-            }
         return super().default(o)
 
 
@@ -572,10 +566,6 @@ class WorkflowDataDecoder:
         """Factor to create an ImageName object."""
         return ImageName.parse(data["str"])
 
-    def _restore_bytes(self, data: Dict[str, str]) -> bytes:
-        """Restore the encoded bytes."""
-        return base64.b64decode(data["value"])
-
     def __call__(self, data: Dict[str, Any]) -> Any:
         """Restore custom serializable objects."""
         loader_meths: Final[Dict[str, Callable]] = {
@@ -583,7 +573,6 @@ class WorkflowDataDecoder:
             DockerfileImages.__name__: DockerfileImages.load,
             TagConf.__name__: TagConf.load,
             ImageName.__name__: self._restore_image_name,
-            bytes.__name__: self._restore_bytes,
         }
         if "__type__" not in data:
             # __type__ is an identifier to indicate a dict object represents an
