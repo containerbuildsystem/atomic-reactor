@@ -17,7 +17,7 @@ import requests
 from requests.exceptions import SSLError, HTTPError, RetryError
 import shutil
 import tempfile
-from typing import Any, Final, Iterator, Sequence, Dict, Union, List, BinaryIO, Tuple, Optional
+from typing import Any, Final, Iterator, Sequence, Dict, Union, List, BinaryIO, Tuple, Optional, Set
 import logging
 import uuid
 import yaml
@@ -1537,35 +1537,40 @@ class DefaultKeyDict(dict):
         return key
 
 
-def get_platforms_in_limits(workflow, input_platforms=None):
-    def make_list(value):
-        if not isinstance(value, list):
-            value = [value]
-        return value
+def get_platforms_in_limits(
+    input_platforms: Optional[Sequence[str]] = None,
+    excludes: Optional[List[str]] = None,
+    only: Optional[List[str]] = None,
+) -> Optional[Set[str]]:
+    """Limit platforms in a specific range.
 
+    :param input_platforms: a sequence of platforms to be filtered.
+    :type input_platforms: list[str] or set[str]
+    :param excludes: exclude these platforms from ``input_platforms``. If
+        omitted, whether a platform is included in the final result depends on
+        the argument ``only``.
+    :type excludes: list[str]
+    :param only: the result should only include these platforms.
+    :type only: list[str]
+    :return: the limited platforms. If no input platforms, None is returned.
+    :rtype: set[str] or None
+    """
     if not input_platforms:
         return None
-    excluded_platforms = set()
 
     if not isinstance(input_platforms, set):
         expected_platforms = set(input_platforms)
     else:
         expected_platforms = deepcopy(input_platforms)
 
-    data = workflow.source.config.data
+    only_platforms = set(only or [])
+    excludes_platforms = set(excludes or [])
 
-    logger.info("%s contains: %s", REPO_CONTAINER_CONFIG, data)
-    if data and 'platforms' in data and data['platforms']:
-        excluded_platforms = set(make_list(data['platforms'].get('not', [])))
-        only_platforms = set(make_list(data['platforms'].get('only', [])))
-        if only_platforms:
-            if excluded_platforms == only_platforms:
-                logger.warning(
-                    'only and not platforms are the same in %s',
-                    workflow.source.config.file_path
-                )
-            expected_platforms = expected_platforms & only_platforms
-    return expected_platforms - excluded_platforms
+    if only_platforms:
+        if only_platforms == excludes_platforms:
+            logger.warning('only and not platforms are the same: %r', only_platforms)
+        expected_platforms &= only_platforms
+    return expected_platforms - excludes_platforms
 
 
 def dump_stacktraces(sig, frame):
