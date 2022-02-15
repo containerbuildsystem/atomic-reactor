@@ -54,7 +54,8 @@ def test_store_metadata(metadata_decorator, metadata_attr, workflow):
     (label_map, 'labels')
 ])
 def test_store_metadata_map(metadata_map_decorator, metadata_attr, workflow):
-    @metadata_map_decorator('foo', 'bar')
+    @metadata_map_decorator('foo')
+    @metadata_map_decorator('bar_baz', lambda result: result['bar'] + result['baz'])
     class BP1(BuildPlugin):
         key = 'bp1'
 
@@ -75,7 +76,7 @@ def test_store_metadata_map(metadata_map_decorator, metadata_attr, workflow):
     assert p2.run() is None
 
     other_attr = 'labels' if metadata_attr == 'annotations' else 'annotations'
-    assert getattr(workflow.data, metadata_attr) == {'foo': 1, 'bar': 2}
+    assert getattr(workflow.data, metadata_attr) == {'foo': 1, 'bar_baz': 5}
     assert getattr(workflow.data, other_attr) == {}
 
 

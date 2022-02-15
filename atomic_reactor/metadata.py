@@ -7,7 +7,7 @@ of the BSD license. See the LICENSE file for details.
 """
 
 import functools
-from typing import Any, Callable, Dict, Literal, Type, TypeVar
+from typing import Any, Callable, Dict, Literal, Optional, Type, TypeVar
 
 from atomic_reactor.plugin import BuildPlugin
 
@@ -22,12 +22,12 @@ PluginResult = Any
 MetadataFn = Callable[[PluginResult], Dict[str, Any]]
 
 
-def _as_key(key: str) -> MetadataFn:
-    return lambda result: {key: result}
+def _as_key(key: str, transform: Callable[[PluginResult], Any]) -> MetadataFn:
+    return lambda result: {key: transform(result)}
 
 
-def _match_keys(*keys: str) -> MetadataFn:
-    return lambda result: {key: result[key] for key in keys}
+def _identity(x):
+    return x
 
 
 def annotation(key: str) -> BuildPluginDecorator:
@@ -52,28 +52,34 @@ def annotation(key: str) -> BuildPluginDecorator:
     :param key: Key to annotate the plugin with
     :return: Decorator that will turn the plugin into an annotated one
     """
-    return _decorate_metadata('annotations', result_to_metadata=_as_key(key))
+    return _decorate_metadata('annotations', result_to_metadata=_as_key(key, _identity))
 
 
-def annotation_map(*keys: str) -> BuildPluginDecorator:
+def annotation_map(
+    key: str,
+    transform: Optional[Callable[[PluginResult], Any]] = None,
+) -> BuildPluginDecorator:
     """
     Annotate a `BuildPlugin` subclass. Works like `annotation`, but instead of
-    storing the run() result as is, annotations are set by matching the given
-    keys to those in the result (which has to be a dict).
+    storing the run() result as is, applies the specified transformation to it
+    first. If unspecified, the default transformation is result[key].
 
     Example:
-    >>> @annotation_map('foo', 'bar')
+    >>> @annotation_map('foo')
+    >>> @annotation_map('bar_baz', lambda result: result['bar'] + result['baz'])
     >>> class YourBuildPlugin(BuildPlugin):
     >>>     key = 'your_build_plugin'
     >>>
-    >>>     # sets annotations: {'foo': 1, 'bar': 2}
+    >>>     # sets annotations: {'foo': 1, 'bar_baz': 5}
     >>>     def run(self):
     >>>         return {'foo': 1, 'bar': 2, 'baz': 3}
 
-    :param keys: Keys to annotate the plugin with
+    :param key: Key to annotate the plugin with
+    :param transform: Function to apply to the plugin result before saving the annotation
     :return: Decorator that will turn the plugin into an annotated one
     """
-    return _decorate_metadata('annotations', result_to_metadata=_match_keys(*keys))
+    transform = transform or (lambda result: result[key])
+    return _decorate_metadata('annotations', result_to_metadata=_as_key(key, transform))
 
 
 def label(key: str) -> BuildPluginDecorator:
@@ -84,18 +90,23 @@ def label(key: str) -> BuildPluginDecorator:
     :param key: Key to label the plugin with
     :return: Decorator that will turn the plugin into a labeled one
     """
-    return _decorate_metadata('labels', result_to_metadata=_as_key(key))
+    return _decorate_metadata('labels', result_to_metadata=_as_key(key, _identity))
 
 
-def label_map(*keys: str) -> BuildPluginDecorator:
+def label_map(
+    key: str,
+    transform: Optional[Callable[[PluginResult], Any]] = None,
+) -> BuildPluginDecorator:
     """
     Label a `BuildPlugin` subclass. Identical to `annotation_map`, but will
     save results as labels, not annotations.
 
-    :param keys: Keys to label the plugin with
+    :param key: Key to label the plugin with
+    :param transform: Function to apply to the plugin result before saving the label
     :return: Decorator that will turn the plugin into a labeled one
     """
-    return _decorate_metadata('labels', result_to_metadata=_match_keys(*keys))
+    transform = transform or (lambda result: result[key])
+    return _decorate_metadata('labels', result_to_metadata=_as_key(key, transform))
 
 
 def _decorate_metadata(
