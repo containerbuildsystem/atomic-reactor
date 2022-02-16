@@ -9,6 +9,8 @@ of the BSD license. See the LICENSE file for details.
 import os
 import sys
 from pathlib import Path
+from typing import List, Union
+from atomic_reactor.plugins.pre_check_and_set_platforms import CheckAndSetPlatformsPlugin
 
 import pytest
 import yaml
@@ -80,12 +82,14 @@ def make_reactor_config_map(platforms):
         return {'version': 1, 'koji': {'auth': {}, 'hub_url': 'test'}}
 
 
-def write_container_yaml(source_dir: Path, platform_exclude='', platform_only=''):
+def write_container_yaml(source_dir: Path,
+                         platform_exclude: Union[str, List[str]] = '',
+                         platform_only: Union[str, List[str]] = ''):
     platforms_dict = {}
-    if platform_exclude != '':
+    if platform_exclude:
         platforms_dict['platforms'] = {}
         platforms_dict['platforms']['not'] = platform_exclude
-    if platform_only != '':
+    if platform_only:
         if 'platforms' not in platforms_dict:
             platforms_dict['platforms'] = {}
         platforms_dict['platforms']['only'] = platform_only
@@ -270,7 +274,7 @@ def test_check_and_set_platforms_no_platforms_in_limits(
     with pytest.raises(Exception) as e:
         runner.run()
 
-    assert "platforms in limits : %s" % set() in caplog.text
+    assert f"platforms in limits : {[]}" in caplog.text
     assert "platforms in limits are empty" in caplog.text
     assert "No platforms to build for" in str(e.value)
 
@@ -380,3 +384,50 @@ def test_init_root_build_dir(workflow, source_dir):
         assert copied_file.exists()
         original_content = source_dir.joinpath(file_name).read_text("utf-8")
         assert original_content == copied_file.read_text("utf-8")
+
+
+@pytest.mark.parametrize('input_platforms,excludes,only,expected', [
+    (['x86_64', 'ppc64le'], [], ['ppc64le'], ['ppc64le']),
+    (
+        ['x86_64', 'spam', 'bacon', 'toast', 'ppc64le'],
+        ['spam', 'bacon', 'eggs', 'toast'],
+        [],
+        ['x86_64', 'ppc64le'],
+    ),
+    (
+        ['ppc64le', 'spam', 'bacon', 'toast'],
+        ['spam', 'bacon', 'eggs', 'toast'],
+        ['ppc64le'],
+        ['ppc64le'],
+    ),
+    # only takes the priority
+    (
+        ['ppc64le', 'spam', 'bacon', 'toast'],
+        ['bacon', 'eggs', 'toast'],
+        ['ppc64le'],
+        ['ppc64le'],  # spam is not excluded, but only include ppc64le
+    ),
+    (
+        ['x86_64', 'bacon', 'toast'],
+        ['toast'],
+        ['x86_64', 'ppc64le'],
+        ['x86_64']
+    ),
+    (
+        ['x86_64', 'spam', 'bacon', 'toast'],
+        ['spam', 'bacon', 'eggs', 'toast'],
+        ['x86_64', 'ppc64le'],
+        ['x86_64'],
+    ),
+    (['x86_64', 'ppc64le'], [], [], ['x86_64', 'ppc64le']),
+    (['x86_64', 'ppc64le'], ["x86_64"], ["x86_64"], []),
+])
+def test_limit_the_platforms(input_platforms, excludes, only, expected, workflow, caplog):
+    write_container_yaml(workflow.source.path,
+                         platform_exclude=excludes,
+                         platform_only=only)
+    plugin = CheckAndSetPlatformsPlugin(workflow)
+    limited_platforms = plugin._limit_platforms(input_platforms)
+    assert sorted(expected) == sorted(limited_platforms)
+    if only and sorted(only) == sorted(excludes):
+        assert "only and not platforms are the same" in caplog.text
