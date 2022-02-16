@@ -17,7 +17,7 @@ import requests
 from requests.exceptions import SSLError, HTTPError, RetryError
 import shutil
 import tempfile
-from typing import Any, Final, Iterator, Sequence, Dict, Union, List, BinaryIO, Tuple, Optional, Set
+from typing import Any, Final, Iterator, Sequence, Dict, Union, List, BinaryIO, Tuple, Optional
 import logging
 import uuid
 import yaml
@@ -1551,42 +1551,6 @@ class OSBSLogs(object):
 class DefaultKeyDict(dict):
     def __missing__(self, key):
         return key
-
-
-def get_platforms_in_limits(
-    input_platforms: Optional[Sequence[str]] = None,
-    excludes: Optional[List[str]] = None,
-    only: Optional[List[str]] = None,
-) -> Optional[Set[str]]:
-    """Limit platforms in a specific range.
-
-    :param input_platforms: a sequence of platforms to be filtered.
-    :type input_platforms: list[str] or set[str]
-    :param excludes: exclude these platforms from ``input_platforms``. If
-        omitted, whether a platform is included in the final result depends on
-        the argument ``only``.
-    :type excludes: list[str]
-    :param only: the result should only include these platforms.
-    :type only: list[str]
-    :return: the limited platforms. If no input platforms, None is returned.
-    :rtype: set[str] or None
-    """
-    if not input_platforms:
-        return None
-
-    if not isinstance(input_platforms, set):
-        expected_platforms = set(input_platforms)
-    else:
-        expected_platforms = deepcopy(input_platforms)
-
-    only_platforms = set(only or [])
-    excludes_platforms = set(excludes or [])
-
-    if only_platforms:
-        if only_platforms == excludes_platforms:
-            logger.warning('only and not platforms are the same: %r', only_platforms)
-        expected_platforms &= only_platforms
-    return expected_platforms - excludes_platforms
 
 
 def dump_stacktraces(sig, frame):

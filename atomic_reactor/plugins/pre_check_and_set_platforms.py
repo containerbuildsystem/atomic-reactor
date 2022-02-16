@@ -13,8 +13,9 @@ build_orchestrate_build will prefer this list of architectures over the platform
 USER_PARAMS, which is necessary to allow autobuilds to build on the correct architectures
 when koji build tags change.
 """
+from typing import List
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.util import (get_platforms_in_limits, is_scratch_build, is_isolated_build,
+from atomic_reactor.util import (is_scratch_build, is_isolated_build,
                                  get_orchestrator_platforms, map_to_user_params)
 from atomic_reactor.constants import PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
 from atomic_reactor.config import get_koji_session
@@ -37,6 +38,25 @@ class CheckAndSetPlatformsPlugin(PreBuildPlugin):
         # call parent constructor
         super(CheckAndSetPlatformsPlugin, self).__init__(workflow)
         self.koji_target = koji_target
+
+    def _limit_platforms(self, platforms: List[str]) -> List[str]:
+        """Limit platforms in a specific range by platforms config.
+
+        :param platforms: a list of platforms to be filtered.
+        :type platforms: list[str]
+        :return: the limited platforms.
+        :rtype: list[str]
+        """
+        final_platforms = set(platforms)
+        source_config = self.workflow.source.config
+        only_platforms = set(source_config.only_platforms)
+        excluded_platforms = set(source_config.excluded_platforms)
+
+        if only_platforms:
+            if only_platforms == excluded_platforms:
+                self.log.warning('only and not platforms are the same: %r', only_platforms)
+            final_platforms &= only_platforms
+        return list(final_platforms - excluded_platforms)
 
     def run(self):
         """
@@ -90,19 +110,12 @@ class CheckAndSetPlatformsPlugin(PreBuildPlugin):
                   ' {}'.format(defined_but_disabled)
             raise RuntimeError(msg)
 
-        source_config = self.workflow.source.config
-        final_platforms = get_platforms_in_limits(
-            enabled_platforms,
-            source_config.excluded_platforms,
-            source_config.only_platforms,
-        )
-
+        final_platforms = self._limit_platforms(enabled_platforms)
         self.log.info("platforms in limits : %s", final_platforms)
-
         if not final_platforms:
             self.log.error("platforms in limits are empty")
             raise RuntimeError("No platforms to build for")
 
-        self.workflow.build_dir.init_build_dirs(list(final_platforms), self.workflow.source)
+        self.workflow.build_dir.init_build_dirs(final_platforms, self.workflow.source)
 
-        return list(final_platforms)
+        return final_platforms

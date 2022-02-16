@@ -58,7 +58,7 @@ from atomic_reactor.util import (LazyGit, figure_out_build_file,
                                  read_yaml, read_yaml_from_file_path, read_yaml_from_url,
                                  validate_with_schema,
                                  OSBSLogs,
-                                 get_platforms_in_limits, get_orchestrator_platforms,
+                                 get_orchestrator_platforms,
                                  dump_stacktraces, setup_introspection_signal_handler,
                                  allow_repo_dir_in_dockerignore,
                                  has_operator_appregistry_manifest,
@@ -1442,51 +1442,6 @@ def test_get_all_manifests(tmpdir, image, registry, insecure, creds, path, versi
             assert version in all_manifests
     else:
         assert all_manifests == {}
-
-
-@pytest.mark.parametrize('input_platforms,excludes,only,expected', [
-    (['x86_64', 'ppc64le'], [], ['ppc64le'], ['ppc64le']),
-    (
-        ['x86_64', 'spam', 'bacon', 'toast', 'ppc64le'],
-        ['spam', 'bacon', 'eggs', 'toast'],
-        [],
-        ['x86_64', 'ppc64le'],
-    ),
-    (
-        ['ppc64le', 'spam', 'bacon', 'toast'],
-        ['spam', 'bacon', 'eggs', 'toast'],
-        ['ppc64le'],
-        ['ppc64le'],
-    ),
-    # only takes the priority
-    (
-        ['ppc64le', 'spam', 'bacon', 'toast'],
-        ['bacon', 'eggs', 'toast'],
-        ['ppc64le'],
-        ['ppc64le'],  # spam is not excluded, but only include ppc64le
-    ),
-    (
-        ['x86_64', 'bacon', 'toast'],
-        ['toast'],
-        ['x86_64', 'ppc64le'],
-        ['x86_64']
-    ),
-    (
-        ['x86_64', 'spam', 'bacon', 'toast'],
-        ['spam', 'bacon', 'eggs', 'toast'],
-        ['x86_64', 'ppc64le'],
-        ['x86_64'],
-    ),
-    (['x86_64', 'ppc64le'], [], [], ['x86_64', 'ppc64le']),
-    (['x86_64', 'ppc64le'], ["x86_64"], ["x86_64"], []),
-])
-def test_get_platforms_in_limits(input_platforms, excludes, only, expected, caplog):
-    assert set(expected) == get_platforms_in_limits(
-        input_platforms, excludes=excludes, only=only
-    )
-
-    if only and sorted(only) == sorted(excludes):
-        assert "only and not platforms are the same" in caplog.text
 
 
 MOCK_INSPECT_DATA = {
