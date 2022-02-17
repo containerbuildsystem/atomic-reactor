@@ -121,7 +121,7 @@ class SourceContainerPlugin(BuildStepPlugin):
         cmd.append('{}'.format(image_output_dir))
 
         try:
-            output = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+            output = subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
         except subprocess.CalledProcessError as e:
             self.log.error("BSI failed with output:\n%s", e.output)
             return BuildResult(logs=e.output, fail_reason='BSI utility failed build source image')
