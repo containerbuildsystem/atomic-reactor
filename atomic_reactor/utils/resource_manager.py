@@ -65,7 +65,7 @@ class SSHRetrySession(paramiko.SSHClient):
         logger=logger,
     )
     def exec_command(self, *args, **kwargs):
-        return super().exec_command(*args, **kwargs)
+        return super().exec_command(*args, **kwargs)  # nosec ignore B601
 
     @backoff.on_exception(
         backoff.expo,
@@ -79,7 +79,7 @@ class SSHRetrySession(paramiko.SSHClient):
         super().connect(*args, **kwargs)
 
     def run(self, cmd: str) -> Tuple[str, str, int]:
-        _, stdout, stderr = self.exec_command(cmd, timeout=SSH_COMMAND_TIMEOUT)
+        _, stdout, stderr = self.exec_command(cmd, timeout=SSH_COMMAND_TIMEOUT)  # nosec ignore B601
         out = stdout.read().decode().strip()
         err = stderr.read().decode().strip()
         code = stdout.channel.recv_exit_status()
@@ -219,7 +219,7 @@ class RemoteHost:
         _errmsg = f"{self.hostname}: failed to acquire lock on slot {slot_id}"
         try:
             logger.info("%s: acquiring lock on slot %s", self.hostname, slot_id)
-            stdin, stdout, stderr = session.exec_command(cmd)
+            stdin, stdout, stderr = session.exec_command(cmd)  # nosec ignore B601
         except Exception as ex:
             raise SlotLockError(_errmsg) from ex
 
