@@ -13,7 +13,6 @@ from osbs.exceptions import OsbsResponseException
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.constants import (PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
                                       PLUGIN_VERIFY_MEDIA_KEY,
-                                      PLUGIN_RESOLVE_REMOTE_SOURCE,
                                       SCRATCH_FROM)
 from atomic_reactor.config import get_openshift_session
 from atomic_reactor.plugin import ExitPlugin
@@ -71,33 +70,6 @@ class StoreMetadataPlugin(ExitPlugin):
                 digests[image.to_str()] = image_digests
 
         return digests
-
-    def get_repositories(self):
-        # usually repositories formed from NVR labels
-        # these should be used for pulling and layering
-        primary_repositories = []
-
-        for image in self.workflow.data.tag_conf.primary_images:
-            primary_repositories.append(image.to_str())
-
-        # unique unpredictable repositories
-        unique_repositories = []
-
-        for image in self.workflow.data.tag_conf.unique_images:
-            unique_repositories.append(image.to_str())
-
-        # floating repositories
-        # these should be used for pulling and layering
-        floating_repositories = []
-
-        for image in self.workflow.data.tag_conf.floating_images:
-            floating_repositories.append(image.to_str())
-
-        return {
-            "primary": primary_repositories,
-            "unique": unique_repositories,
-            "floating": floating_repositories,
-        }
 
     def get_pullspecs(self, digests):
         # v2 registry digests
@@ -178,20 +150,6 @@ class StoreMetadataPlugin(ExitPlugin):
     def apply_plugin_annotations(self, annotations):
         self._update_annotations(annotations, self.workflow.data.annotations)
 
-    def apply_remote_source_annotations(self, annotations):
-        try:
-            remote_sources = self.get_pre_result(PLUGIN_RESOLVE_REMOTE_SOURCE)
-            remote_sources_annotations = [
-                {"name": remote_source["name"], "url": remote_source["url"]}
-                for remote_source in remote_sources
-            ]
-        except (TypeError, KeyError):
-            return
-
-        if not remote_sources_annotations:
-            return
-        annotations.update({'remote_sources': json.dumps(remote_sources_annotations)})
-
     def run(self):
         try:
             pipeline_run_name = self.workflow.user_params['pipeline_run_name']
@@ -233,7 +191,6 @@ class StoreMetadataPlugin(ExitPlugin):
                 dockerfile_contents = ""
 
         annotations = {
-            'repositories': json.dumps(self.get_repositories()),
             'digests': json.dumps(self.get_pullspecs(self.get_digests())),
             'plugins-metadata': json.dumps(self.get_plugin_metadata()),
             'filesystem': json.dumps(self.get_filesystem_metadata()),
@@ -281,8 +238,6 @@ class StoreMetadataPlugin(ExitPlugin):
                 "sha256sum": tar_sha256sum,
                 "filename": os.path.basename(tar_path),
             })
-
-        self.apply_remote_source_annotations(annotations)
 
         annotations.update(self.get_config_map())
 

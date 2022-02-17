@@ -89,6 +89,26 @@ def workflow(workflow):
     return workflow
 
 
+def get_repositories_annotations(tag_conf):
+    primary_repositories = []
+    for image in tag_conf.primary_images:
+        primary_repositories.append(image.to_str())
+
+    unique_repositories = []
+    for image in tag_conf.unique_images:
+        unique_repositories.append(image.to_str())
+
+    floating_repositories = []
+    for image in tag_conf.floating_images:
+        floating_repositories.append(image.to_str())
+
+    return {
+        "primary": primary_repositories,
+        "unique": unique_repositories,
+        "floating": floating_repositories,
+    }
+
+
 @pytest.mark.skip(reason="plugin needs rework, should be used just for source container also, "
                          "tagging and pushing will be done via registry api or skopeo")
 @pytest.mark.parametrize("use_secret", [
@@ -301,6 +321,8 @@ def test_tag_and_push_plugin(
     else:
         runner.run()
         assert workflow.conf.registry
+        repos_annotations = get_repositories_annotations(workflow.data.tag_conf)
+        assert workflow.data.annotations['repositories'] == repos_annotations
 
         if MOCK:
             # we only test this when mocking docker because we don't expect
@@ -573,6 +595,8 @@ def test_tag_and_push_plugin_oci(workflow, tmpdir, monkeypatch,
         runner.run()
 
         assert workflow.conf.registry
+        repos_annotations = get_repositories_annotations(workflow.data.tag_conf)
+        assert workflow.data.annotations['repositories'] == repos_annotations
 
 
 @pytest.mark.parametrize('image_size_limit', [
@@ -609,7 +633,12 @@ def test_exceed_binary_image_size(image_size_limit, workflow):
              'v2': 'application/vnd.docker.distribution.manifest.list.v2+json',
          })))
 
-        assert workflow.image == plugin.run()[0].repo
+        result = plugin.run()
+        assert workflow.image == result['pushed_images'][0].repo
+        repos_annotations = get_repositories_annotations(workflow.data.tag_conf)
+        assert workflow.data.annotations['repositories'] == repos_annotations
+        assert result['repositories'] == repos_annotations
+
     else:
         with pytest.raises(ExceedsImageSizeError):
             plugin.run()

@@ -16,6 +16,7 @@ from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI,
 from atomic_reactor.config import get_koji_session
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
+from atomic_reactor.metadata import annotation_map
 from atomic_reactor.util import (Dockercfg, get_all_manifests, map_to_user_params,
                                  get_manifest_digests)
 from atomic_reactor.utils import retries
@@ -31,6 +32,7 @@ class ExceedsImageSizeError(RuntimeError):
     """Error of exceeding image size"""
 
 
+@annotation_map('repositories')
 class TagAndPushPlugin(PostBuildPlugin):
     """
     Use tags from workflow.data.tag_conf and push the images to workflow.conf.registry
@@ -130,6 +132,33 @@ class TagAndPushPlugin(PostBuildPlugin):
         source_image_spec.registry = self.workflow.conf.registry['uri']
         return source_image_spec
 
+    def get_repositories(self):
+        # usually repositories formed from NVR labels
+        # these should be used for pulling and layering
+        primary_repositories = []
+
+        for image in self.workflow.data.tag_conf.primary_images:
+            primary_repositories.append(image.to_str())
+
+        # unique unpredictable repositories
+        unique_repositories = []
+
+        for image in self.workflow.data.tag_conf.unique_images:
+            unique_repositories.append(image.to_str())
+
+        # floating repositories
+        # these should be used for pulling and layering
+        floating_repositories = []
+
+        for image in self.workflow.data.tag_conf.floating_images:
+            floating_repositories.append(image.to_str())
+
+        return {
+            "primary": primary_repositories,
+            "unique": unique_repositories,
+            "floating": floating_repositories,
+        }
+
     def run(self):
         pushed_images = []
         wf_data = self.workflow.data
@@ -211,4 +240,6 @@ class TagAndPushPlugin(PostBuildPlugin):
             pushed_images.append(registry_image)
 
         self.log.info("All images were tagged and pushed")
-        return pushed_images
+
+        return {'pushed_images': pushed_images,
+                'repositories': self.get_repositories()}
