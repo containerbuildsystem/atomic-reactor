@@ -919,6 +919,12 @@ def run_plugin_with_args(workflow, dependency_replacements=None, expect_error=No
     if expect_result:
         assert results == expected_plugin_results
 
+        remote_sources_annotations = [
+            {"name": remote_source["name"], "url": remote_source["url"]}
+            for remote_source in expected_plugin_results
+        ]
+        assert workflow.data.annotations['remote_sources'] == remote_sources_annotations
+
     return results
 
 

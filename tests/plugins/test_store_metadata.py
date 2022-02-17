@@ -18,8 +18,7 @@ from osbs.utils import ImageName
 
 from atomic_reactor.constants import (PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
                                       PLUGIN_VERIFY_MEDIA_KEY,
-                                      PLUGIN_FETCH_SOURCES_KEY,
-                                      PLUGIN_RESOLVE_REMOTE_SOURCE)
+                                      PLUGIN_FETCH_SOURCES_KEY)
 from atomic_reactor.inner import BuildResult
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
@@ -138,11 +137,10 @@ def prepare(workflow, registry=None):
     (["application/vnd.docker.distribution.manifest.v1+json"],
      ["application/vnd.docker.distribution.manifest.v1+json"]),
 ))
-@pytest.mark.parametrize('remote_sources', [True, False])
 def test_metadata_plugin(workflow, source_dir, br_annotations, expected_br_annotations,
                          br_labels, expected_br_labels, koji,
                          help_results, expected_help_results, base_from_scratch,
-                         verify_media_results, expected_media_results, remote_sources):
+                         verify_media_results, expected_media_results):
     initial_timestamp = datetime.now()
     prepare(workflow)
     if base_from_scratch:
@@ -170,10 +168,6 @@ CMD blabla"""
     workflow.data.prebuild_results = {
         AddHelpPlugin.key: help_results
     }
-    remote_source_output = [{'name': 'first', 'url': 'cachito_url_for_first'},
-                            {'name': 'second', 'url': 'cachito_url_for_second'}]
-    if remote_sources:
-        workflow.data.prebuild_results[PLUGIN_RESOLVE_REMOTE_SOURCE] = remote_source_output
 
     if help_results is not None:
         workflow.data.annotations['help_file'] = help_results['help_file']
@@ -224,8 +218,6 @@ CMD blabla"""
     annotations = output[StoreMetadataPlugin.key]["annotations"]
     assert "dockerfile" in annotations
     assert is_string_type(annotations['dockerfile'])
-    assert "repositories" in annotations
-    assert is_string_type(annotations['repositories'])
     assert "commit_id" in annotations
     assert is_string_type(annotations['commit_id'])
 
@@ -320,12 +312,6 @@ CMD blabla"""
     else:
         assert 'media-types' not in annotations
 
-    if remote_sources:
-        assert 'remote_sources' in annotations
-        assert json.dumps(remote_source_output) == annotations['remote_sources']
-    else:
-        assert 'remote_sources' not in annotations
-
 
 @pytest.mark.parametrize('image_id', ('c9243f9abf2b', None))
 @pytest.mark.parametrize(('br_annotations', 'expected_br_annotations'), (
@@ -396,8 +382,6 @@ def test_metadata_plugin_source(image_id, br_annotations, expected_br_annotation
     assert StoreMetadataPlugin.key in output
     labels = output[StoreMetadataPlugin.key]["labels"]
     annotations = output[StoreMetadataPlugin.key]["annotations"]
-    assert "repositories" in annotations
-    assert is_string_type(annotations['repositories'])
     assert "filesystem" in annotations
     assert "fs_data" in annotations['filesystem']
     assert "image-id" in annotations
@@ -538,7 +522,6 @@ CMD blabla"""
     assert StoreMetadataPlugin.key in output
     annotations = output[StoreMetadataPlugin.key]["annotations"]
     assert "dockerfile" in annotations
-    assert "repositories" in annotations
     assert "commit_id" in annotations
     assert "base-image-id" in annotations
     assert "base-image-name" in annotations
@@ -626,64 +609,6 @@ def test_store_metadata_fail_update_labels(workflow, caplog):
     with pytest.raises(PluginFailedException):
         runner.run()
     assert 'labels:' in caplog.text
-
-
-@pytest.mark.parametrize(('registry', 'prefixes'), [
-    [
-        'spam:8888',
-        ['spam:8888', ]
-    ],
-    [
-        'spam:8888',
-        ['spam:8888', 'maps:9999']
-    ],
-    [
-        'bacon:8888',
-        ['spam:8888', 'bacon:8888']
-    ],
-])
-def test_filter_repositories(workflow, source_dir, registry, prefixes):
-    prepare(workflow, registry=registry)
-    df_content = """
-FROM fedora
-RUN yum install -y python-django
-CMD blabla"""
-    df = df_parser(str(source_dir))
-    df.content = df_content
-    flexmock(workflow, df_path=df.dockerfile_path)
-    workflow.df_dir = str(source_dir)
-
-    runner = ExitPluginsRunner(
-        workflow,
-        [{
-            'name': StoreMetadataPlugin.key,
-            "args": {
-                "url": "http://example.com/"
-            }
-        }]
-    )
-    output = runner.run()
-    assert StoreMetadataPlugin.key in output
-    annotations = output[StoreMetadataPlugin.key]["annotations"]
-    repositories = json.loads(annotations['repositories'])
-    unique_repositories = repositories['unique']
-    primary_repositories = repositories['primary']
-
-    matched = set()
-    for prefix in prefixes:
-        for repo in unique_repositories:
-            if repo.startswith(prefix):
-                matched.add(repo)
-
-    assert matched == set(unique_repositories)
-
-    matched = set()
-    for prefix in prefixes:
-        for repo in primary_repositories:
-            if repo.startswith(prefix):
-                matched.add(repo)
-
-    assert matched == set(primary_repositories)
 
 
 @pytest.mark.parametrize('koji_conf', (
