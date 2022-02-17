@@ -314,7 +314,7 @@ class RemoteHost:
     def is_operational(self) -> bool:
         """ Check whether this host is operational """
         try:
-            _, _, code = self._run(f"mkdir -p {self.slots_dir}")
+            _, _, code = self._run(f"mkdir -p {quote(self.slots_dir)}")
         except Exception as e:
             logger.exception("%s: host is not operational: %s", self.hostname, e)
             return False
