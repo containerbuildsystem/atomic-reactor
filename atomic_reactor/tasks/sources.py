@@ -28,8 +28,22 @@ class SourceBuildTaskParams(common.TaskParams):
         return source.DummySource(None, None, workdir=self.build_dir)
 
 
-class SourceBuildTask(plugin_based.PluginBasedTask):
-    """Source container build task."""
+class SourceBuildBaseTask(plugin_based.PluginBasedTask):
+    """Base task for defining different build phases for source container build."""
+
+    def prepare_workflow(self) -> inner.DockerBuildWorkflow:
+        """After preparing the workflow as usual, fully initialize the root build dir.
+
+        Unlike the binary container container workflow, the platforms to be used for the build
+        are known in advance here (more accurately, source containers do not have a platform).
+        """
+        workflow = super().prepare_workflow()
+        workflow.build_dir.init_build_dirs(["noarch"], self._params.source)
+        return workflow
+
+
+class SourceBuildTask(SourceBuildBaseTask):
+    """Source container build phases task."""
 
     plugins_def = plugin_based.PluginsDef(
         prebuild=[
@@ -45,18 +59,15 @@ class SourceBuildTask(plugin_based.PluginBasedTask):
             {"name": "koji_import_source_container"},
             {"name": "koji_tag_build"},
         ],
+    )
+
+
+class SourceExitTask(SourceBuildBaseTask):
+    """Source container exit task."""
+
+    plugins_def = plugin_based.PluginsDef(
         exit=[
             {"name": "cancel_build_reservation"},
             {"name": "store_metadata"},
         ],
     )
-
-    def prepare_workflow(self) -> inner.DockerBuildWorkflow:
-        """After preparing the workflow as usual, fully initialize the root build dir.
-
-        Unlike the binary container container workflow, the platforms to be used for the build
-        are known in advance here (more accurately, source containers do not have a platform).
-        """
-        workflow = super().prepare_workflow()
-        workflow.build_dir.init_build_dirs(["noarch"], self._params.source)
-        return workflow

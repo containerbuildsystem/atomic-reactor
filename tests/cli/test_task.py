@@ -46,7 +46,7 @@ def test_worker():
 
 def test_source_build():
     mock(sources.SourceBuildTask)
-    assert task.source_build(TASK_ARGS) == TASK_RESULT
+    assert task.source_container_build(TASK_ARGS) == TASK_RESULT
 
 
 def test_binary_container_prebuild():
