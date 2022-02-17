@@ -2,6 +2,7 @@
 
 - [ ] Commit messages are descriptive enough
 - [ ] Code coverage from testing does not decrease and new code is covered
+- [ ] Python type annotations added to new code
 - [ ] JSON/YAML configuration changes are updated in the relevant schema
 - [ ] Changes to metadata also update the documentation for the metadata
 - [ ] Pull request has a link to an osbs-docs PR for user documentation updates
