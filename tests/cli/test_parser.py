@@ -48,8 +48,12 @@ def test_parse_args_version(capsys):
     [
         # required args only
         (
-            ["task", *REQUIRED_COMMON_ARGS, "source-build"],
-            {**EXPECTED_ARGS, "func": task.source_build},
+            ["task", *REQUIRED_COMMON_ARGS, "source-container-build"],
+            {**EXPECTED_ARGS, "func": task.source_container_build},
+        ),
+        (
+            ["task", *REQUIRED_COMMON_ARGS, "source-container-exit"],
+            {**EXPECTED_ARGS, "func": task.source_container_exit},
         ),
         (
             ["task", *REQUIRED_COMMON_ARGS, "clone"],
@@ -83,8 +87,8 @@ def test_parse_args_version(capsys):
         ),
         # all common task args
         (
-            ["task", *REQUIRED_COMMON_ARGS, "--config-file=config.yaml", "source-build"],
-            {**EXPECTED_ARGS, "config_file": "config.yaml", "func": task.source_build},
+            ["task", *REQUIRED_COMMON_ARGS, "--config-file=config.yaml", "source-container-build"],
+            {**EXPECTED_ARGS, "config_file": "config.yaml", "func": task.source_container_build},
         ),
         (
             ["task", *REQUIRED_COMMON_ARGS, "--config-file=config.yaml", "clone"],
@@ -141,7 +145,11 @@ def test_parse_args_valid(cli_args, expect_parsed_args):
         ),
         # args in the wrong place
         (
-            ["task", *REQUIRED_COMMON_ARGS, "--verbose", "source-build"],
+            ["task", *REQUIRED_COMMON_ARGS, "--verbose", "source-container-build"],
+            "unrecognized arguments: --verbose",
+        ),
+        (
+            ["task", *REQUIRED_COMMON_ARGS, "--verbose", "source-container-exit"],
             "unrecognized arguments: --verbose",
         ),
         (
@@ -161,7 +169,11 @@ def test_parse_args_valid(cli_args, expect_parsed_args):
             "unrecognized arguments: --verbose",
         ),
         (
-            ["task", *REQUIRED_COMMON_ARGS, "source-build", "--user-params={}"],
+            ["task", *REQUIRED_COMMON_ARGS, "source-container-build", "--user-params={}"],
+            "unrecognized arguments: --user-params",
+        ),
+        (
+            ["task", *REQUIRED_COMMON_ARGS, "source-container-exit", "--user-params={}"],
             "unrecognized arguments: --user-params",
         ),
         (
@@ -182,7 +194,11 @@ def test_parse_args_valid(cli_args, expect_parsed_args):
         ),
         # missing common arguments
         (
-            ["task", "source-build"],
+            ["task", "source-container-build"],
+            "the following arguments are required: --build-dir, --context-dir",
+        ),
+        (
+            ["task", "source-container-exit"],
             "the following arguments are required: --build-dir, --context-dir",
         ),
         (

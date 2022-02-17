@@ -10,7 +10,9 @@ from atomic_reactor.tasks.binary import BinaryBuildTask, BinaryExitTask, \
 from atomic_reactor.tasks.clone import CloneTask
 from atomic_reactor.tasks.common import TaskParams
 from atomic_reactor.tasks.orchestrator import OrchestratorTask, OrchestratorTaskParams
-from atomic_reactor.tasks.sources import SourceBuildTask, SourceBuildTaskParams
+from atomic_reactor.tasks.sources import (
+    SourceExitTask, SourceBuildTask, SourceBuildTaskParams
+)
 from atomic_reactor.tasks.worker import WorkerTask, WorkerTaskParams
 
 
@@ -34,13 +36,23 @@ def worker(task_args: dict):
     return task.execute()
 
 
-def source_build(task_args: dict):
+def source_container_build(task_args: dict):
     """Run a source container build.
 
-    :param task_args: CLI arguments for a source-build task
+    :param task_args: CLI arguments for a source-container-build task
     """
     params = SourceBuildTaskParams.from_cli_args(task_args)
     task = SourceBuildTask(params)
+    return task.execute()
+
+
+def source_container_exit(task_args: dict):
+    """Run source container exit steps.
+
+    :param task_args: CLI arguments for a source-container-exit task
+    """
+    params = SourceBuildTaskParams.from_cli_args(task_args)
+    task = SourceExitTask(params)
     return task.execute()
 
 

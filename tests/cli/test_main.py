@@ -26,13 +26,18 @@ from atomic_reactor.cli import main, parser, task
 )
 def test_run(verbose, quiet, expect_loglevel):
     # the task should be called with task arguments only
-    flexmock(task).should_receive("source_build").with_args({"user_params": "{}"})
+    flexmock(task).should_receive("source_container_build").with_args({"user_params": "{}"})
     (
         flexmock(parser)
         .should_receive("parse_args")
         .and_return(
             # parse args will return global arguments mixed with task task arguments
-            {"verbose": verbose, "quiet": quiet, "user_params": "{}", "func": task.source_build}
+            {
+                "verbose": verbose,
+                "quiet": quiet,
+                "user_params": "{}",
+                "func": task.source_container_build,
+            }
         )
     )
     flexmock(atomic_reactor).should_receive("set_logging").with_args(level=expect_loglevel)

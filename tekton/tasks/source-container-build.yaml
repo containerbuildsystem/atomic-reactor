@@ -1,7 +1,7 @@
 apiVersion: tekton.dev/v1beta1
 kind: Task
 metadata:
-  name: build-source-container-0-1  # dot is not allowed in the name
+  name: source-container-build-0-1  # dot is not allowed in the name
 spec:
   description: >-
     OSBS task for building source container image
@@ -21,7 +21,7 @@ spec:
     - name: ws-reactor-config-map
 
   steps:
-    - name: build-source-container-image
+    - name: source-container-build
       image: $(params.OSBS_IMAGE)
       resources:
         requests:
@@ -36,4 +36,4 @@ spec:
         --build-dir=$(workspaces.ws-build-dir.path)
         --context-dir=$(workspaces.ws-context-dir.path)
         --config-file=$(workspaces.ws-reactor-config-map.path)/config.yaml
-        source-build
+        source-container-build

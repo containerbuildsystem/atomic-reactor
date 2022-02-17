@@ -50,12 +50,19 @@ def parse_args(args: Optional[Sequence[str]] = None) -> dict:
     )
     worker.set_defaults(func=task.worker)
 
-    source_build = tasks.add_parser(
-        "source-build",
+    source_container_build = tasks.add_parser(
+        "source-container-build",
         help="build a source container",
         description="Build a source container.",
     )
-    source_build.set_defaults(func=task.source_build)
+    source_container_build.set_defaults(func=task.source_container_build)
+
+    source_container_exit = tasks.add_parser(
+        "source-container-exit",
+        help="exit a source container build",
+        description="Execute source container exit steps.",
+    )
+    source_container_exit.set_defaults(func=task.source_container_exit)
 
     clone = tasks.add_parser(
         "clone",
