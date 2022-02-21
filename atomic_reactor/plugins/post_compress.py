@@ -14,7 +14,6 @@ from atomic_reactor.constants import (EXPORTED_COMPRESSED_IMAGE_NAME_TEMPLATE,
                                       IMAGE_TYPE_DOCKER_ARCHIVE)
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.util import get_exported_image_metadata, human_size, is_scratch_build
-from atomic_reactor.utils import imageutil
 
 
 class CompressPlugin(PostBuildPlugin):
@@ -92,8 +91,12 @@ class CompressPlugin(PostBuildPlugin):
             image_type = IMAGE_TYPE_DOCKER_ARCHIVE
             self.log.info('fetching image %s from docker', image)
             # OSBS2 TBD
-            with imageutil.get_image(image) as image_stream:
-                outfile = self._compress_image_stream(image_stream)
+            # Set image_tarball_path, if image tarball is not yet
+            # stored somewhere, download it
+            # with imageutil.download_image_archive_tarball()
+            image_tarball_path = None
+            with open(image_tarball_path, 'rb') as image_tarball_file:
+                outfile = self._compress_image_stream(image_tarball_file)
         metadata = get_exported_image_metadata(outfile, image_type)
 
         if self.uncompressed_size != 0:
