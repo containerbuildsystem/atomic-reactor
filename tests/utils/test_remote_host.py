@@ -25,7 +25,7 @@ def _do_nothing_decorator(func):
 flexmock(backoff).should_receive("on_exception").and_return(_do_nothing_decorator)
 
 
-from atomic_reactor.utils.resource_manager import (  # noqa
+from atomic_reactor.utils.remote_host import (  # noqa
     SSHRetrySession, RemoteHost, RemoteHostsPool
 )
 
