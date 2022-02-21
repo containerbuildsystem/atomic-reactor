@@ -32,14 +32,11 @@ import signal
 from atomic_reactor.inner import (BuildResults, BuildResultsEncoder,
                                   BuildResultsJSONDecoder, DockerBuildWorkflow,
                                   FSWatcher, ImageBuildWorkflowData, BuildResult, TagConf)
-from atomic_reactor.constants import (INSPECT_ROOTFS,
-                                      INSPECT_ROOTFS_LAYERS,
-                                      PLUGIN_BUILD_ORCHESTRATE_KEY)
+from atomic_reactor.constants import PLUGIN_BUILD_ORCHESTRATE_KEY
 from atomic_reactor.source import PathSource, DummySource
 from atomic_reactor.util import (
     DockerfileImages, df_parser, validate_with_schema, graceful_chain_get
 )
-from atomic_reactor.utils import imageutil
 from atomic_reactor.tasks.plugin_based import PluginsDef
 from osbs.utils import ImageName
 
@@ -78,19 +75,6 @@ def test_build_results_decoder():
     results = json.loads(json.dumps(data), cls=BuildResultsJSONDecoder)
     for attr in set(BUILD_RESULTS_ATTRS) - {'build_logs'}:
         assert getattr(results, attr) == getattr(expected_results, attr)
-
-
-def mock_inspect():
-    mocked_history = [{'Size': 1, 'Id': "sha256:layer1-newest"},
-                      {'Size': 2, 'Id': "sha256:layer2"},
-                      {'Size': 3, 'Id': "sha256:layer3"},
-                      {'Size': 4, 'Id': "sha256:layer4-oldest"}]
-    image_inspect = {INSPECT_ROOTFS: {INSPECT_ROOTFS_LAYERS: ['sha256:diff_id1-oldest',
-                                                              'sha256:diff_id2',
-                                                              'sha256:diff_id3',
-                                                              'sha256:diff_id4-newest']}}
-    flexmock(imageutil).should_receive('inspect_built_image').and_return(image_inspect)
-    flexmock(imageutil).should_receive('get_image_history').and_return(mocked_history)
 
 
 class RaisesMixIn(object):
@@ -263,7 +247,6 @@ def test_workflow_base_images(build_dir):
     """
 
     flexmock(DockerfileParser, content='df_content')
-    mock_inspect()
     this_file = inspect.getfile(PreWatched)
     watch_pre = Watcher()
     watch_prepub = Watcher()
@@ -299,7 +282,6 @@ def test_workflow_compat(build_dir, caplog):
     exit plugin as a post-build plugin.
     """
     flexmock(DockerfileParser, content='df_content')
-    mock_inspect()
     this_file = inspect.getfile(PreWatched)
     watch_exit = Watcher()
     watch_buildstep = Watcher()
@@ -492,7 +474,6 @@ def test_plugin_errors(plugins, should_fail, should_log, build_dir, caplog):
     Try bad plugin configuration.
     """
     flexmock(DockerfileParser, content='df_content')
-    mock_inspect()
     this_file = inspect.getfile(PreRaises)
 
     caplog.clear()
@@ -543,7 +524,6 @@ def test_workflow_plugin_error(fail_at, build_dir):
     However, all the exit plugins should run.
     """
     flexmock(DockerfileParser, content='df_content')
-    mock_inspect()
     this_file = inspect.getfile(PreRaises)
     watch_pre = Watcher()
     watch_prepub = Watcher()
@@ -683,7 +663,6 @@ def test_workflow_docker_build_error_reports(steps_to_fail, step_reported, build
         return watcher
 
     flexmock(DockerfileParser, content='df_content')
-    mock_inspect()
     this_file = inspect.getfile(PreRaises)
     watch_pre = construct_watcher('pre')
     watch_buildstep = construct_watcher('buildstep')
@@ -729,7 +708,6 @@ class ExitUsesSource(ExitWatched):
 
 def test_source_not_removed_for_exit_plugins(build_dir):
     flexmock(DockerfileParser, content='df_content')
-    mock_inspect()
     this_file = inspect.getfile(PreRaises)
     watch_exit = Watcher()
     watch_buildstep = Watcher()
@@ -864,7 +842,6 @@ def test_workflow_plugin_results(buildstep_plugin, buildstep_raises, build_dir):
     """
 
     flexmock(DockerfileParser, content='df_content')
-    mock_inspect()
     this_file = inspect.getfile(PreRaises)
 
     plugins = PluginsDef(
@@ -930,7 +907,6 @@ def test_cancel_build(fail_at, build_dir, caplog):
     phase_signal = defaultdict(lambda: None)
     phase_signal[fail_at] = signal.SIGTERM
     flexmock(DockerfileParser, content='df_content')
-    mock_inspect()
     this_file = inspect.getfile(PreRaises)
     watch_pre = WatcherWithSignal(phase_signal['pre'])
     watch_prepub = WatcherWithSignal(phase_signal['prepub'])
@@ -997,7 +973,6 @@ def test_show_version(has_version, build_dir, caplog):
     """
     VERSION = "1.0"
     flexmock(DockerfileParser, content='df_content')
-    mock_inspect()
     this_file = inspect.getfile(PreRaises)
     watch_buildstep = Watcher()
 
@@ -1021,34 +996,6 @@ def test_show_version(has_version, build_dir, caplog):
         for record in caplog.records
         if record.levelno == logging.DEBUG
     ) == has_version
-
-
-def test_layer_sizes(build_dir):
-    flexmock(DockerfileParser, content='df_content')
-    mock_inspect()
-    this_file = inspect.getfile(PreRaises)
-    watch_exit = Watcher()
-    watch_buildstep = Watcher()
-    workflow = DockerBuildWorkflow(
-        build_dir,
-        source=None,
-        plugins=PluginsDef(
-            exit=[{'name': 'uses_source', 'args': {'watcher': watch_exit}}],
-            buildstep=[{'name': 'buildstep_watched', 'args': {'watcher': watch_buildstep}}],
-        ),
-        plugin_files=[this_file],
-    )
-
-    workflow.build_docker_image()
-
-    expected = [
-        {'diff_id': u'sha256:diff_id1-oldest', 'size': 4},
-        {'diff_id': u'sha256:diff_id2', 'size': 3},
-        {'diff_id': u'sha256:diff_id3', 'size': 2},
-        {'diff_id': u'sha256:diff_id4-newest', 'size': 1}
-    ]
-
-    assert workflow.data.layer_sizes == expected
 
 
 @pytest.mark.parametrize('buildstep_plugins, is_orchestrator', [

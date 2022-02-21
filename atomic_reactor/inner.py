@@ -33,8 +33,6 @@ from atomic_reactor.plugin import (
 )
 from atomic_reactor.constants import (
     DOCKER_STORAGE_TRANSPORT_NAME,
-    INSPECT_ROOTFS,
-    INSPECT_ROOTFS_LAYERS,
     PLUGIN_BUILD_ORCHESTRATE_KEY,
     REACTOR_CONFIG_FULL_PATH,
     DOCKERFILE_FILENAME,
@@ -427,8 +425,6 @@ class ImageBuildWorkflowData(ISerializer):
     koji_source_manifest: Dict[str, Any] = field(default_factory=dict)
 
     buildargs: Dict[str, str] = field(default_factory=dict)  # --buildargs for container build
-    built_image_inspect: Dict[str, Any] = field(default_factory=dict)
-    layer_sizes: List[Dict[str, Union[str, int]]] = field(default_factory=list)
 
     # When an image is exported into tarball, it can then be processed by various plugins.
     #  Each plugin that transforms the image should save it as a new file and append it to
@@ -856,21 +852,6 @@ class DockerBuildWorkflow(object):
             except PluginFailedException as ex:
                 logger.error("one or more prepublish plugins failed: %s", ex)
                 raise
-
-            if self.data.build_result.is_image_available():
-                # OSBS2 TBD
-                self.data.built_image_inspect = imageutil.inspect_built_image()
-                # OSBS2 TBD
-                history = imageutil.get_image_history(self.data.image_id)
-                diff_ids = self.data.built_image_inspect[INSPECT_ROOTFS][INSPECT_ROOTFS_LAYERS]
-
-                # diff_ids is ordered oldest first
-                # history is ordered newest first
-                # We want layer_sizes to be ordered oldest first
-                self.data.layer_sizes = [
-                    {"diff_id": diff_id, "size": layer['Size']}
-                    for (diff_id, layer) in zip(diff_ids, reversed(history))
-                ]
 
             try:
                 postbuild_runner.run()
