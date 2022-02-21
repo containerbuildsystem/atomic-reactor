@@ -33,11 +33,6 @@
     "koji_source_manifest": {"type": ["object", "null"]},
 
     "buildargs": {"type": "object"},
-    "built_image_inspect": {"type": ["object", "null"]},
-    "layer_sizes": {
-      "type": "array",
-      "items": {"$ref": "#/definitions/layer_size"}
-    },
 
     "exported_image_sequence": {
       "type": "array",
@@ -68,8 +63,7 @@
     "plugin_workspace",
     "plugins_timestamps", "plugins_durations", "plugins_errors", "build_canceled", "plugin_failed",
     "reserved_build_id", "reserved_token", "koji_source_nvr", "koji_source_source_url", "koji_source_manifest",
-    "buildargs", "built_image_inspect", "layer_sizes",
-    "exported_image_sequence", "files", "image_components", "all_yum_repourls",
+    "buildargs", "exported_image_sequence", "files", "image_components", "all_yum_repourls",
     "annotations", "labels", "image_id", "parent_images_digests",
     "build_result"
   ],
@@ -184,15 +178,6 @@
         "source_docker_archive",
         "__type__"
       ],
-      "additionalProperties": false
-    },
-    "layer_size": {
-      "type": "object",
-      "properties": {
-        "diff_id": {"type": "string"},
-        "size": {"type": "integer", "minimum": 0}
-      },
-      "required": ["diff_id", "size"],
       "additionalProperties": false
     },
     "manifest_digest": {

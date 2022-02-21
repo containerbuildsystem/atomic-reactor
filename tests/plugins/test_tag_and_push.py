@@ -301,6 +301,7 @@ def test_tag_and_push_plugin(
                 assert "Retrying push because V2 schema 2" in caplog.text
 
 
+@pytest.mark.skip(reason="OSBS2 TBD, layer_sizes removed from workflow data")
 @pytest.mark.parametrize(("source_docker_archive", "v2s2"), [
     (True, True),
     (True, False),

@@ -152,6 +152,9 @@ class TagAndPushPlugin(PostBuildPlugin):
 
         for image in wf_data.tag_conf.images:
             if not source_docker_archive:
+                # OSBS2 TBD
+                # layer_sizes were removed from workflow data
+                # these should be fetched from imageutil method
                 image_size = sum(item['size'] for item in self.workflow.data.layer_sizes)
                 config_image_size = image_size_limit['binary_image']
                 # Only handle the case when size is set > 0 in config
