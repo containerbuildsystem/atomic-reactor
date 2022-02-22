@@ -2,8 +2,9 @@ backoff
 docker < 4.3.0
 docker-squash>=1.0.7
 dockerfile-parse>=0.0.13
-flatpak-module-tools >= 0.11,<0.13;python_version<"3.9"
+flatpak-module-tools >= 0.11,!=0.13,<=0.13.1;python_version<"3.9"
 flatpak-module-tools >= 0.11;python_version>="3.9"
-jsonschema
+jsonschema < 4.0;python_version<="3.6"
+jsonschema;python_version>"3.6"
 PyYAML
 ruamel.yaml
