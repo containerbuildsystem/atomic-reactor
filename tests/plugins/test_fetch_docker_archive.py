@@ -6,7 +6,7 @@ import pytest
 from atomic_reactor.constants import (EXPORTED_COMPRESSED_IMAGE_NAME_TEMPLATE,
                                       IMAGE_TYPE_DOCKER_ARCHIVE)
 from atomic_reactor.plugin import PostBuildPluginsRunner
-from atomic_reactor.plugins.post_compress import CompressPlugin
+from atomic_reactor.plugins.post_fetch_docker_archive import FetchDockerArchivePlugin
 from atomic_reactor.inner import BuildResult
 
 
@@ -39,7 +39,7 @@ class TestCompress(object):
         runner = PostBuildPluginsRunner(
             workflow,
             [{
-                'name': CompressPlugin.key,
+                'name': FetchDockerArchivePlugin.key,
                 'args': {
                     'method': method,
                     'load_exported_image': load_exported_image,
@@ -75,7 +75,7 @@ class TestCompress(object):
         runner = PostBuildPluginsRunner(
             workflow,
             [{
-                'name': CompressPlugin.key,
+                'name': FetchDockerArchivePlugin.key,
                 'args': {
                     'method': 'gzip',
                     'load_exported_image': True,

@@ -1,5 +1,5 @@
 """
-Copyright (c) 2015 Red Hat, Inc
+Copyright (c) 2015-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -16,22 +16,22 @@ from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.util import get_exported_image_metadata, human_size, is_scratch_build
 
 
-class CompressPlugin(PostBuildPlugin):
+class FetchDockerArchivePlugin(PostBuildPlugin):
     """Example configuration:
 
     "postbuild_plugins": [{
-            "name": "compress",
+            "name": "fetch_docker_archive",
             "args": {
                     "method": "gzip",
                     "load_exported_image": true
             }
     }]
 
-    Currently supported compression methods are gzip and lzma; gzip is default.
+    Currently, supported compression methods are gzip and lzma; gzip is default.
     By default, the plugin doesn't work on exported image, you have to explicitly
     ask for it by using `load_exported_image: true`.
     """
-    key = 'compress'
+    key = 'fetch_docker_archive'
     is_allowed_to_fail = False
 
     def __init__(self, workflow, load_exported_image=False, method='gzip'):
@@ -40,7 +40,7 @@ class CompressPlugin(PostBuildPlugin):
         :param load_exported_image: bool, when running squash plugin with `dont_load=True`,
                                     you may load the exported tar with this switch
         """
-        super(CompressPlugin, self).__init__(workflow)
+        super(FetchDockerArchivePlugin, self).__init__(workflow)
         self.load_exported_image = load_exported_image
         self.method = method
         self.uncompressed_size = 0
