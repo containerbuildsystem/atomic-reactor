@@ -53,7 +53,7 @@ class WorkerTask(plugin_based.PluginBasedTask):
             {"name": "all_rpm_packages", "args": {"image_id": "BUILT_IMAGE_ID"}},
             {"name": "tag_and_push"},
             {"name": "export_operator_manifests"},
-            {"name": "compress", "args": {"load_exported_image": True, "method": "gzip"}},
+            {"name": "fetch_docker_archive", "args": {"load_exported_image": True, "method": "gzip"}},
             {"name": "koji_upload", "args": {"blocksize": 10485760}},
         ],
         exit=[
