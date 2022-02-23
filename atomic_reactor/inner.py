@@ -837,13 +837,13 @@ class DockerBuildWorkflow(object):
             try:
                 self.data.build_result = buildstep_runner.run()
 
-                if self.data.build_result.is_failed():
+                if self.data.build_result and self.data.build_result.is_failed():
                     raise PluginFailedException(self.data.build_result.fail_reason)
             except PluginFailedException as ex:
                 logger.error('buildstep plugin failed: %s', ex)
                 raise
 
-            if self.data.build_result.is_image_available():
+            if self.data.build_result and self.data.build_result.is_image_available():
                 self.data.image_id = self.data.build_result.image_id
 
             # run prepublish plugins

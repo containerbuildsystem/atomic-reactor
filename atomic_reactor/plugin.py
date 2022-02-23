@@ -339,7 +339,7 @@ class PluginsRunner(object):
             raise PluginFailedException("Multiple plugins raised an exception: " +
                                         str(failed_msgs))
 
-        if not plugin_successful and buildstep_phase and not plugin_response:
+        if not plugin_successful and buildstep_phase and not plugin_response and available_plugins:
             self.on_plugin_failed("BuildStepPlugin", "No appropriate build step")
             raise PluginFailedException("No appropriate build step")
 
@@ -469,7 +469,8 @@ class BuildStepPluginsRunner(BuildPluginsRunner):
         plugins_results = super(BuildStepPluginsRunner, self).run(
             keep_going=keep_going, buildstep_phase=buildstep_phase
         )
-        return list(plugins_results.values())[0]
+        if plugins_results:
+            return list(plugins_results.values())[0]
 
 
 class PrePublishPlugin(BuildPlugin):

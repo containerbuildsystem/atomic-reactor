@@ -71,6 +71,7 @@ class X(object):
     pass
 
 
+@pytest.mark.skip(reason="Currently no plugin is required, will be reworked")
 @pytest.mark.parametrize('runner_type', [  # noqa
     PreBuildPluginsRunner,
     PrePublishPluginsRunner,
@@ -247,6 +248,7 @@ def test_non_buildstep_phase_raises_InappropriateBuildStepError(caplog, workflow
         runner.run()
 
 
+@pytest.mark.skip(reason="Currently no plugin is required, will be reworked")
 def test_no_appropriate_buildstep_build_plugin(caplog, workflow):  # noqa
     """
     test that build fails if there isn't any
