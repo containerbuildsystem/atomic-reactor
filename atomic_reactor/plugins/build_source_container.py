@@ -124,7 +124,7 @@ class SourceContainerPlugin(BuildStepPlugin):
             output = subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
         except subprocess.CalledProcessError as e:
             self.log.error("BSI failed with output:\n%s", e.output)
-            return BuildResult(logs=e.output, fail_reason='BSI utility failed build source image')
+            return BuildResult(logs=[e.output], fail_reason='BSI utility failed build source image')
 
         self.log.debug("Build log:\n%s\n", output)
 
@@ -155,7 +155,7 @@ class SourceContainerPlugin(BuildStepPlugin):
         shutil.rmtree(image_output_dir)
 
         return BuildResult(
-            logs=output,
+            logs=[output],
             source_docker_archive=image_tar_path,
             skip_layer_squash=True
         )
