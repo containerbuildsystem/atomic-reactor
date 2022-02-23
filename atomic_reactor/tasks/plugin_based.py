@@ -53,7 +53,7 @@ class PluginBasedTask(common.Task):
                 logger.error("task failed: %s", e)
                 raise
 
-            if result.is_failed():
+            if result and result.is_failed():
                 msg = f"task failed: {result.fail_reason}"
                 logger.error(msg)
                 raise RuntimeError(msg)
