@@ -10,11 +10,11 @@ from atomic_reactor.constants import PLUGIN_KOJI_TAG_BUILD_KEY
 from atomic_reactor.config import get_koji_session
 from atomic_reactor.utils.koji import tag_koji_build
 from atomic_reactor.util import is_scratch_build, map_to_user_params
-from atomic_reactor.plugin import ExitPlugin
+from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.exit_koji_import import KojiImportPlugin
 
 
-class KojiTagBuildPlugin(ExitPlugin):
+class KojiTagBuildPlugin(PostBuildPlugin):
     """
     Tag build in koji
 
@@ -52,10 +52,6 @@ class KojiTagBuildPlugin(ExitPlugin):
         """
         Run the plugin.
         """
-        if self.workflow.build_process_failed:
-            self.log.info('Build failed, skipping koji tagging')
-            return
-
         if is_scratch_build(self.workflow):
             self.log.info('scratch build, skipping plugin')
             return
