@@ -12,7 +12,7 @@ from typing import Optional, Sequence
 import pkg_resources
 
 from atomic_reactor.constants import PROG, DESCRIPTION, REACTOR_CONFIG_FULL_PATH
-from atomic_reactor.cli import task
+from atomic_reactor.cli import task, job
 
 
 def parse_args(args: Optional[Sequence[str]] = None) -> dict:
@@ -32,9 +32,16 @@ def parse_args(args: Optional[Sequence[str]] = None) -> dict:
         description="Run a specific task in the container build process.",
     )
     _add_common_task_args(task_parser)
+    job_parser = subcommands.add_parser(
+        "job",
+        help="run a job",
+        description="Run a specific job \
+            (job is not intended to run as task in tekton pipeline but rather as cronjob)",
+    )
 
     # The individual tasks
     tasks = task_parser.add_subparsers(title="tasks", metavar="task", required=True)
+    jobs = job_parser.add_subparsers(title="jobs", metavar="job", required=True)
 
     orchestrator = tasks.add_parser(
         "orchestrator",
@@ -93,6 +100,13 @@ def parse_args(args: Optional[Sequence[str]] = None) -> dict:
         description="Execute binary container exit steps.",
     )
     binary_container_exit.set_defaults(func=task.binary_container_exit)
+
+    remote_hosts_unlocking_recovery = jobs.add_parser(
+        "remote-hosts-unlocking-recovery",
+        help="unlock remote hosts recovery",
+        description="Unlock remote hosts recovery.",
+    )
+    remote_hosts_unlocking_recovery.set_defaults(func=job.remote_hosts_unlocking_recovery)
 
     return vars(parser.parse_args(args))
 
