@@ -181,7 +181,7 @@ CMD blabla"""
     workflow.data.postbuild_results = {
         PostBuildRPMqaPlugin.key: "rpm1\nrpm2",
     }
-    workflow.data.exit_results = {
+    workflow.data.postbuild_results = {
         PLUGIN_VERIFY_MEDIA_KEY: verify_media_results,
     }
     workflow.fs_watcher._data = dict(fs_data=None)
@@ -362,7 +362,7 @@ def test_metadata_plugin_source(image_id, br_annotations, expected_br_annotation
             'image_sources_dir': 'source_dir',
         }
     }
-    workflow.data.exit_results = {
+    workflow.data.postbuild_results = {
         PLUGIN_VERIFY_MEDIA_KEY: verify_media_results,
     }
     workflow.fs_watcher._data = dict(fs_data=None)

@@ -16,21 +16,16 @@ from atomic_reactor.constants import (PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_VERIFY_
                                       MEDIA_TYPE_OCI_V1,
                                       MEDIA_TYPE_OCI_V1_INDEX)
 
-from atomic_reactor.plugin import ExitPlugin
+from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.util import (get_manifest_digests, get_platforms,
                                  is_manifest_list, ManifestDigest)
 
 
-class VerifyMediaTypesPlugin(ExitPlugin):
+class VerifyMediaTypesPlugin(PostBuildPlugin):
     key = PLUGIN_VERIFY_MEDIA_KEY
     is_allowed_to_fail = False
 
     def run(self):
-        # Only run if the build was successful
-        if self.workflow.build_process_failed:
-            self.log.info("Not running for failed build")
-            return []
-
         # Work out the name of the image to pull
         if not self.workflow.data.tag_conf.unique_images:
             raise ValueError("no unique image set, impossible to verify media types")

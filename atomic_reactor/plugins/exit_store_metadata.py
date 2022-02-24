@@ -252,7 +252,7 @@ class StoreMetadataPlugin(ExitPlugin):
 
         media_types = []
 
-        media_results = wf_data.exit_results.get(PLUGIN_VERIFY_MEDIA_KEY)
+        media_results = wf_data.postbuild_results.get(PLUGIN_VERIFY_MEDIA_KEY)
         if isinstance(media_results, Exception):
             media_results = None
 
