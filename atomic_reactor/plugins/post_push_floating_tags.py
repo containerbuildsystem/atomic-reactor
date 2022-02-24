@@ -8,11 +8,11 @@ of the BSD license. See the LICENSE file for details.
 
 from atomic_reactor.constants import PLUGIN_PUSH_FLOATING_TAGS_KEY, PLUGIN_GROUP_MANIFESTS_KEY
 from atomic_reactor.utils.manifest import ManifestUtil
-from atomic_reactor.plugin import ExitPlugin
+from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.util import get_floating_images, get_unique_images
 
 
-class PushFloatingTagsPlugin(ExitPlugin):
+class PushFloatingTagsPlugin(PostBuildPlugin):
     """
     Push floating tags to registry
     """
@@ -51,10 +51,6 @@ class PushFloatingTagsPlugin(ExitPlugin):
         """
         Run the plugin.
         """
-        if self.workflow.build_process_failed:
-            self.log.info('Build failed, skipping %s', PLUGIN_PUSH_FLOATING_TAGS_KEY)
-            return
-
         floating_tags = get_floating_images(self.workflow)
         if not floating_tags:
             self.log.info('No floating images to tag, skipping %s', PLUGIN_PUSH_FLOATING_TAGS_KEY)
