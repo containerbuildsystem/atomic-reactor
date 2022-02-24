@@ -18,7 +18,7 @@ from tests.mock_env import MockEnv
 from atomic_reactor.inner import BuildResult
 from atomic_reactor.util import registry_hostname, ManifestDigest, sha256sum
 from osbs.utils import ImageName
-from atomic_reactor.plugins.exit_push_floating_tags import PushFloatingTagsPlugin
+from atomic_reactor.plugins.post_push_floating_tags import PushFloatingTagsPlugin
 from atomic_reactor.constants import PLUGIN_GROUP_MANIFESTS_KEY
 
 
@@ -157,7 +157,7 @@ def mock_registries(registries, config, primary_images=None, manifest_results=No
 def mock_environment(workflow,
                      primary_images=None, floating_images=None,
                      manifest_results=None, annotations=None):
-    env = MockEnv(workflow).for_plugin("exit", PushFloatingTagsPlugin.key)
+    env = MockEnv(workflow).for_plugin("postbuild", PushFloatingTagsPlugin.key)
     env.set_plugin_result("postbuild", PLUGIN_GROUP_MANIFESTS_KEY, manifest_results)
 
     wf_data = env.workflow.data
