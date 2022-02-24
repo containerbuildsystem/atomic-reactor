@@ -198,7 +198,7 @@ class KojiImportBase(ExitPlugin):
         media_types = []
 
         # Append media_types from verify images
-        media_results = self.workflow.data.exit_results.get(PLUGIN_VERIFY_MEDIA_KEY)
+        media_results = self.workflow.data.postbuild_results.get(PLUGIN_VERIFY_MEDIA_KEY)
         if media_results:
             media_types += media_results
         if media_types:

@@ -42,9 +42,9 @@ class SourceBuildTask(plugin_based.PluginBasedTask):
         ],
         postbuild=[
             {"name": "tag_and_push"},
+            {"name": "verify_media", "required": False},
         ],
         exit=[
-            {"name": "verify_media", "required": False},
             {"name": "koji_import_source_container"},
             {"name": "koji_tag_build"},
             {"name": "store_metadata"},

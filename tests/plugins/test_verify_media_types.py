@@ -13,7 +13,7 @@ from atomic_reactor.constants import (PLUGIN_GROUP_MANIFESTS_KEY,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
                                       MEDIA_TYPE_OCI_V1, MEDIA_TYPE_OCI_V1_INDEX)
-from atomic_reactor.plugins.exit_verify_media_types import VerifyMediaTypesPlugin
+from atomic_reactor.plugins.post_verify_media_types import VerifyMediaTypesPlugin
 from atomic_reactor.inner import ImageBuildWorkflowData, TagConf
 from atomic_reactor.auth import HTTPRegistryAuth
 from atomic_reactor.config import Configuration
@@ -436,17 +436,6 @@ class TestVerifyImageTypes(object):
         with pytest.raises(ValueError) as exc:
             plugin.run()
         assert "no unique image set, impossible to verify media types" in str(exc.value)
-
-    @responses.activate
-    def test_verify_fail_no_build(self):
-        """
-        Build was unsuccessful, return an empty list
-        """
-        workflow = self.workflow(build_process_failed=True)
-
-        plugin = VerifyMediaTypesPlugin(workflow)
-        results = plugin.run()
-        assert results == []
 
     @responses.activate
     def test_verify_fail_bad_results(self, caplog):

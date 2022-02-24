@@ -1275,7 +1275,7 @@ class TestKojiImport(object):
                          name=name, version=version, release=release)
 
         if verify_media:
-            workflow.data.exit_results[PLUGIN_VERIFY_MEDIA_KEY] = verify_media
+            workflow.data.postbuild_results[PLUGIN_VERIFY_MEDIA_KEY] = verify_media
         expected_media_types = verify_media or []
 
         workflow.data.image_id = expect_id
@@ -2316,7 +2316,7 @@ class TestKojiImport(object):
         workflow.data.koji_source_source_url = 'git://hostname/path#123456'
 
         if verify_media:
-            workflow.data.exit_results[PLUGIN_VERIFY_MEDIA_KEY] = verify_media
+            workflow.data.postbuild_results[PLUGIN_VERIFY_MEDIA_KEY] = verify_media
         expected_media_types = verify_media or []
 
         workflow.data.image_id = expect_id
