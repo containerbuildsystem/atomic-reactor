@@ -8,9 +8,9 @@ of the BSD license. See the LICENSE file for details.
 
 import koji
 
-from atomic_reactor.plugins.exit_koji_tag_build import KojiTagBuildPlugin
+from atomic_reactor.plugins.post_koji_tag_build import KojiTagBuildPlugin
 from atomic_reactor.plugins.exit_koji_import import KojiImportPlugin
-from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
+from atomic_reactor.plugin import PluginFailedException, PostBuildPluginsRunner
 from atomic_reactor.inner import BuildResult
 from tests.util import add_koji_map_in_workflow
 
@@ -110,7 +110,7 @@ def create_runner(workflow, ssl_certs=False, principal=None,
     else:
         plugin_conf['args'] = {'target': koji_target}
 
-    runner = ExitPluginsRunner(workflow, [plugin_conf])
+    runner = PostBuildPluginsRunner(workflow, [plugin_conf])
 
     return runner
 

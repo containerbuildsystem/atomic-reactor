@@ -75,6 +75,7 @@ class BinaryPostBuildTask(plugin_based.PluginBasedTask):
             {"name": "generate_maven_metadata"},
             {"name": "verify_media", "required": False},
             {"name": "push_floating_tags"},
+            {"name": "koji_tag_build"},
         ],
     )
 
@@ -85,7 +86,6 @@ class BinaryExitTask(plugin_based.PluginBasedTask):
     plugins_def = plugin_based.PluginsDef(
         exit=[
             {"name": "koji_import"},
-            {"name": "koji_tag_build"},
             {"name": "store_metadata"},
             {"name": "sendmail"},
         ],
