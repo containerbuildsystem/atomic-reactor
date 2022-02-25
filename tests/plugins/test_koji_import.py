@@ -2472,3 +2472,127 @@ class TestKojiImport(object):
         assert orchestrator_log == b"log message A\nlog message B\nlog message C\n"
 
         assert workflow.data.labels['koji-build-id'] == '123'
+
+    @pytest.mark.parametrize('worker_metadatas,platform,_filter,expected', [
+        [{}, None, None, []],
+        [{}, None, {}, []],
+        [{}, None, {"type": "docker-image"}, []],
+        [{"x86_64": {"output": []}}, None, {"type": "docker-image"}, []],
+        # No output is found by non-existing type.
+        [{"x86_64": {"output": [{"type": "log"}]}}, None, {"type": "docker-image"}, []],
+        # No output is found by unknown key.
+        [{"x86_64": {"output": [{"type": "log"}]}}, None, {"filename": "file.tar.gz"}, []],
+        [
+            {"x86_64": {"output": [{"type": "log"}]}},
+            None,
+            {"type": "log", "filename": "file.tar.gz"},
+            [],
+        ],
+        # Output is found by type.
+        [
+            {"x86_64": {"output": [{"type": "log"}, {"type": "docker-image"}]}},
+            None,
+            {"type": "docker-image"},
+            [("x86_64", {"type": "docker-image"})],
+        ],
+        # No output is found with multiple filters.
+        [
+            {
+                "x86_64": {
+                    "output": [
+                        {"type": "log", "filename": "build.log"},
+                        {"type": "docker-image", "filename": "img.tar.gz"},
+                    ],
+                },
+            },
+            None,
+            {"type": "docker-image", "filename": "img-file"},
+            [],
+        ],
+        # Find out output with multiple filters
+        [
+            {
+                "x86_64": {
+                    "output": [
+                        {"type": "log", "filename": "build.log"},
+                        {"type": "docker-image", "filename": "img.tar.gz"},
+                    ],
+                },
+            },
+            None,
+            {"type": "docker-image", "filename": "img.tar.gz"},
+            [("x86_64", {"type": "docker-image", "filename": "img.tar.gz"})],
+        ],
+        # No output if platform does not exist.
+        [{"x86_64": {"output": [{"type": "log", "filename": "build.log"}]}}, "s390x", None, []],
+        # Filter outputs by platform
+        [
+            {"x86_64": {"output": [{"type": "log", "filename": "build.log"}]}},
+            "x86_64",
+            None,
+            [("x86_64", {"type": "log", "filename": "build.log"})],
+        ],
+        # Filter outputs by combination of platform and filter
+        [
+            {
+                "x86_64": {
+                    "output": [
+                        {"type": "log", "filename": "build.log"},
+                        {"type": "docker-image", "filename": "img.tar.gz"},
+                    ],
+                },
+            },
+            "x86_64",
+            {"type": "docker-image"},
+            [("x86_64", {"type": "docker-image", "filename": "img.tar.gz"})],
+        ],
+        # Iterator outputs from multiple platforms
+        [
+            {
+                "x86_64": {
+                    "output": [
+                        {"type": "log", "filename": "build.log"},
+                        {"type": "docker-image", "filename": "img.tar.gz"},
+                    ],
+                },
+                "s390x": {
+                    "output": [
+                        {"type": "log", "filename": "build.log"},
+                        {"type": "docker-image", "filename": "img.tar.gz"},
+                    ],
+                },
+            },
+            None,
+            {"type": "docker-image"},
+            [
+                ("x86_64", {"type": "docker-image", "filename": "img.tar.gz"}),
+                ("s390x", {"type": "docker-image", "filename": "img.tar.gz"}),
+            ],
+        ],
+        [
+            {
+                "x86_64": {
+                    "output": [
+                        {"type": "log", "filename": "build.log"},
+                        {"type": "docker-image", "filename": "img.tar.gz"},
+                    ],
+                },
+                "s390x": {
+                    # s390x will not be included since no output in docker-image type.
+                    "output": [{"type": "log", "filename": "build.log"}],
+                },
+            },
+            None,
+            {"type": "docker-image"},
+            [("x86_64", {"type": "docker-image", "filename": "img.tar.gz"})],
+        ],
+    ])
+    def test_iter_worker_metadata_outputs(
+        self, worker_metadatas, platform, _filter, expected, workflow
+    ):
+        mock_reactor_config(workflow)
+        workflow.data.postbuild_results[PLUGIN_FETCH_WORKER_METADATA_KEY] = worker_metadatas
+
+        plugin = KojiImportPlugin(workflow)
+        outputs = list(plugin._iter_work_metadata_outputs(platform, _filter=_filter))
+        assert expected == outputs
