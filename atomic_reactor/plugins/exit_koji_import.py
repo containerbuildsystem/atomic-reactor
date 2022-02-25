@@ -6,6 +6,7 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
+from functools import cached_property
 import json
 import koji
 import os
@@ -132,6 +133,18 @@ class KojiImportBase(ExitPlugin):
                 # Why pass 1 to exc_info originally?
                 self.log.error("invalid task ID %r", koji_task_id, exc_info=1)
 
+    @cached_property
+    def _worker_metadatas(self) -> Dict[str, Any]:
+        worker_metadatas = self.workflow.data.postbuild_results.get(
+            PLUGIN_FETCH_WORKER_METADATA_KEY, {}
+        )
+        if not worker_metadatas:
+            self.log.warning(
+                "No fetched worker metadata is found. Check if %s plugin ran already.",
+                PLUGIN_FETCH_WORKER_METADATA_KEY,
+            )
+        return worker_metadatas
+
     def get_output(self, *args):
         # Must be implemented by subclasses
         raise NotImplementedError
@@ -140,10 +153,10 @@ class KojiImportBase(ExitPlugin):
         # Must be implemented by subclasses
         raise NotImplementedError
 
-    def set_help(self, extra, worker_metadatas):
+    def set_help(self, extra):
         # OSBS2 TBD: `get_worker_build_info` is imported from build_orchestrate_build
         all_annotations = [get_worker_build_info(self.workflow, platform).build.get_annotations()
-                           for platform in worker_metadatas]
+                           for platform in self._worker_metadatas]
         help_known = ['help_file' in annotations for annotations in all_annotations]
         # Only set the 'help' key when any 'help_file' annotation is set
         if any(help_known):
@@ -158,7 +171,7 @@ class KojiImportBase(ExitPlugin):
                 # They are all None
                 extra['image']['help'] = None
 
-    def set_media_types(self, extra, worker_metadatas):
+    def set_media_types(self, extra):
         media_types = []
 
         # Append media_types from verify images
@@ -178,7 +191,7 @@ class KojiImportBase(ExitPlugin):
             self.log.debug("Setting Go metadata: %s", go)
             extra['image']['go'] = go
 
-    def set_operators_metadata(self, extra, worker_metadatas):
+    def set_operators_metadata(self, extra):
         wf_data = self.workflow.data
 
         # upload metadata from bundle (part of image)
@@ -212,7 +225,7 @@ class KojiImportBase(ExitPlugin):
                 }
             })
 
-        for metadata in worker_metadatas.values():
+        for metadata in self._worker_metadatas.values():
             for output in metadata['output']:
                 if output.get('filename') == OPERATOR_MANIFESTS_ARCHIVE:
                     extra['operator_manifests_archive'] = OPERATOR_MANIFESTS_ARCHIVE
@@ -286,7 +299,7 @@ class KojiImportBase(ExitPlugin):
                 r_s_f_typeinfo[KOJI_BTYPE_REMOTE_SOURCE_FILE]['no_source'] = no_source_artifacts
             extra.setdefault('typeinfo', {}).update(r_s_f_typeinfo)
 
-    def set_group_manifest_info(self, extra, worker_metadatas):
+    def set_group_manifest_info(self, extra):
         version_release = None
         primary_images = get_primary_images(self.workflow)
         floating_images = get_floating_images(self.workflow)
@@ -333,9 +346,9 @@ class KojiImportBase(ExitPlugin):
             extra['image']['index'] = index
         # group_manifests returns None if didn't run, {} if group=False
         else:
-            for platform in worker_metadatas:
+            for platform in self._worker_metadatas:
                 if platform == "x86_64":
-                    for instance in worker_metadatas[platform]['output']:
+                    for instance in self._worker_metadatas[platform]['output']:
                         if instance['type'] == 'docker-image':
                             # koji_upload, running in the worker, doesn't have the full tags
                             # so set them here
@@ -364,12 +377,10 @@ class KojiImportBase(ExitPlugin):
                                 digests = get_digests_map_from_annotations(annotations['digests'])
                                 instance['extra']['docker']['digests'] = digests
 
-    def _update_extra(self, extra, worker_metadatas):
+    def _update_extra(self, extra):
         # Must be implemented by subclasses
         """
         :param extra: A dictionary, representing koji's 'build.extra' metadata
-        :param worker_metadatas: Metadata regarding the current build, obtained
-                                 from the worker running the build
         """
         raise NotImplementedError
 
@@ -377,7 +388,7 @@ class KojiImportBase(ExitPlugin):
         # Must be implemented by subclasses
         raise NotImplementedError
 
-    def _get_build_extra(self, worker_metadatas) -> Dict[str, Any]:
+    def _get_build_extra(self) -> Dict[str, Any]:
         extra = {
             'image': {},
             'osbs_build': {'subtypes': []},
@@ -386,18 +397,18 @@ class KojiImportBase(ExitPlugin):
         if self.koji_task_id is not None:
             extra['container_koji_task_id'] = self.koji_task_id
             self.log.info("build configuration created by Koji Task ID %s", self.koji_task_id)
-        self._update_extra(extra, worker_metadatas)
-        self.set_media_types(extra, worker_metadatas)
+        self._update_extra(extra)
+        self.set_media_types(extra)
         return extra
 
-    def get_build(self, worker_metadatas):
+    def get_build(self):
         start_time = int(atomic_reactor_start_time)
         koji_task_owner = get_koji_task_owner(self.session, self.koji_task_id).get('name')
 
         build = {
             'start_time': start_time,
             'end_time': int(time.time()),
-            'extra': self._get_build_extra(worker_metadatas),
+            'extra': self._get_build_extra(),
             'owner': koji_task_owner,
         }
 
@@ -424,15 +435,12 @@ class KojiImportBase(ExitPlugin):
 
         metadata_version = 0
 
-        worker_metadatas = self.workflow.data.postbuild_results.get(
-            PLUGIN_FETCH_WORKER_METADATA_KEY
-        )
         remote_source_file_outputs, kojifile_components = get_maven_metadata(self.workflow)
 
-        build = self.get_build(worker_metadatas)
-        buildroot = self.get_buildroot(worker_metadatas)
+        build = self.get_build()
+        buildroot = self.get_buildroot()
         buildroot_id = buildroot[0]['id']
-        output, output_file = self.get_output(worker_metadatas, buildroot_id)
+        output, output_file = self.get_output(buildroot_id)
         osbs_logs = OSBSLogs(self.log, get_platforms(self.workflow))
         output_files = [add_log_type(add_buildroot_id(md, buildroot_id))
                         for md in osbs_logs.get_log_files(self.osbs, self.pipeline_run_name)]
@@ -589,13 +597,13 @@ class KojiImportPlugin(KojiImportBase):
 
     key = PLUGIN_KOJI_IMPORT_PLUGIN_KEY  # type: ignore
 
-    def set_media_types(self, extra, worker_metadatas):
+    def set_media_types(self, extra):
         media_types = []
 
         # Set media_types for the base case
-        super(KojiImportPlugin, self).set_media_types(extra, worker_metadatas)
+        super(KojiImportPlugin, self).set_media_types(extra)
         # Adjust media_types to include annotations
-        for platform in worker_metadatas:
+        for platform in self._worker_metadatas:
             # OSBS2 TBD: `get_worker_build_info` is imported from build_orchestrate_build
             annotations = get_worker_build_info(self.workflow,
                                                 platform).build.get_annotations()
@@ -609,7 +617,7 @@ class KojiImportPlugin(KojiImportBase):
                 extra['image'].get('media_types', []) + media_types
             ))
 
-    def get_output(self, worker_metadatas, buildroot_id):
+    def get_output(self, buildroot_id):
         """
         Build the output entry of the metadata.
 
@@ -618,14 +626,14 @@ class KojiImportPlugin(KojiImportBase):
         outputs = []
         output_file = None
 
-        for platform in worker_metadatas:
-            for instance in worker_metadatas[platform]['output']:
+        for platform in self._worker_metadatas:
+            for instance in self._worker_metadatas[platform]['output']:
                 instance['buildroot_id'] = '{}-{}'.format(platform, instance['buildroot_id'])
                 outputs.append(instance)
 
         return outputs, output_file
 
-    def get_buildroot(self, worker_metadatas):
+    def get_buildroot(self):
         """
         Build the buildroot entry of the metadata.
 
@@ -633,14 +641,14 @@ class KojiImportPlugin(KojiImportBase):
         """
         buildroots = []
 
-        for platform in sorted(worker_metadatas.keys()):
-            for instance in worker_metadatas[platform]['buildroots']:
+        for platform in sorted(self._worker_metadatas.keys()):
+            for instance in self._worker_metadatas[platform]['buildroots']:
                 instance['id'] = '{}-{}'.format(platform, instance['id'])
                 buildroots.append(instance)
 
         return buildroots
 
-    def _update_extra(self, extra, worker_metadatas):
+    def _update_extra(self, extra):
         if not isinstance(self.workflow.source, GitSource):
             raise RuntimeError('git source required')
 
@@ -685,14 +693,14 @@ class KojiImportPlugin(KojiImportBase):
         if self.workflow.data.all_yum_repourls:
             extra['image']['yum_repourls'] = self.workflow.data.all_yum_repourls
 
-        self.set_help(extra, worker_metadatas)
-        self.set_operators_metadata(extra, worker_metadatas)
+        self.set_help(extra)
+        self.set_operators_metadata(extra)
         self.set_pnc_build_metadata(extra)
         self.set_remote_sources_metadata(extra)
         self.set_remote_source_file_metadata(extra)
 
         self.set_go_metadata(extra)
-        self.set_group_manifest_info(extra, worker_metadatas)
+        self.set_group_manifest_info(extra)
         extra['osbs_build']['kind'] = KOJI_KIND_IMAGE_BUILD
         # OSBS2 TBD
         extra['osbs_build']['engine'] = 'podman'
@@ -734,14 +742,14 @@ class KojiImportSourceContainerPlugin(KojiImportBase):
 
     key = PLUGIN_KOJI_IMPORT_SOURCE_CONTAINER_PLUGIN_KEY  # type: ignore
 
-    def get_output(self, worker_metadatas, buildroot_id):
+    def get_output(self, buildroot_id):
         pullspec = get_unique_images(self.workflow)[0]
 
         return koji_get_output(workflow=self.workflow, buildroot_id=buildroot_id,
                                pullspec=pullspec, platform=os.uname()[4],
                                source_build=True, logs=None)
 
-    def get_buildroot(self, worker_metadatas):
+    def get_buildroot(self):
         """
         Build the buildroot entry of the metadata.
 
@@ -754,7 +762,7 @@ class KojiImportSourceContainerPlugin(KojiImportBase):
         buildroots.append(buildroot)
         return buildroots
 
-    def _update_extra(self, extra, worker_metadatas):
+    def _update_extra(self, extra):
         source_result = self.workflow.data.prebuild_results[PLUGIN_FETCH_SOURCES_KEY]
         extra['image']['sources_for_nvr'] = source_result['sources_for_nvr']
         extra['image']['sources_signing_intent'] = source_result['signing_intent']
