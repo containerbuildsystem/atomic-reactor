@@ -12,6 +12,7 @@ import os
 import time
 import logging
 from tempfile import NamedTemporaryFile
+from typing import Any, Dict
 
 from atomic_reactor.constants import REPO_CONTAINER_CONFIG
 from atomic_reactor.config import get_koji_session, get_openshift_session
@@ -368,13 +369,20 @@ class KojiImportBase(ExitPlugin):
         # Must be implemented by subclasses
         raise NotImplementedError
 
-    def get_build(self, worker_metadatas):
-        start_time = int(atomic_reactor_start_time)
-        extra = {'image': {}, 'osbs_build': {'subtypes': []}}
+    @property
+    def _koji_task_id(self):
+        return self.workflow.user_params.get('koji_task_id')
+
+    def _get_build_extra(self, worker_metadatas) -> Dict[str, Any]:
+        extra = {
+            'image': {},
+            'osbs_build': {'subtypes': []},
+            'submitter': self.session.getLoggedInUser()['name'],
+        }
 
         self._update_extra(extra, worker_metadatas)
 
-        koji_task_id = self.workflow.user_params.get('koji_task_id')
+        koji_task_id = self._koji_task_id
         if koji_task_id is not None:
             try:
                 extra['container_koji_task_id'] = int(koji_task_id)
@@ -384,15 +392,17 @@ class KojiImportBase(ExitPlugin):
             except ValueError:
                 self.log.error("invalid task ID %r", koji_task_id, exc_info=1)
 
-        koji_task_owner = get_koji_task_owner(self.session, koji_task_id).get('name')
-        extra['submitter'] = self.session.getLoggedInUser()['name']
-
         self.set_media_types(extra, worker_metadatas)
+        return extra
+
+    def get_build(self, worker_metadatas):
+        start_time = int(atomic_reactor_start_time)
+        koji_task_owner = get_koji_task_owner(self.session, self._koji_task_id).get('name')
 
         build = {
             'start_time': start_time,
             'end_time': int(time.time()),
-            'extra': extra,
+            'extra': self._get_build_extra(worker_metadatas),
             'owner': koji_task_owner,
         }
 
