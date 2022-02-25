@@ -13,7 +13,7 @@ import os
 import time
 import logging
 from tempfile import NamedTemporaryFile
-from typing import Any, Dict
+from typing import Any, Dict, Iterator, Optional, Tuple
 
 from atomic_reactor.constants import REPO_CONTAINER_CONFIG
 from atomic_reactor.config import get_koji_session, get_openshift_session
@@ -145,6 +145,29 @@ class KojiImportBase(ExitPlugin):
             )
         return worker_metadatas
 
+    def _iter_work_metadata_outputs(
+        self, platform: Optional[str] = None, _filter: Optional[Dict[str, Any]] = None,
+    ) -> Iterator[Tuple[str, Dict[str, Any]]]:
+        """Iterate outputs from worker metadata.
+
+        :param platform: iterate outputs for a specific platform. If omitted,
+            no platform is limited.
+        :type platform: str or None
+        :param _filter: key/value pairs to filter outputs. If omitted, no
+            output is filtered out.
+        :type _filter: dict[str, any] or None
+        :return: an iterator that yields a tuple in form (platform, output).
+        """
+        for worker_platform, metadata in self._worker_metadatas.items():
+            if platform is not None and worker_platform != platform:
+                continue
+            for output in metadata["output"]:
+                if _filter:
+                    if all(output.get(key) == value for key, value in _filter.items()):
+                        yield worker_platform, output
+                else:
+                    yield worker_platform, output
+
     def get_output(self, *args):
         # Must be implemented by subclasses
         raise NotImplementedError
@@ -225,18 +248,17 @@ class KojiImportBase(ExitPlugin):
                 }
             })
 
-        for metadata in self._worker_metadatas.values():
-            for output in metadata['output']:
-                if output.get('filename') == OPERATOR_MANIFESTS_ARCHIVE:
-                    extra['operator_manifests_archive'] = OPERATOR_MANIFESTS_ARCHIVE
-                    operators_typeinfo = {
-                        KOJI_BTYPE_OPERATOR_MANIFESTS: {
-                            'archive': OPERATOR_MANIFESTS_ARCHIVE,
-                        },
-                    }
-                    extra.setdefault('typeinfo', {}).update(operators_typeinfo)
+        outputs = self._iter_work_metadata_outputs(_filter={'filename': OPERATOR_MANIFESTS_ARCHIVE})
+        for _, _ in outputs:
+            extra['operator_manifests_archive'] = OPERATOR_MANIFESTS_ARCHIVE
+            operators_typeinfo = {
+                KOJI_BTYPE_OPERATOR_MANIFESTS: {
+                    'archive': OPERATOR_MANIFESTS_ARCHIVE,
+                },
+            }
+            extra.setdefault('typeinfo', {}).update(operators_typeinfo)
 
-                    return  # only one worker can process operator manifests
+            return  # only one worker can process operator manifests
 
     def set_pnc_build_metadata(self, extra):
         plugin_results = self.workflow.data.postbuild_results.get(
@@ -346,36 +368,37 @@ class KojiImportBase(ExitPlugin):
             extra['image']['index'] = index
         # group_manifests returns None if didn't run, {} if group=False
         else:
-            for platform in self._worker_metadatas:
-                if platform == "x86_64":
-                    for instance in self._worker_metadatas[platform]['output']:
-                        if instance['type'] == 'docker-image':
-                            # koji_upload, running in the worker, doesn't have the full tags
-                            # so set them here
-                            instance['extra']['docker']['tags'] = tags
-                            instance['extra']['docker']['floating_tags'] = floating_tags
-                            instance['extra']['docker']['unique_tags'] = unique_tags
-                            repositories = []
-                            for pullspec in instance['extra']['docker']['repositories']:
-                                if '@' not in pullspec:
-                                    image = ImageName.parse(pullspec)
-                                    image.tag = version_release
-                                    pullspec = image.to_str()
+            platform = "x86_64"
+            _, instance = next(
+                self._iter_work_metadata_outputs(platform, {"type": "docker-image"}),
+                (None, None),
+            )
 
-                                repositories.append(pullspec)
+            if instance:
+                # koji_upload, running in the worker, doesn't have the full tags
+                # so set them here
+                instance['extra']['docker']['tags'] = tags
+                instance['extra']['docker']['floating_tags'] = floating_tags
+                instance['extra']['docker']['unique_tags'] = unique_tags
+                repositories = []
+                for pullspec in instance['extra']['docker']['repositories']:
+                    if '@' not in pullspec:
+                        image = ImageName.parse(pullspec)
+                        image.tag = version_release
+                        pullspec = image.to_str()
 
-                            instance['extra']['docker']['repositories'] = repositories
-                            self.log.debug("reset tags to so that docker is %s",
-                                           instance['extra']['docker'])
-                            # OSBS2 TBD: `get_worker_build_info` is imported from
-                            # build_orchestrate_build
-                            annotations = get_worker_build_info(self.workflow, platform).\
-                                build.get_annotations()
+                    repositories.append(pullspec)
 
-                            digests = {}
-                            if 'digests' in annotations:
-                                digests = get_digests_map_from_annotations(annotations['digests'])
-                                instance['extra']['docker']['digests'] = digests
+                instance['extra']['docker']['repositories'] = repositories
+                self.log.debug("reset tags to so that docker is %s", instance['extra']['docker'])
+                # OSBS2 TBD: `get_worker_build_info` is imported from
+                # build_orchestrate_build
+                annotations = get_worker_build_info(self.workflow, platform).build.get_annotations()
+
+                digests = {}
+                if 'digests' in annotations:
+                    digests = get_digests_map_from_annotations(annotations['digests'])
+                    instance['extra']['docker']['digests'] = digests
 
     def _update_extra(self, extra):
         # Must be implemented by subclasses
@@ -626,10 +649,9 @@ class KojiImportPlugin(KojiImportBase):
         outputs = []
         output_file = None
 
-        for platform in self._worker_metadatas:
-            for instance in self._worker_metadatas[platform]['output']:
-                instance['buildroot_id'] = '{}-{}'.format(platform, instance['buildroot_id'])
-                outputs.append(instance)
+        for platform, instance in self._iter_work_metadata_outputs():
+            instance['buildroot_id'] = '{}-{}'.format(platform, instance['buildroot_id'])
+            outputs.append(instance)
 
         return outputs, output_file
 
