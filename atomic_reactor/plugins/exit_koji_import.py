@@ -118,11 +118,19 @@ class KojiImportBase(ExitPlugin):
         self.osbs = get_openshift_session(self.workflow.conf,
                                           self.workflow.user_params.get('namespace'))
         self.build_id = None
-        self.koji_task_id = None
         self.session = None
         self.reserve_build = self.workflow.conf.koji.get('reserve_build', False)
         self.pipeline_run_name = None
         self.userdata = userdata
+
+        self.koji_task_id = None
+        koji_task_id = self.workflow.user_params.get('koji_task_id')
+        if koji_task_id is not None:
+            try:
+                self.koji_task_id = int(koji_task_id)
+            except ValueError:
+                # Why pass 1 to exc_info originally?
+                self.log.error("invalid task ID %r", koji_task_id, exc_info=1)
 
     def get_output(self, *args):
         # Must be implemented by subclasses
@@ -369,35 +377,22 @@ class KojiImportBase(ExitPlugin):
         # Must be implemented by subclasses
         raise NotImplementedError
 
-    @property
-    def _koji_task_id(self):
-        return self.workflow.user_params.get('koji_task_id')
-
     def _get_build_extra(self, worker_metadatas) -> Dict[str, Any]:
         extra = {
             'image': {},
             'osbs_build': {'subtypes': []},
             'submitter': self.session.getLoggedInUser()['name'],
         }
-
+        if self.koji_task_id is not None:
+            extra['container_koji_task_id'] = self.koji_task_id
+            self.log.info("build configuration created by Koji Task ID %s", self.koji_task_id)
         self._update_extra(extra, worker_metadatas)
-
-        koji_task_id = self._koji_task_id
-        if koji_task_id is not None:
-            try:
-                extra['container_koji_task_id'] = int(koji_task_id)
-                self.koji_task_id = int(koji_task_id)
-                self.log.info("build configuration created by Koji Task ID %s",
-                              koji_task_id)
-            except ValueError:
-                self.log.error("invalid task ID %r", koji_task_id, exc_info=1)
-
         self.set_media_types(extra, worker_metadatas)
         return extra
 
     def get_build(self, worker_metadatas):
         start_time = int(atomic_reactor_start_time)
-        koji_task_owner = get_koji_task_owner(self.session, self._koji_task_id).get('name')
+        koji_task_owner = get_koji_task_owner(self.session, self.koji_task_id).get('name')
 
         build = {
             'start_time': start_time,
