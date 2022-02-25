@@ -31,6 +31,7 @@ from atomic_reactor.util import (ManifestDigest, DockerfileImages,
                                  graceful_chain_get, RegistryClient)
 from atomic_reactor.source import GitSource, PathSource
 from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI_TAR,
+                                      PLUGIN_FETCH_WORKER_METADATA_KEY,
                                       PLUGIN_GENERATE_MAVEN_METADATA_KEY,
                                       PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_KOJI_PARENT_KEY,
                                       PLUGIN_RESOLVE_COMPOSES_KEY, BASE_IMAGE_KOJI_BUILD,
@@ -725,10 +726,11 @@ class TestKojiImport(object):
                          name='ns/name', version='1.0', release='1')
 
         add_koji_map_in_workflow(workflow, hub_url='')
+        workflow.data.postbuild_results[PLUGIN_FETCH_WORKER_METADATA_KEY] = metadatas
 
         plugin = KojiImportPlugin(workflow)
 
-        assert plugin.get_buildroot(metadatas) == results
+        assert plugin.get_buildroot() == results
 
     @pytest.mark.parametrize('reserved_build', [True, False])
     @pytest.mark.parametrize(('canceled_build', 'refund_state'), [
