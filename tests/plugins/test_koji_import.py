@@ -31,6 +31,7 @@ from atomic_reactor.util import (ManifestDigest, DockerfileImages,
                                  graceful_chain_get, RegistryClient)
 from atomic_reactor.source import GitSource, PathSource
 from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI_TAR,
+                                      PLUGIN_ADD_FILESYSTEM_KEY,
                                       PLUGIN_FETCH_WORKER_METADATA_KEY,
                                       PLUGIN_GENERATE_MAVEN_METADATA_KEY,
                                       PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_KOJI_PARENT_KEY,
@@ -2596,3 +2597,21 @@ class TestKojiImport(object):
         plugin = KojiImportPlugin(workflow)
         outputs = list(plugin._iter_work_metadata_outputs(platform, _filter=_filter))
         assert expected == outputs
+
+    @pytest.mark.parametrize("fs_result,expected,log", [
+        [None, None, None],
+        [{}, None, "expected filesystem-koji-task-id in result"],
+        [{"other-result": 1234}, None, "expected filesystem-koji-task-id in result"],
+        [{"filesystem-koji-task-id": "task_id"}, None, f"invalid task ID {'task_id'!r}"],
+        [{"filesystem-koji-task-id": 1}, 1, None],
+        [{"filesystem-koji-task-id": "1"}, 1, None],
+    ])
+    def test_property_filesystem_koji_task_id(self, fs_result, expected, log, workflow, caplog):
+        mock_reactor_config(workflow)
+        workflow.data.prebuild_results[PLUGIN_ADD_FILESYSTEM_KEY] = fs_result
+
+        plugin = KojiImportPlugin(workflow)
+        assert expected == plugin._filesystem_koji_task_id
+
+        if log is not None:
+            assert log in caplog.text

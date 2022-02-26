@@ -620,6 +620,22 @@ class KojiImportPlugin(KojiImportBase):
 
     key = PLUGIN_KOJI_IMPORT_PLUGIN_KEY  # type: ignore
 
+    @property
+    def _filesystem_koji_task_id(self) -> Optional[int]:
+        fs_result = self.workflow.data.prebuild_results.get(AddFilesystemPlugin.key)
+        if fs_result is None:
+            return None
+        if 'filesystem-koji-task-id' not in fs_result:
+            self.log.error("%s: expected filesystem-koji-task-id in result",
+                           AddFilesystemPlugin.key)
+            return None
+        fs_task_id = fs_result['filesystem-koji-task-id']
+        try:
+            return int(fs_task_id)
+        except ValueError:
+            self.log.error("invalid task ID %r", fs_task_id, exc_info=1)
+            return None
+
     def set_media_types(self, extra):
         media_types = []
 
@@ -681,20 +697,9 @@ class KojiImportPlugin(KojiImportBase):
         self.log.info("build is isolated: %r", isolated)
         extra['image']['isolated'] = isolated
 
-        fs_result = self.workflow.data.prebuild_results.get(AddFilesystemPlugin.key)
-        if fs_result is not None:
-            try:
-                fs_task_id = fs_result['filesystem-koji-task-id']
-            except KeyError:
-                self.log.error("%s: expected filesystem-koji-task-id in result",
-                               AddFilesystemPlugin.key)
-            else:
-                try:
-                    task_id = int(fs_task_id)
-                except ValueError:
-                    self.log.error("invalid task ID %r", fs_task_id, exc_info=1)
-                else:
-                    extra['filesystem_koji_task_id'] = task_id
+        fs_koji_task_id = self._filesystem_koji_task_id
+        if fs_koji_task_id is not None:
+            extra['filesystem_koji_task_id'] = fs_koji_task_id
 
         extra['image'].update(get_parent_image_koji_data(self.workflow))
 
