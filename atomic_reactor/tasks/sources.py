@@ -41,7 +41,8 @@ class SourceBuildTask(plugin_based.PluginBasedTask):
             {"name": "source_container"},
         ],
         postbuild=[
-            {"name": "fetch_docker_archive", "args": {"load_exported_image": True, "method": "gzip"}},
+            {"name": "fetch_docker_archive",
+             "args": {"load_exported_image": True, "method": "gzip"}},
             {"name": "tag_and_push"},
         ],
         exit=[

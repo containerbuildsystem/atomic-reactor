@@ -65,10 +65,10 @@ class BinaryPostBuildTask(plugin_based.PluginBasedTask):
 
     plugins_def = plugin_based.PluginsDef(
         postbuild=[
+            {"name": "fetch_docker_archive"},
             {"name": "flatpak_create_oci"},
             {"name": "all_rpm_packages"},
             {"name": "export_operator_manifests"},
-            {"name": "fetch_docker_archive"},
             {"name": "fetch_worker_metadata"},
             {"name": "compare_components"},
             {"name": "group_manifests"},
