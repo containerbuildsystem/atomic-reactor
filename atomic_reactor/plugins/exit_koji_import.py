@@ -324,8 +324,6 @@ class KojiImportBase(ExitPlugin):
     def set_group_manifest_info(self, extra):
         version_release = None
         primary_images = get_primary_images(self.workflow)
-        floating_images = get_floating_images(self.workflow)
-        unique_images = get_unique_images(self.workflow)
         if primary_images:
             version_release = primary_images[0].tag
 
@@ -336,36 +334,33 @@ class KojiImportBase(ExitPlugin):
             assert version_release is not None, 'Unable to find version-release image'
             tags = [image.tag for image in primary_images]
 
-        floating_tags = [image.tag for image in floating_images]
+        floating_tags = [image.tag for image in get_floating_images(self.workflow)]
+        unique_images = get_unique_images(self.workflow)
         unique_tags = [image.tag for image in unique_images]
 
         manifest_data = self.workflow.data.postbuild_results.get(PLUGIN_GROUP_MANIFESTS_KEY, {})
         if manifest_data and is_manifest_list(manifest_data.get("media_type")):
-            manifest_digest = manifest_data.get("manifest_digest")
-            index = {}
-            index['tags'] = tags
-            index['floating_tags'] = floating_tags
-            index['unique_tags'] = unique_tags
-            build_image = get_unique_images(self.workflow)[0]
-            repo = ImageName.parse(build_image).to_str(registry=False, tag=False)
-            # group_manifests added the registry, so this should be valid
-            registry = self.workflow.conf.registry
-
-            digest_version = get_manifest_media_version(manifest_digest)
+            manifest_digest = manifest_data["manifest_digest"]
             digest = manifest_digest.default
 
-            pullspec = "{0}/{1}@{2}".format(registry['uri'], repo, digest)
-            index['pull'] = [pullspec]
-            pullspec = "{0}/{1}:{2}".format(registry['uri'], repo,
-                                            version_release)
-            index['pull'].append(pullspec)
+            build_image = unique_images[0]
+            repo = ImageName.parse(build_image).to_str(registry=False, tag=False)
+            # group_manifests added the registry, so this should be valid
+            registry_uri = self.workflow.conf.registry['uri']
 
-            # Store each digest with according media type
-            index['digests'] = {}
+            digest_version = get_manifest_media_version(manifest_digest)
             media_type = get_manifest_media_type(digest_version)
-            index['digests'][media_type] = digest
 
-            extra['image']['index'] = index
+            extra['image']['index'] = {
+                'tags': tags,
+                'floating_tags': floating_tags,
+                'unique_tags': unique_tags,
+                'pull': [
+                    f'{registry_uri}/{repo}@{digest}',
+                    f'{registry_uri}/{repo}:{version_release}',
+                ],
+                'digests': {media_type: digest},
+            }
         # group_manifests returns None if didn't run, {} if group=False
         else:
             platform = "x86_64"
