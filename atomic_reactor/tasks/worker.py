@@ -50,8 +50,7 @@ class WorkerTask(plugin_based.PluginBasedTask):
             {"name": "flatpak_create_oci"},
         ],
         postbuild=[
-            {"name": "fetch_docker_archive",
-             "args": {"load_exported_image": True, "method": "gzip"}},
+            {"name": "fetch_docker_archive"},
             {"name": "all_rpm_packages", "args": {"image_id": "BUILT_IMAGE_ID"}},
             {"name": "tag_and_push"},
             {"name": "export_operator_manifests"},
