@@ -37,7 +37,7 @@ dockerfile-parse==1.2.0
     # via
     #   -r requirements.in
     #   osbs-client
-flatpak-module-tools==0.12 ; python_version < "3.9"
+flatpak-module-tools==0.13.1 ; python_version < "3.9"
     # via -r requirements.in
 gssapi==1.7.2
     # via
