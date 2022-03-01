@@ -44,6 +44,7 @@ class SourceContainerPlugin(BuildStepPlugin):
             raise
 
         img_metadata = get_exported_image_metadata(str(output_path), IMAGE_TYPE_DOCKER_ARCHIVE)
+        # OSBS2 TBD exported_image_sequence will not work for multiple platform
         self.workflow.data.exported_image_sequence.append(img_metadata)
         return str(output_path)
 

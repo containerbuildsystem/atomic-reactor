@@ -118,4 +118,5 @@ class PrePublishSquashPlugin(PrePublishPlugin):
 
         if self.save_archive:
             metadata.update(get_exported_image_metadata(output_path, IMAGE_TYPE_DOCKER_ARCHIVE))
+            # OSBS2 TBD exported_image_sequence will not work for multiple platform
             self.workflow.data.exported_image_sequence.append(metadata)

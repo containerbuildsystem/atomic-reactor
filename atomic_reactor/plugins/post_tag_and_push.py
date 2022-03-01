@@ -56,6 +56,7 @@ class TagAndPushPlugin(PostBuildPlugin):
         self.koji_target = koji_target
 
     def need_skopeo_push(self):
+        # OSBS2 TBD exported_image_sequence will not work for multiple platform
         if len(self.workflow.data.exported_image_sequence) > 0:
             last_image = self.workflow.data.exported_image_sequence[-1]
             if last_image['type'] == IMAGE_TYPE_OCI or last_image['type'] == IMAGE_TYPE_OCI_TAR:
@@ -77,6 +78,7 @@ class TagAndPushPlugin(PostBuildPlugin):
             # If the last image has type OCI_TAR, then hunt back and find the
             # the untarred version, since skopeo only supports OCI's as an
             # untarred directory
+            # OSBS2 TBD exported_image_sequence will not work for multiple platform
             image = [x for x in self.workflow.data.exported_image_sequence if
                      x['type'] != IMAGE_TYPE_OCI_TAR][-1]
 
