@@ -20,7 +20,6 @@ class FetchDockerArchivePlugin(PostBuildPlugin):
         :param workflow: DockerBuildWorkflow instance
         """
         super(FetchDockerArchivePlugin, self).__init__(workflow)
-        self.source_build = bool(self.workflow.data.build_result.source_docker_archive)
 
     def download_image(self, build_dir: BuildDir):
         image = self.workflow.data.tag_conf.get_unique_images_with_platform(build_dir.platform)[0]
@@ -40,10 +39,6 @@ class FetchDockerArchivePlugin(PostBuildPlugin):
         if is_scratch_build(self.workflow):
             # required only to make an archive for Koji
             self.log.info('scratch build, skipping plugin')
-            return
-
-        if self.source_build:
-            self.log.info('skipping, no exported source image')
             return
 
         return self.workflow.build_dir.for_each_platform(self.download_image)
