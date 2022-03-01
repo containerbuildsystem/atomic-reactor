@@ -432,6 +432,7 @@ class ImageBuildWorkflowData(ISerializer):
     #  member of this structure. Example:
     #  [{'path': '/tmp/foo.tar', 'size': 12345678, 'md5sum': '<md5>', 'sha256sum': '<sha256>'}]
     #  You can use util.get_exported_image_metadata to create a dict to append to this list.
+    # OSBS2 TBD exported_image_sequence will not work for multiple platform
     exported_image_sequence: List[Dict[str, Union[str, int]]] = field(default_factory=list)
 
     # mapping of downloaded files; DON'T PUT ANYTHING BIG HERE!

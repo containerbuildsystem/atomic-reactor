@@ -264,6 +264,7 @@ class StoreMetadataPlugin(ExitPlugin):
 
         tar_path = tar_size = tar_md5sum = tar_sha256sum = None
         if len(wf_data.exported_image_sequence) > 0:
+            # OSBS2 TBD exported_image_sequence will not work for multiple platform
             info = wf_data.exported_image_sequence[-1]
             tar_path = info.get("path")
             tar_size = info.get("size")

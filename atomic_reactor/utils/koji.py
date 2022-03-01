@@ -340,6 +340,7 @@ def get_image_output(workflow, image_id, arch, pullspec):
     :return: tuple, (metadata dict, Output instance)
 
     """
+    # OSBS2 TBD exported_image_sequence will not work for multiple platform
     image_name = get_image_upload_filename(workflow.data.exported_image_sequence[-1],
                                            image_id, arch)
 

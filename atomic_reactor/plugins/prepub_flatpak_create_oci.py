@@ -175,12 +175,14 @@ class FlatpakCreateOciPlugin(PrePublishPlugin):
 
         metadata = get_exported_image_metadata(outfile, IMAGE_TYPE_OCI)
         metadata['ref_name'] = ref_name
+        # OSBS2 TBD exported_image_sequence will not work for multiple platform
         self.workflow.data.exported_image_sequence.append(metadata)
 
         self.log.info('OCI image is available as %s', outfile)
 
         metadata = get_exported_image_metadata(tarred_outfile, IMAGE_TYPE_OCI_TAR)
         metadata['ref_name'] = ref_name
+        # OSBS2 TBD exported_image_sequence will not work for multiple platform
         self.workflow.data.exported_image_sequence.append(metadata)
 
         self.log.info('OCI tarfile is available as %s', tarred_outfile)
