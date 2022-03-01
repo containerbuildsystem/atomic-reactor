@@ -86,6 +86,7 @@ class BinaryExitTask(plugin_based.PluginBasedTask):
     plugins_def = plugin_based.PluginsDef(
         exit=[
             {"name": "koji_import"},
+            {"name": "cancel_build_reservation"},
             {"name": "store_metadata"},
             {"name": "sendmail"},
         ],

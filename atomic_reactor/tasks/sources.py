@@ -47,6 +47,7 @@ class SourceBuildTask(plugin_based.PluginBasedTask):
         ],
         exit=[
             {"name": "koji_import_source_container"},
+            {"name": "cancel_build_reservation"},
             {"name": "store_metadata"},
         ],
     )
