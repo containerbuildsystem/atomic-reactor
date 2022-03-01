@@ -108,6 +108,7 @@ PLUGIN_FETCH_SOURCES_KEY = 'fetch_sources'
 PLUGIN_KOJI_DELEGATE_KEY = 'koji_delegate'
 PLUGIN_PUSH_FLOATING_TAGS_KEY = 'push_floating_tags'
 PLUGIN_ADD_IMAGE_CONTENT_MANIFEST = 'add_image_content_manifest'
+PLUGIN_CANCEL_BUILD_RESERVATION = 'cancel_build_reservation'
 
 # some shared dict keys for build metadata that gets recorded with koji.
 # for consistency of metadata in historical builds, these values basically cannot change.
