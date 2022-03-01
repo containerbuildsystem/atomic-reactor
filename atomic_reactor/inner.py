@@ -301,14 +301,21 @@ class TagConf(ISerializer):
         """
         self._floating_images.append(ImageName.parse(image))
 
-    def get_unique_images_with_platform(self, platform):
+    def get_unique_images_with_platform(self, platform: str) -> List[ImageName]:
         """
         Add platform to unique images
 
         :param platform: str, platform to be added to unique images
         return: list of unique images with added platform
         """
-        return list(map(lambda unique_image: f'{unique_image}-{platform}', self._unique_images))
+        def add_platform(image: ImageName) -> ImageName:
+            return ImageName(
+                registry=image.registry,
+                namespace=image.namespace,
+                repo=image.repo,
+                tag=f'{image.tag}-{platform}',
+            )
+        return list(map(add_platform, self.unique_images))
 
     @classmethod
     def load(cls, data: Dict[str, Any]):

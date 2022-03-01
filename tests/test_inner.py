@@ -1255,7 +1255,7 @@ class TestTagConf:
         tag_conf = TagConf()
         tag_conf.add_unique_image(image)
 
-        expected = [f'{image}-{platform}']
+        expected = [ImageName.parse(f'{image}-{platform}')]
         actual = tag_conf.get_unique_images_with_platform(platform)
 
         assert actual == expected
