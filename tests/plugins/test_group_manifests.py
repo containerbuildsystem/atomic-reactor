@@ -306,104 +306,75 @@ def mock_environment(workflow, primary_images=None, annotations=None):
 
 
 REGISTRY_V2 = 'registry_v2.example.com'
-OTHER_V2 = 'registry.example.com:5001'
 
 
 @pytest.mark.parametrize('schema_version', ('v2', 'oci'))
 @pytest.mark.parametrize(('test_name', 'group', 'foreign_layers',
-                          'registries', 'workers', 'expected_exception'), [
+                          'per_platform_images', 'expected_exception'), [
     # Basic manifest grouping
     ("group",
-     True, False, [REGISTRY_V2, OTHER_V2],
+     True, False,
      {
-         'ppc64le': {
-             REGISTRY_V2: ['namespace/httpd:worker-build-ppc64le-latest'],
-             OTHER_V2: ['namespace/httpd:worker-build-ppc64le-latest'],
-         },
-         'x86_64': {
-             REGISTRY_V2: ['namespace/httpd:worker-build-x86_64-latest'],
-             OTHER_V2: ['namespace/httpd:worker-build-x86_64-latest'],
-         }
+         'ppc64le': ['namespace/httpd:worker-build-ppc64le-latest'],
+         'x86_64': ['namespace/httpd:worker-build-x86_64-latest']
      },
      None),
     # Have to copy the referenced manifests and link blobs from one repository to another
     ("group_link_manifests",
-     True, False, [REGISTRY_V2],
+     True, False,
      {
-         'ppc64le': {
-             REGISTRY_V2: ['worker-build:worker-build-ppc64le-latest'],
-         },
-         'x86_64': {
-             REGISTRY_V2: ['worker-build:worker-build-x86_64-latest'],
-         }
+         'ppc64le': ['worker-build:worker-build-ppc64le-latest'],
+         'x86_64': ['worker-build:worker-build-x86_64-latest']
      },
      None),
     # Have to copy the referenced manifests and link blobs from one repository to another;
     # some layers of the image are foreign and thus not found to copy
     ("group_link_manifests_foreign",
-     True, True, [REGISTRY_V2],
+     True, True,
      {
-         'ppc64le': {
-             REGISTRY_V2: ['worker-build:worker-build-ppc64le-latest'],
-         },
-         'x86_64': {
-             REGISTRY_V2: ['worker-build:worker-build-x86_64-latest'],
-         }
+         'ppc64le': ['worker-build:worker-build-ppc64le-latest'],
+         'x86_64': ['worker-build:worker-build-x86_64-latest']
      },
      None),
     # Some architectures aren't present for a registry, should error out
     ("group_missing_arches",
-     True, False, [REGISTRY_V2],
+     True, False,
      {
-         'ppc64le': {
-             REGISTRY_V2: ['namespace/httpd:worker-build-ppc64le-latest'],
-         },
-         'x86_64': {
-         }
+         'ppc64le': ['namespace/httpd:worker-build-ppc64le-latest'],
+         'x86_64': []
      },
      "Missing platforms for registry"),
     # No workers at all, should error out
     ("group_no_workers",
-     True, False, [REGISTRY_V2],
-     {
-     },
+     True, False,
+     {},
      "No worker builds found"),
     # group=False, should fail as we expect only one entry if not grouped
     ("tag",
-     False, False, [REGISTRY_V2, OTHER_V2],
+     False, False,
      {
-         'ppc64le': {
-             REGISTRY_V2: ['namespace/httpd:worker-build-ppc64le-latest'],
-             OTHER_V2: ['namespace/httpd:worker-build-ppc64le-latest'],
-         },
-         'x86_64': {
-             REGISTRY_V2: ['namespace/httpd:worker-build-x86_64-latest'],
-             OTHER_V2: ['namespace/httpd:worker-build-x86_64-latest'],
-         }
+         'ppc64le': ['namespace/httpd:worker-build-ppc64le-latest'],
+         'x86_64': ['namespace/httpd:worker-build-x86_64-latest']
      },
      "Without grouping only one source is expected"),
     # Have to copy the manifest and link blobs from one repository to another
     ("tag_link_manifests",
-     False, False, [REGISTRY_V2],
+     False, False,
      {
-         'x86_64': {
-             REGISTRY_V2: ['worker-build:worker-build-x86_64-latest'],
-         }
+         'x86_64': ['worker-build:worker-build-x86_64-latest']
      },
      None),
     # No x86_64 found, but still have ppc64le
     ("tag_no_x86_64",
-     False, False, [REGISTRY_V2],
+     False, False,
      {
-         'ppc64le': {
-             REGISTRY_V2: ['namespace/httpd:worker-build-ppc64le-latest'],
-         },
+         'ppc64le': ['namespace/httpd:worker-build-ppc64le-latest']
      },
-     None)
+     None),
 ])
 @responses.activate  # noqa
 def test_group_manifests(workflow, source_dir, schema_version, test_name, group, foreign_layers,
-                         registries, workers, expected_exception, user_params):
+                         per_platform_images, expected_exception, user_params):
     test_images = ['namespace/httpd:2.4',
                    'namespace/httpd:latest']
 
@@ -412,10 +383,7 @@ def test_group_manifests(workflow, source_dir, schema_version, test_name, group,
         'x86_64': 'amd64',
     }
 
-    all_registry_conf = {
-        REGISTRY_V2: {'version': 'v2', 'insecure': True},
-        OTHER_V2: {'version': 'v2', 'insecure': False},
-    }
+    registry_conf = {REGISTRY_V2: {'version': 'v2', 'insecure': True}}
 
     temp_dir = mkdtemp(dir=str(source_dir))
     with open(os.path.join(temp_dir, ".dockercfg"), "w+") as dockerconfig:
@@ -426,11 +394,7 @@ def test_group_manifests(workflow, source_dir, schema_version, test_name, group,
         }
         dockerconfig.write(json.dumps(dockerconfig_contents))
         dockerconfig.flush()
-        all_registry_conf[REGISTRY_V2]['secret'] = temp_dir
-
-    registry_conf = {
-        k: v for k, v in all_registry_conf.items() if k in registries
-    }
+        registry_conf[REGISTRY_V2]['secret'] = temp_dir
 
     plugins_conf = [{
         'name': GroupManifestsPlugin.key,
@@ -441,27 +405,22 @@ def test_group_manifests(workflow, source_dir, schema_version, test_name, group,
         },
     }]
 
-    mocked_registries, annotations = mock_registries(registry_conf, workers,
+    registry_images_conf = {
+        platform: {REGISTRY_V2: images} for platform, images in per_platform_images.items()
+    }
+
+    mocked_registries, annotations = mock_registries(registry_conf, registry_images_conf,
                                                      schema_version=schema_version,
                                                      foreign_layers=foreign_layers)
     mock_environment(workflow, primary_images=test_images, annotations=annotations)
 
-    registries_list = []
-
-    for docker_uri in registry_conf:
-        reg_ver = registry_conf[docker_uri]['version']
-        reg_secret = None
-        if 'secret' in registry_conf[docker_uri]:
-            reg_secret = registry_conf[docker_uri]['secret']
-
-        new_reg = {}
-        if reg_secret:
-            new_reg['auth'] = {'cfg_path': reg_secret}
-        else:
-            new_reg['auth'] = {'cfg_path': str(temp_dir)}
-        new_reg['url'] = 'https://' + docker_uri + '/' + reg_ver
-
-        registries_list.append(new_reg)
+    registries_list = [
+        {
+            'url': f'https://{docker_uri}/{registry["version"]}',
+            'auth': {'cfg_path': registry.get('secret', str(temp_dir))},
+        }
+        for docker_uri, registry in registry_conf.items()
+    ]
 
     platform_descriptors_list = []
     for platform, arch in goarch.items():
@@ -503,7 +462,7 @@ def test_group_manifests(workflow, source_dir, schema_version, test_name, group,
             source_builds = {}
             source_manifests = {}
 
-            for platform in workers:
+            for platform in per_platform_images:
                 build = annotations['worker-builds'][platform]['digests'][0]
                 source_builds[platform] = build
                 source_registry = mocked_registries[build['registry']]
