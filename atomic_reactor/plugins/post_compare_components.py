@@ -1,5 +1,5 @@
 """
-Copyright (c) 2017 Red Hat, Inc
+Copyright (c) 2017-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -8,9 +8,9 @@ of the BSD license. See the LICENSE file for details.
 import logging
 
 from atomic_reactor.plugin import PostBuildPlugin
+from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.util import is_scratch_build
-from atomic_reactor.constants import (PLUGIN_COMPARE_COMPONENTS_KEY,
-                                      PLUGIN_FETCH_WORKER_METADATA_KEY)
+from atomic_reactor.constants import PLUGIN_COMPARE_COMPONENTS_KEY
 
 
 T_RPM = "rpm"
@@ -27,8 +27,8 @@ def filter_components_by_name(name, components_list, type_=T_RPM):
 
 class CompareComponentsPlugin(PostBuildPlugin):
     """
-    Compare components from each worker build and verify the same version was
-    on each worker.
+    Compare components from each platform build and verify the same version was
+    in each platform build.
     """
 
     key = PLUGIN_COMPARE_COMPONENTS_KEY
@@ -46,32 +46,18 @@ class CompareComponentsPlugin(PostBuildPlugin):
 
         raise ValueError("%s != %s" % (a, b))
 
-    def get_component_list_from_workers(self, worker_metadatas):
+    def get_rpm_components_list(self):
         """
-        Find the component lists from each worker build.
-
-        The components that are interesting are under the 'output' key.  The
-        buildhost's components are ignored.
-
-        Inside the 'output' key are various 'instances'.  The only 'instance'
-        with a 'component list' is the 'docker-image' instance.  The 'log'
-        instances are ignored for now.
-
-        Reference plugin post_koji_upload for details on how this is created.
+        Get the rpm components list for each platform build and
+        merge it in one list for comparison.
 
         :return: list of component lists
         """
         comp_list = []
-        for platform in sorted(worker_metadatas.keys()):
-            for instance in worker_metadatas[platform]['output']:
-                if instance['type'] == 'docker-image':
-                    if 'components' not in instance or not instance['components']:
-                        self.log.warning(
-                            "Missing 'components' key in 'output' metadata instance: %s", instance
-                        )
-                        continue
+        components_per_platform = self.workflow.data.postbuild_results[PostBuildRPMqaPlugin.key]
 
-                    comp_list.append(instance['components'])
+        for components in components_per_platform.values():
+            comp_list.append(components)
 
         return comp_list
 
@@ -100,8 +86,7 @@ class CompareComponentsPlugin(PostBuildPlugin):
             self.log.info("Skipping comparing components: unsupported for FROM-scratch images")
             return
 
-        worker_metadatas = wf_data.postbuild_results.get(PLUGIN_FETCH_WORKER_METADATA_KEY)
-        comp_list = self.get_component_list_from_workers(worker_metadatas)
+        comp_list = self.get_rpm_components_list()
 
         if not comp_list:
             raise ValueError("No components to compare")

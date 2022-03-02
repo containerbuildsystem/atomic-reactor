@@ -1,5 +1,5 @@
 """
-Copyright (c) 2017 Red Hat, Inc
+Copyright (c) 2017-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -10,12 +10,12 @@ import copy
 import os
 import json
 
-from atomic_reactor.constants import (PLUGIN_FETCH_WORKER_METADATA_KEY,
-                                      PLUGIN_COMPARE_COMPONENTS_KEY)
+from atomic_reactor.constants import PLUGIN_COMPARE_COMPONENTS_KEY
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.post_compare_components import (
     filter_components_by_name
 )
+from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.util import DockerfileImages
 
 from tests.constants import FILES
@@ -28,7 +28,7 @@ def mock_workflow(workflow):
     workflow.data.dockerfile_images = DockerfileImages(['fedora:25'])
 
 
-def mock_metadatas():
+def mock_components():
     json_x_path = os.path.join(FILES, "example-koji-metadata-x86_64.json")
     json_p_path = os.path.join(FILES, "example-koji-metadata-ppc64le.json")
 
@@ -39,30 +39,27 @@ def mock_metadatas():
         metadatas_p = json.load(json_data)
 
     # need to keep data separate otherwise deepcopy and edit 'arch'
-    worker_metadatas = {
-        'x86_64': metadatas_x,
-        'ppc64le': metadatas_p,
+    components = {
+        'x86_64': metadatas_x['output'][2]['components'],
+        'ppc64le': metadatas_p['output'][2]['components'],
     }
 
-    return worker_metadatas
+    return components
 
 
 def test_filter_components_by_name():
     """Test function filter_components_by_name"""
-    worker_metadatas = mock_metadatas()
+    components_per_arch = mock_components()
     component_name = 'openssl'
 
-    component_list = [
-        worker_metadata['output'][2]['components']
-        for worker_metadata in worker_metadatas.values()
-    ]
+    component_list = [components for components in components_per_arch.values()]
 
     filtered = list(filter_components_by_name(component_name, component_list))
 
-    expected_count = len(worker_metadatas)
+    expected_count = len(components_per_arch)
     assert len(filtered) == expected_count
 
-    expected_platforms = set(worker_metadatas.keys())
+    expected_platforms = set(components_per_arch.keys())
     assert set(f['arch'] for f in filtered) == expected_platforms
 
 
@@ -73,19 +70,18 @@ def test_filter_components_by_name():
     (False, True, False),
     (True, True, False),
 ))
-def test_compare_components_plugin(workflow, caplog,
-                                   base_from_scratch, mismatch, exception, fail):
+def test_compare_components_plugin(workflow, caplog, base_from_scratch, mismatch, exception, fail):
     mock_workflow(workflow)
-    worker_metadatas = mock_metadatas()
+    components_per_arch = mock_components()
 
     # example data has 2 log items before component item hence output[2]
-    component = worker_metadatas['ppc64le']['output'][2]['components'][0]
+    component = components_per_arch['ppc64le'][0]
     if mismatch:
         component['version'] = 'bacon'
     if exception:
         workflow.conf.conf = {'version': 1, 'package_comparison_exceptions': [component['name']]}
 
-    workflow.data.postbuild_results[PLUGIN_FETCH_WORKER_METADATA_KEY] = worker_metadatas
+    workflow.data.postbuild_results[PostBuildRPMqaPlugin.key] = components_per_arch
     if base_from_scratch:
         workflow.data.dockerfile_images = DockerfileImages(['scratch'])
 
@@ -109,13 +105,13 @@ def test_compare_components_plugin(workflow, caplog,
 
 def test_no_components(workflow):
     mock_workflow(workflow)
-    worker_metadatas = mock_metadatas()
+    components_per_arch = mock_components()
 
     # example data has 2 log items before component item hence output[2]
-    del worker_metadatas['x86_64']['output'][2]['components']
-    del worker_metadatas['ppc64le']['output'][2]['components']
+    components_per_arch['x86_64'] = None
+    components_per_arch['ppc64le'] = None
 
-    workflow.data.postbuild_results[PLUGIN_FETCH_WORKER_METADATA_KEY] = worker_metadatas
+    workflow.data.postbuild_results[PostBuildRPMqaPlugin.key] = components_per_arch
 
     runner = PostBuildPluginsRunner(
         workflow,
@@ -131,12 +127,12 @@ def test_no_components(workflow):
 
 def test_bad_component_type(workflow):
     mock_workflow(workflow)
-    worker_metadatas = mock_metadatas()
+    components_per_arch = mock_components()
 
     # example data has 2 log items before component item hence output[2]
-    worker_metadatas['x86_64']['output'][2]['components'][0]['type'] = "foo"
+    components_per_arch['x86_64'][0]['type'] = "foo"
 
-    workflow.data.postbuild_results[PLUGIN_FETCH_WORKER_METADATA_KEY] = worker_metadatas
+    workflow.data.postbuild_results[PostBuildRPMqaPlugin.key] = components_per_arch
 
     runner = PostBuildPluginsRunner(
         workflow,
@@ -154,24 +150,24 @@ def test_bad_component_type(workflow):
 def test_mismatch_reporting(workflow, caplog, mismatch):
     """Test if expected log entries are reported when components mismatch"""
     mock_workflow(workflow)
-    worker_metadatas = mock_metadatas()
+    components_per_arch = mock_components()
 
     component_name = "openssl"
-    component_ppc64le = worker_metadatas['ppc64le']['output'][2]['components'][4]
+    component_ppc64le = components_per_arch['ppc64le'][4]
     assert component_ppc64le['name'] == component_name, "Error in test data"
 
     # add extra fake worker for s390x to having 3 different platforms
     # we care about only one component
-    worker_metadatas['s390x'] = copy.deepcopy(worker_metadatas['ppc64le'])
+    components_per_arch['s390x'] = copy.deepcopy(components_per_arch['ppc64le'])
     component_s390x = copy.deepcopy(component_ppc64le)
     component_s390x['arch'] = 's390x'
-    worker_metadatas['s390x']['output'][2]['components'] = [component_s390x]
+    components_per_arch['s390x'] = [component_s390x]
 
     if mismatch:
         component_ppc64le['version'] = 'bacon'
         component_s390x['version'] = 'sandwich'
 
-    workflow.data.postbuild_results[PLUGIN_FETCH_WORKER_METADATA_KEY] = worker_metadatas
+    workflow.data.postbuild_results[PostBuildRPMqaPlugin.key] = components_per_arch
 
     runner = PostBuildPluginsRunner(
         workflow,
