@@ -496,7 +496,7 @@ def get_platforms(workflow):
         return koji_platforms
 
     # Not an orchestrator build
-    return None
+    return []
 
 
 # copypasted and slightly modified from
