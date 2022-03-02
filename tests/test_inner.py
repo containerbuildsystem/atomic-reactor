@@ -1248,6 +1248,18 @@ class TestTagConf:
         assert expected_unique_images == tag_conf.unique_images
         assert expected_floating_images == tag_conf.floating_images
 
+    def test_get_unique_images_with_platform(self):
+        image = 'registry.com/org/hello:world-16111-20220103213046'
+        platform = 'x86_64'
+
+        tag_conf = TagConf()
+        tag_conf.add_unique_image(image)
+
+        expected = [f'{image}-{platform}']
+        actual = tag_conf.get_unique_images_with_platform(platform)
+
+        assert actual == expected
+
 
 class TestWorkflowData:
     """Test class ImageBuildWorkflowData."""
