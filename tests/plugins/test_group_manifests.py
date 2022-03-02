@@ -17,8 +17,9 @@ import requests
 from collections import OrderedDict
 
 from tests.constants import DOCKER0_REGISTRY
+from tests.mock_env import MockEnv
 
-from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
+from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.inner import TagConf, BuildResult
 from atomic_reactor.util import (registry_hostname, ManifestDigest, get_floating_images,
                                  get_primary_images, sha256sum)
@@ -396,15 +397,6 @@ def test_group_manifests(workflow, source_dir, schema_version, test_name, group,
         dockerconfig.flush()
         registry_conf[REGISTRY_V2]['secret'] = temp_dir
 
-    plugins_conf = [{
-        'name': GroupManifestsPlugin.key,
-        'args': {
-            'registries': registry_conf,
-            'group': group,
-            'goarch': goarch,
-        },
-    }]
-
     registry_images_conf = {
         platform: {REGISTRY_V2: images} for platform, images in per_platform_images.items()
     }
@@ -430,11 +422,20 @@ def test_group_manifests(workflow, source_dir, schema_version, test_name, group,
         }
         platform_descriptors_list.append(new_plat)
 
-        workflow.conf.conf = {'version': 1, 'group_manifests': group,
-                              'registries': registries_list,
-                              'platform_descriptors': platform_descriptors_list}
+    runner = (
+        MockEnv(workflow)
+        .for_plugin('postbuild', GroupManifestsPlugin.key)
+        .set_reactor_config(
+            {
+                'version': 1,
+                'group_manifests': group,
+                'registries': registries_list,
+                'platform_descriptors': platform_descriptors_list,
+            }
+        )
+        .create_runner()
+    )
 
-    runner = PostBuildPluginsRunner(workflow, plugins_conf)
     if expected_exception is None:
         results = runner.run()
 
