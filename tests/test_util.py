@@ -1190,17 +1190,24 @@ def test_validate_with_schema(data, schema, valid):
 LogEntry = namedtuple('LogEntry', ['platform', 'line'])
 
 
-def test_osbs_logs_get_log_files(tmpdir):
+@pytest.mark.parametrize('source_build', [True, False])
+def test_osbs_logs_get_log_files(tmpdir, source_build):
     class OSBS(object):
         def get_build_logs(self, pipeline_run_name):
-            logs = {
-                "taskRun1": {"containerA": "log message A", "containerB": "log message B"},
-                "taskRun2": {"containerC": "log message C"},
-                "taskRun3-s390x": {"containerD": "log message D"},
-                "taskRun4-ppc64le": {"containerE": "log message E"},
-                "taskRun5-aarch64": {"containerF": "log message F"},
-                "taskRun6-x86-64": {"containerG": "log message G"},
-            }
+            if not source_build:
+                logs = {
+                    "taskRun1": {"containerA": "log message A", "containerB": "log message B"},
+                    "taskRun2": {"containerC": "log message C"},
+                    "taskRun3-s390x": {"containerD": "log message D"},
+                    "taskRun4-ppc64le": {"containerE": "log message E"},
+                    "taskRun5-aarch64": {"containerF": "log message F"},
+                    "taskRun6-x86-64": {"containerG": "log message G"},
+                }
+            else:
+                logs = {
+                    "taskRun1": {"containerA": "log message A", "containerB": "log message B"},
+                    "taskRun2": {"containerC": "log message C"},
+                }
             return logs
 
     osbs_logfiles_metadata = [{'checksum': '1b6c0f6e47915b0d0d12cc0fc863750a',
@@ -1232,11 +1239,19 @@ def test_osbs_logs_get_log_files(tmpdir):
 
     logger = flexmock()
     flexmock(logger).should_receive('error')
-    osbs_logs = OSBSLogs(logger, ['x86_64', 'ppc64le', 'aarch64', 's390x'])
+    if not source_build:
+        osbs_logs = OSBSLogs(logger, ['x86_64', 'ppc64le', 'aarch64', 's390x'])
+    else:
+        osbs_logs = OSBSLogs(logger, [])
     osbs = OSBS()
     outputs = osbs_logs.get_log_files(osbs, 'test-pipeline-run')
-    for index, output in enumerate(outputs):
-        assert output.metadata == osbs_logfiles_metadata[index]
+    if not source_build:
+        for index, output in enumerate(outputs):
+            assert output.metadata == osbs_logfiles_metadata[index]
+    else:
+        assert len(outputs) == 1
+        output = outputs[0]
+        assert output.metadata == osbs_logfiles_metadata[0]
 
 
 @pytest.mark.parametrize('raise_error', [
