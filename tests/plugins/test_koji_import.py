@@ -19,12 +19,12 @@ from atomic_reactor.plugins.post_fetch_worker_metadata import FetchWorkerMetadat
 from atomic_reactor.plugins.build_orchestrate_build import (OrchestrateBuildPlugin,
                                                             WORKSPACE_KEY_UPLOAD_DIR,
                                                             WORKSPACE_KEY_BUILD_INFO)
-from atomic_reactor.plugins.exit_koji_import import (KojiImportPlugin,
+from atomic_reactor.plugins.post_koji_import import (KojiImportPlugin,
                                                      KojiImportSourceContainerPlugin)
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
-from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
+from atomic_reactor.plugin import PluginFailedException, PostBuildPluginsRunner
 from atomic_reactor.inner import TagConf, BuildResult
 from atomic_reactor.util import (ManifestDigest, DockerfileImages,
                                  get_manifest_media_version, get_manifest_media_type,
@@ -132,10 +132,6 @@ class MockedClientSession(object):
         self.metadata = metadata    # pylint: disable=attribute-defined-outside-init
         self.server_dir = server_dir
         return {"id": "123"}
-
-    def CGRefundBuild(self, cg, build_id, token, state):
-        self.refunded_build = True
-        self.fail_state = state
 
     def getBuildTarget(self, target):
         return {'dest_tag_name': self.DEST_TAG}
@@ -649,7 +645,7 @@ def _os_env(monkeypatch):
 
 
 def create_runner(workflow, ssl_certs=False, principal=None,
-                  keytab=None, target=None, blocksize=None, reserve_build=False,
+                  keytab=None, target=None, blocksize=None,
                   upload_plugin_name=KojiImportPlugin.key, userdata=None):
     args = {}
 
@@ -668,13 +664,12 @@ def create_runner(workflow, ssl_certs=False, principal=None,
     ]
 
     add_koji_map_in_workflow(workflow, hub_url='',
-                             reserve_build=reserve_build,
                              ssl_certs_dir='/' if ssl_certs else None,
                              krb_principal=principal,
                              krb_keytab=keytab)
 
-    workflow.exit_plugins_conf = plugins_conf
-    runner = ExitPluginsRunner(workflow, plugins_conf)
+    workflow.post_plugins_conf = plugins_conf
+    runner = PostBuildPluginsRunner(workflow, plugins_conf)
     return runner
 
 
@@ -732,30 +727,6 @@ class TestKojiImport(object):
         plugin = KojiImportPlugin(workflow)
 
         assert plugin.get_buildroot() == results
-
-    @pytest.mark.parametrize('reserved_build', [True, False])
-    @pytest.mark.parametrize(('canceled_build', 'refund_state'), [
-        (True, koji.BUILD_STATES['CANCELED']),
-        (False, koji.BUILD_STATES['FAILED']),
-    ])
-    def test_koji_import_failed_build(self, reserved_build, canceled_build, refund_state,
-                                      workflow, source_dir):
-        session = MockedClientSession('')
-        mock_environment(workflow, source_dir, session=session, build_process_failed=True,
-                         build_process_canceled=canceled_build, name='ns/name',
-                         version='1.0', release='1')
-        if reserved_build:
-            workflow.data.reserved_build_id = 1
-            workflow.data.reserved_token = 1
-
-        runner = create_runner(workflow, reserve_build=reserved_build)
-        runner.run()
-
-        # Must not have importd this build
-        assert not hasattr(session, 'metadata')
-        if reserved_build:
-            assert session.refunded_build
-            assert session.fail_state is not None and session.fail_state == refund_state
 
     def test_koji_import_no_build_metadata(self, workflow, source_dir):
         mock_environment(workflow, source_dir, name='ns/name', version='1.0', release='1')
@@ -1255,14 +1226,14 @@ class TestKojiImport(object):
         (['v1'], 'ab12'),
         (False, 'ab12')
     ))
-    @pytest.mark.parametrize('reserved_build', (True, False))
+    @pytest.mark.parametrize('has_reserved_build', (True, False))
     @pytest.mark.parametrize(('task_states', 'skip_import'), [
         (['OPEN'], False),
         (['FAILED'], True),
     ])
     def test_koji_import_success(self, workflow, source_dir, caplog,
                                  blocksize, verify_media,
-                                 expect_id, reserved_build, task_states,
+                                 expect_id, has_reserved_build, task_states,
                                  skip_import):
         session = MockedClientSession('', task_states=task_states)
         component = 'component'
@@ -1282,11 +1253,11 @@ class TestKojiImport(object):
 
         build_token = 'token_12345'
         build_id = '123'
-        if reserved_build:
+        if has_reserved_build:
             workflow.data.reserved_build_id = build_id
             workflow.data.reserved_token = build_token
 
-        if reserved_build:
+        if has_reserved_build:
             (flexmock(session)
                 .should_call('CGImport')
                 .with_args(dict, str, token=build_token)
@@ -1298,8 +1269,7 @@ class TestKojiImport(object):
              )
 
         target = 'images-docker-candidate'
-        runner = create_runner(workflow, target=target, blocksize=blocksize,
-                               reserve_build=reserved_build)
+        runner = create_runner(workflow, target=target, blocksize=blocksize)
         runner.run()
 
         if skip_import:
@@ -1307,9 +1277,6 @@ class TestKojiImport(object):
                 format(task_states[0])
 
             assert log_msg in caplog.text
-
-            if reserved_build:
-                assert session.refunded_build
             return
 
         data = session.metadata
@@ -1344,12 +1311,12 @@ class TestKojiImport(object):
             'owner',
         }
 
-        if reserved_build:
+        if has_reserved_build:
             expected_keys.add('build_id')
 
         assert set(build.keys()) == expected_keys
 
-        if reserved_build:
+        if has_reserved_build:
             assert build['build_id'] == build_id
         assert build['name'] == component
         assert build['version'] == version
@@ -2284,7 +2251,7 @@ class TestKojiImport(object):
         (['v1'], 'ab12'),
         (False, 'ab12')
     ))
-    @pytest.mark.parametrize('reserved_build', (True, False))
+    @pytest.mark.parametrize('has_reserved_build', (True, False))
     @pytest.mark.parametrize(('task_states', 'skip_import'), [
         (['OPEN'], False),
         (['FAILED'], True),
@@ -2296,7 +2263,7 @@ class TestKojiImport(object):
     ])
     def test_koji_import_success_source(self, workflow, source_dir, caplog, blocksize,
                                         has_config, oci,
-                                        verify_media, expect_id, reserved_build, task_states,
+                                        verify_media, expect_id, has_reserved_build, task_states,
                                         skip_import, userdata):
         session = MockedClientSession('', task_states=task_states)
         # When target is provided koji build will always be tagged,
@@ -2323,11 +2290,11 @@ class TestKojiImport(object):
 
         build_token = 'token_12345'
         build_id = '123'
-        if reserved_build:
+        if has_reserved_build:
             workflow.data.reserved_build_id = build_id
             workflow.data.reserved_token = build_token
 
-        if reserved_build:
+        if has_reserved_build:
             (flexmock(session)
                 .should_call('CGImport')
                 .with_args(dict, str, token=build_token)
@@ -2353,7 +2320,6 @@ class TestKojiImport(object):
         workflow.data.koji_source_manifest = source_manifest
 
         runner = create_runner(workflow, target=target, blocksize=blocksize,
-                               reserve_build=reserved_build,
                                upload_plugin_name=KojiImportSourceContainerPlugin.key,
                                userdata=userdata)
         runner.run()
@@ -2363,9 +2329,6 @@ class TestKojiImport(object):
                 format(task_states[0])
 
             assert log_msg in caplog.text
-
-            if reserved_build:
-                assert session.refunded_build
             return
 
         data = session.metadata
@@ -2400,12 +2363,12 @@ class TestKojiImport(object):
             'owner',
         }
 
-        if reserved_build:
+        if has_reserved_build:
             expected_keys.add('build_id')
 
         assert set(build.keys()) == expected_keys
 
-        if reserved_build:
+        if has_reserved_build:
             assert build['build_id'] == build_id
         assert build['name'] == component
         assert build['version'] == version

@@ -11,7 +11,7 @@ from atomic_reactor.config import get_koji_session
 from atomic_reactor.utils.koji import tag_koji_build
 from atomic_reactor.util import is_scratch_build, map_to_user_params
 from atomic_reactor.plugin import PostBuildPlugin
-from atomic_reactor.plugins.exit_koji_import import KojiImportPlugin
+from atomic_reactor.plugins.post_koji_import import KojiImportPlugin
 
 
 class KojiTagBuildPlugin(PostBuildPlugin):
@@ -60,7 +60,7 @@ class KojiTagBuildPlugin(PostBuildPlugin):
             self.log.info('no koji target provided, skipping plugin')
             return
 
-        build_id = self.workflow.data.exit_results.get(KojiImportPlugin.key)
+        build_id = self.workflow.data.postbuild_results.get(KojiImportPlugin.key)
         if not build_id:
             self.log.info('No koji build from %s', KojiImportPlugin.key)
             return

@@ -16,7 +16,7 @@ import socket
 import json
 
 from atomic_reactor.plugin import ExitPlugin, PluginFailedException
-from atomic_reactor.plugins.exit_koji_import import KojiImportPlugin
+from atomic_reactor.plugins.post_koji_import import KojiImportPlugin
 from atomic_reactor.plugins.exit_store_metadata import StoreMetadataPlugin
 from atomic_reactor.utils.koji import get_koji_task_owner
 from atomic_reactor.util import df_parser
@@ -121,7 +121,7 @@ class SendMailPlugin(ExitPlugin):
             else:
                 self.log.info("No koji task")
 
-        self.koji_build_id = self.workflow.data.exit_results.get(KojiImportPlugin.key)
+        self.koji_build_id = self.workflow.data.postbuild_results.get(KojiImportPlugin.key)
         if not self.koji_build_id:
             self.log.info("Failed to fetch koji build ID")
         else:

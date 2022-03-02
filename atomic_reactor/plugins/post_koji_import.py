@@ -18,7 +18,7 @@ from typing import Any, Dict, Iterator, Optional, Tuple
 from atomic_reactor.constants import REPO_CONTAINER_CONFIG
 from atomic_reactor.config import get_koji_session, get_openshift_session
 from atomic_reactor import start_time as atomic_reactor_start_time
-from atomic_reactor.plugin import ExitPlugin
+from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.source import GitSource
 from atomic_reactor.plugins.build_orchestrate_build import (get_worker_build_info,
                                                             get_koji_upload_dir)
@@ -42,7 +42,6 @@ except ImportError:
         return None
 
 from atomic_reactor.constants import (
-    PROG,
     PLUGIN_KOJI_IMPORT_PLUGIN_KEY, PLUGIN_KOJI_IMPORT_SOURCE_CONTAINER_PLUGIN_KEY,
     PLUGIN_FETCH_WORKER_METADATA_KEY,
     PLUGIN_GENERATE_MAVEN_METADATA_KEY,
@@ -75,7 +74,7 @@ from osbs.utils import Labels, ImageName
 
 
 @label('koji-build-id')
-class KojiImportBase(ExitPlugin):
+class KojiImportBase(PostBuildPlugin):
     """
     Import this build to Koji
 
@@ -120,7 +119,6 @@ class KojiImportBase(ExitPlugin):
                                           self.workflow.user_params.get('namespace'))
         self.build_id = None
         self.session = None
-        self.reserve_build = self.workflow.conf.koji.get('reserve_build', False)
         self.pipeline_run_name = None
         self.userdata = userdata
 
@@ -548,17 +546,6 @@ class KojiImportBase(ExitPlugin):
         build_token = self.workflow.data.reserved_token
         build_id = self.workflow.data.reserved_build_id
 
-        # Only run if the build was successful
-        if self.workflow.build_process_failed:
-            self.log.info("Not importing %s build to koji",
-                          "canceled" if self.workflow.data.build_canceled else "failed")
-            if self.reserve_build and build_token is not None:
-                state = koji.BUILD_STATES['FAILED']
-                if self.workflow.data.build_canceled:
-                    state = koji.BUILD_STATES['CANCELED']
-                self.session.CGRefundBuild(PROG, build_id, build_token, state)
-            return
-
         server_dir = self.get_server_dir()
 
         koji_metadata, output_files = self.combine_metadata_fragments()
@@ -574,10 +561,6 @@ class KojiImportBase(ExitPlugin):
             if task_state != 'OPEN':
                 self.log.error("Koji task is not in Open state, but in %s, not importing build",
                                task_state)
-
-                if self.reserve_build and build_token is not None:
-                    state = koji.BUILD_STATES['FAILED']
-                    self.session.CGRefundBuild(PROG, build_id, build_token, state)
                 return
 
         try:
