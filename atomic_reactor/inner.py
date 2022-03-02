@@ -609,6 +609,8 @@ class DockerBuildWorkflow(object):
         reactor_config_path: str = REACTOR_CONFIG_FULL_PATH,
         plugin_files: List[str] = None,
         client_version: str = None,
+        platform: str = None,
+
     ):
         """
         :param build_dir: a directory holding all the artifacts to build an image.
@@ -624,6 +626,7 @@ class DockerBuildWorkflow(object):
         """
         self.build_dir = build_dir
         self.data = data or ImageBuildWorkflowData()
+        self.platform = platform
 
         self.source = source or DummySource(None, None)
         self.plugins = plugins or PluginsDef()

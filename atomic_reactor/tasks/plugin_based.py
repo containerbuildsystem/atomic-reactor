@@ -44,6 +44,7 @@ class PluginBasedTask(common.Task):
             plugins=self.plugins_def,
             user_params=self._params.user_params,
             reactor_config_path=self._params.config_file,
+            platform=getattr(self._params, 'platform', None),
         )
 
         try:
