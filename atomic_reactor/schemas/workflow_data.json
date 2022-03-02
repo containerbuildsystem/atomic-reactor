@@ -154,7 +154,7 @@
       "additionalProperties": false
     },
     "build_result": {
-      "type": "object",
+      "type": ["object", "null"],
       "properties": {
         "__type__": {"type": "string"},
         "logs": {

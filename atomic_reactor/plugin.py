@@ -280,8 +280,7 @@ class PluginsRunner(object):
                 plugin_response = plugin_instance.run()
                 plugin_successful = True
                 if buildstep_phase:
-                    assert isinstance(plugin_response, atomic_reactor.inner.BuildResult)
-                    if plugin_response.is_failed():
+                    if plugin_response and plugin_response.is_failed():
                         logger.error("Build step plugin %s failed: %s",
                                      plugin.plugin_class.key,
                                      plugin_response.fail_reason)
