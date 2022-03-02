@@ -1,5 +1,5 @@
 """
-Copyright (c) 2017, 2021 Red Hat, Inc
+Copyright (c) 2017-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -8,6 +8,7 @@ of the BSD license. See the LICENSE file for details.
 import dataclasses
 import functools
 import hashlib
+import os
 from pathlib import Path
 from typing import Iterator, Sequence, Dict
 
@@ -55,6 +56,8 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
         self.allowed_domains = set(domain.lower() for domain in all_allowed_domains or [])
         self.session = None
         self._pnc_util = None
+        self.no_source_artifacts = []
+        self.source_url_to_artifacts = {}
 
     @property
     def pnc_util(self):
@@ -65,17 +68,9 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
             self._pnc_util = PNCUtil(pnc_map)
         return self._pnc_util
 
-    def get_pnc_artifact_ids(self, pnc_requests):
-        artifact_ids = []
-        builds = pnc_requests.get('builds', [])
-
-        for build in builds:
-            for artifact in build['artifacts']:
-                artifact_ids.append(artifact['id'])
-
-        return artifact_ids
-
     def process_by_nvr(self, nvr_requests):
+        # components are metadata about nvr artifacts that we're going to fetch
+        components = []
         download_queue = []
         errors = []
 
@@ -99,6 +94,15 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
                 checksum_type = koji.CHECKSUM_TYPES[build_archive['checksum_type']]
                 checksums = {checksum_type: build_archive['checksum']}
                 download_queue.append(DownloadRequest(url, maven_file_path, checksums))
+                components.append({
+                    'type': 'kojifile',
+                    'filename': build_archive['filename'],
+                    'filesize': build_archive['size'],
+                    'checksum': build_archive['checksum'],
+                    'checksum_type': checksum_type,
+                    'nvr': nvr_request.nvr,
+                    'archive_id': build_archive['id'],
+                })
 
             unmatched_archive_requests = nvr_request.unmatched()
             if unmatched_archive_requests:
@@ -109,10 +113,17 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
         if errors:
             raise ValueError('Errors found while processing {}: {}'
                              .format(REPO_FETCH_ARTIFACTS_KOJI, ', '.join(errors)))
-        return download_queue
+        return components, download_queue
 
     def process_by_url(self, url_requests):
         download_queue = []
+        # we'll capture all source artifacts of url artifacts in a source_download_queue
+        # later on generate_maven_metadata plugin will process this queue to generate
+        # remote source files that are later used in source container build to get sources
+        # of url artifacts.
+        # we have to do this in post build to avoid having source artifacts in build_dir
+        # during binary build
+        source_download_queue = []
         errors = []
 
         for url_request in url_requests:
@@ -132,22 +143,61 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
             target = url_request.get('target', url.rsplit('/', 1)[-1])
             download_queue.append(DownloadRequest(url, target, checksums))
 
+            artifact = {
+                'url': url_request['url'],
+                'checksums': checksums,
+                'filename': os.path.basename(url_request['url'])
+            }
+
+            if 'source-url' not in url_request:
+                self.no_source_artifacts.append(artifact)
+                msg = f"No source-url found for {url_request['url']}.\n"
+                self.log.warning(msg)
+                msg += 'fetch-artifacts-url without source-url is deprecated\n'
+                msg += 'to fix this please provide the source-url according to ' \
+                       'https://osbs.readthedocs.io/en/latest/users.html#fetch-artifacts-url-yaml'
+                self.log.user_warning(msg)
+                continue
+
+            source_url = url_request['source-url']
+
+            checksums = {algo: url_request[('source-' + algo)] for algo in
+                         hashlib.algorithms_guaranteed
+                         if ('source-' + algo) in url_request}
+
+            if source_url not in self.source_url_to_artifacts:
+                self.source_url_to_artifacts[source_url] = [artifact]
+                # source_url will mostly be gerrit URLs that don't have filename
+                #  in the URL itself, so we'll have to get filename from URL response
+                target = os.path.basename(source_url)
+
+                source_download_queue.append(DownloadRequest(source_url, target, checksums))
+            else:
+                self.source_url_to_artifacts[source_url].append(artifact)
+
         if errors:
             raise ValueError('Errors found while processing {}: {}'
                              .format(REPO_FETCH_ARTIFACTS_URL, ', '.join(errors)))
 
-        return download_queue
+        return download_queue, source_download_queue
 
     def process_pnc_requests(self, pnc_requests):
         download_queue = []
+        artifact_ids = []
         builds = pnc_requests.get('builds', [])
+        if builds:
+            pnc_build_metadata = {'builds': []}
+        else:
+            pnc_build_metadata = {}
 
         for build in builds:
+            pnc_build_metadata['builds'].append({'id': build['build_id']})
             for artifact in build['artifacts']:
+                artifact_ids.append(artifact['id'])
                 url, checksums = self.pnc_util.get_artifact(artifact['id'])
                 download_queue.append(DownloadRequest(url, artifact['target'], checksums))
 
-        return download_queue
+        return artifact_ids, download_queue, pnc_build_metadata
 
     def download_files(
         self, downloads: Sequence[DownloadRequest], build_dir: BuildDir
@@ -185,16 +235,22 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
         pnc_requests = util.read_fetch_artifacts_pnc(self.workflow) or {}
         url_requests = util.read_fetch_artifacts_url(self.workflow) or []
 
-        download_queue = (self.process_by_nvr(nvr_requests) +
-                          self.process_pnc_requests(pnc_requests) +
-                          self.process_by_url(url_requests))
+        components, nvr_download_queue = self.process_by_nvr(nvr_requests)
+        url_download_queue, source_download_queue = self.process_by_url(url_requests)
+        pnc_artifact_ids, pnc_download_queue, pnc_build_metadata = self.process_pnc_requests(
+            pnc_requests)
+
+        download_queue = pnc_download_queue + nvr_download_queue + url_download_queue
 
         download_to_build_dir = functools.partial(self.download_files, download_queue)
         self.workflow.build_dir.for_all_platforms_copy(download_to_build_dir)
 
-        pnc_artifact_ids = self.get_pnc_artifact_ids(pnc_requests)
-
         return {
+            'components': components,
             'download_queue': [dataclasses.asdict(download) for download in download_queue],
+            'no_source': self.no_source_artifacts,
             'pnc_artifact_ids': pnc_artifact_ids,
+            'pnc_build_metadata': pnc_build_metadata,
+            'source_download_queue': source_download_queue,
+            'source_url_to_artifacts': self.source_url_to_artifacts,
         }

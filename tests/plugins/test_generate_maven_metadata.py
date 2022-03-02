@@ -1,154 +1,25 @@
 """
-Copyright (c) 2021 Red Hat, Inc
+Copyright (c) 2021-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
-import json
-from pathlib import Path
+import hashlib
+import os
 from textwrap import dedent
 
-import koji
 import pytest
 import responses
-import yaml
-from flexmock import flexmock
 
-from atomic_reactor.constants import (REPO_FETCH_ARTIFACTS_KOJI,
-                                      REPO_FETCH_ARTIFACTS_PNC, DOCKERFILE_FILENAME)
-from atomic_reactor.constants import REPO_FETCH_ARTIFACTS_URL
+from atomic_reactor.constants import PLUGIN_FETCH_MAVEN_KEY
 from atomic_reactor.plugin import PluginFailedException
-from atomic_reactor.plugins.post_generate_maven_metadata import GenerateMavenMetadataPlugin
+from atomic_reactor.plugins.post_generate_maven_metadata import GenerateMavenMetadataPlugin, \
+    DownloadRequest
 from tests.mock_env import MockEnv
-
-KOJI_HUB = 'https://koji-hub.com'
-KOJI_ROOT = 'https://koji-root.com'
 
 FILER_ROOT_DOMAIN = 'filer.com'
 FILER_ROOT = 'https://' + FILER_ROOT_DOMAIN
-PNC_ROOT = 'https://pnc-root.com'
-
-DEFAULT_KOJI_BUILD_ID = 472397
-
-DEFAULT_KOJI_BUILD = {
-    'build_id': DEFAULT_KOJI_BUILD_ID,
-    'id': DEFAULT_KOJI_BUILD_ID,
-    'name': 'com.sun.xml.bind.mvn-jaxb-parent',
-    'nvr': 'com.sun.xml.bind.mvn-jaxb-parent-2.2.11.4-1',
-    'release': '1',
-    'version': '2.2.11.4',
-}
-
-ARCHIVE_JAXB_SUN_POM = {
-    'artifact_id': 'jaxb-core',
-    'build_id': 472397,
-    'checksum': '697317209103338c7c841e327bb6e7b0',
-    'checksum_type': koji.CHECKSUM_TYPES['md5'],
-    'filename': 'jaxb-core-2.2.11-4.pom',
-    'group_id': 'com.sun.xml.bind',
-    'id': 1269850,
-    'size': 15320,
-    'version': '2.2.11-4'
-}
-
-ARCHIVE_JAXB_SUN_JAR = {
-    'artifact_id': 'jaxb-core',
-    'build_id': 472397,
-    'checksum': '06bae6472e3d1635f0c3b79bd314fdf3',
-    'checksum_type': koji.CHECKSUM_TYPES['md5'],
-    'filename': 'jaxb-core-2.2.11-4.jar',
-    'group_id': 'com.sun.xml.bind',
-    'id': 1269849,
-    'size': 252461,
-    'version': '2.2.11-4'
-}
-
-ARCHIVE_JAXB_JAVADOC_SUN_JAR = {
-    'artifact_id': 'jaxb-core',
-    'build_id': 472397,
-    'checksum': '3643ba275364b29117f2bc5f0bcf18d9',
-    'checksum_type': koji.CHECKSUM_TYPES['md5'],
-    'filename': 'jaxb-core-2.2.11-4-javadoc.jar',
-    'group_id': 'com.sun.xml.bind',
-    'id': 1269848,
-    'size': 819956,
-    'version': '2.2.11-4'
-}
-
-ARCHIVE_JAXB_GLASSFISH_POM = {
-    'artifact_id': 'jaxb-core',
-    'build_id': 472397,
-    'checksum': 'cc7b7a4d1c33d83fba9adf95226af570',
-    'checksum_type': koji.CHECKSUM_TYPES['md5'],
-    'filename': 'jaxb-core-2.2.11-4.pom',
-    'group_id': 'org.glassfish.jaxb',
-    'id': 1269791,
-    'size': 3092,
-    'version': '2.2.11-4'
-}
-
-ARCHIVE_JAXB_GLASSFISH_JAR = {
-    'artifact_id': 'jaxb-core',
-    'build_id': 472397,
-    'checksum': '2ba4912b1a3c699b09ec99e19820fb09',
-    'checksum_type': koji.CHECKSUM_TYPES['md5'],
-    'filename': 'jaxb-core-2.2.11-4.jar',
-    'group_id': 'org.glassfish.jaxb',
-    'id': 1269790,
-    'size': 156400,
-    'version': '2.2.11-4'
-}
-
-ARCHIVE_JAXB_JAVADOC_GLASSFIX_JAR = {
-    'artifact_id': 'jaxb-core',
-    'build_id': 472397,
-    'checksum': '69bc6de0a57dd10c7370573a8e76f0b2',
-    'checksum_type': koji.CHECKSUM_TYPES['md5'],
-    'filename': 'jaxb-core-2.2.11-4-javadoc.jar',
-    'group_id': 'org.glassfish.jaxb',
-    'id': 1269789,
-    'size': 524417,
-    'version': '2.2.11-4'
-}
-
-ARCHIVE_SHA1 = {
-    'artifact_id': 'jaxb-sha1',
-    'build_id': 472397,
-    'checksum': '66bd6b88ba636993ad0fd522cc1254c9ff5f5a1c',
-    'checksum_type': koji.CHECKSUM_TYPES['sha1'],
-    'filename': 'jaxb-core-2.2.11-4-sha1.jar',
-    'group_id': 'org.glassfish.jaxb.sha1',
-    'id': 1269792,
-    'size': 524417,
-    'version': '2.2.11-4'
-}
-
-ARCHIVE_SHA256 = {
-    'artifact_id': 'jaxb-sha256',
-    'build_id': 472397,
-    'checksum': 'ca52bcbda16954c9e83e4c0049277ac77f014ecc16a94ed92bc3203fa13aac7d',
-    'checksum_type': koji.CHECKSUM_TYPES['sha256'],
-    'filename': 'jaxb-core-2.2.11-4-sha256.jar',
-    'group_id': 'org.glassfish.jaxb.sha256',
-    'id': 1269792,
-    'size': 524417,
-    'version': '2.2.11-4'
-}
-
-# To avoid having to actually download archives during testing,
-# the checksum value is based on the mocked download response,
-# which is simply the "filename" and "group_id" values.
-DEFAULT_ARCHIVES = [
-    ARCHIVE_JAXB_SUN_POM,
-    ARCHIVE_JAXB_SUN_JAR,
-    ARCHIVE_JAXB_JAVADOC_SUN_JAR,
-    ARCHIVE_JAXB_GLASSFISH_POM,
-    ARCHIVE_JAXB_GLASSFISH_JAR,
-    ARCHIVE_JAXB_JAVADOC_GLASSFIX_JAR,
-    ARCHIVE_SHA1,
-    ARCHIVE_SHA256,
-]
 
 REMOTE_FILE_SPAM = {
     'url': FILER_ROOT + '/spam/spam.jar',
@@ -203,229 +74,39 @@ REMOTE_FILE_MULTI_HASH = {
 DEFAULT_REMOTE_FILES = [REMOTE_FILE_SPAM, REMOTE_FILE_BACON, REMOTE_FILE_WITH_TARGET,
                         REMOTE_FILE_SHA1, REMOTE_FILE_SHA256, REMOTE_FILE_MULTI_HASH]
 
-ARTIFACT_MD5 = {
-    'build_id': '12',
-    'artifacts': [
-        {
-            'id': '122',
-            'target': 'md5.jar'
-        }
-    ]
-}
 
-ARTIFACT_SHA1 = {
-    'build_id': '12',
-    'artifacts': [
-        {
-            'id': '123',
-            'target': 'sha1.jar'
-        }
-    ]
-}
-
-ARTIFACT_SHA256 = {
-    'build_id': '12',
-    'artifacts': [
-        {
-            'id': '124',
-            'target': 'sha256.jar'
-        }
-    ]
-}
-
-ARTIFACT_MULTI_HASH = {
-    'build_id': '12',
-    'artifacts': [
-        {
-            'id': '125',
-            'target': 'multi-hash.jar'
-        }
-    ]
-}
-
-RESPONSE_MD5 = {
-    'id': '122',
-    'publicUrl': FILER_ROOT + '/md5.jar',
-    'md5': '900150983cd24fb0d6963f7d28e17f72'
-}
-
-RESPONSE_SHA1 = {
-    'id': '123',
-    'publicUrl': FILER_ROOT + '/sha1.jar',
-    'sha1': 'a9993e364706816aba3e25717850c26c9cd0d89d'
-}
-
-RESPONSE_SHA256 = {
-    'id': '124',
-    'publicUrl': FILER_ROOT + '/sha256.jar',
-    'sha256': 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'
-}
-
-RESPONSE_MULTI_HASH = {
-    'id': '125',
-    'publicUrl': FILER_ROOT + '/multi-hash.jar',
-    'sha256': 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
-    'sha1': 'a9993e364706816aba3e25717850c26c9cd0d89d',
-    'md5': '900150983cd24fb0d6963f7d28e17f72'
-}
-
-DEFAULT_PNC_ARTIFACTS = {'builds': [ARTIFACT_MD5, ARTIFACT_SHA1, ARTIFACT_SHA256,
-                                    ARTIFACT_MULTI_HASH]}
-
-DEFAULT_PNC_RESPONSES = {
-    RESPONSE_MD5['id']: RESPONSE_MD5,
-    RESPONSE_SHA1['id']: RESPONSE_SHA1,
-    RESPONSE_SHA256['id']: RESPONSE_SHA256,
-    RESPONSE_MULTI_HASH['id']: RESPONSE_MULTI_HASH
-}
-
-
-class MockSource(object):
-    def __init__(self, source_dir: Path):
-        self.dockerfile_path = str(source_dir / DOCKERFILE_FILENAME)
-        self.path = str(source_dir)
-
-    def get_build_file_path(self):
-        return self.dockerfile_path, self.path
-
-
-class MockedPathInfo(object):
-    def __init__(self, topdir=None):
-        self.topdir = topdir
-
-    def mavenbuild(self, build):
-        return '{topdir}/packages/{name}/{version}/{release}/maven'.format(topdir=self.topdir,
-                                                                           **build)
-
-    def mavenfile(self, maveninfo):
-        return '{group_id}/{artifact_id}/{version}/{filename}'.format(**maveninfo)
-
-
-def mock_env(workflow, source_dir: Path):
+def mock_env(workflow):
     r_c_m = {'version': 1,
-             'koji': {
-                 'hub_url': KOJI_HUB,
-                 'root_url': KOJI_ROOT,
-                 'auth': {}
-             }}
+             'koji': {}}
 
     env = (MockEnv(workflow)
            .for_plugin('postbuild', GenerateMavenMetadataPlugin.key)
            .make_orchestrator()
            .set_reactor_config(r_c_m))
 
-    env.workflow.source = MockSource(source_dir)
+    workflow.build_dir.init_build_dirs(["aarch64", "x86_64"], workflow.source)
 
     return env
 
 
-def mock_koji_session(koji_proxyuser=None, koji_ssl_certs_dir=None,
-                      koji_krb_principal=None, koji_krb_keytab=None,
-                      build_info=None, archives=None):
-    if not build_info:
-        build_info = DEFAULT_KOJI_BUILD
-    if not archives:
-        archives = DEFAULT_ARCHIVES
-
-    flexmock(koji, PathInfo=MockedPathInfo)
-
-    session = flexmock()
-
-    (flexmock(koji)
-     .should_receive('ClientSession')
-     .once()
-     .and_return(session))
-
-    def mock_get_build(nvr):
-        if nvr == DEFAULT_KOJI_BUILD['nvr']:
-            return DEFAULT_KOJI_BUILD
-        else:
-            return None
-
-    (session
-     .should_receive('getBuild')
-     .replace_with(mock_get_build))
-
-    (session
-     .should_receive('listArchives')
-     .and_return(archives))
-
-    (session
-     .should_receive('krb_login')
-     .and_return(True))
-    return session
-
-
-def mock_fetch_artifacts_by_nvr(source_dir: Path, contents=None):
-    if contents is None:
-        contents = dedent("""\
-            - nvr: com.sun.xml.bind.mvn-jaxb-parent-2.2.11.4-1
-            """)
-
-    source_dir.joinpath(REPO_FETCH_ARTIFACTS_KOJI).write_text(contents, 'utf-8')
-
-
-def mock_nvr_downloads(build_info=None, archives=None, overrides=None):
-    if not build_info:
-        build_info = DEFAULT_KOJI_BUILD
-    if not archives:
-        archives = DEFAULT_ARCHIVES
-    if not overrides:
-        overrides = {}
-
-    pi = koji.PathInfo(topdir=KOJI_ROOT)
-
-    for archive in archives:
-        url = pi.mavenbuild(build_info) + '/' + pi.mavenfile(archive)
-        # Use any overrides for this archive ID
-        archive_overrides = overrides.get(archive['id'], {})
-        status = archive_overrides.get('status', 200)
-        body = archive_overrides.get('body', archive['filename'] + archive['group_id'])
-        responses.add(responses.GET, url, body=body, status=status)
-
-
-def mock_pnc_downloads(contents=None, pnc_responses=None, overrides=None):
-    if not contents:
-        contents = DEFAULT_PNC_ARTIFACTS
-    if not pnc_responses:
-        pnc_responses = DEFAULT_PNC_RESPONSES
-    if not overrides:
-        overrides = {}
-
-    builds = contents['builds']
-    # Use any overrides for these builds
-    pnc_artifacts_overrides = overrides.get('builds', {})
-    for build in builds:
-        for artifact in build['artifacts']:
-            api_url = PNC_ROOT + '/artifacts/{}'.format(artifact['id'])
-            body = pnc_artifacts_overrides.get('body', b'abc')
-            status = pnc_artifacts_overrides.get('status', 200)
-            responses.add(responses.GET, api_url, body=json.dumps(pnc_responses[artifact['id']]),
-                          status=status)
-            responses.add(responses.GET, pnc_responses[artifact['id']]['publicUrl'], body=body,
-                          status=status)
-
-
-def mock_fetch_artifacts_from_pnc(source_dir: Path, contents=None):
-    if contents is None:
-        contents = yaml.safe_dump(DEFAULT_PNC_ARTIFACTS)
-    source_dir.joinpath(REPO_FETCH_ARTIFACTS_PNC).write_text(contents, "utf-8")
-
-
-def mock_fetch_artifacts_by_url(source_dir: Path, contents=None):
-    if not contents:
-        contents = yaml.safe_dump(DEFAULT_REMOTE_FILES)
-
-    source_dir.joinpath(REPO_FETCH_ARTIFACTS_URL).write_text(contents, 'utf-8')
-
-
-def mock_url_downloads(remote_files=None, overrides=None):
-    if not remote_files:
+def mock_source_download_queue(workflow_data, remote_files=None, overrides=None):
+    if remote_files is None:
         remote_files = DEFAULT_REMOTE_FILES
     if not overrides:
         overrides = {}
 
+    source_download_queue = []
+    source_url_to_artifacts = {}
+
     for remote_file in remote_files:
+        checksums = {algo: remote_file[(algo)] for algo in
+                     hashlib.algorithms_guaranteed
+                     if algo in remote_file}
+        artifact = {
+            'url': remote_file['url'],
+            'checksums': checksums,
+            'filename': os.path.basename(remote_file['url'])
+        }
         url = remote_file['source-url']
         # Use any overrides for this url
         remote_file_overrides = overrides.get(url, {})
@@ -438,45 +119,30 @@ def mock_url_downloads(remote_files=None, overrides=None):
                           headers=headers)
         responses.add(responses.GET, url, body=body, status=status,
                       headers=headers)
+        checksums = {algo: remote_file[('source-' + algo)] for algo in
+                     hashlib.algorithms_guaranteed
+                     if ('source-' + algo) in remote_file}
+        target = os.path.basename(url)
+        source_download_queue.append(DownloadRequest(url, target, checksums))
+        if url not in source_url_to_artifacts:
+            source_url_to_artifacts[url] = [artifact]
+        else:
+            source_url_to_artifacts[url].append(artifact)
+    workflow_data.prebuild_results[PLUGIN_FETCH_MAVEN_KEY] = {'source_download_queue':
+                                                              source_download_queue,
+                                                              'source_url_to_artifacts':
+                                                              source_url_to_artifacts}
 
 
 @responses.activate
 def test_generate_maven_metadata(workflow, source_dir):
-    mock_koji_session()
-    mock_fetch_artifacts_by_nvr(source_dir)
-    mock_nvr_downloads()
-    mock_fetch_artifacts_from_pnc(source_dir)
-    mock_pnc_downloads()
-    mock_fetch_artifacts_by_url(source_dir)
-    mock_url_downloads()
+    mock_source_download_queue(workflow.data)
 
-    results = mock_env(workflow, source_dir).create_runner().run()
+    results = mock_env(workflow).create_runner().run()
 
     plugin_result = results[GenerateMavenMetadataPlugin.key]
 
-    assert len(plugin_result.get('components')) == len(DEFAULT_ARCHIVES)
-
-    components = {(component['filename'], component['checksum'], component['checksum_type'])
-                  for component in plugin_result.get('components')}
     remote_source_files = plugin_result.get('remote_source_files')
-
-    for archive in DEFAULT_ARCHIVES:
-        assert (archive['filename'], archive['checksum'],
-                koji.CHECKSUM_TYPES[archive['checksum_type']]) in components
-
-    expected_build_ids = set()
-    builds = DEFAULT_PNC_ARTIFACTS['builds']
-    for build in builds:
-        expected_build_ids.add(build['build_id'])
-
-    assert 'pnc_build_metadata' in plugin_result
-    assert 'builds' in plugin_result['pnc_build_metadata']
-
-    found_build_ids = set()
-    for build in plugin_result['pnc_build_metadata']['builds']:
-        found_build_ids.add(build['id'])
-
-    assert expected_build_ids == found_build_ids
 
     for remote_source_file in remote_source_files:
         assert source_dir.joinpath(
@@ -491,29 +157,26 @@ def test_generate_maven_metadata(workflow, source_dir):
         """),
 ))
 @responses.activate
-def test_generate_maven_metadata_no_source_url(
-    workflow, source_dir, caplog, contents
+def test_generate_maven_metadata_no_source_download_queue(
+        workflow, source_dir, caplog, contents
 ):
     """Throw deprecation warning when no source-url is provided"""
-    mock_koji_session()
-    mock_fetch_artifacts_by_url(source_dir, contents=contents)
-    mock_url_downloads()
+    mock_source_download_queue(workflow.data, remote_files=[])
 
-    mock_env(workflow, source_dir).create_runner().run()
+    mock_env(workflow).create_runner().run()
 
-    msg = 'fetch-artifacts-url without source-url is deprecated'
+    msg = '0 url source files to download'
     assert msg in caplog.text
 
 
 @responses.activate
 def test_generate_maven_metadata_url_bad_checksum(workflow, source_dir):
     """Err when downloaded archive from URL has unexpected checksum."""
-    mock_koji_session()
-    mock_fetch_artifacts_by_url(source_dir)
-    mock_url_downloads(overrides={REMOTE_FILE_SPAM['source-url']: {'body': 'corrupted-file'}})
+    mock_source_download_queue(workflow.data, overrides={REMOTE_FILE_SPAM['source-url']:
+                                                         {'body': 'corrupted-file'}})
 
     with pytest.raises(PluginFailedException) as e:
-        mock_env(workflow, source_dir).create_runner().run()
+        mock_env(workflow).create_runner().run()
 
     assert 'does not match expected checksum' in str(e.value)
 
@@ -523,17 +186,15 @@ def test_generate_maven_metadata_source_url_no_headers(workflow, source_dir):
     """
     Err if headers are not present.
     """
-    mock_koji_session()
     remote_file = {'url': FILER_ROOT + '/eggs/eggs.jar',
                    'source-url': FILER_ROOT + '/eggs/eggs-sources.tar;a=snapshot;sf=tgz',
                    'md5': 'b1605c846e03035a6538873e993847e5',
                    'source-md5': '927c5b0c62a57921978de1a0421247ea'}
-    mock_fetch_artifacts_by_url(source_dir, contents=yaml.safe_dump([remote_file]))
-    mock_url_downloads(remote_files=[remote_file],
-                       overrides={remote_file['source-url']: {'head': True}})
+    mock_source_download_queue(workflow.data, remote_files=[remote_file],
+                               overrides={remote_file['source-url']: {'head': True}})
 
     with pytest.raises(PluginFailedException) as e:
-        mock_env(workflow, source_dir).create_runner().run()
+        mock_env(workflow).create_runner().run()
 
     assert 'AttributeError' in str(e.value)
 
@@ -543,18 +204,16 @@ def test_generate_maven_metadata_source_url_no_filename_in_headers(workflow, sou
     """
     Err if filename not present in content-disposition.
     """
-    mock_koji_session()
     remote_file = {'url': FILER_ROOT + '/eggs/eggs.jar',
                    'source-url': FILER_ROOT + '/eggs/eggs-sources.tar;a=snapshot;sf=tgz',
                    'md5': 'b1605c846e03035a6538873e993847e5',
                    'source-md5': '418ddd911e816c41483ef82f7c93c2e3'}
-    mock_fetch_artifacts_by_url(source_dir, contents=yaml.safe_dump([remote_file]))
-    mock_url_downloads(remote_files=[remote_file],
-                       overrides={remote_file['source-url']:
-                                  {'headers': {'Content-disposition': 'no filename'},
-                                   'head': True}})
+    mock_source_download_queue(workflow.data, remote_files=[remote_file],
+                               overrides={remote_file['source-url']:
+                                          {'headers': {'Content-disposition': 'no filename'},
+                                          'head': True}})
 
     with pytest.raises(PluginFailedException) as e:
-        mock_env(workflow, source_dir).create_runner().run()
+        mock_env(workflow).create_runner().run()
 
     assert 'IndexError' in str(e.value)

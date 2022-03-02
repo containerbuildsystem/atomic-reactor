@@ -1,5 +1,5 @@
 """
-Copyright (c) 2017, 2019 Red Hat, Inc
+Copyright (c) 2017-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -157,21 +157,28 @@ REMOTE_FILE_SPAM = {
     'url': FILER_ROOT + '/spam/spam.jar',
     'source-url': FILER_ROOT + '/spam/spam-sources.tar',
     'md5': 'ec61f019a3d0826c04ab20c55462aa24',
-    'source-md5': 'b4dbaf349d175aa5bbd5c5d076c00393',
+    'source-md5': '5d1ab5ae2a84b0f910a0ec549fd9e22b',
+}
+
+REMOTE_FILE_SPAM_2 = {
+    'url': FILER_ROOT + '/spam/spam.pom',
+    'source-url': FILER_ROOT + '/spam/spam-sources.tar',
+    'md5': '75870ae1c44e9220243f615d1ca1b138',
+    'source-md5': '5d1ab5ae2a84b0f910a0ec549fd9e22b',
 }
 
 REMOTE_FILE_BACON = {
     'url': FILER_ROOT + '/bacon/bacon.jar',
     'source-url': FILER_ROOT + '/bacon/bacon-sources.tar',
     'md5': 'b4dbaf349d175aa5bbd5c5d076c00393',
-    'source-md5': 'b1605c846e03035a6538873e993847e5',
+    'source-md5': '0e31f498696b22bcf11cab31576d9bb7',
 }
 
 REMOTE_FILE_WITH_TARGET = {
     'url': FILER_ROOT + '/eggs/eggs.jar',
     'source-url': FILER_ROOT + '/eggs/eggs-sources.tar',
     'md5': 'b1605c846e03035a6538873e993847e5',
-    'source-md5': 'ec61f019a3d0826c04ab20c55462aa24',
+    'source-md5': '927c5b0c62a57921978de1a0421247ea',
     'target': 'sgge.jar'
 }
 
@@ -179,32 +186,33 @@ REMOTE_FILE_SHA1 = {
     'url': FILER_ROOT + '/ham/ham.jar',
     'source-url': FILER_ROOT + '/ham/ham-sources.tar',
     'sha1': 'c4f8d66d78f5ed17299ae88fed9f8a8c6f3c592a',
-    'source-sha1': '0eb3dc253aeda45e272f07cf6e77fcc8bcf6628a',
+    'source-sha1': '81a7a10a48f3ca1bc6c3430f3ace043c864e5d68',
 }
 
 REMOTE_FILE_SHA256 = {
     'url': FILER_ROOT + '/sausage/sausage.jar',
     'source-url': FILER_ROOT + '/sausage/sausage-sources.tar',
     'sha256': '0da8e7df6c45b1006b10e4d0df5e1a8d5c4dc17c2c9c0ab53c5714dadb705d1c',
-    'source-sha256': '05892a95a8257a6c51a5ee4ba122e14e9719d7ead3b1d44e7fbea604da2fc8d1'
+    'source-sha256': '808418d3698d00655f71070150350974cdadf823ba2c490c5e254284fc91a1e9'
 }
 
 REMOTE_FILE_MULTI_HASH = {
     'url': FILER_ROOT + '/biscuit/biscuit.jar',
     'source-url': FILER_ROOT + '/biscuit/biscuit-sources.tar',
     'sha256': '05892a95a8257a6c51a5ee4ba122e14e9719d7ead3b1d44e7fbea604da2fc8d1',
-    'source-sha256': '0da8e7df6c45b1006b10e4d0df5e1a8d5c4dc17c2c9c0ab53c5714dadb705d1c',
+    'source-sha256': '8c97cd43d4cb77ad7a79d98da57d230bd3ba8b8d8ac0a4c893b0ea0805c1b18c',
     'sha1': '0eb3dc253aeda45e272f07cf6e77fcc8bcf6628a',
-    'source-sha1': 'c4f8d66d78f5ed17299ae88fed9f8a8c6f3c592a',
+    'source-sha1': 'db3a28795e81067dd986aa1e99ea93fbec7a3e58',
     'md5': '24e4dec8666658ec7141738dbde951c5',
-    'source-md5': 'b1605c846e03035a6538873e993847e5',
+    'source-md5': 'a922c6156ce64ae792f994228cb06304',
 }
 
 # To avoid having to actually download archives during testing,
 # the md5 value is based on the mocked download response,
 # which is simply the url.
-DEFAULT_REMOTE_FILES = [REMOTE_FILE_SPAM, REMOTE_FILE_BACON, REMOTE_FILE_WITH_TARGET,
-                        REMOTE_FILE_SHA1, REMOTE_FILE_SHA256, REMOTE_FILE_MULTI_HASH]
+DEFAULT_REMOTE_FILES = [REMOTE_FILE_SPAM, REMOTE_FILE_SPAM_2, REMOTE_FILE_BACON,
+                        REMOTE_FILE_WITH_TARGET, REMOTE_FILE_SHA1, REMOTE_FILE_SHA256,
+                        REMOTE_FILE_MULTI_HASH]
 
 ARTIFACT_MD5 = {
     'build_id': '12',
@@ -350,6 +358,7 @@ def mock_koji_session(koji_proxyuser=None, koji_ssl_certs_dir=None,
             return DEFAULT_KOJI_BUILD
         else:
             return None
+
     (session
         .should_receive('getBuild')
         .replace_with(mock_get_build))
@@ -414,11 +423,20 @@ def mock_url_downloads(remote_files=None, overrides=None):
 
     for remote_file in remote_files:
         url = remote_file['url']
+        source_url = remote_file['source-url']
         # Use any overrides for this url
         remote_file_overrides = overrides.get(url, {})
         body = remote_file_overrides.get('body', url)
         status = remote_file_overrides.get('status', 200)
         responses.add(responses.GET, url, body=body, status=status)
+        headers = remote_file_overrides.get('headers', {})
+        head = remote_file_overrides.get('head', False)
+        source_body = remote_file_overrides.get('body', source_url)
+        if head:
+            responses.add(responses.HEAD, source_url, body='', status=status,
+                          headers=headers)
+        responses.add(responses.GET, source_url, body=source_body, status=status,
+                      headers=headers)
 
 
 def mock_pnc_downloads(contents=None, pnc_responses=None, overrides=None):
@@ -478,6 +496,29 @@ def test_fetch_maven_artifacts(workflow, source_path):
     assert len(plugin_result['pnc_artifact_ids']) == len(DEFAULT_PNC_ARTIFACTS['builds'])
 
     workflow.build_dir.for_each_platform(check_downloads_exist(plugin_result))
+
+    assert len(plugin_result.get('components')) == len(DEFAULT_ARCHIVES)
+
+    components = {(component['filename'], component['checksum'], component['checksum_type'])
+                  for component in plugin_result.get('components')}
+
+    for archive in DEFAULT_ARCHIVES:
+        assert (archive['filename'], archive['checksum'],
+                koji.CHECKSUM_TYPES[archive['checksum_type']]) in components
+
+    expected_build_ids = set()
+    builds = DEFAULT_PNC_ARTIFACTS['builds']
+    for build in builds:
+        expected_build_ids.add(build['build_id'])
+
+    assert 'pnc_build_metadata' in plugin_result
+    assert 'builds' in plugin_result['pnc_build_metadata']
+
+    found_build_ids = set()
+    for build in plugin_result['pnc_build_metadata']['builds']:
+        found_build_ids.add(build['id'])
+
+    assert expected_build_ids == found_build_ids
 
 
 @pytest.mark.parametrize(('nvr_requests', 'expected'), (  # noqa
@@ -850,6 +891,28 @@ def test_fetch_maven_artifacts_url_allowed_domains(workflow, source_path, domain
         results = runner.run()
         plugin_result = results[FetchMavenArtifactsPlugin.key]
         workflow.build_dir.for_each_platform(check_downloads_exist(plugin_result))
+
+
+@pytest.mark.parametrize('contents', (
+    dedent("""\
+    - url: no source url
+      md5: cac3a36cfefd5baced859ac3cd9e2329
+    """),
+))
+@responses.activate
+def test_fetch_maven_artifacts_no_source_url(
+    workflow, source_path, caplog, contents
+):
+    """Throw deprecation warning when no source-url is provided"""
+    mock_koji_session()
+    mock_fetch_artifacts_by_url(source_path, contents=contents)
+    mock_url_downloads()
+
+    with pytest.raises(PluginFailedException):
+        mock_env(workflow).create_runner().run()
+
+    msg = 'fetch-artifacts-url without source-url is deprecated'
+    assert msg in caplog.text
 
 
 @responses.activate  # noqa
