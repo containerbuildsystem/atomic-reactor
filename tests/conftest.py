@@ -67,11 +67,8 @@ def user_params(monkeypatch):
 
 
 @pytest.fixture
-def workflow(build_dir, source_dir, user_params):
-    return DockerBuildWorkflow(
-        build_dir=RootBuildDir(build_dir),
-        source=DummySource(None, None, workdir=source_dir),
-    )
+def workflow(build_dir, dummy_source, user_params):
+    return DockerBuildWorkflow(build_dir=RootBuildDir(build_dir), source=dummy_source)
 
 
 @pytest.mark.optionalhook
@@ -95,6 +92,11 @@ def source_dir(tmpdir):
     The directory holding source files and can be passed to the mock Source object.
     """
     return Path(tmpdir.join("source_dir").mkdir())
+
+
+@pytest.fixture
+def dummy_source(source_dir):
+    return DummySource(None, None, workdir=source_dir)
 
 
 @pytest.fixture

@@ -16,7 +16,6 @@ import pytest
 
 from atomic_reactor.inner import ImageBuildWorkflowData, BuildResult
 from atomic_reactor.plugin import BuildCanceledException
-from atomic_reactor.source import DummySource
 from atomic_reactor.tasks.common import TaskParams
 from atomic_reactor.util import DockerfileImages
 from osbs.exceptions import OsbsValidationException
@@ -50,7 +49,7 @@ class TestPluginBasedTask:
     """Tests for the PluginBasedTask class"""
 
     @pytest.fixture
-    def task_with_mocked_deps(self, monkeypatch, build_dir, tmpdir):
+    def task_with_mocked_deps(self, monkeypatch, build_dir, dummy_source, tmpdir):
         """Create a PluginBasedTask instance with mocked task parameters.
 
         Mock DockerBuildWorkflow accordingly. Return the mocked workflow instance for further
@@ -62,7 +61,7 @@ class TestPluginBasedTask:
                                  user_params={"a": "b"},
                                  config_file="config.yaml")
 
-        expect_source = DummySource("git", "https://git.host/", workdir=build_dir)
+        expect_source = dummy_source
         (flexmock(task_params)
          .should_receive("source")
          .and_return(expect_source))
@@ -142,7 +141,7 @@ class TestPluginBasedTask:
     ["normal_return", "error_raised", "failed", "terminated"]
 )
 def test_ensure_workflow_data_is_saved_in_various_conditions(
-    build_result, build_dir, tmpdir
+    build_result, build_dir, dummy_source, tmpdir
 ):
     context_dir = tmpdir.join("context_dir").mkdir()
     params = TaskParams(build_dir=str(build_dir),
@@ -151,7 +150,7 @@ def test_ensure_workflow_data_is_saved_in_various_conditions(
                         user_params={})
     (flexmock(params)
      .should_receive("source")
-     .and_return(DummySource("git", "https://git.host/")))
+     .and_return(dummy_source))
 
     task = plugin_based.PluginBasedTask(params)
 
@@ -212,7 +211,7 @@ def test_ensure_workflow_data_is_saved_in_various_conditions(
     assert {} == wf_data.prebuild_results
 
 
-def test_workflow_data_is_restored_before_starting_to_build(build_dir, tmpdir):
+def test_workflow_data_is_restored_before_starting_to_build(build_dir, dummy_source, tmpdir):
     context_dir = tmpdir.join("context_dir").mkdir()
 
     # Write workflow data as it was saved by a previous task
@@ -233,7 +232,7 @@ def test_workflow_data_is_restored_before_starting_to_build(build_dir, tmpdir):
                         user_params={})
     (flexmock(params)
      .should_receive("source")
-     .and_return(DummySource("git", "https://git.host/")))
+     .and_return(dummy_source))
 
     task = plugin_based.PluginBasedTask(params)
 
