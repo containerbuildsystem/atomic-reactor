@@ -9,8 +9,8 @@ of the BSD license. See the LICENSE file for details.
 from dataclasses import dataclass
 from typing import ClassVar
 
+from atomic_reactor import inner
 from atomic_reactor import source
-from atomic_reactor.dirs import RootBuildDir
 from atomic_reactor.tasks import common
 from atomic_reactor.tasks import plugin_based
 
@@ -50,7 +50,12 @@ class SourceBuildTask(plugin_based.PluginBasedTask):
         ],
     )
 
-    def get_build_dir(self) -> RootBuildDir:
-        build_dir = super().get_build_dir()
-        build_dir.init_build_dirs(["noarch"], self._params.source)
-        return build_dir
+    def prepare_workflow(self) -> inner.DockerBuildWorkflow:
+        """After preparing the workflow as usual, fully initialize the root build dir.
+
+        Unlike the binary container container workflow, the platforms to be used for the build
+        are known in advance here (more accurately, source containers do not have a platform).
+        """
+        workflow = super().prepare_workflow()
+        workflow.build_dir.init_build_dirs(["noarch"], self._params.source)
+        return workflow
