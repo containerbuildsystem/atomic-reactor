@@ -195,7 +195,10 @@ class RootBuildDir(object):
         """
         if not self.has_sources:
             raise BuildDirIsNotInitialized()
-        platform: str = self.platforms[0]
+        return self.platform_dir(self.platforms[0])
+
+    def platform_dir(self, platform: str) -> BuildDir:
+        """Get the build directory for the specified platform."""
         return BuildDir(self.path / platform, platform)
 
     def for_each_platform(self, action: Callable[[BuildDir], Any]) -> Dict[str, Any]:
@@ -223,8 +226,7 @@ class RootBuildDir(object):
             raise BuildDirIsNotInitialized()
         results: Dict[str, Any] = {}
         for platform in self.platforms:
-            build_dir = BuildDir(self.path / platform, platform)
-            results[platform] = action(build_dir)
+            results[platform] = action(self.platform_dir(platform))
         return results
 
     def for_all_platforms_copy(self, action: FileCreationFunc) -> List[Path]:
@@ -246,22 +248,21 @@ class RootBuildDir(object):
         if not self.has_sources:
             raise BuildDirIsNotInitialized()
 
-        first_platform: str = self.platforms[0]
-        build_dir = self.path / first_platform
-        created_files = action(BuildDir(build_dir, first_platform))
+        build_dir = self.platform_dir(self.platforms[0])
+        created_files = action(build_dir)
 
         the_new_files: List[Path] = []
         file_path: Path
         for file_path in created_files:
             if not file_path.is_absolute():
-                file_path = build_dir / file_path
+                file_path = build_dir.path / file_path
             file_path = file_path.resolve()
-            if file_path == build_dir:
+            if file_path == build_dir.path:
                 raise ValueError(
                     f"{file_path} should not be added as a created directory."
                 )
             try:
-                file_path.relative_to(build_dir)
+                file_path.relative_to(build_dir.path)
             except ValueError as e:
                 raise ValueError(
                     f"File must be created inside the build directory. "
@@ -275,7 +276,7 @@ class RootBuildDir(object):
 
         for platform in self.platforms[1:]:
             for src_file in the_new_files:
-                dest = self.path / platform / src_file.relative_to(build_dir)
+                dest = self.path / platform / src_file.relative_to(build_dir.path)
                 if src_file.is_dir():
                     copytree(src_file, dest)
                 else:
