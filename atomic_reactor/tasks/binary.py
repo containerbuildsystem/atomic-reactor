@@ -6,15 +6,7 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
-from dataclasses import dataclass
 from atomic_reactor.tasks import plugin_based
-from atomic_reactor.tasks.common import TaskParams
-
-
-@dataclass(frozen=True)
-class BinaryBuildTaskParams(TaskParams):
-    """Binary container build task parameters"""
-    platform: str
 
 
 class BinaryPreBuildTask(plugin_based.PluginBasedTask):
@@ -46,16 +38,6 @@ class BinaryPreBuildTask(plugin_based.PluginBasedTask):
             {"name": "distribution_scope"},
             {"name": "add_buildargs_in_dockerfile"},
             {"name": "tag_from_config"},
-        ],
-    )
-
-
-class BinaryBuildTask(plugin_based.PluginBasedTask):
-    """Binary container build task."""
-
-    plugins_def = plugin_based.PluginsDef(
-        buildstep=[
-            {"name": "binary_container"},
         ],
     )
 
