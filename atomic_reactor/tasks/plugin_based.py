@@ -26,8 +26,8 @@ class PluginBasedTask(common.Task):
     # Override this in subclasses
     plugins_def: PluginsDef = NotImplemented
 
-    def execute(self):
-        """Execute the plugins defined in plugins_def."""
+    def prepare_workflow(self) -> inner.DockerBuildWorkflow:
+        """Fully initialize the workflow instance to be used for running the list of plugins."""
         workflow = inner.DockerBuildWorkflow(
             build_dir=self.get_build_dir(),
             data=self.load_workflow_data(),
@@ -36,6 +36,11 @@ class PluginBasedTask(common.Task):
             user_params=self._params.user_params,
             reactor_config_path=self._params.config_file,
         )
+        return workflow
+
+    def execute(self):
+        """Execute the plugins defined in plugins_def."""
+        workflow = self.prepare_workflow()
 
         try:
             try:
