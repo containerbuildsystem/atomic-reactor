@@ -9,8 +9,14 @@ of the BSD license. See the LICENSE file for details.
 from flexmock import flexmock
 
 from atomic_reactor.cli import task
-from atomic_reactor.tasks import orchestrator, worker, sources, common, binary
-
+from atomic_reactor.tasks import (
+    orchestrator,
+    worker,
+    sources,
+    common,
+    binary,
+    binary_container_build,
+)
 TASK_ARGS = {
     "build_dir": "/build",
     "context_dir": "/context",
@@ -55,7 +61,7 @@ def test_binary_container_prebuild():
 
 
 def test_binary_container_build():
-    mock(binary.BinaryBuildTask)
+    mock(binary_container_build.BinaryBuildTask)
     assert task.binary_container_build(TASK_ARGS) == TASK_RESULT
 
 

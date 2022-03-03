@@ -5,8 +5,8 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
-from atomic_reactor.tasks.binary import BinaryBuildTask, BinaryExitTask, \
-    BinaryPostBuildTask, BinaryPreBuildTask, BinaryBuildTaskParams
+from atomic_reactor.tasks.binary import BinaryExitTask, BinaryPostBuildTask, BinaryPreBuildTask
+from atomic_reactor.tasks.binary_container_build import BinaryBuildTask, BinaryBuildTaskParams
 from atomic_reactor.tasks.clone import CloneTask
 from atomic_reactor.tasks.common import TaskParams
 from atomic_reactor.tasks.orchestrator import OrchestratorTask, OrchestratorTaskParams
