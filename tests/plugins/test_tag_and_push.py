@@ -13,6 +13,8 @@ import random
 import pytest
 import koji as koji
 import osbs
+
+from atomic_reactor.inner import BuildResult
 import atomic_reactor.plugins.post_tag_and_push
 from atomic_reactor.constants import IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
@@ -79,6 +81,12 @@ PUSH_ERROR_LOGS = [
     {"status": "The push refers to a repository [xyz/abc] (len: 1)"},
     {"errorDetail": {"message": "error message detail"}, "error": "error message"},
 ]
+
+
+@pytest.fixture
+def workflow(workflow):
+    workflow.data.build_result = BuildResult()
+    return workflow
 
 
 @pytest.mark.skip(reason="plugin needs rework, should be used just for source container also, "

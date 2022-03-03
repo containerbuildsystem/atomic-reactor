@@ -53,9 +53,7 @@
     "labels": {"type": "object"},
 
     "image_id": {"type": ["string", "null"]},
-    "parent_images_digests": {"type": "object"},
-
-    "build_result": {"$ref": "#/definitions/build_result"}
+    "parent_images_digests": {"type": "object"}
   },
   "required": [
     "dockerfile_images", "tag_conf",
@@ -64,8 +62,7 @@
     "plugins_timestamps", "plugins_durations", "plugins_errors", "build_canceled", "plugin_failed",
     "reserved_build_id", "reserved_token", "koji_source_nvr", "koji_source_source_url", "koji_source_manifest",
     "buildargs", "exported_image_sequence", "files", "image_components", "all_yum_repourls",
-    "annotations", "labels", "image_id", "parent_images_digests",
-    "build_result"
+    "annotations", "labels", "image_id", "parent_images_digests"
   ],
   "additionalProperties": false,
   "definitions": {
@@ -151,33 +148,6 @@
         }
       },
       "required": ["primary_images", "unique_images", "floating_images", "__type__"],
-      "additionalProperties": false
-    },
-    "build_result": {
-      "type": "object",
-      "properties": {
-        "__type__": {"type": "string"},
-        "logs": {
-          "type": ["array", "null"],
-          "items": {"type": "string"}
-        },
-        "fail_reason": {"type": ["string", "null"]},
-        "image_id": {"type": ["string", "null"]},
-        "annotations": {"type": ["object", "null"]},
-        "labels": {"type": ["object", "null"]},
-        "skip_layer_squash": {"type": "boolean"},
-        "source_docker_archive": {"type": ["string", "null"]}
-      },
-      "required": [
-        "logs",
-        "fail_reason",
-        "image_id",
-        "annotations",
-        "labels",
-        "skip_layer_squash",
-        "source_docker_archive",
-        "__type__"
-      ],
       "additionalProperties": false
     },
     "manifest_digest": {

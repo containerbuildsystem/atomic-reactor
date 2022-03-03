@@ -464,11 +464,18 @@ class ImageBuildWorkflowData(ISerializer):
     image_id: Optional[str] = None
     parent_images_digests: Dict[str, Dict[str, str]] = field(default_factory=dict)
 
-    build_result: BuildResult = field(init=False)
+    @property
+    def build_result(self) -> Optional[BuildResult]:
+        # OSBS2 TBD: remove this as soon as possible, we should not use BuildResult anymore
+        build_results = list(self.buildstep_result.values())
+        if not build_results:
+            return None
+        return build_results[0]
 
-    def __post_init__(self):
-        # TBD: value will be determined when implement the build task.
-        self.build_result = BuildResult(fail_reason="not built")
+    @build_result.setter
+    def build_result(self, value: BuildResult):
+        # OSBS2 TBD: as above, plus THIS IS ONLY FOR UNIT TESTS
+        self.buildstep_result = {"irrelevant_key": value}
 
     @classmethod
     def load(cls, data: Dict[str, Any]):
@@ -505,12 +512,6 @@ class ImageBuildWorkflowData(ISerializer):
         :return: the workflow data containing data loaded from the specified directory.
         :rtype: ImageBuildWorkflowData
         """
-
-        # TBD: build result should be handled specifically after the build
-        #      task is done. There will be multiple build result objects for
-        #      multi-platforms and they should be written in to separate
-        #      build_result.json file in each platform directory.
-
         if not context_dir.workflow_json.exists():
             return cls()
 
@@ -523,9 +524,7 @@ class ImageBuildWorkflowData(ISerializer):
         # NOTE: json.loads twice since the data is validated at the first time.
         workflow_data = json.loads(file_content, object_hook=WorkflowDataDecoder())
 
-        build_result = workflow_data.pop("build_result")
         loaded_data = cls(**workflow_data)
-        loaded_data.build_result = build_result
         return loaded_data
 
     def as_dict(self) -> Dict[str, Any]:
@@ -538,9 +537,6 @@ class ImageBuildWorkflowData(ISerializer):
             workflow data.
         :type context_dir: ContextDir
         """
-
-        # TBD: same comment as above for build_result
-
         logger.info("Writing workflow data into %s", context_dir.workflow_json)
         with open(context_dir.workflow_json, "w+") as f:
             json.dump(self.as_dict(), f, cls=WorkflowDataEncoder)
@@ -802,13 +798,14 @@ class DockerBuildWorkflow(object):
         """
         Has any aspect of the build process failed?
         """
-        return self.data.build_result.is_failed() or self.data.plugin_failed
+        build_result = self.data.build_result
+        return not build_result or build_result.is_failed() or self.data.plugin_failed
 
     def throw_canceled_build_exception(self, *args, **kwargs):
         self.data.build_canceled = True
         raise BuildCanceledException("Build was canceled")
 
-    def build_docker_image(self) -> BuildResult:
+    def build_docker_image(self) -> Optional[BuildResult]:
         """
         build docker image
 
@@ -843,7 +840,7 @@ class DockerBuildWorkflow(object):
 
             logger.info("running buildstep plugins")
             try:
-                self.data.build_result = buildstep_runner.run()
+                buildstep_runner.run()
 
                 if self.data.build_result and self.data.build_result.is_failed():
                     raise PluginFailedException(self.data.build_result.fail_reason)
