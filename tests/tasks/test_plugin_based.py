@@ -57,12 +57,15 @@ class TestPluginBasedTask:
         customization in individual tests.
         """
         context_dir = tmpdir.join("context_dir")
-        expect_source = flexmock()
-        task_params = flexmock(build_dir=build_dir,
-                               context_dir=str(context_dir),
-                               source=expect_source,
-                               user_params={"a": "b"},
-                               config_file="config.yaml")
+        task_params = TaskParams(build_dir=build_dir,
+                                 context_dir=str(context_dir),
+                                 user_params={"a": "b"},
+                                 config_file="config.yaml")
+
+        expect_source = DummySource("git", "https://git.host/", workdir=build_dir)
+        (flexmock(task_params)
+         .should_receive("source")
+         .and_return(expect_source))
 
         expect_plugins = flexmock()
         monkeypatch.setattr(plugin_based.PluginBasedTask, "plugins_def", expect_plugins)
@@ -84,7 +87,7 @@ class TestPluginBasedTask:
         mocked_workflow = flexmock(inner.DockerBuildWorkflow)
         (
             mocked_workflow
-            .should_receive("__init__")
+            .should_call("__init__")
             .once()
             .with_args(
                 root_build_dir,
