@@ -153,10 +153,6 @@ def test_parse_args_valid(cli_args, expect_parsed_args):
             "unrecognized arguments: --verbose",
         ),
         (
-            ["task", *REQUIRED_COMMON_ARGS, "--verbose", "binary-container-build"],
-            "unrecognized arguments: --verbose",
-        ),
-        (
             ["task", *REQUIRED_COMMON_ARGS, "--verbose", "binary-container-postbuild"],
             "unrecognized arguments: --verbose",
         ),
@@ -174,10 +170,6 @@ def test_parse_args_valid(cli_args, expect_parsed_args):
         ),
         (
             ["task", *REQUIRED_COMMON_ARGS, "binary-container-prebuild", "--user-params={}"],
-            "unrecognized arguments: --user-params",
-        ),
-        (
-            ["task", *REQUIRED_COMMON_ARGS, "binary-container-build", "--user-params={}"],
             "unrecognized arguments: --user-params",
         ),
         (
@@ -202,10 +194,6 @@ def test_parse_args_valid(cli_args, expect_parsed_args):
             "the following arguments are required: --build-dir, --context-dir",
         ),
         (
-            ["task", "binary-container-build"],
-            "the following arguments are required: --build-dir, --context-dir",
-        ),
-        (
             ["task", "binary-container-postbuild"],
             "the following arguments are required: --build-dir, --context-dir",
         ),
@@ -213,6 +201,11 @@ def test_parse_args_valid(cli_args, expect_parsed_args):
             ["task", "binary-container-exit"],
             "the following arguments are required: --build-dir, --context-dir",
         ),
+        # missing --platform for binary-container-build
+        (
+            ["task", *REQUIRED_COMMON_ARGS, "binary-container-build"],
+            "the following arguments are required: --platform",
+        )
     ],
 )
 def test_parse_args_invalid(cli_args, expect_error, capsys):
