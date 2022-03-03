@@ -77,7 +77,7 @@ def parse_args(args: Optional[Sequence[str]] = None) -> dict:
         description="Build a binary container.",
     )
     binary_container_build.set_defaults(func=task.binary_container_build)
-    binary_container_build.add_argument('--platform', action="store",
+    binary_container_build.add_argument('--platform', action="store", required=True,
                                         help="platform on which to build container")
 
     binary_container_postbuild = tasks.add_parser(
