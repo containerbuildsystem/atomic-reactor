@@ -1268,7 +1268,7 @@ class TestWorkflowData:
         data = ImageBuildWorkflowData()
         assert data.dockerfile_images.is_empty
         assert data.tag_conf.is_empty
-        assert "not built" == data.build_result.fail_reason
+        assert data.build_result is None
         assert {} == data.prebuild_results
 
     def test_load_from_empty_dump(self):

@@ -146,7 +146,8 @@ class StoreMetadataPlugin(ExitPlugin):
     def make_labels(self):
         labels = {}
         self._update_labels(labels, self.workflow.data.labels)
-        self._update_labels(labels, self.workflow.data.build_result.labels)
+        if self.workflow.data.build_result:
+            self._update_labels(labels, self.workflow.data.build_result.labels)
 
         if 'sources_for_koji_build_id' in labels:
             labels['sources_for_koji_build_id'] = str(labels['sources_for_koji_build_id'])
@@ -171,7 +172,8 @@ class StoreMetadataPlugin(ExitPlugin):
             annotations.update(updates)
 
     def apply_build_result_annotations(self, annotations):
-        self._update_annotations(annotations, self.workflow.data.build_result.annotations)
+        if self.workflow.data.build_result:
+            self._update_annotations(annotations, self.workflow.data.build_result.annotations)
 
     def apply_plugin_annotations(self, annotations):
         self._update_annotations(annotations, self.workflow.data.annotations)

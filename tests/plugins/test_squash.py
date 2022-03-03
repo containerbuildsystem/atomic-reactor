@@ -32,6 +32,7 @@ SET_DEFAULT_LAYER_ID = object()
 
 @pytest.fixture
 def workflow(workflow):
+    workflow.data.build_result = BuildResult()
     workflow.data.dockerfile_images = DockerfileImages(['Fedora:22'])
     workflow.data.image_id = 'image_id'
     flexmock(workflow, image='image')
