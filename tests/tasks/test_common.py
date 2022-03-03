@@ -12,6 +12,8 @@ from typing import Optional, ClassVar
 from flexmock import flexmock
 import pytest
 
+from atomic_reactor import dirs
+from atomic_reactor import inner
 from atomic_reactor import source
 from atomic_reactor import util
 from atomic_reactor.tasks import common
@@ -142,3 +144,24 @@ class TestTaskParams:
         expect_err = r"TaskParams instance has no source \(no git_uri in user params\)"
         with pytest.raises(ValueError, match=expect_err):
             _ = params.source
+
+
+class TestTask:
+    """Tests for the Task class."""
+
+    class ConcreteTask(common.Task):
+        def execute(self):
+            return None
+
+    def test_load_workflow_data(self, tmp_path):
+        params = common.TaskParams(
+            build_dir="", context_dir=str(tmp_path), config_file="", user_params={}
+        )
+
+        expect_data = inner.ImageBuildWorkflowData()
+        (flexmock(inner.ImageBuildWorkflowData)
+         .should_receive("load_from_dir")
+         .with_args(dirs.ContextDir)
+         .and_return(expect_data))
+
+        assert self.ConcreteTask(params).load_workflow_data() == expect_data
