@@ -73,7 +73,7 @@ class TestPluginBasedTask:
 
         # Help to verify the RootBuildDir object is passed to the workflow object.
         (flexmock(plugin_based.PluginBasedTask)
-         .should_receive("_get_build_dir")
+         .should_receive("get_build_dir")
          .and_return(root_build_dir))
 
         # The test methods inside this test case do not involve the workflow
@@ -89,8 +89,8 @@ class TestPluginBasedTask:
             .should_call("__init__")
             .once()
             .with_args(
-                root_build_dir,
-                wf_data,
+                build_dir=root_build_dir,
+                data=wf_data,
                 source=expect_source,
                 plugins=expect_plugins,
                 user_params={"a": "b"},

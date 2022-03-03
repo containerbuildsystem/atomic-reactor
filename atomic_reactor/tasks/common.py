@@ -8,8 +8,11 @@ of the BSD license. See the LICENSE file for details.
 
 import abc
 from dataclasses import dataclass, fields
+from pathlib import Path
 from typing import Dict, Any, ClassVar
 
+from atomic_reactor import dirs
+from atomic_reactor import inner
 from atomic_reactor import source
 from atomic_reactor import util
 
@@ -85,3 +88,13 @@ class Task(abc.ABC):
     @abc.abstractmethod
     def execute(self):
         """Execute this task."""
+
+    def get_build_dir(self) -> dirs.RootBuildDir:
+        return dirs.RootBuildDir(Path(self._params.build_dir))
+
+    def get_context_dir(self) -> dirs.ContextDir:
+        return dirs.ContextDir(Path(self._params.context_dir))
+
+    def load_workflow_data(self) -> inner.ImageBuildWorkflowData:
+        context_dir = self.get_context_dir()
+        return inner.ImageBuildWorkflowData.load_from_dir(context_dir)
