@@ -6,6 +6,7 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 import logging
+import subprocess
 from dataclasses import dataclass
 from typing import Dict, Iterator
 
@@ -14,9 +15,22 @@ from osbs.utils import ImageName
 from atomic_reactor import dirs
 from atomic_reactor import util
 from atomic_reactor.tasks.common import Task, TaskParams
+from atomic_reactor.utils import retries
 
 
 logger = logging.getLogger(__name__)
+
+
+class BuildTaskError(Exception):
+    """The build task failed."""
+
+
+class BuildProcessError(BuildTaskError):
+    """The subprocess that was supposed to build the image failed."""
+
+
+class PushError(BuildTaskError):
+    """Failed to push the built image."""
 
 
 @dataclass(frozen=True)
@@ -59,7 +73,7 @@ class BinaryBuildTask(Task):
                 dest_tag=dest_tag,
             )
             for line in output_lines:
-                logger.info(line)
+                logger.info(line.rstrip())
 
             logger.info("Build finished succesfully! Pushing image to %s", dest_tag)
             self.push_container(dest_tag)
@@ -83,14 +97,43 @@ class BinaryBuildTask(Task):
         This method returns an iterator which yields individual lines from the stdout
         and stderr of the build process as they become available.
         """
-        lines = [
-            "I'm building an image.",
-            "Or at least pretending to.",
-            "I don't actually work yet.",
-            "Goodbye! ^.^",
-        ]
-        yield from lines
+        build_cmd = ["/bin/sh", "-c", "for i in 1 2 3; do echo output $i; sleep 0.1; done"]
+        logger.debug("Running %s", " ".join(build_cmd))
+
+        build_process = subprocess.Popen(
+            build_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            universal_newlines=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+
+        # passing stdout=PIPE guarantees that stdout is not None, but the type hints for the
+        #   subprocess module do not express that (TL;DR - this is just for type checkers)
+        assert build_process.stdout is not None
+
+        last_line = None
+
+        while True:
+            if line := build_process.stdout.readline():
+                yield line
+                last_line = line
+
+            if (rc := build_process.poll()) is not None:
+                break
+
+        if rc != 0:
+            # the last line of output likely contains the error message
+            error = last_line.rstrip() if last_line else "<no output!>"
+            raise BuildProcessError(f"Build failed (rc={rc}): {error}")
 
     def push_container(self, dest_tag: ImageName) -> None:
         """Push the built container (named dest_tag) to the registry (as dest_tag)."""
-        return None
+        push_cmd = ["echo", str(dest_tag)]
+        try:
+            retries.run_cmd(push_cmd)
+        except subprocess.CalledProcessError as e:
+            raise PushError(
+                f"Push failed (rc={e.returncode}). Check the logs for more details."
+            ) from e
