@@ -18,6 +18,14 @@ spec:
     - name: ws-koji-secret
     - name: ws-reactor-config-map
 
+  results:
+    - name: repositories
+      value: $(tasks.binary-container-set-results.results.repositories)
+    - name: koji-build-id
+      value: $(tasks.binary-container-set-results.results.koji-build-id)
+    - name: remote_sources
+      value: $(tasks.binary-container-set-results.results.remote_sources)
+
   tasks:
     - name: clone
       taskRef:
@@ -38,6 +46,7 @@ spec:
           value: "$(params.OSBS_IMAGE)"
         - name: USER_PARAMS
           value: "$(params.USER_PARAMS)"
+
     - name: binary-container-prebuild
       runAfter:
         - clone
@@ -59,6 +68,7 @@ spec:
           value: "$(params.OSBS_IMAGE)"
         - name: USER_PARAMS
           value: "$(params.USER_PARAMS)"
+
     - name: binary-container-build-x86-64
       runAfter:
         - binary-container-prebuild
@@ -82,6 +92,7 @@ spec:
           value: "$(params.USER_PARAMS)"
         - name: PLATFORM
           value: x86_64
+
     - name: binary-container-build-s390x
       runAfter:
         - binary-container-prebuild
@@ -105,6 +116,7 @@ spec:
           value: "$(params.USER_PARAMS)"
         - name: PLATFORM
           value: s390x
+
     - name: binary-container-build-ppc64le
       runAfter:
         - binary-container-prebuild
@@ -128,6 +140,7 @@ spec:
           value: "$(params.USER_PARAMS)"
         - name: PLATFORM
           value: ppc64le
+
     - name: binary-container-build-aarch64
       runAfter:
         - binary-container-prebuild
@@ -151,6 +164,7 @@ spec:
           value: "$(params.USER_PARAMS)"
         - name: PLATFORM
           value: aarch64
+
     - name: binary-container-postbuild
       runAfter:
         - binary-container-build-x86-64
@@ -175,6 +189,19 @@ spec:
           value: "$(params.OSBS_IMAGE)"
         - name: USER_PARAMS
           value: "$(params.USER_PARAMS)"
+
+    - name: binary-container-set-results
+      runAfter:
+        - binary-container-postbuild
+      taskRef:
+        name: binary-container-set-results-0-1
+      workspaces:
+        - name: ws-context-dir
+          workspace: ws-context-dir
+      params:
+        - name: OSBS_IMAGE
+          value: "$(params.OSBS_IMAGE)"
+
   finally:
     - name: binary-container-exit
       taskRef:
