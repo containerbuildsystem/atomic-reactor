@@ -9,8 +9,8 @@ of the BSD license. See the LICENSE file for details.
 import logging
 
 from atomic_reactor import inner
-from atomic_reactor.tasks import common
 from atomic_reactor.tasks import PluginsDef
+from atomic_reactor.tasks.common import Task, ParamsT
 
 
 # PluginsDef can be considered as part of this module, but is defined elsewhere to avoid cyclic
@@ -20,7 +20,7 @@ __all__ = ["PluginsDef", "PluginBasedTask"]
 logger = logging.getLogger(__name__)
 
 
-class PluginBasedTask(common.Task):
+class PluginBasedTask(Task[ParamsT]):
     """Task that executes a predefined list of plugins."""
 
     # Override this in subclasses

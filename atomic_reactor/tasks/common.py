@@ -9,7 +9,7 @@ of the BSD license. See the LICENSE file for details.
 import abc
 from dataclasses import dataclass, fields
 from pathlib import Path
-from typing import Dict, Any, ClassVar
+from typing import Dict, Any, ClassVar, Generic, TypeVar
 
 from atomic_reactor import config
 from atomic_reactor import dirs
@@ -79,10 +79,13 @@ class TaskParams:
         return {k: v for k, v in args.items() if v is not None or k not in known_args}
 
 
-class Task(abc.ABC):
+ParamsT = TypeVar("ParamsT", bound=TaskParams)
+
+
+class Task(abc.ABC, Generic[ParamsT]):
     """Task; the main execution unit in atomic-reactor."""
 
-    def __init__(self, params: TaskParams):
+    def __init__(self, params: ParamsT):
         """Initialize a Task."""
         self._params = params
 
