@@ -18,6 +18,12 @@ spec:
     - name: ws-koji-secret
     - name: ws-reactor-config-map
 
+  results:
+    - name: repositories
+      value: $(tasks.source-container-set-results.results.repositories)
+    - name: koji-build-id
+      value: $(tasks.source-container-set-results.results.koji-build-id)
+
   tasks:
     - name: source-container-build
       taskRef:
@@ -38,6 +44,19 @@ spec:
           value: "$(params.OSBS_IMAGE)"
         - name: USER_PARAMS
           value: "$(params.USER_PARAMS)"
+
+    - name: source-container-set-results
+      runAfter:
+        - source-container-build
+      taskRef:
+        name: source-container-set-results-0-1
+      workspaces:
+        - name: ws-context-dir
+          workspace: ws-context-dir
+      params:
+        - name: OSBS_IMAGE
+          value: "$(params.OSBS_IMAGE)"
+
   finally:
     - name: source-container-exit
       taskRef:
