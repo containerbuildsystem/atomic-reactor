@@ -18,6 +18,7 @@ from osbs.utils import ImageName
 import pytest
 from flexmock import flexmock
 
+from atomic_reactor import config
 from atomic_reactor import dirs
 from atomic_reactor import inner
 from atomic_reactor.constants import PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
@@ -34,6 +35,14 @@ CONFIG_PATH = "/etc/atomic-reactor/config.yaml"
 
 NOARCH_UNIQUE_IMAGE = ImageName.parse("registry.example.org/osbs/spam:v1.0")
 X86_UNIQUE_IMAGE = ImageName.parse("registry.example.org/osbs/spam:v1.0-x86_64")
+
+AUTHFILE_PATH = "/workspace/ws-registries-secret/.dockerconfigjson"
+REGISTRY_CONFIG = {
+    "uri": "registry.example.org",
+    "version": "v2",
+    "auth": AUTHFILE_PATH,
+    "insecure": False,
+}
 
 BUILD_ARGS = {"REMOTE_SOURCES": "unpacked_remote_sources"}
 
@@ -92,6 +101,16 @@ def mock_workflow_data(*, enabled_platforms: List[str]) -> inner.ImageBuildWorkf
     return mocked_data
 
 
+def mock_config(registry_config: Dict[str, Any]):
+    """Make load_config() return mocked config.
+
+    The registry property of the mocked config will return the specified registry_config.
+    """
+    cfg = config.Configuration()
+    flexmock(cfg).should_receive("registry").and_return(registry_config)
+    flexmock(BinaryBuildTask).should_receive("load_config").and_return(cfg)
+
+
 class MockedPopen:
     def __init__(self, rc: int, output_lines: List[str]):
         self._rc = rc
@@ -134,6 +153,7 @@ class TestBinaryBuildTask:
 
     def test_run_build(self, x86_task_params, x86_build_dir, caplog):
         mock_workflow_data(enabled_platforms=["x86_64"])
+        mock_config(REGISTRY_CONFIG)
         x86_build_dir.dockerfile_path.write_text(DOCKERFILE_CONTENT)
 
         def mock_build_container(*, build_dir, build_args, dest_tag):
@@ -153,7 +173,7 @@ class TestBinaryBuildTask:
         (
             flexmock(BinaryBuildTask)
             .should_receive("push_container")
-            .with_args(X86_UNIQUE_IMAGE)
+            .with_args(X86_UNIQUE_IMAGE, registry_config=REGISTRY_CONFIG)
             .once()
         )
 

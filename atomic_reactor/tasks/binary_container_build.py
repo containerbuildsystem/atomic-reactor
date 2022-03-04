@@ -8,7 +8,7 @@ of the BSD license. See the LICENSE file for details.
 import logging
 import subprocess
 from dataclasses import dataclass
-from typing import Dict, Iterator
+from typing import Any, Dict, Iterator, Optional
 
 from osbs.utils import ImageName
 
@@ -61,6 +61,7 @@ class BinaryBuildTask(Task):
             )
             return
 
+        config = self.load_config()
         build_dir = self.get_build_dir().platform_dir(platform)
         dest_tag = data.tag_conf.get_unique_images_with_platform(platform)[0]
 
@@ -76,7 +77,7 @@ class BinaryBuildTask(Task):
                 logger.info(line.rstrip())
 
             logger.info("Build finished succesfully! Pushing image to %s", dest_tag)
-            self.push_container(dest_tag)
+            self.push_container(dest_tag, registry_config=config.registry)
         finally:
             logger.info("Dockerfile used for build:\n%s", build_dir.dockerfile_path.read_text())
 
@@ -128,8 +129,14 @@ class BinaryBuildTask(Task):
             error = last_line.rstrip() if last_line else "<no output!>"
             raise BuildProcessError(f"Build failed (rc={rc}): {error}")
 
-    def push_container(self, dest_tag: ImageName) -> None:
-        """Push the built container (named dest_tag) to the registry (as dest_tag)."""
+    def push_container(
+        self, dest_tag: ImageName, *, registry_config: Optional[Dict[str, Any]] = None
+    ) -> None:
+        """Push the built container (named dest_tag) to the registry (as dest_tag).
+
+        The registry_config, if any, should be the value of Configuration.registry and
+        determines how to authenticate to the registry and whether to use an insecure connection.
+        """
         push_cmd = ["echo", str(dest_tag)]
         try:
             retries.run_cmd(push_cmd)
