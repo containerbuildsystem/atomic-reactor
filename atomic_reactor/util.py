@@ -48,7 +48,6 @@ from atomic_reactor.constants import (DOCKERFILE_FILENAME, REPO_CONTAINER_CONFIG
                                       REPO_FETCH_ARTIFACTS_URL,
                                       REPO_FETCH_ARTIFACTS_PNC,
                                       USER_CONFIG_FILES, REPO_FETCH_ARTIFACTS_KOJI)
-
 from atomic_reactor.auth import HTTPRegistryAuth
 from atomic_reactor.types import ISerializer, ImageInspectionData
 
@@ -490,12 +489,10 @@ def get_orchestrator_platforms(workflow):
         return None
 
 
-def get_platforms(workflow):
-    koji_platforms = workflow.data.prebuild_results.get(PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
+def get_platforms(workflow_data) -> List[str]:
+    koji_platforms = workflow_data.prebuild_results.get(PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
     if koji_platforms:
         return koji_platforms
-
-    # Not an orchestrator build
     return []
 
 

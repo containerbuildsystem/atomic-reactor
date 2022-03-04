@@ -457,7 +457,7 @@ class KojiImportBase(PostBuildPlugin):
         buildroot = self.get_buildroot()
         buildroot_id = buildroot[0]['id']
         output, output_file = self.get_output(buildroot_id)
-        osbs_logs = OSBSLogs(self.log, get_platforms(self.workflow))
+        osbs_logs = OSBSLogs(self.log, get_platforms(self.workflow.data))
         output_files = [add_log_type(add_buildroot_id(md, buildroot_id))
                         for md in osbs_logs.get_log_files(self.osbs, self.pipeline_run_name)]
 

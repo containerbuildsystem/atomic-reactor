@@ -50,7 +50,7 @@ class InjectYumReposPlugin(PreBuildPlugin):
         self.include_koji_repo = False
         self._builder_ca_bundle = None
         self._ca_bundle_pem = None
-        self.platforms = get_platforms(workflow)
+        self.platforms = get_platforms(workflow.data)
 
         resolve_comp_result = self.workflow.data.prebuild_results.get(PLUGIN_RESOLVE_COMPOSES_KEY)
         self.include_koji_repo = resolve_comp_result['include_koji_repo']

@@ -81,7 +81,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
         self.parent_compose_ids = []
         self.include_koji_repo = False
         self.yum_repourls = defaultdict(list)
-        self.architectures = get_platforms(self.workflow) or []
+        self.architectures = get_platforms(self.workflow.data)
 
     def run(self):
         if self.allow_inheritance():
@@ -184,7 +184,7 @@ class ResolveComposesPlugin(PreBuildPlugin):
 
         pulp_data = util.read_content_sets(self.workflow) or {}
 
-        platforms = get_platforms(self.workflow)
+        platforms = get_platforms(self.workflow.data)
         if platforms:
             platforms = sorted(platforms)  # sorted to keep predictable for tests
 

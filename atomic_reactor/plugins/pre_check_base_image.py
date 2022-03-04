@@ -182,7 +182,7 @@ class CheckBaseImagePlugin(PreBuildPlugin):
 
     def _validate_platforms_in_image(self, image: ImageName) -> None:
         """Ensure that the image provides all platforms expected for the build."""
-        expected_platforms = get_platforms(self.workflow)
+        expected_platforms = get_platforms(self.workflow.data)
         if not expected_platforms:
             self.log.info('Skipping validation of available platforms '
                           'because expected platforms are unknown')

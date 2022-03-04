@@ -111,7 +111,7 @@ class VerifyMediaTypesPlugin(PostBuildPlugin):
                            'because group manifests plugin did not run')
             return False
 
-        platforms = get_platforms(self.workflow)
+        platforms = get_platforms(self.workflow.data)
         if not platforms:
             self.log.debug('Cannot check if only manifest list digest should be returned '
                            'because we have no platforms list')
