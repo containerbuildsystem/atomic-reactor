@@ -9,7 +9,7 @@ of the BSD license. See the LICENSE file for details.
 from atomic_reactor.tasks import common
 
 
-class CloneTask(common.Task):
+class CloneTask(common.Task[common.TaskParams]):
     """Clone task."""
 
     def execute(self):

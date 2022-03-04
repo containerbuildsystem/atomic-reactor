@@ -28,7 +28,7 @@ class SourceBuildTaskParams(common.TaskParams):
         return source.DummySource(None, None, workdir=self.build_dir)
 
 
-class SourceBuildBaseTask(plugin_based.PluginBasedTask):
+class SourceBuildBaseTask(plugin_based.PluginBasedTask[SourceBuildTaskParams]):
     """Base task for defining different build phases for source container build."""
 
     def prepare_workflow(self) -> inner.DockerBuildWorkflow:

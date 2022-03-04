@@ -39,10 +39,10 @@ class BinaryBuildTaskParams(TaskParams):
     platform: str
 
 
-class BinaryBuildTask(Task):
+class BinaryBuildTask(Task[BinaryBuildTaskParams]):
     """Binary container build task."""
 
-    def execute(self):
+    def execute(self) -> None:
         """Build a container image for the platform specified in the task parameters.
 
         The built image will be pushed to the unique tag for this platform, which can be found

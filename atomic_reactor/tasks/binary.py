@@ -7,9 +7,10 @@ of the BSD license. See the LICENSE file for details.
 """
 
 from atomic_reactor.tasks import plugin_based
+from atomic_reactor.tasks.common import TaskParams
 
 
-class BinaryPreBuildTask(plugin_based.PluginBasedTask):
+class BinaryPreBuildTask(plugin_based.PluginBasedTask[TaskParams]):
     """Binary container pre-build task."""
 
     plugins_def = plugin_based.PluginsDef(
@@ -42,7 +43,7 @@ class BinaryPreBuildTask(plugin_based.PluginBasedTask):
     )
 
 
-class BinaryPostBuildTask(plugin_based.PluginBasedTask):
+class BinaryPostBuildTask(plugin_based.PluginBasedTask[TaskParams]):
     """Binary container post-build task."""
 
     plugins_def = plugin_based.PluginsDef(
@@ -63,7 +64,7 @@ class BinaryPostBuildTask(plugin_based.PluginBasedTask):
     )
 
 
-class BinaryExitTask(plugin_based.PluginBasedTask):
+class BinaryExitTask(plugin_based.PluginBasedTask[TaskParams]):
     """Binary container exit-build task."""
 
     plugins_def = plugin_based.PluginsDef(
