@@ -11,6 +11,7 @@ from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Dict, Any, ClassVar
 
+from atomic_reactor import config
 from atomic_reactor import dirs
 from atomic_reactor import inner
 from atomic_reactor import source
@@ -98,3 +99,6 @@ class Task(abc.ABC):
     def load_workflow_data(self) -> inner.ImageBuildWorkflowData:
         context_dir = self.get_context_dir()
         return inner.ImageBuildWorkflowData.load_from_dir(context_dir)
+
+    def load_config(self) -> config.Configuration:
+        return config.Configuration(self._params.config_file)
