@@ -98,7 +98,7 @@ class AddFilesystemPlugin(PreBuildPlugin):
         self.poll_interval = poll_interval
         self.blocksize = blocksize
         self.repos = repos or []
-        self.architectures = get_platforms(self.workflow)
+        self.architectures = get_platforms(self.workflow.data)
         self.scratch = util.is_scratch_build(self.workflow)
         self.koji_target = koji_target
         self.session = None

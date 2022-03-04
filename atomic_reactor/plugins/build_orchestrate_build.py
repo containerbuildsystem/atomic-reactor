@@ -290,7 +290,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
                                   ignored
         """
         super(OrchestrateBuildPlugin, self).__init__(workflow)
-        self.platforms = get_platforms(self.workflow)
+        self.platforms = get_platforms(self.workflow.data)
 
         self.build_kwargs = build_kwargs or {}
         self.config_kwargs = config_kwargs or {}

@@ -13,7 +13,7 @@ build_orchestrate_build will prefer this list of architectures over the platform
 USER_PARAMS, which is necessary to allow autobuilds to build on the correct architectures
 when koji build tags change.
 """
-from typing import List
+from typing import List, Optional
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.util import (is_scratch_build, is_isolated_build,
                                  get_orchestrator_platforms, map_to_user_params)
@@ -58,7 +58,7 @@ class CheckAndSetPlatformsPlugin(PreBuildPlugin):
             final_platforms &= only_platforms
         return list(final_platforms - excluded_platforms)
 
-    def run(self):
+    def run(self) -> Optional[List[str]]:
         """
         run the plugin
         """
@@ -77,14 +77,14 @@ class CheckAndSetPlatformsPlugin(PreBuildPlugin):
             self.log.info("Koji platforms are %s", sorted(platforms))
 
             if is_scratch_build(self.workflow) or is_isolated_build(self.workflow):
-                override_platforms = get_orchestrator_platforms(self.workflow)
-                if override_platforms and set(override_platforms) != set(platforms):
-                    sort_platforms = sorted(override_platforms)
-                    self.log.info("Received user specified platforms %s", sort_platforms)
+                override_platforms = set(get_orchestrator_platforms(self.workflow) or [])
+                if override_platforms and override_platforms != set(platforms):
+                    sorted_platforms = sorted(override_platforms)
+                    self.log.info("Received user specified platforms %s", sorted_platforms)
                     self.log.info("Using them instead of koji platforms")
                     # platforms from user params do not match platforms from koji target
                     # that almost certainly means they were overridden and should be used
-                    return set(override_platforms)
+                    return sorted_platforms
         else:
             platforms = get_orchestrator_platforms(self.workflow)
             user_platforms = sorted(platforms) if platforms else None

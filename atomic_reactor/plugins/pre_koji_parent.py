@@ -69,7 +69,7 @@ class KojiParentPlugin(PreBuildPlugin):
         self._base_image_build = None
         self._parent_builds = {}
         self._poll_start = None
-        self.platforms = get_platforms(self.workflow)
+        self.platforms = get_platforms(self.workflow.data)
         # RegistryClient instances cached by registry name
         self.registry_clients = {}
         self._deep_manifest_list_inspection = self.workflow.conf.deep_manifest_list_inspection
