@@ -15,7 +15,6 @@ import logging
 from tempfile import NamedTemporaryFile
 from typing import Any, Dict, Iterator, Optional, Tuple
 
-from atomic_reactor.constants import REPO_CONTAINER_CONFIG
 from atomic_reactor.config import get_koji_session, get_openshift_session
 from atomic_reactor import start_time as atomic_reactor_start_time
 from atomic_reactor.plugin import PostBuildPlugin
@@ -43,6 +42,7 @@ except ImportError:
 
 from atomic_reactor.constants import (
     PLUGIN_KOJI_IMPORT_PLUGIN_KEY, PLUGIN_KOJI_IMPORT_SOURCE_CONTAINER_PLUGIN_KEY,
+    PLUGIN_FETCH_MAVEN_KEY,
     PLUGIN_FETCH_WORKER_METADATA_KEY,
     PLUGIN_MAVEN_URL_SOURCES_METADATA_KEY,
     PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_RESOLVE_COMPOSES_KEY,
@@ -50,6 +50,7 @@ from atomic_reactor.constants import (
     PLUGIN_PIN_OPERATOR_DIGESTS_KEY,
     PLUGIN_PUSH_OPERATOR_MANIFESTS_KEY,
     PLUGIN_RESOLVE_REMOTE_SOURCE,
+    REPO_CONTAINER_CONFIG,
     METADATA_TAG, OPERATOR_MANIFESTS_ARCHIVE,
     KOJI_BTYPE_REMOTE_SOURCE_FILE,
     KOJI_BTYPE_REMOTE_SOURCES,
@@ -259,8 +260,8 @@ class KojiImportBase(PostBuildPlugin):
             return  # only one worker can process operator manifests
 
     def set_pnc_build_metadata(self, extra):
-        plugin_results = self.workflow.data.postbuild_results.get(
-            PLUGIN_MAVEN_URL_SOURCES_METADATA_KEY) or {}
+        plugin_results = self.workflow.data.prebuild_results.get(
+            PLUGIN_FETCH_MAVEN_KEY) or {}
         pnc_build_metadata = plugin_results.get('pnc_build_metadata')
 
         if pnc_build_metadata:
@@ -301,10 +302,13 @@ class KojiImportBase(PostBuildPlugin):
             extra.setdefault("typeinfo", {}).update(remote_source_typeinfo)
 
     def set_remote_source_file_metadata(self, extra):
-        plugin_results = self.workflow.data.postbuild_results.get(
+        maven_url_sources_metadata_results = self.workflow.data.postbuild_results.get(
             PLUGIN_MAVEN_URL_SOURCES_METADATA_KEY) or {}
-        remote_source_files = plugin_results.get('remote_source_files')
-        no_source_artifacts = plugin_results.get('no_source')
+        fetch_maven_results = self.workflow.data.prebuild_results.get(
+            PLUGIN_FETCH_MAVEN_KEY) or {}
+        remote_source_files = maven_url_sources_metadata_results.get('remote_source_files')
+        no_source_artifacts = fetch_maven_results.get('no_source')
+
         if remote_source_files or no_source_artifacts:
             r_s_f_typeinfo = {
                 KOJI_BTYPE_REMOTE_SOURCE_FILE: {},
@@ -451,7 +455,7 @@ class KojiImportBase(PostBuildPlugin):
 
         metadata_version = 0
 
-        remote_source_file_outputs, kojifile_components = get_maven_metadata(self.workflow)
+        remote_source_file_outputs, kojifile_components = get_maven_metadata(self.workflow.data)
 
         build = self.get_build()
         buildroot = self.get_buildroot()

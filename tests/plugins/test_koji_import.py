@@ -53,7 +53,8 @@ from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI_
                                       KOJI_SUBTYPE_OP_BUNDLE,
                                       KOJI_SOURCE_ENGINE,
                                       DOCKERFILE_FILENAME,
-                                      REPO_CONTAINER_CONFIG, PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
+                                      REPO_CONTAINER_CONFIG, PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
+                                      PLUGIN_FETCH_MAVEN_KEY)
 from tests.flatpak import (MODULEMD_AVAILABLE,
                            setup_flatpak_composes,
                            setup_flatpak_source_info)
@@ -564,8 +565,6 @@ def mock_environment(workflow, source_dir: Path, session=None, name=None, oci=Fa
     else:
         workflow.data.prebuild_results[PLUGIN_RESOLVE_REMOTE_SOURCE] = None
 
-    workflow.data.postbuild_results[PLUGIN_MAVEN_URL_SOURCES_METADATA_KEY] = None
-
     if has_remote_source_file:
         filepath = build_dir_path / REMOTE_SOURCE_FILE_FILENAME
         filepath.write_text('dummy file', 'utf-8')
@@ -596,6 +595,8 @@ def mock_environment(workflow, source_dir: Path, session=None, name=None, oci=Fa
                     }
                 }
             ],
+        }
+        workflow.data.prebuild_results[PLUGIN_FETCH_MAVEN_KEY] = {
             'no_source': [{
                 'url': 'example.com/dummy-no-source.jar',
                 'checksum_type': 'md5',
@@ -605,7 +606,7 @@ def mock_environment(workflow, source_dir: Path, session=None, name=None, oci=Fa
         }
 
     if has_pnc_build_metadata:
-        workflow.data.postbuild_results[PLUGIN_MAVEN_URL_SOURCES_METADATA_KEY] = {
+        workflow.data.prebuild_results[PLUGIN_FETCH_MAVEN_KEY] = {
             'pnc_build_metadata': {
                 'builds': [
                     {'id': 12345},
