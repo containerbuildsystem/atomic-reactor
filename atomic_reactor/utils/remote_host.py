@@ -143,18 +143,28 @@ class SlotData:
 
 class RemoteHost:
 
-    def __init__(self, *, hostname: str, username: str, ssh_keyfile: str, slots: int):
+    def __init__(
+        self,
+        *,
+        hostname: str,
+        username: str,
+        ssh_keyfile: str,
+        slots: int,
+        slots_dir: Optional[str] = None,
+    ):
         """ Instantiate RemoteHost with hostname, username, ssh key file and slot number
 
         :param hostname: str, remote hostname for ssh connection
         :param username: str, username for ssh connection
         :param ssh_keyfile: str, filepath to ssh private key
         :param slots: int, number of max allowed slots on remote host
+        :param slots_dir: str, directory path for holding slots files
         """
         self._hostname = hostname
         self._username = username
         self._ssh_keyfile = ssh_keyfile
         self._slots = slots
+        self._slots_dir = slots_dir
 
     @property
     def hostname(self):
@@ -174,8 +184,12 @@ class RemoteHost:
 
     @cached_property
     def slots_dir(self):
-        home, _, _ = self._run("pwd")
-        return os.path.join(home, SLOTS_RELATIVE_PATH)
+        # Place the slots files under `~/$SLOTS_RELATIVE_PATH` when slots_dir is not specified
+        if self._slots_dir is None:
+            home, _, _ = self._run("pwd")
+            return os.path.join(home, SLOTS_RELATIVE_PATH)
+        else:
+            return self._slots_dir
 
     def _is_valid_slot_id(self, slot_id: int) -> bool:
         """ Check if a slot id is valid """
@@ -567,29 +581,43 @@ class RemoteHostsPool:
         self.hosts = hosts
 
     @classmethod
-    def from_config(cls, config: dict):
+    def from_config(cls, config: dict, platform: str):
         """ Instantiate remote hosts loaded from a config in dict format
 
-        :param config: dict, Arch specific remote hosts dictionary from configmap
+        :param config: dict, remote hosts dictionary from configmap
+        :param platform: str, arch name
 
-        Example:
+        Remote hosts config dict example:
 
-        hostname-remote-host1:
-          enabled: true
-          auth: qa-vm-secret-filepath
-          username: cloud-user
-          slots: 3
-          ...
-        hostname-remote-host2:
-          ...
+        slots_dir: /path/to/slots/dir
+        pools:
+            x86_64:
+                hostname-remote-host1:
+                    enabled: true
+                    auth: qa-vm-secret-filepath
+                    username: cloud-user
+                    slots: 3
+                    ...
+                hostname-remote-host2:
+                ...
+            ppl64le:
+                ...
         """
+        slots_dir = config.get("slots_dir")
+        if not slots_dir:
+            raise RuntimeError("Slots dir is missing from remote hosts config")
+
+        platform_config = config.get("pools", {}).get(platform, {})
+        if not platform_config:
+            logger.warning("No remote hosts found in config for platform %s", platform)
+
         hosts = []
-        for hostname, attr in config.items():
+        for hostname, attr in platform_config.items():
             if not attr.get("enabled", False):
                 continue
             host = RemoteHost(
                 hostname=hostname, username=attr["username"], ssh_keyfile=attr["auth"],
-                slots=attr.get("slots", 1)
+                slots=attr.get("slots", 1), slots_dir=slots_dir
             )
             # Check whether host is operational before use it
             if host.is_operational:

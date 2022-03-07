@@ -31,11 +31,14 @@ from atomic_reactor.utils.remote_host import (  # noqa
 
 
 @pytest.fixture(autouse=True)
-def _mock_ssh_session():
+def _mock_ssh_session(request):
     """ Mock the ssh session with things we don't want to test or change """
-    flexmock(SSHRetrySession).should_receive("connect")
-    flexmock(RemoteHost).should_receive("slots_dir").and_return("/home/builder/osbs_slots")
-    yield
+    if "disable_autouse" in request.keywords:
+        yield
+    else:
+        flexmock(SSHRetrySession).should_receive("connect")
+        flexmock(RemoteHost).should_receive("slots_dir").and_return("/home/builder/osbs_slots")
+        yield
 
 
 def make_ssh_result(
@@ -104,6 +107,29 @@ def test_host_is_operational(mkdir_stderr, mkdir_code, expected_result):
     )
 
     assert host.is_operational is expected_result
+
+
+@pytest.mark.disable_autouse
+def test_using_non_default_slots_dir():
+    slots_dir = "/var/tmp/osbs/slots/"
+    host = RemoteHost(hostname="remote-host-001", username="builder",
+                      ssh_keyfile="/path/to/key", slots=3,
+                      slots_dir=slots_dir)
+
+    flexmock(SSHRetrySession).should_receive("connect")
+
+    def mocked_command(cmd, *args, **kwargs):
+        if cmd == f"mkdir -p {slots_dir}":
+            return make_ssh_result()
+
+        assert False, f"Unexpected command: {cmd}"
+
+    (
+        flexmock(SSHRetrySession)
+        .should_receive("exec_command")
+        .replace_with(mocked_command)
+    )
+    assert host.is_operational
 
 
 def test_check_slot_is_free_with_invalid_id(caplog):
@@ -299,6 +325,7 @@ def test_unlock_host_slot(slot_content, expected_log, expected_result, caplog):
     assert expected_log in caplog.text
 
 
+@pytest.mark.disable_autouse
 @pytest.mark.parametrize(("slot_content", "expected_log", "expected_result"), (
     ("", "is locked for pipelinerun pr123", True),
     ("pr124@2022-02-15T10:22:33.234234",
@@ -306,35 +333,42 @@ def test_unlock_host_slot(slot_content, expected_log, expected_result, caplog):
 ))
 def test_pool_lock_resource(slot_content, expected_log, expected_result, caplog):
     hosts_config = {
-        "remote-host-001": {
-            "enabled": True,
-            "auth": "/path/to/key",
-            "username": "builder",
-            "slots": 3
+        "slots_dir": "/var/tmp/osbs_slots",
+        "pools": {
+            "x86_64": {
+                "remote-host-001": {
+                    "enabled": True,
+                    "auth": "/path/to/key",
+                    "username": "builder",
+                    "slots": 3
+                }
+            }
         }
     }
 
     def mocked_command(cmd, *args, **kwargs):
-        if cmd == "mkdir -p /home/builder/osbs_slots":
+        if cmd == "mkdir -p /var/tmp/osbs_slots":
             return make_ssh_result()
 
         read_patt = re.compile(
-            r"touch /home/builder/osbs_slots/slot_.* && cat /home/builder/osbs_slots/slot_.*"
+            r"touch /var/tmp/osbs_slots/slot_.* && cat /var/tmp/osbs_slots/slot_.*"
         )
         if read_patt.match(cmd):
             return make_ssh_result(stdout=slot_content)
 
         flock_patt = re.compile(
-            r"flock --conflict-exit-code 42 --nonblocking /home/builder/osbs_slots/slot_.*.lock cat"
+            r"flock --conflict-exit-code 42 --nonblocking /var/tmp/osbs_slots/slot_.*.lock cat"
         )
         if flock_patt.match(cmd):
             return make_flock_ssh_result(stdout="verify lock")
 
-        write_patt = re.compile(r"echo pr123@.*> /home/builder/osbs_slots/slot_.*")
+        write_patt = re.compile(r"echo pr123@.*> /var/tmp/osbs_slots/slot_.*")
         if write_patt.match(cmd):
             return make_ssh_result()
 
         assert False, f"Unexpected command: {cmd}"
+
+    flexmock(SSHRetrySession).should_receive("connect")
 
     (
         flexmock(SSHRetrySession)
@@ -342,7 +376,7 @@ def test_pool_lock_resource(slot_content, expected_log, expected_result, caplog)
         .replace_with(mocked_command)
     )
 
-    pool = RemoteHostsPool.from_config(hosts_config)
+    pool = RemoteHostsPool.from_config(hosts_config, platform="x86_64")
     locked = pool.lock_resource("pr123")
     assert bool(locked) is expected_result
     assert expected_log in caplog.text
