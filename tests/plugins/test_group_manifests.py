@@ -384,11 +384,8 @@ OTHER_V2 = 'registry.example.com:5001'
      "Without grouping only one source is expected"),
     # Have to copy the manifest and link blobs from one repository to another
     ("tag_link_manifests",
-     True, False, [REGISTRY_V2],
+     False, False, [REGISTRY_V2],
      {
-         'ppc64le': {
-             REGISTRY_V2: ['worker-build:worker-build-ppc64le-latest'],
-         },
          'x86_64': {
              REGISTRY_V2: ['worker-build:worker-build-x86_64-latest'],
          }
