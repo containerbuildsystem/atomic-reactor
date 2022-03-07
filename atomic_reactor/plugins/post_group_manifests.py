@@ -9,11 +9,20 @@ get the image manifest lists from the worker builders. If possible, group them t
 and return them. if not, return empty dict after re-uploading it for all existing image
 tags.
 """
+from typing import Dict, List, NamedTuple, Union
 
+from osbs.utils import ImageName
 
 from atomic_reactor.plugin import PostBuildPlugin
-from atomic_reactor.util import (ManifestDigest, get_manifest_media_type,
-                                 get_primary_images, get_unique_images)
+from atomic_reactor.util import (
+    ManifestDigest,
+    RegistryClient,
+    RegistrySession,
+    get_manifest_media_type,
+    get_primary_images,
+    get_unique_images,
+    get_platforms,
+)
 from atomic_reactor.utils.manifest import ManifestUtil
 from atomic_reactor.constants import PLUGIN_GROUP_MANIFESTS_KEY, MEDIA_TYPE_OCI_V1_INDEX
 
@@ -23,6 +32,27 @@ from atomic_reactor.constants import PLUGIN_GROUP_MANIFESTS_KEY, MEDIA_TYPE_OCI_
 # it can be done entirely server-side), but not between registries. Extending the
 # code to copy registries is possible, but would be more involved because of the
 # size of layers and the complications of the protocol for copying them.
+
+
+class BuiltImage(NamedTuple):
+    """Represents a per-arch image which was built and pushed to a registry by the build task.
+
+    pullspec: the full pullspec of the image
+    platform: the platform this image was built for
+    manifest_digest: the manifest digest of this image, uniquely identifies this image
+    manifest_version: the manifest type of this image, should be 'v2' or 'oci'
+        (a Docker v2 schema 2 manifest or an OCI manifest)
+    """
+
+    pullspec: ImageName
+    platform: str
+    manifest_digest: str
+    manifest_version: str
+
+    @property
+    def repository(self) -> str:
+        """Get the "{namespace}/{repo}" from the pullspec of this image."""
+        return self.pullspec.to_str(registry=False, tag=False)
 
 
 class GroupManifestsPlugin(PostBuildPlugin):
@@ -44,10 +74,36 @@ class GroupManifestsPlugin(PostBuildPlugin):
         self.manifest_util = ManifestUtil(self.workflow, self.log)
         self.non_floating_images = None
 
-    def group_manifests_and_tag(self, session, worker_digests):
+    def get_built_images(self, session: RegistrySession) -> List[BuiltImage]:
+        """Get information about all the per-arch images that were built by the build tasks."""
+        tag_conf = self.workflow.data.tag_conf
+        client = RegistryClient(session)
+
+        built_images = []
+
+        for platform in get_platforms(self.workflow.data):
+            # At this point, only the unique image has been built and pushed. Primary tags will
+            #   be pushed by this plugin, floating tags by the push_floating_tags plugin.
+            image = tag_conf.get_unique_images_with_platform(platform)[0]
+            manifest_digests = client.get_manifest_digests(image)
+
+            if len(manifest_digests) != 1:
+                raise RuntimeError(
+                    f"Expected to find a single manifest digest for {image}, "
+                    f"but found multiple: {manifest_digests}"
+                )
+
+            manifest_version, manifest_digest = manifest_digests.popitem()
+            built_images.append(BuiltImage(image, platform, manifest_digest, manifest_version))
+
+        return built_images
+
+    def group_manifests_and_tag(
+        self, session: RegistrySession, built_images: List[BuiltImage]
+    ) -> Dict[str, Union[str, ManifestDigest]]:
         """
         Creates a manifest list or OCI image index that groups the different manifests
-        in worker_digests, then tags the result with with all the configured tags found
+        in built_images, then tags the result with all the configured tags found
         in workflow.data.tag_conf.
         """
         self.log.info("%s: Creating manifest list", session.registry)
@@ -55,22 +111,24 @@ class GroupManifestsPlugin(PostBuildPlugin):
         # Extract information about the manifests that we will group - we get the
         # size and content type of the manifest by querying the registry
         manifests = []
-        for platform, worker_image in worker_digests.items():
-            repository = worker_image['repository']
-            digest = worker_image['digest']
-            media_type = get_manifest_media_type(worker_image['version'])
+        for built_image in built_images:
+            repository = built_image.repository
+            manifest_digest = built_image.manifest_digest
+            media_type = get_manifest_media_type(built_image.manifest_version)
+
             if media_type not in self.manifest_util.manifest_media_types:
                 continue
-            content, _, media_type, size = self.manifest_util.get_manifest(session, repository,
-                                                                           digest)
+            content, _, media_type, size = self.manifest_util.get_manifest(
+                session, repository, manifest_digest
+            )
 
             manifests.append({
                 'content': content,
                 'repository': repository,
-                'digest': digest,
+                'digest': manifest_digest,
                 'size': size,
                 'media_type': media_type,
-                'architecture': self.goarch.get(platform, platform),
+                'architecture': self.goarch[built_image.platform],
             })
 
         list_type, list_json = self.manifest_util.build_list(manifests)
@@ -114,21 +172,6 @@ class GroupManifestsPlugin(PostBuildPlugin):
 
         return {'manifest': list_json, 'media_type': list_type, 'manifest_digest': digest}
 
-    def sort_annotations(self):
-        """
-        Return a map of maps to look up a single "worker digest" that has information
-        about where to find an image manifest for each registry/architecture combination:
-
-          worker_digest = <result>[registry][architecture]
-        """
-
-        all_annotations = self.workflow.data.build_result.annotations['worker-builds']
-        all_platforms = set(all_annotations)
-        if len(all_platforms) == 0:
-            raise RuntimeError("No worker builds found, cannot group them")
-
-        return self.manifest_util.sort_annotations(all_annotations)
-
     def tag_manifest_into_registry(self, session, source_digest: str, source_repo, images):
         manifest, media, digest = self.manifest_util.tag_manifest_into_registry(session,
                                                                                 source_digest,
@@ -145,18 +188,17 @@ class GroupManifestsPlugin(PostBuildPlugin):
         unique_images = get_unique_images(self.workflow)
         self.non_floating_images = primary_images + unique_images
 
-        for _, source in self.sort_annotations().items():
-            session = self.manifest_util.get_registry_session()
+        session = self.manifest_util.get_registry_session()
+        built_images = self.get_built_images(session)
 
-            if self.group:
-                return self.group_manifests_and_tag(session, source)
-            else:
-                if len(source) != 1:
-                    raise RuntimeError('Without grouping only one source is expected')
-                # source.values() isn't a list and can't be indexed, so this clumsy workaround
-                _, orig_digest = source.popitem()
-                source_digest = orig_digest['digest']
-                source_repo = orig_digest['repository']
+        if self.group:
+            return self.group_manifests_and_tag(session, built_images)
+        else:
+            if len(built_images) != 1:
+                raise RuntimeError('Without grouping only one built image is expected')
+            built_image = built_images[0]
+            source_digest = built_image.manifest_digest
+            source_repo = built_image.repository
 
-                return self.tag_manifest_into_registry(session, source_digest, source_repo,
-                                                       self.non_floating_images)
+            return self.tag_manifest_into_registry(session, source_digest, source_repo,
+                                                   self.non_floating_images)

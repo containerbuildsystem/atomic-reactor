@@ -16,14 +16,17 @@ import os
 import requests
 from collections import OrderedDict
 
+from flexmock import flexmock
+
 from tests.constants import DOCKER0_REGISTRY
 from tests.mock_env import MockEnv
 
 from atomic_reactor.plugin import PluginFailedException
-from atomic_reactor.inner import TagConf, BuildResult
+from atomic_reactor.inner import TagConf
 from atomic_reactor.util import (registry_hostname, ManifestDigest, get_floating_images,
-                                 get_primary_images, sha256sum)
-from atomic_reactor.plugins.post_group_manifests import GroupManifestsPlugin
+                                 get_primary_images, sha256sum, RegistrySession, RegistryClient)
+from atomic_reactor.utils.manifest import ManifestUtil
+from atomic_reactor.plugins.post_group_manifests import GroupManifestsPlugin, BuiltImage
 from osbs.utils import ImageName
 
 
@@ -124,9 +127,6 @@ class MockRegistry(object):
         decoded = json.loads(to_text(blob))
         content_type = decoded['mediaType']
 
-        accepts = re.split(r'\s*,\s*', req.headers['Accept'])
-        assert content_type in accepts
-
         headers = {
             'Docker-Content-Digest': ref,
             'Content-Type': content_type,
@@ -182,14 +182,14 @@ def mock_registries(registries, config, schema_version='v2', foreign_layers=Fals
                     manifest_list_tag=None):
     """
     Creates MockRegistries objects and fills them in based on config, which specifies
-    which registries should be prefilled (as if by workers) with platform-specific
-    manifests, and with what tags.
+    which registries should be prefilled (as if by the per-platform build tasks) with
+    platform-specific manifests, and with what tags.
     """
     reg_map = {}
     for reg in registries:
         reg_map[reg] = MockRegistry(reg)
 
-    worker_builds = {}
+    per_platform_digests = {}
 
     manifest_list = {
         "schemaVersion": 2,
@@ -283,27 +283,23 @@ def mock_registries(registries, config, schema_version='v2', foreign_layers=Fals
                 manifest_bytes = to_bytes(json.dumps(manifest_list))
                 registry.add_manifest(name, tag, manifest_bytes)
 
-        worker_builds[platform] = {
+        per_platform_digests[platform] = {
             'digests': digests
         }
 
-    return reg_map, {
-        'worker-builds': worker_builds,
-        'repositories': {'primary': [], 'floating': []}
-    }
+    return reg_map, per_platform_digests
 
 
-def mock_environment(workflow, primary_images=None, annotations=None):
+def mock_environment(workflow, unique_image, primary_images=None):
     wf_data = workflow.data
     setattr(wf_data, 'tag_conf', TagConf())
     if primary_images:
         for image in primary_images:
             if '-' in ImageName.parse(image).tag:
                 wf_data.tag_conf.add_primary_image(image)
-        wf_data.tag_conf.add_unique_image(primary_images[0])
 
+    wf_data.tag_conf.add_unique_image(unique_image)
     wf_data.tag_conf.add_floating_image('namespace/httpd:floating')
-    wf_data.build_result = BuildResult(image_id='123456', annotations=annotations or {})
 
 
 REGISTRY_V2 = 'registry_v2.example.com'
@@ -316,16 +312,18 @@ REGISTRY_V2 = 'registry_v2.example.com'
     ("group",
      True, False,
      {
-         'ppc64le': ['namespace/httpd:worker-build-ppc64le-latest'],
-         'x86_64': ['namespace/httpd:worker-build-x86_64-latest']
+         # NOTE: all the per-platform images need to have the same base name, only the platform
+         #  at the end should be different and must match the actual platform
+         'ppc64le': ['namespace/httpd:2.4-ppc64le'],
+         'x86_64': ['namespace/httpd:2.4-x86_64']
      },
      None),
     # Have to copy the referenced manifests and link blobs from one repository to another
     ("group_link_manifests",
      True, False,
      {
-         'ppc64le': ['worker-build:worker-build-ppc64le-latest'],
-         'x86_64': ['worker-build:worker-build-x86_64-latest']
+         'ppc64le': ['other-namespace/also-httpd:different-tag-ppc64le'],
+         'x86_64': ['other-namespace/also-httpd:different-tag-x86_64']
      },
      None),
     # Have to copy the referenced manifests and link blobs from one repository to another;
@@ -333,43 +331,40 @@ REGISTRY_V2 = 'registry_v2.example.com'
     ("group_link_manifests_foreign",
      True, True,
      {
-         'ppc64le': ['worker-build:worker-build-ppc64le-latest'],
-         'x86_64': ['worker-build:worker-build-x86_64-latest']
+         'ppc64le': ['other-namespace/also-httpd:different-tag-ppc64le'],
+         'x86_64': ['other-namespace/also-httpd:different-tag-x86_64']
      },
      None),
     # Some architectures aren't present for a registry, should error out
     ("group_missing_arches",
      True, False,
      {
-         'ppc64le': ['namespace/httpd:worker-build-ppc64le-latest'],
+         'ppc64le': ['namespace/httpd:2.4-ppc64le'],
          'x86_64': []
      },
-     "Missing platforms for registry"),
-    # No workers at all, should error out
-    ("group_no_workers",
-     True, False,
-     {},
-     "No worker builds found"),
+     # We query the registry for the manifest digests of built images, if an image is not there,
+     #  we should get a 404
+     "404 Client Error"),
     # group=False, should fail as we expect only one entry if not grouped
     ("tag",
      False, False,
      {
-         'ppc64le': ['namespace/httpd:worker-build-ppc64le-latest'],
-         'x86_64': ['namespace/httpd:worker-build-x86_64-latest']
+         'ppc64le': ['namespace/httpd:2.4-ppc64le'],
+         'x86_64': ['namespace/httpd:2.4-x86_64']
      },
-     "Without grouping only one source is expected"),
+     "Without grouping only one built image is expected"),
     # Have to copy the manifest and link blobs from one repository to another
     ("tag_link_manifests",
      False, False,
      {
-         'x86_64': ['worker-build:worker-build-x86_64-latest']
+         'x86_64': ['other-namespace/also-httpd:different-tag-x86_64']
      },
      None),
     # No x86_64 found, but still have ppc64le
     ("tag_no_x86_64",
      False, False,
      {
-         'ppc64le': ['namespace/httpd:worker-build-ppc64le-latest']
+         'ppc64le': ['namespace/httpd:2.4-ppc64le']
      },
      None),
 ])
@@ -401,10 +396,17 @@ def test_group_manifests(workflow, source_dir, schema_version, test_name, group,
         platform: {REGISTRY_V2: images} for platform, images in per_platform_images.items()
     }
 
-    mocked_registries, annotations = mock_registries(registry_conf, registry_images_conf,
-                                                     schema_version=schema_version,
-                                                     foreign_layers=foreign_layers)
-    mock_environment(workflow, primary_images=test_images, annotations=annotations)
+    mocked_registries, platform_digests = mock_registries(registry_conf, registry_images_conf,
+                                                          schema_version=schema_version,
+                                                          foreign_layers=foreign_layers)
+
+    some_per_platform_image = next(
+        image for images in per_platform_images.values() for image in images
+    )
+    # NOTE: this test assumes that all the images in per_platform_images follow the format of
+    #   {noarch_image}-{platform}. If they don't, this test will fail with cryptic errors
+    noarch_image, *_ = some_per_platform_image.rsplit("-", 1)
+    mock_environment(workflow, unique_image=noarch_image, primary_images=test_images)
 
     registries_list = [
         {
@@ -425,6 +427,7 @@ def test_group_manifests(workflow, source_dir, schema_version, test_name, group,
     runner = (
         MockEnv(workflow)
         .for_plugin('postbuild', GroupManifestsPlugin.key)
+        .set_check_platforms_result(list(per_platform_images.keys()))
         .set_reactor_config(
             {
                 'version': 1,
@@ -464,7 +467,7 @@ def test_group_manifests(workflow, source_dir, schema_version, test_name, group,
             source_manifests = {}
 
             for platform in per_platform_images:
-                build = annotations['worker-builds'][platform]['digests'][0]
+                build = platform_digests[platform]['digests'][0]
                 source_builds[platform] = build
                 source_registry = mocked_registries[build['registry']]
                 source_manifests[platform] = source_registry.get_manifest(build['repository'],
@@ -494,7 +497,7 @@ def test_group_manifests(workflow, source_dir, schema_version, test_name, group,
                     assert all(d['mediaType'] == manifest_type for d in manifests)
                     assert all(d['platform']['os'] == 'linux' for d in manifests)
 
-                    for platform in annotations['worker-builds']:
+                    for platform in platform_digests:
                         descs = [d for d in manifests
                                  if d['platform']['architecture'] == goarch[platform]]
                         assert len(descs) == 1
@@ -504,11 +507,11 @@ def test_group_manifests(workflow, source_dir, schema_version, test_name, group,
                                                       source_manifests[platform], platform)
 
         else:
-            platforms = annotations['worker-builds']
+            platforms = list(platform_digests)
             assert len(platforms) == 1
-            platform = list(platforms.keys())[0]
+            platform = platforms[0]
 
-            source_build = annotations['worker-builds'][platform]['digests'][0]
+            source_build = platform_digests[platform]['digests'][0]
             source_registry = mocked_registries[source_build['registry']]
             source_manifest = source_registry.get_manifest(source_build['repository'],
                                                            source_build['digest'])
@@ -544,3 +547,71 @@ def test_group_manifests(workflow, source_dir, schema_version, test_name, group,
         with pytest.raises(PluginFailedException) as ex:
             runner.run()
         assert expected_exception in str(ex.value)
+
+
+UNIQUE_IMAGE = f'{REGISTRY_V2}/namespace/httpd:2.4'
+
+
+@pytest.mark.parametrize("manifest_version", ["v2", "oci"])
+@responses.activate
+def test_get_built_images(workflow, manifest_version):
+    MockEnv(workflow).set_check_platforms_result(["ppc64le", "x86_64"])
+    workflow.data.tag_conf.add_unique_image(UNIQUE_IMAGE)
+
+    _, platform_digests = mock_registries(
+        [REGISTRY_V2],
+        {
+            "ppc64le": {REGISTRY_V2: ["namespace/httpd:2.4-ppc64le"]},
+            "x86_64": {REGISTRY_V2: ["namespace/httpd:2.4-x86_64"]},
+        },
+        schema_version=manifest_version,
+    )
+
+    ppc_digest = platform_digests["ppc64le"]["digests"][0]["digest"]
+    x86_digest = platform_digests["x86_64"]["digests"][0]["digest"]
+
+    flexmock(ManifestUtil).should_receive("__init__")  # and do nothing, this test doesn't use it
+
+    plugin = GroupManifestsPlugin(workflow)
+    session = RegistrySession(REGISTRY_V2)
+
+    assert plugin.get_built_images(session) == [
+        BuiltImage(
+            pullspec=ImageName.parse(f"{UNIQUE_IMAGE}-ppc64le"),
+            platform="ppc64le",
+            manifest_digest=ppc_digest,
+            manifest_version=manifest_version,
+        ),
+        BuiltImage(
+            pullspec=ImageName.parse(f"{UNIQUE_IMAGE}-x86_64"),
+            platform="x86_64",
+            manifest_digest=x86_digest,
+            manifest_version=manifest_version,
+        ),
+    ]
+
+
+@responses.activate
+def test_get_built_images_multiple_manifest_types(workflow):
+    MockEnv(workflow).set_check_platforms_result(["x86_64"])
+    workflow.data.tag_conf.add_unique_image(UNIQUE_IMAGE)
+
+    flexmock(ManifestUtil).should_receive("__init__")  # and do nothing, this test doesn't use it
+
+    (
+        flexmock(RegistryClient)
+        .should_receive("get_manifest_digests")
+        .with_args(ImageName.parse(f"{UNIQUE_IMAGE}-x86_64"))
+        .and_return(ManifestDigest({"v2": make_digest("foo"), "oci": make_digest("bar")}))
+    )
+
+    plugin = GroupManifestsPlugin(workflow)
+    session = RegistrySession(REGISTRY_V2)
+
+    expect_error = (
+        f"Expected to find a single manifest digest for {UNIQUE_IMAGE}-x86_64, "
+        "but found multiple: {'v2': .*, 'oci': .*}"
+    )
+
+    with pytest.raises(RuntimeError, match=expect_error):
+        plugin.get_built_images(session)
