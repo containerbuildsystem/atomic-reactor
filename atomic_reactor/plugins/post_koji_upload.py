@@ -8,13 +8,12 @@ of the BSD license. See the LICENSE file for details.
 
 from collections import namedtuple
 import os
-from tempfile import NamedTemporaryFile
 
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.constants import PLUGIN_KOJI_UPLOAD_PLUGIN_KEY
 from atomic_reactor.config import get_koji_session, get_openshift_session
 from atomic_reactor.util import is_scratch_build, map_to_user_params
-from atomic_reactor.utils.koji import get_buildroot, get_output, get_output_metadata
+from atomic_reactor.utils.koji import get_buildroot, get_output
 
 # An output file and its metadata
 Output = namedtuple('Output', ['file', 'metadata'])
@@ -88,22 +87,6 @@ class KojiUploadPlugin(PostBuildPlugin):
         self.pullspec_image = None
         self.platform = platform
 
-    def get_logs(self):
-        """
-        Build the logs entry for the metadata 'output' section
-
-        :return: list, Output instances
-        """
-
-        build_logs = NamedTemporaryFile(prefix="buildstep-%s" % self.build_id,
-                                        suffix=".log",
-                                        mode='wb')
-        build_logs.write("\n".join(self.workflow.data.build_result.logs).encode('utf-8'))
-        build_logs.flush()
-        filename = "{platform}-build.log".format(platform=self.platform)
-        return [Output(file=build_logs,
-                       metadata=get_output_metadata(build_logs.name, filename))]
-
     def get_metadata(self):
         """
         Build the metadata needed for importing the build
@@ -136,7 +119,7 @@ class KojiUploadPlugin(PostBuildPlugin):
         buildroot = get_buildroot()
         output_files, _ = get_output(workflow=self.workflow, buildroot_id=buildroot['id'],
                                      pullspec=self.pullspec_image, platform=self.platform,
-                                     source_build=False, logs=self.get_logs())
+                                     source_build=False)
 
         output = [output.metadata for output in output_files]
         koji_metadata = {
