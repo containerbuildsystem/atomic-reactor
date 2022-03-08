@@ -33,7 +33,7 @@ from atomic_reactor.source import GitSource, PathSource
 from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI_TAR,
                                       PLUGIN_ADD_FILESYSTEM_KEY,
                                       PLUGIN_FETCH_WORKER_METADATA_KEY,
-                                      PLUGIN_GENERATE_MAVEN_METADATA_KEY,
+                                      PLUGIN_MAVEN_URL_SOURCES_METADATA_KEY,
                                       PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_KOJI_PARENT_KEY,
                                       PLUGIN_RESOLVE_COMPOSES_KEY, BASE_IMAGE_KOJI_BUILD,
                                       PARENT_IMAGES_KOJI_BUILDS, BASE_IMAGE_BUILD_ID_KEY,
@@ -564,12 +564,12 @@ def mock_environment(workflow, source_dir: Path, session=None, name=None, oci=Fa
     else:
         workflow.data.prebuild_results[PLUGIN_RESOLVE_REMOTE_SOURCE] = None
 
-    workflow.data.postbuild_results[PLUGIN_GENERATE_MAVEN_METADATA_KEY] = None
+    workflow.data.postbuild_results[PLUGIN_MAVEN_URL_SOURCES_METADATA_KEY] = None
 
     if has_remote_source_file:
         filepath = build_dir_path / REMOTE_SOURCE_FILE_FILENAME
         filepath.write_text('dummy file', 'utf-8')
-        workflow.data.postbuild_results[PLUGIN_GENERATE_MAVEN_METADATA_KEY] = {
+        workflow.data.postbuild_results[PLUGIN_MAVEN_URL_SOURCES_METADATA_KEY] = {
             'remote_source_files': [
                 {
                     'file': str(filepath),
@@ -605,7 +605,7 @@ def mock_environment(workflow, source_dir: Path, session=None, name=None, oci=Fa
         }
 
     if has_pnc_build_metadata:
-        workflow.data.postbuild_results[PLUGIN_GENERATE_MAVEN_METADATA_KEY] = {
+        workflow.data.postbuild_results[PLUGIN_MAVEN_URL_SOURCES_METADATA_KEY] = {
             'pnc_build_metadata': {
                 'builds': [
                     {'id': 12345},

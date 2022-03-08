@@ -118,7 +118,7 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
     def process_by_url(self, url_requests):
         download_queue = []
         # we'll capture all source artifacts of url artifacts in a source_download_queue
-        # later on generate_maven_metadata plugin will process this queue to generate
+        # later on maven_url_sources_metadata plugin will process this queue to generate
         # remote source files that are later used in source container build to get sources
         # of url artifacts.
         # we have to do this in post build to avoid having source artifacts in build_dir
