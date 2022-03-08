@@ -15,7 +15,7 @@ import responses
 
 from atomic_reactor.constants import PLUGIN_FETCH_MAVEN_KEY
 from atomic_reactor.plugin import PluginFailedException
-from atomic_reactor.plugins.post_generate_maven_metadata import GenerateMavenMetadataPlugin
+from atomic_reactor.plugins.post_maven_url_sources_metadata import MavenURLSourcesMetadataPlugin
 from atomic_reactor.plugins.pre_fetch_maven_artifacts import DownloadRequest
 from tests.mock_env import MockEnv
 
@@ -81,7 +81,7 @@ def mock_env(workflow):
              'koji': {}}
 
     env = (MockEnv(workflow)
-           .for_plugin('postbuild', GenerateMavenMetadataPlugin.key)
+           .for_plugin('postbuild', MavenURLSourcesMetadataPlugin.key)
            .make_orchestrator()
            .set_reactor_config(r_c_m))
 
@@ -136,18 +136,18 @@ def mock_source_download_queue(workflow_data, remote_files=None, overrides=None)
 
 
 @responses.activate
-def test_generate_maven_metadata(workflow, source_dir):
+def test_maven_url_sources_metadata(workflow, source_dir):
     mock_source_download_queue(workflow.data)
 
     results = mock_env(workflow).create_runner().run()
 
-    plugin_result = results[GenerateMavenMetadataPlugin.key]
+    plugin_result = results[MavenURLSourcesMetadataPlugin.key]
 
     remote_source_files = plugin_result.get('remote_source_files')
 
     for remote_source_file in remote_source_files:
         assert source_dir.joinpath(
-            GenerateMavenMetadataPlugin.DOWNLOAD_DIR, remote_source_file['file']
+            MavenURLSourcesMetadataPlugin.DOWNLOAD_DIR, remote_source_file['file']
         ).exists()
 
 
@@ -158,7 +158,7 @@ def test_generate_maven_metadata(workflow, source_dir):
         """),
 ))
 @responses.activate
-def test_generate_maven_metadata_no_source_download_queue(
+def test_maven_url_sources_metadata_no_source_download_queue(
         workflow, source_dir, caplog, contents
 ):
     """Throw deprecation warning when no source-url is provided"""
@@ -171,7 +171,7 @@ def test_generate_maven_metadata_no_source_download_queue(
 
 
 @responses.activate
-def test_generate_maven_metadata_url_bad_checksum(workflow, source_dir):
+def test_maven_url_sources_metadata_url_bad_checksum(workflow, source_dir):
     """Err when downloaded archive from URL has unexpected checksum."""
     mock_source_download_queue(workflow.data, overrides={REMOTE_FILE_SPAM['source-url']:
                                                          {'body': 'corrupted-file'}})
@@ -183,7 +183,7 @@ def test_generate_maven_metadata_url_bad_checksum(workflow, source_dir):
 
 
 @responses.activate
-def test_generate_maven_metadata_source_url_no_headers(workflow, source_dir):
+def test_maven_url_sources_metadata_source_url_no_headers(workflow, source_dir):
     """
     Err if headers are not present.
     """
@@ -201,7 +201,7 @@ def test_generate_maven_metadata_source_url_no_headers(workflow, source_dir):
 
 
 @responses.activate
-def test_generate_maven_metadata_source_url_no_filename_in_headers(workflow, source_dir):
+def test_maven_url_sources_metadata_source_url_no_filename_in_headers(workflow, source_dir):
     """
     Err if filename not present in content-disposition.
     """

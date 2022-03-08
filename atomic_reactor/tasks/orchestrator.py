@@ -45,7 +45,7 @@ class OrchestratorTask(plugin_based.PluginBasedTask):
             {"name": "fetch_worker_metadata"},
             {"name": "compare_components"},
             {"name": "group_manifests"},
-            {"name": "generate_maven_metadata"},
+            {"name": "maven_url_sources_metadata"},
         ],
         exit=[
             {"name": "verify_media", "required": False},

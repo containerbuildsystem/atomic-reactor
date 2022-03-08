@@ -44,7 +44,7 @@ except ImportError:
 from atomic_reactor.constants import (
     PLUGIN_KOJI_IMPORT_PLUGIN_KEY, PLUGIN_KOJI_IMPORT_SOURCE_CONTAINER_PLUGIN_KEY,
     PLUGIN_FETCH_WORKER_METADATA_KEY,
-    PLUGIN_GENERATE_MAVEN_METADATA_KEY,
+    PLUGIN_MAVEN_URL_SOURCES_METADATA_KEY,
     PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_RESOLVE_COMPOSES_KEY,
     PLUGIN_VERIFY_MEDIA_KEY,
     PLUGIN_PIN_OPERATOR_DIGESTS_KEY,
@@ -260,7 +260,7 @@ class KojiImportBase(PostBuildPlugin):
 
     def set_pnc_build_metadata(self, extra):
         plugin_results = self.workflow.data.postbuild_results.get(
-            PLUGIN_GENERATE_MAVEN_METADATA_KEY) or {}
+            PLUGIN_MAVEN_URL_SOURCES_METADATA_KEY) or {}
         pnc_build_metadata = plugin_results.get('pnc_build_metadata')
 
         if pnc_build_metadata:
@@ -302,7 +302,7 @@ class KojiImportBase(PostBuildPlugin):
 
     def set_remote_source_file_metadata(self, extra):
         plugin_results = self.workflow.data.postbuild_results.get(
-            PLUGIN_GENERATE_MAVEN_METADATA_KEY) or {}
+            PLUGIN_MAVEN_URL_SOURCES_METADATA_KEY) or {}
         remote_source_files = plugin_results.get('remote_source_files')
         no_source_artifacts = plugin_results.get('no_source')
         if remote_source_files or no_source_artifacts:

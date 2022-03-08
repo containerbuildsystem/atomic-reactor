@@ -55,7 +55,7 @@ class BinaryPostBuildTask(plugin_based.PluginBasedTask[TaskParams]):
             {"name": "fetch_worker_metadata"},
             {"name": "compare_components"},
             {"name": "group_manifests"},
-            {"name": "generate_maven_metadata"},
+            {"name": "maven_url_sources_metadata"},
             {"name": "verify_media", "required": False},
             {"name": "push_floating_tags"},
             {"name": "koji_import"},

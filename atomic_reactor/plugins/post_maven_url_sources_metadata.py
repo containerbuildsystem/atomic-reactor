@@ -11,18 +11,18 @@ from typing import Any, Dict, List, Sequence
 
 from atomic_reactor import util
 from atomic_reactor.constants import (KOJI_BTYPE_REMOTE_SOURCE_FILE, PLUGIN_FETCH_MAVEN_KEY,
-                                      PLUGIN_GENERATE_MAVEN_METADATA_KEY)
+                                      PLUGIN_MAVEN_URL_SOURCES_METADATA_KEY)
 from atomic_reactor.download import download_url
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.pre_fetch_maven_artifacts import DownloadRequest
 
 
-class GenerateMavenMetadataPlugin(PostBuildPlugin):
+class MavenURLSourcesMetadataPlugin(PostBuildPlugin):
     """
     Generate maven metadata
     """
 
-    key = PLUGIN_GENERATE_MAVEN_METADATA_KEY
+    key = PLUGIN_MAVEN_URL_SOURCES_METADATA_KEY
     is_allowed_to_fail = False
     DOWNLOAD_DIR = 'url_sources'
 
@@ -30,7 +30,7 @@ class GenerateMavenMetadataPlugin(PostBuildPlugin):
         """
         :param workflow: DockerBuildWorkflow instance
         """
-        super(GenerateMavenMetadataPlugin, self).__init__(workflow)
+        super(MavenURLSourcesMetadataPlugin, self).__init__(workflow)
         self.source_url_to_artifacts = {}
 
     def get_remote_source_files(
