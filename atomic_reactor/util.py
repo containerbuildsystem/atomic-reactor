@@ -412,16 +412,14 @@ def get_exported_image_metadata(path, image_type):
     return metadata
 
 
-def get_image_upload_filename(metadata, image_id, platform):
-    saved_image = metadata.get('path')
-    image_type = metadata.get('type')
+def get_image_upload_filename(image_type, image_id, platform):
     if image_type == IMAGE_TYPE_DOCKER_ARCHIVE:
         base_name = 'docker-image'
     elif image_type == IMAGE_TYPE_OCI_TAR:
         base_name = 'oci-image'
     else:
         raise ValueError("Unhandled image type for upload: {}".format(image_type))
-    ext = saved_image.split('.', 1)[1]
+    ext = 'tar.gz'
     name_fmt = '{base_name}-{id}.{platform}.{ext}'
     return name_fmt.format(base_name=base_name, id=image_id,
                            platform=platform, ext=ext)

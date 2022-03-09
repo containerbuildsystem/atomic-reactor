@@ -330,7 +330,7 @@ def get_buildroot():
     return buildroot
 
 
-def get_image_output(workflow, image_id, arch, pullspec):
+def get_image_output(image_type, image_id, arch, pullspec):
     """
     Create the output for the image
 
@@ -341,8 +341,7 @@ def get_image_output(workflow, image_id, arch, pullspec):
 
     """
     # OSBS2 TBD exported_image_sequence will not work for multiple platform
-    image_name = get_image_upload_filename(workflow.data.exported_image_sequence[-1],
-                                           image_id, arch)
+    image_name = get_image_upload_filename(image_type, image_id, arch)
 
     readme_content = ('Archive is just a placeholder for the koji archive, if you need the '
                       f'content you can use pullspec of the built image: {pullspec}')
@@ -502,7 +501,8 @@ def get_output(workflow, buildroot_id, pullspec, platform, source_build=False, l
     }
 
     tags = set(image.tag for image in workflow.data.tag_conf.images)
-    metadata, output = get_image_output(workflow, image_id, platform, pullspec)
+    metadata, output = get_image_output(workflow.data.exported_image_sequence[-1].get('type'),
+                                        image_id, platform, pullspec)
 
     metadata.update({
         'arch': arch,
