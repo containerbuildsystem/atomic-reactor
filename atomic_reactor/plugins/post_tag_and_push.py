@@ -163,13 +163,14 @@ class TagAndPushPlugin(PostBuildPlugin):
         pushed_images = []
         wf_data = self.workflow.data
 
-        source_docker_archive = wf_data.build_result.source_docker_archive
-        if source_docker_archive:
+        is_source_build = PLUGIN_FETCH_SOURCES_KEY in self.workflow.data.prebuild_results
+        if is_source_build:
+            source_docker_archive = self.workflow.build_dir.any_platform.exported_squashed_image
             source_unique_image = self.source_get_unique_image()
 
         tag_conf = wf_data.tag_conf
         if not tag_conf.unique_images:
-            if source_docker_archive:
+            if is_source_build:
                 tag_conf.add_unique_image(source_unique_image)
             else:
                 tag_conf.add_unique_image(self.workflow.image)
@@ -182,7 +183,7 @@ class TagAndPushPlugin(PostBuildPlugin):
         self.log.info("Registry %s secret %s", self.registry['uri'], docker_push_secret)
 
         for image in wf_data.tag_conf.images:
-            if not source_docker_archive:
+            if not is_source_build:
                 # OSBS2 TBD
                 # layer_sizes were removed from workflow data
                 # these should be fetched from imageutil method
@@ -200,7 +201,7 @@ class TagAndPushPlugin(PostBuildPlugin):
             max_retries = DOCKER_PUSH_MAX_RETRIES
 
             for retry in range(max_retries + 1):
-                if self.need_skopeo_push() or source_docker_archive:
+                if self.need_skopeo_push() or is_source_build:
                     self.push_with_skopeo(registry_image, insecure, docker_push_secret,
                                           source_docker_archive)
                 else:
@@ -212,7 +213,7 @@ class TagAndPushPlugin(PostBuildPlugin):
                     #                                force=True, dockercfg=docker_push_secret)
                     pass
 
-                if source_docker_archive:
+                if is_source_build:
                     manifests_dict = get_all_manifests(registry_image, self.registry['uri'],
                                                        insecure,
                                                        docker_push_secret, versions=('v2',))

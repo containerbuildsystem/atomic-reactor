@@ -614,6 +614,8 @@ def test_exceed_binary_image_size(image_size_limit, workflow):
     if image_size_limit is not None:
         config['image_size_limit'] = image_size_limit
 
+    workflow.build_dir.init_build_dirs(["x86_64"], workflow.source)
+
     workflow.conf.conf = config
     # fake layer sizes of the test image
     workflow.data.layer_sizes = [
