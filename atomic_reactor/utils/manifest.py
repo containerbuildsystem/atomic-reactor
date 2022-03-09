@@ -11,8 +11,7 @@ from typing import Tuple
 import requests
 
 from atomic_reactor.plugin import PluginFailedException
-from atomic_reactor.util import (registry_hostname, RegistrySession, ManifestDigest,
-                                 get_manifest_media_type)
+from atomic_reactor.util import RegistrySession, ManifestDigest
 from atomic_reactor.constants import (MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST, MEDIA_TYPE_OCI_V1,
                                       MEDIA_TYPE_OCI_V1_INDEX)
@@ -32,38 +31,6 @@ class ManifestUtil(object):
 
     def valid_media_type(self, media_type):
         return media_type in self.manifest_media_types
-
-    def sort_annotations(self, all_annotations):
-        sorted_digests = {}
-        all_platforms = set(all_annotations)
-
-        for plat, annotation in all_annotations.items():
-            for digest in annotation['digests']:
-                hostname = registry_hostname(digest['registry'])
-                media_type = get_manifest_media_type(digest['version'])
-                if not self.valid_media_type(media_type):
-                    continue
-
-                platforms = sorted_digests.setdefault(hostname, {})
-                repos = platforms.setdefault(plat, [])
-                repos.append(digest)
-
-        sources = {}
-        hostname = registry_hostname(self.registry['uri'])
-        platforms = sorted_digests.get(hostname, {})
-
-        if set(platforms) != all_platforms:
-            raise RuntimeError("Missing platforms for registry {}: found {}, expected {}"
-                               .format(self.registry['uri'], sorted(platforms),
-                                       sorted(all_platforms)))
-
-        selected_digests = {}
-        for p, repos in platforms.items():
-            selected_digests[p] = sorted(repos, key=lambda d: d['repository'])[0]
-
-        sources[self.registry['uri']] = selected_digests
-
-        return sources
 
     def get_manifest(self, session, repository, ref) -> Tuple[bytes, str, str, int]:
         """
@@ -195,7 +162,7 @@ class ManifestUtil(object):
 
         media_type = manifests[0]['media_type']
         if (not all(m['media_type'] == media_type for m in manifests)):
-            raise PluginFailedException('worker manifests have inconsistent types: {}'
+            raise PluginFailedException('image manifests have inconsistent types: {}'
                                         .format(manifests))
 
         if media_type == MEDIA_TYPE_DOCKER_V2_SCHEMA2:
@@ -203,7 +170,7 @@ class ManifestUtil(object):
         elif media_type == MEDIA_TYPE_OCI_V1:
             list_type = MEDIA_TYPE_OCI_V1_INDEX
         else:
-            raise PluginFailedException('worker manifests have unsupported type: {}'
+            raise PluginFailedException('image manifests have unsupported type: {}'
                                         .format(media_type))
 
         return list_type, json.dumps({
