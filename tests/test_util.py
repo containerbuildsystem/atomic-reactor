@@ -238,22 +238,17 @@ def test_get_hexdigests(tmpdir, content, algorithms, expected, write_to_file, sh
         assert checksums == expected
 
 
-@pytest.mark.parametrize('path, image_type, expected', [
-    ('foo.tar', IMAGE_TYPE_DOCKER_ARCHIVE, 'docker-image-XXX.x86_64.tar'),
-    ('foo.tar.gz', IMAGE_TYPE_DOCKER_ARCHIVE, 'docker-image-XXX.x86_64.tar.gz'),
-    ('foo.tar.gz', IMAGE_TYPE_OCI_TAR, 'oci-image-XXX.x86_64.tar.gz'),
-    ('foo', IMAGE_TYPE_OCI, None),
+@pytest.mark.parametrize('image_type, expected', [
+    (IMAGE_TYPE_DOCKER_ARCHIVE, 'docker-image-XXX.x86_64.tar.gz'),
+    (IMAGE_TYPE_OCI_TAR, 'oci-image-XXX.x86_64.tar.gz'),
+    (IMAGE_TYPE_OCI, None),
 ])
-def test_get_image_upload_filename(path, image_type, expected):
-    metadata = {
-        'path': path,
-        'type': image_type,
-    }
+def test_get_image_upload_filename(image_type, expected):
     if expected is None:
         with pytest.raises(ValueError):
-            get_image_upload_filename(metadata, 'XXX', 'x86_64')
+            get_image_upload_filename(image_type, 'XXX', 'x86_64')
     else:
-        assert get_image_upload_filename(metadata, 'XXX', 'x86_64') == expected
+        assert get_image_upload_filename(image_type, 'XXX', 'x86_64') == expected
 
 
 def test_get_versions_of_tools():

@@ -396,7 +396,7 @@ def mock_environment(workflow, source_dir: Path, session=None, name=None, oci=Fa
 
     build_dir_path = workflow.build_dir.any_platform.path
 
-    image_tar = build_dir_path / 'image.tar.xz'
+    image_tar = build_dir_path / 'image.tar.gz'
     image_tar.write_text('x' * 2**12, "utf-8")
     setattr(workflow.data,
             'exported_image_sequence',
@@ -2427,7 +2427,7 @@ class TestKojiImport(object):
         build_id = runner.plugins_results[KojiImportSourceContainerPlugin.key]
         assert build_id == "123"
 
-        uploaded_oic_file = 'oci-image-{}.{}.tar.xz'.format(expect_id, os.uname()[4])
+        uploaded_oic_file = 'oci-image-{}.{}.tar.gz'.format(expect_id, os.uname()[4])
         assert set(session.uploaded_files.keys()) == {
             OSBS_BUILD_LOG_FILENAME,
             uploaded_oic_file,
