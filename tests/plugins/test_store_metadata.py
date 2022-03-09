@@ -19,15 +19,13 @@ from osbs.utils import ImageName
 from atomic_reactor.constants import (PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
                                       PLUGIN_VERIFY_MEDIA_KEY,
                                       PLUGIN_FETCH_SOURCES_KEY)
-from atomic_reactor.inner import BuildResult
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.exit_store_metadata import StoreMetadataPlugin
 from atomic_reactor.util import LazyGit, ManifestDigest, df_parser, DockerfileImages, RegistryClient
 import pytest
-from tests.constants import (LOCALHOST_REGISTRY, TEST_IMAGE, TEST_IMAGE_NAME,
-                             INPUT_IMAGE)
+from tests.constants import LOCALHOST_REGISTRY, TEST_IMAGE, TEST_IMAGE_NAME
 from tests.util import add_koji_map_in_workflow, is_string_type
 
 DIGEST1 = "sha256:1da9b9e1c6bf6ab40f1627d76e2ad58e9b2be14351ef4ff1ed3eb4a156138189"
@@ -110,16 +108,6 @@ def prepare(workflow, registry=None):
     # pylint: enable=no-member
 
 
-@pytest.mark.parametrize(('br_annotations', 'expected_br_annotations'), (
-    (None, None),
-    ('spam', '"spam"'),
-    (['s', 'p', 'a', 'm'], '["s", "p", "a", "m"]'),
-))
-@pytest.mark.parametrize(('br_labels', 'expected_br_labels'), (
-    (None, None),
-    ('bacon', 'bacon'),
-    (123, '123'),
-))
 @pytest.mark.parametrize('koji', [True, False])
 @pytest.mark.parametrize(('help_results', 'expected_help_results', 'base_from_scratch'), (
     (None, False, False),
@@ -137,8 +125,7 @@ def prepare(workflow, registry=None):
     (["application/vnd.docker.distribution.manifest.v1+json"],
      ["application/vnd.docker.distribution.manifest.v1+json"]),
 ))
-def test_metadata_plugin(workflow, source_dir, br_annotations, expected_br_annotations,
-                         br_labels, expected_br_labels, koji,
+def test_metadata_plugin(workflow, source_dir, koji,
                          help_results, expected_help_results, base_from_scratch,
                          verify_media_results, expected_media_results):
     initial_timestamp = datetime.now()
@@ -180,13 +167,6 @@ CMD blabla"""
     }
     workflow.fs_watcher._data = dict(fs_data=None)
 
-    if br_annotations or br_labels:
-        workflow.data.build_result = BuildResult(
-            image_id=INPUT_IMAGE,
-            annotations={'br_annotations': br_annotations} if br_annotations else None,
-            labels={'br_labels': br_labels} if br_labels else None,
-        )
-
     timestamp = (initial_timestamp + timedelta(seconds=3)).isoformat()
     workflow.data.plugins_timestamps = {
         PostBuildRPMqaPlugin.key: timestamp,
@@ -214,7 +194,6 @@ CMD blabla"""
     )
     output = runner.run()
     assert StoreMetadataPlugin.key in output
-    labels = output[StoreMetadataPlugin.key]["labels"]
     annotations = output[StoreMetadataPlugin.key]["annotations"]
     assert "dockerfile" in annotations
     assert is_string_type(annotations['dockerfile'])
@@ -291,16 +270,6 @@ CMD blabla"""
     plugins_metadata = json.loads(annotations["plugins-metadata"])
     assert "all_rpm_packages" in plugins_metadata["durations"]
 
-    if br_annotations:
-        assert annotations['br_annotations'] == expected_br_annotations
-    else:
-        assert 'br_annotations' not in annotations
-
-    if br_labels:
-        assert labels['br_labels'] == expected_br_labels
-    else:
-        assert 'br_labels' not in labels
-
     if expected_help_results is False:
         assert 'help_file' not in annotations
     else:
@@ -314,24 +283,12 @@ CMD blabla"""
 
 
 @pytest.mark.parametrize('image_id', ('c9243f9abf2b', None))
-@pytest.mark.parametrize(('br_annotations', 'expected_br_annotations'), (
-    (None, None),
-    ('spam', '"spam"'),
-    (['s', 'p', 'a', 'm'], '["s", "p", "a", "m"]'),
-))
-@pytest.mark.parametrize(('br_labels', 'expected_br_labels'), (
-    (None, None),
-    ('bacon', 'bacon'),
-    (123, '123'),
-))
 @pytest.mark.parametrize(('verify_media_results', 'expected_media_results'), (
     ([], False),
     (["application/vnd.docker.distribution.manifest.v1+json"],
      ["application/vnd.docker.distribution.manifest.v1+json"]),
 ))
-def test_metadata_plugin_source(image_id, br_annotations, expected_br_annotations,
-                                br_labels, expected_br_labels, verify_media_results,
-                                expected_media_results, workflow):
+def test_metadata_plugin_source(image_id, verify_media_results, expected_media_results, workflow):
     initial_timestamp = datetime.now()
     prepare(workflow)
 
@@ -352,13 +309,6 @@ def test_metadata_plugin_source(image_id, br_annotations, expected_br_annotation
         PLUGIN_VERIFY_MEDIA_KEY: verify_media_results,
     }
     workflow.fs_watcher._data = dict(fs_data=None)
-
-    if br_annotations or br_labels:
-        workflow.data.build_result = BuildResult(
-            image_id=INPUT_IMAGE,
-            annotations={'br_annotations': br_annotations} if br_annotations else None,
-            labels={'br_labels': br_labels} if br_labels else None,
-        )
 
     timestamp = (initial_timestamp + timedelta(seconds=3)).isoformat()
     workflow.data.plugins_timestamps = {
@@ -426,15 +376,6 @@ def test_metadata_plugin_source(image_id, br_annotations, expected_br_annotation
     plugins_metadata = json.loads(annotations["plugins-metadata"])
     assert PLUGIN_FETCH_SOURCES_KEY in plugins_metadata["durations"]
 
-    if br_annotations:
-        assert annotations['br_annotations'] == expected_br_annotations
-    else:
-        assert 'br_annotations' not in annotations
-
-    if br_labels:
-        assert labels['br_labels'] == expected_br_labels
-    else:
-        assert 'br_labels' not in labels
     assert 'sources_for_koji_build_id' in labels
     assert labels['sources_for_koji_build_id'] == sources_for_koji_build_id
 
