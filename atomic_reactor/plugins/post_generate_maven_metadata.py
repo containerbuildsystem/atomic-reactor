@@ -7,15 +7,14 @@ of the BSD license. See the LICENSE file for details.
 """
 import os
 import re
-from collections import namedtuple
+from typing import Any, Dict, List, Sequence
 
 from atomic_reactor import util
 from atomic_reactor.constants import (KOJI_BTYPE_REMOTE_SOURCE_FILE, PLUGIN_FETCH_MAVEN_KEY,
                                       PLUGIN_GENERATE_MAVEN_METADATA_KEY)
 from atomic_reactor.download import download_url
 from atomic_reactor.plugin import PostBuildPlugin
-
-DownloadRequest = namedtuple('DownloadRequest', 'url dest checksums')
+from atomic_reactor.plugins.pre_fetch_maven_artifacts import DownloadRequest
 
 
 class GenerateMavenMetadataPlugin(PostBuildPlugin):
@@ -34,7 +33,9 @@ class GenerateMavenMetadataPlugin(PostBuildPlugin):
         super(GenerateMavenMetadataPlugin, self).__init__(workflow)
         self.source_url_to_artifacts = {}
 
-    def get_remote_source_files(self, download_queue):
+    def get_remote_source_files(
+            self, download_queue: Sequence[DownloadRequest]
+    ) -> List[Dict[str, Any]]:
         remote_source_files = []
         downloads_path = self.workflow.build_dir.any_platform.path / self.DOWNLOAD_DIR
 
@@ -90,7 +91,8 @@ class GenerateMavenMetadataPlugin(PostBuildPlugin):
         Run the plugin.
         """
         fetch_maven_result = self.workflow.data.prebuild_results[PLUGIN_FETCH_MAVEN_KEY]
-        source_download_queue = fetch_maven_result['source_download_queue']
+        source_download_queue = [DownloadRequest(**x) for x in fetch_maven_result.get(
+            'source_download_queue')]
         self.source_url_to_artifacts = fetch_maven_result['source_url_to_artifacts']
         remote_source_files = self.get_remote_source_files(source_download_queue)
 

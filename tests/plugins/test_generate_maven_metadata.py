@@ -5,6 +5,7 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
+import dataclasses
 import hashlib
 import os
 from textwrap import dedent
@@ -14,8 +15,8 @@ import responses
 
 from atomic_reactor.constants import PLUGIN_FETCH_MAVEN_KEY
 from atomic_reactor.plugin import PluginFailedException
-from atomic_reactor.plugins.post_generate_maven_metadata import GenerateMavenMetadataPlugin, \
-    DownloadRequest
+from atomic_reactor.plugins.post_generate_maven_metadata import GenerateMavenMetadataPlugin
+from atomic_reactor.plugins.pre_fetch_maven_artifacts import DownloadRequest
 from tests.mock_env import MockEnv
 
 FILER_ROOT_DOMAIN = 'filer.com'
@@ -123,7 +124,7 @@ def mock_source_download_queue(workflow_data, remote_files=None, overrides=None)
                      hashlib.algorithms_guaranteed
                      if ('source-' + algo) in remote_file}
         target = os.path.basename(url)
-        source_download_queue.append(DownloadRequest(url, target, checksums))
+        source_download_queue.append(dataclasses.asdict(DownloadRequest(url, target, checksums)))
         if url not in source_url_to_artifacts:
             source_url_to_artifacts[url] = [artifact]
         else:

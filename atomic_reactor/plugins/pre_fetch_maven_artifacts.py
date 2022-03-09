@@ -171,7 +171,8 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
                 #  in the URL itself, so we'll have to get filename from URL response
                 target = os.path.basename(source_url)
 
-                source_download_queue.append(DownloadRequest(source_url, target, checksums))
+                source_download_queue.append(dataclasses.asdict(DownloadRequest(source_url, target,
+                                                                                checksums)))
             else:
                 self.source_url_to_artifacts[source_url].append(artifact)
 
