@@ -7,18 +7,19 @@ of the BSD license. See the LICENSE file for details.
 """
 
 import pytest
+import os.path
 
 from atomic_reactor import source
 from atomic_reactor.tasks import sources
 
 
 @pytest.fixture
-def params(build_dir) -> sources.SourceBuildTaskParams:
+def params(build_dir, tmpdir) -> sources.SourceBuildTaskParams:
     return sources.SourceBuildTaskParams(
         # build_dir has to be an existing directory because DummySource creates a subdirectory
         #   as soon as an instance is created
         build_dir=str(build_dir),
-        context_dir="/context",
+        context_dir=os.path.join(str(tmpdir), 'context'),
         config_file="config.yaml",
         user_params={},
     )
