@@ -122,6 +122,62 @@
         "additionalProperties": false,
         "required": ["hub_url", "root_url", "auth"]
     },
+    "remote_hosts": {
+        "description": "Remote-host instance",
+        "type": "object",
+        "properties": {
+            "slots_dir": {
+                "description": "Remote-host slots directory",
+                "type": "string"
+            },
+            "pools": {
+                "description": "Pool of Remote-hosts",
+                "type": "object",
+                "patternProperties": {
+                    "^[a-zA-Z0-9_]+$": {
+                        "description": "Remote host platforms",
+                        "type": "object",
+                        "patternProperties": {
+                            "^[a-zA-Z0-9_.-]+$": {
+                                "description": "Platform specific hosts",
+                                "type": "object",
+                                "properties": {
+                                    "username": {
+                                        "description": "User name used to SSH to host",
+                                        "type": "string"
+                                    },
+                                    "auth": {
+                                        "description": "File path to SSH private key to access host",
+                                        "type": "string"
+                                    },
+                                    "enabled": {
+                                        "description": "Whether this host can be used",
+                                        "type": "boolean",
+                                        "default": true
+                                    },
+                                    "slots": {
+                                        "description": "Available slots on host",
+                                        "type": "integer",
+                                        "minimum": 0
+                                    },
+                                    "socket_path": {
+                                        "description": "User podman socket path",
+                                        "type": "string"
+                                    }
+                                },
+                                "additionalProperties": false,
+                                "required": ["username", "auth", "enabled", "slots", "socket_path"]
+                            }
+                        },
+                        "additionalProperties": false
+                    }
+                },
+               "additionalProperties": false
+            }
+        },
+        "additionalProperties": false,
+        "required": ["slots_dir", "pools"]
+    },
     "pnc": {
         "description": "Project Newcastle instance",
         "type": "object",
