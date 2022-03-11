@@ -161,6 +161,7 @@ class ReactorConfigKeys(object):
     CONTENT_VERSIONS_KEY = 'content_versions'
     REGISTRIES_ORGANIZATION_KEY = 'registries_organization'
     REGISTRIES_KEY = 'registries'
+    REMOTE_HOSTS_KEY = 'remote_hosts'
     YUM_PROXY_KEY = 'yum_proxy'
     SOURCE_REGISTRY_KEY = 'source_registry'
     PULL_REGISTRIES_KEY = 'pull_registries'
@@ -336,6 +337,10 @@ class Configuration(object):
                 raise RuntimeError("specify both koji_principal and koji_keytab or neither")
 
         return koji_map
+
+    @property
+    def remote_hosts(self):
+        return self._get_value(ReactorConfigKeys.REMOTE_HOSTS_KEY, fallback={})
 
     @property
     def koji_path_info(self):
