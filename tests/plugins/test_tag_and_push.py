@@ -501,6 +501,7 @@ def test_tag_and_push_plugin_oci(workflow, tmpdir, monkeypatch,
         else:
             assert args[-2] == 'oci:' + oci_dir + ':' + REF_NAME
             assert args[-1] == 'docker://' + LOCALHOST_REGISTRY + '/' + TEST_IMAGE_NAME
+            assert '--format=v2s2' in args
         return ''
 
     (flexmock(retries)
