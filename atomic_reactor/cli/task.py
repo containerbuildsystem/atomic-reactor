@@ -9,31 +9,9 @@ from atomic_reactor.tasks.binary import BinaryExitTask, BinaryPostBuildTask, Bin
 from atomic_reactor.tasks.binary_container_build import BinaryBuildTask, BinaryBuildTaskParams
 from atomic_reactor.tasks.clone import CloneTask
 from atomic_reactor.tasks.common import TaskParams
-from atomic_reactor.tasks.orchestrator import OrchestratorTask, OrchestratorTaskParams
 from atomic_reactor.tasks.sources import (
     SourceExitTask, SourceBuildTask, SourceBuildTaskParams
 )
-from atomic_reactor.tasks.worker import WorkerTask, WorkerTaskParams
-
-
-def orchestrator(task_args: dict):
-    """Orchestrate a binary container build.
-
-    :param task_args: CLI arguments for an orchestrator task
-    """
-    params = OrchestratorTaskParams.from_cli_args(task_args)
-    task = OrchestratorTask(params)
-    return task.execute()
-
-
-def worker(task_args: dict):
-    """Run the worker task for a binary container build.
-
-    :param task_args: CLI arguments for a worker task
-    """
-    params = WorkerTaskParams.from_cli_args(task_args)
-    task = WorkerTask(params)
-    return task.execute()
 
 
 def source_container_build(task_args: dict):
