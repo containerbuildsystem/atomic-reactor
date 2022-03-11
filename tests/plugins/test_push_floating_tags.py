@@ -15,7 +15,6 @@ import os
 
 from tests.constants import DOCKER0_REGISTRY
 from tests.mock_env import MockEnv
-from atomic_reactor.inner import BuildResult
 from atomic_reactor.util import registry_hostname, ManifestDigest, sha256sum
 from osbs.utils import ImageName
 from atomic_reactor.plugins.post_push_floating_tags import PushFloatingTagsPlugin
@@ -172,8 +171,6 @@ def mock_environment(workflow,
         image: str
         for image in floating_images:
             wf_data.tag_conf.add_floating_image(image)
-
-    wf_data.build_result = BuildResult(image_id='123456', annotations=annotations or {})
 
     return env
 

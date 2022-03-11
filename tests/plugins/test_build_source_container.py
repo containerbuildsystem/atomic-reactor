@@ -168,21 +168,25 @@ def test_running_build(workflow, caplog,
                     tf.add(str(temp_image_output_dir / f), f)
 
     if not any([sources_dir_exists, remote_dir_exists, maven_dir_exists]):
-        build_result = runner.run()
+        with pytest.raises(PluginFailedException) as exc_info:
+            runner.run()
+        err_msg = exc_info.value.args[0]
+        assert re.search("No SRPMs directory", err_msg)
+        assert re.search("No Remote source directory", err_msg)
+        assert re.search("No Maven source directory", err_msg)
+
         err_msg = f"No SRPMs directory '{sources_dir_path}' available"
         err_msg += f"\nNo Remote source directory '{remote_dir_path}' available"
         err_msg += f"\nNo Maven source directory '{maven_dir_path}' available"
         # Since Python 3.7 logger adds additional whitespaces by default -> checking without them
         assert re.sub(r'\s+', " ", err_msg) in re.sub(r'\s+', " ", caplog.text)
-        assert build_result.is_failed()
+        assert workflow.build_process_failed
 
     elif export_failed:
         with pytest.raises(PluginFailedException):
             runner.run()
     else:
-        build_result = runner.run()
-        assert not build_result.is_failed()
-        assert build_result.source_docker_archive
+        runner.run()
         assert 'stub stdout' in caplog.text
         empty_srpm_msg = f"SRPMs directory '{sources_dir_path}' is empty"
         empty_remote_msg = f"Remote source directory '{remote_dir_path}' is empty"
@@ -247,7 +251,8 @@ def test_failed_build(workflow, source_dir, caplog, user_params):
         }]
     )
 
-    build_result = runner.run()
-    assert build_result.is_failed()
+    with pytest.raises(PluginFailedException, match="BSI utility failed"):
+        runner.run()
+    assert workflow.build_process_failed
     assert 'BSI failed with output:' in caplog.text
     assert 'stub stdout' in caplog.text

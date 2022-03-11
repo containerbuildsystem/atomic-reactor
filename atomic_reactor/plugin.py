@@ -24,7 +24,6 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, Dict, Generator
 
-import atomic_reactor.inner
 from atomic_reactor.util import exception_message
 from dockerfile_parse import DockerfileParser
 
@@ -306,17 +305,6 @@ class PluginsRunner(object):
                 with self._execution_timer(plugin):
                     plugin_response = plugin_instance.run()
                 plugin_successful = True
-                if buildstep_phase:
-                    assert isinstance(plugin_response, atomic_reactor.inner.BuildResult)
-                    if plugin_response.is_failed():
-                        logger.error("Build step plugin %s failed: %s",
-                                     plugin.plugin_class.key,
-                                     plugin_response.fail_reason)
-                        self.on_plugin_failed(plugin.plugin_class.key,
-                                              plugin_response.fail_reason)
-                        plugin_successful = False
-                        self.plugins_results[plugin.plugin_class.key] = plugin_response
-                        break
 
             except InappropriateBuildStepError:
                 logger.debug('Build step %s is not appropriate', plugin.plugin_class.key)
@@ -356,7 +344,10 @@ class PluginsRunner(object):
             raise PluginFailedException("Multiple plugins raised an exception: " +
                                         str(failed_msgs))
 
-        if not plugin_successful and buildstep_phase and not plugin_response and available_plugins:
+        # When a buildstep plugin raises InappropriateBuildStepError, next
+        # buildstep plugin will run. This ensures to fail the build process
+        # if all buildstep plugins are tried and no one succeeds.
+        if not plugin_successful and buildstep_phase and available_plugins:
             self.on_plugin_failed("BuildStepPlugin", "No appropriate build step")
             raise PluginFailedException("No appropriate build step")
 

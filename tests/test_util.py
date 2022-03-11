@@ -34,7 +34,6 @@ from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA1, MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
                                       DOCKERIGNORE, RELATIVE_REPOS_PATH)
-from atomic_reactor.inner import BuildResult
 from atomic_reactor.util import (LazyGit, figure_out_build_file,
                                  render_yum_repo, process_substitutions,
                                  get_checksums, print_version_of_tools,
@@ -1075,9 +1074,6 @@ def test_get_primary_and_floating_images(workflow, tag_conf, expected_primary,
             wf_data.tag_conf.add_unique_image(str(image_name))
         else:
             wf_data.tag_conf.add_floating_image(str(image_name))
-
-    build_result = BuildResult(image_id='foo')
-    workflow.data.build_result = build_result
 
     actual_primary = get_primary_images(workflow)
     actual_floating = get_floating_images(workflow)

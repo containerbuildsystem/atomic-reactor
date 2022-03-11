@@ -368,17 +368,3 @@ class TestContextDir:
         else:
             with error:
                 ContextDir(Path(tmpdir)).get_platform_dir(platform)
-
-    @pytest.mark.parametrize("platform,error", [
-        [None, pytest.raises(ValueError, match="No platform is specified")],
-        ["", pytest.raises(ValueError, match="No platform is specified")],
-        ["x86_64", None],
-        ["some_arch", None],
-    ])
-    def test_get_build_result_file(self, platform, error, tmpdir):
-        if error is None:
-            file_path = Path(tmpdir.join(platform, "build_result.json"))
-            assert file_path == ContextDir(Path(tmpdir)).get_build_result_file(platform)
-        else:
-            with error:
-                ContextDir(Path(tmpdir)).get_build_result_file(platform)

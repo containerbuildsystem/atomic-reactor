@@ -91,125 +91,6 @@ class BuildResultsJSONDecoder(json.JSONDecoder):
         return results
 
 
-class BuildResult(ISerializer):
-
-    REMOTE_IMAGE = object()
-
-    def __init__(self,
-                 logs: Optional[List[str]] = None,
-                 fail_reason: Optional[str] = None,
-                 image_id: Optional[str] = None,
-                 annotations: Optional[Dict[str, str]] = None,
-                 labels: Optional[Dict[str, str]] = None,
-                 skip_layer_squash: bool = False,
-                 source_docker_archive: Optional[str] = None):
-        """
-        :param logs: iterable of log lines (without newlines)
-        :param fail_reason: str, description of failure or None if successful
-        :param image_id: str, ID of built container image
-        :param annotations: dict, data captured during build step which
-                            should be annotated to OpenShift build
-        :param labels: dict, data captured during build step which
-                       should be set as labels on OpenShift build
-        :param skip_layer_squash: boolean, direct post-build plugins not
-                                  to squash image layers for this build
-        :param source_docker_archive: str, path to docker image archive
-        """
-        assert fail_reason is None or bool(fail_reason), \
-            "If fail_reason provided, can't be falsy"
-        # must provide one, not both
-        assert not (fail_reason and image_id), \
-            "Either fail_reason or image_id should be provided, not both"
-        assert not (fail_reason and source_docker_archive), \
-            "Either fail_reason or source_docker_archive should be provided, not both"
-        assert not (image_id and source_docker_archive), \
-            "Either image_id or source_docker_archive should be provided, not both"
-        self._logs = logs or []
-        self._fail_reason = fail_reason
-        self._image_id = image_id
-        self._annotations = annotations
-        self._labels = labels
-        self._skip_layer_squash = skip_layer_squash
-        self._source_docker_archive = source_docker_archive
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, type(self)):
-            return False
-        return (
-            self._logs == other.logs and
-            self._fail_reason == other.fail_reason and
-            self._image_id == other.image_id and
-            self._annotations == other.annotations and
-            self._labels == other.labels and
-            self._skip_layer_squash == other.skip_layer_squash and
-            self._source_docker_archive == other.source_docker_archive
-        )
-
-    @classmethod
-    def make_remote_image_result(cls, annotations=None, labels=None):
-        """Instantiate BuildResult for image not built locally."""
-        return cls(
-            image_id=cls.REMOTE_IMAGE, annotations=annotations, labels=labels
-        )
-
-    @property
-    def logs(self):
-        return self._logs
-
-    @property
-    def fail_reason(self):
-        return self._fail_reason
-
-    def is_failed(self):
-        return self._fail_reason is not None
-
-    @property
-    def image_id(self):
-        return self._image_id
-
-    @property
-    def annotations(self):
-        return self._annotations
-
-    @property
-    def labels(self):
-        return self._labels
-
-    @property
-    def skip_layer_squash(self):
-        return self._skip_layer_squash
-
-    @property
-    def source_docker_archive(self):
-        return self._source_docker_archive
-
-    def is_image_available(self) -> bool:
-        return bool(self._image_id and self._image_id is not self.REMOTE_IMAGE)
-
-    @classmethod
-    def load(cls, data: Dict[str, Any]):
-        return cls(
-            logs=data.get("logs"),
-            fail_reason=data.get("fail_reason"),
-            image_id=data.get("image_id"),
-            annotations=data.get("annotations"),
-            labels=data.get("labels"),
-            skip_layer_squash=data.get("skip_layer_squash", False),
-            source_docker_archive=data.get("source_docker_archive"),
-        )
-
-    def as_dict(self) -> Dict[str, Any]:
-        return {
-            "annotations": self.annotations,
-            "fail_reason": self.fail_reason,
-            "image_id": self.image_id,
-            "labels": self.labels,
-            "logs": self.logs,
-            "skip_layer_squash": self.skip_layer_squash,
-            "source_docker_archive": self.source_docker_archive,
-        }
-
-
 class TagConf(ISerializer):
     """
     confguration of image names and tags to be applied
@@ -464,19 +345,6 @@ class ImageBuildWorkflowData(ISerializer):
     image_id: Optional[str] = None
     parent_images_digests: Dict[str, Dict[str, str]] = field(default_factory=dict)
 
-    @property
-    def build_result(self) -> Optional[BuildResult]:
-        # OSBS2 TBD: remove this as soon as possible, we should not use BuildResult anymore
-        build_results = list(self.buildstep_result.values())
-        if not build_results:
-            return None
-        return build_results[0]
-
-    @build_result.setter
-    def build_result(self, value: BuildResult):
-        # OSBS2 TBD: as above, plus THIS IS ONLY FOR UNIT TESTS
-        self.buildstep_result = {"irrelevant_key": value}
-
     @classmethod
     def load(cls, data: Dict[str, Any]):
         """Load workflow data from given input."""
@@ -488,7 +356,6 @@ class ImageBuildWorkflowData(ISerializer):
         data_conv: Dict[str, Callable] = {
             "dockerfile_images": DockerfileImages.load,
             "tag_conf": TagConf.load,
-            "build_result": BuildResult.load,
         }
 
         def _return_directly(value):
@@ -569,7 +436,6 @@ class WorkflowDataDecoder:
     def __call__(self, data: Dict[str, Any]) -> Any:
         """Restore custom serializable objects."""
         loader_meths: Final[Dict[str, Callable]] = {
-            BuildResult.__name__: BuildResult.load,
             DockerfileImages.__name__: DockerfileImages.load,
             TagConf.__name__: TagConf.load,
             ImageName.__name__: self._restore_image_name,
@@ -798,18 +664,15 @@ class DockerBuildWorkflow(object):
         """
         Has any aspect of the build process failed?
         """
-        build_result = self.data.build_result
-        return not build_result or build_result.is_failed() or self.data.plugin_failed
+        return self.data.plugin_failed
 
     def throw_canceled_build_exception(self, *args, **kwargs):
         self.data.build_canceled = True
         raise BuildCanceledException("Build was canceled")
 
-    def build_docker_image(self) -> Optional[BuildResult]:
+    def build_docker_image(self) -> None:
         """
         build docker image
-
-        :return: BuildResult
         """
         print_version_of_tools()
 
@@ -841,15 +704,9 @@ class DockerBuildWorkflow(object):
             logger.info("running buildstep plugins")
             try:
                 buildstep_runner.run()
-
-                if self.data.build_result and self.data.build_result.is_failed():
-                    raise PluginFailedException(self.data.build_result.fail_reason)
             except PluginFailedException as ex:
                 logger.error('buildstep plugin failed: %s', ex)
                 raise
-
-            if self.data.build_result and self.data.build_result.is_image_available():
-                self.data.image_id = self.data.build_result.image_id
 
             # run prepublish plugins
             try:
@@ -863,8 +720,6 @@ class DockerBuildWorkflow(object):
             except PluginFailedException as ex:
                 logger.error("one or more postbuild plugins failed: %s", ex)
                 raise
-
-            return self.data.build_result
         except Exception as ex:
             logger.debug("caught exception (%s) so running exit plugins", exception_message(ex))
             exception_being_handled = True

@@ -123,9 +123,8 @@ runtime.
 Buildstep plugins are run in order, and if one plugin successfully completes or
 fails, the remaining buildstep plugins will not be attempted.
 
-The run() method must return a BuildResult instance, or raise
-`InappropriateBuildStepError` to indicate the next buildstep plugin in the list
-should be attempted.
+The run() method must raise `InappropriateBuildStepError` to indicate the next
+buildstep plugin in the list should be attempted.
 
 ## Default workflow
 

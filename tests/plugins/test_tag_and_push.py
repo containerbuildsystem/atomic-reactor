@@ -14,7 +14,6 @@ import pytest
 import koji as koji
 import osbs
 
-from atomic_reactor.inner import BuildResult
 import atomic_reactor.plugins.post_tag_and_push
 from atomic_reactor.constants import IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
@@ -85,7 +84,6 @@ PUSH_ERROR_LOGS = [
 
 @pytest.fixture
 def workflow(workflow):
-    workflow.data.build_result = BuildResult()
     return workflow
 
 
