@@ -10,8 +10,6 @@ from flexmock import flexmock
 
 from atomic_reactor.cli import task
 from atomic_reactor.tasks import (
-    orchestrator,
-    worker,
     sources,
     common,
     binary,
@@ -38,16 +36,6 @@ def mock(task_cls):
     )
     flexmock(task_cls).should_receive("__init__").with_args(params)
     flexmock(task_cls).should_receive("execute").and_return(TASK_RESULT)
-
-
-def test_orchestrator():
-    mock(orchestrator.OrchestratorTask)
-    assert task.orchestrator(TASK_ARGS) == TASK_RESULT
-
-
-def test_worker():
-    mock(worker.WorkerTask)
-    assert task.worker(TASK_ARGS) == TASK_RESULT
 
 
 def test_source_build():

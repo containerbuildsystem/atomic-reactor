@@ -43,20 +43,6 @@ def parse_args(args: Optional[Sequence[str]] = None) -> dict:
     tasks = task_parser.add_subparsers(title="tasks", metavar="task", required=True)
     jobs = job_parser.add_subparsers(title="jobs", metavar="job", required=True)
 
-    orchestrator = tasks.add_parser(
-        "orchestrator",
-        help="orchestrate a build",
-        description="Orchestrate a binary container build.",
-    )
-    orchestrator.set_defaults(func=task.orchestrator)
-
-    worker = tasks.add_parser(
-        "worker",
-        help="run the worker task",
-        description="Run the worker task for a binary container build.",
-    )
-    worker.set_defaults(func=task.worker)
-
     source_container_build = tasks.add_parser(
         "source-container-build",
         help="build a source container",

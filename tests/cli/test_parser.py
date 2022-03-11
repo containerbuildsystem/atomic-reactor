@@ -76,15 +76,6 @@ def test_parse_args_version(capsys):
             ["task", *REQUIRED_COMMON_ARGS, "binary-container-exit"],
             {**EXPECTED_ARGS, "func": task.binary_container_exit},
         ),
-        # global and required args
-        (
-            ["--verbose", "task", *REQUIRED_COMMON_ARGS, "orchestrator"],
-            {**EXPECTED_ARGS, "verbose": True, "func": task.orchestrator},
-        ),
-        (
-            ["--quiet", "task", *REQUIRED_COMMON_ARGS, "worker"],
-            {**EXPECTED_ARGS, "quiet": True, "func": task.worker},
-        ),
         # all common task args
         (
             ["task", *REQUIRED_COMMON_ARGS, "--config-file=config.yaml", "source-container-build"],
@@ -114,14 +105,6 @@ def test_parse_args_version(capsys):
         (
             ["task", *REQUIRED_COMMON_ARGS, "--config-file=config.yaml", "binary-container-exit"],
             {**EXPECTED_ARGS, "config_file": "config.yaml", "func": task.binary_container_exit},
-        ),
-        (
-            ["task", *REQUIRED_COMMON_ARGS, "--user-params", '{"a": 1}', "orchestrator"],
-            {**EXPECTED_ARGS, "user_params": '{"a": 1}', "func": task.orchestrator},
-        ),
-        (
-            ["task", *REQUIRED_COMMON_ARGS, "--user-params-file", "params.json", "worker"],
-            {**EXPECTED_ARGS, "user_params_file": "params.json", "func": task.worker},
         ),
     ],
 )
