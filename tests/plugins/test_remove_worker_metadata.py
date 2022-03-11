@@ -11,12 +11,13 @@ import logging
 from flexmock import flexmock
 
 from atomic_reactor.constants import DOCKERFILE_FILENAME, PLUGIN_REMOVE_WORKER_METADATA_KEY
-from atomic_reactor.inner import BuildResult
 from atomic_reactor.plugin import ExitPluginsRunner
 from osbs.exceptions import OsbsResponseException
 from atomic_reactor.plugins.build_orchestrate_build import (WorkerBuildInfo, ClusterInfo,
                                                             OrchestrateBuildPlugin)
 import pytest
+
+pytestmark = pytest.mark.skip("remove_worker_metadata will be deleted.")
 
 
 class MockConfigMapResponse(object):
@@ -107,7 +108,6 @@ def test_remove_worker_plugin(caplog, workflow,
             annotations['worker-builds'][platform]['metadata_fragment'] = metadata_fragment
             annotations['worker-builds'][platform]['metadata_fragment_key'] = fragment_key
 
-    workflow.data.build_result = BuildResult(annotations=annotations, image_id="id1234")
     workflow.data.plugin_workspace[OrchestrateBuildPlugin.key] = workspace
 
     runner = ExitPluginsRunner(
@@ -136,9 +136,6 @@ def test_remove_worker_plugin(caplog, workflow,
 def test_remove_worker_metadata_no_worker_build(caplog, workflow):
     """Don't traceback with missing worker builds, without worker
     builds plugin should just skip"""
-    annotations = None
-    workflow.data.build_result = BuildResult(annotations=annotations, image_id="id1234")
-
     runner = ExitPluginsRunner(
         workflow,
         [{

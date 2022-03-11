@@ -43,17 +43,10 @@ class PluginBasedTask(Task[ParamsT]):
         workflow = self.prepare_workflow()
 
         try:
-            try:
-                result = workflow.build_docker_image()
-            except Exception as e:
-                logger.error("task failed: %s", e)
-                raise
-
-            if result and result.is_failed():
-                msg = f"task failed: {result.fail_reason}"
-                logger.error(msg)
-                raise RuntimeError(msg)
-
+            workflow.build_docker_image()
+        except Exception as e:
+            logger.error("task failed: %s", e)
+            raise
         finally:
             # For whatever the reason a build fails, always write the workflow
             # data into the data file.

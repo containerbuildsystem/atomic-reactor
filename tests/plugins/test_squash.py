@@ -13,7 +13,6 @@ import pytest
 from flexmock import flexmock
 
 from atomic_reactor.constants import EXPORTED_SQUASHED_IMAGE_NAME, IMAGE_TYPE_DOCKER_ARCHIVE
-from atomic_reactor.inner import BuildResult
 from atomic_reactor.plugin import PrePublishPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.prepub_squash import PrePublishSquashPlugin
 from atomic_reactor.util import DockerfileImages
@@ -32,7 +31,6 @@ SET_DEFAULT_LAYER_ID = object()
 
 @pytest.fixture
 def workflow(workflow):
-    workflow.data.build_result = BuildResult()
     workflow.data.dockerfile_images = DockerfileImages(['Fedora:22'])
     workflow.data.image_id = 'image_id'
     flexmock(workflow, image='image')
@@ -52,7 +50,7 @@ class TestSquashPlugin(object):
 
     def test_skip_squash(self, workflow):
         flexmock(Squash).should_receive('__init__').never()
-        workflow.data.build_result = BuildResult(image_id="spam", skip_layer_squash=True)
+        setattr(workflow, "skip_layer_squash", True)
         self.run_plugin_with_args(workflow, {})
 
     @pytest.mark.parametrize('base_from_scratch', (True, False))

@@ -11,7 +11,6 @@ import koji
 from atomic_reactor.plugins.post_koji_tag_build import KojiTagBuildPlugin
 from atomic_reactor.plugins.post_koji_import import KojiImportPlugin
 from atomic_reactor.plugin import PluginFailedException, PostBuildPluginsRunner
-from atomic_reactor.inner import BuildResult
 from tests.util import add_koji_map_in_workflow
 
 from flexmock import flexmock
@@ -74,11 +73,7 @@ def mock_environment(workflow, session=None, build_process_failed=False,
 
     flexmock(koji, ClientSession=lambda hub, opts: session)
 
-    if build_process_failed:
-        workflow.data.build_result = BuildResult(fail_reason="not built")
-    else:
-        workflow.data.build_result = BuildResult(image_id="id1234")
-
+    workflow.data.plugin_failed = build_process_failed
     workflow.data.postbuild_results[KojiImportPlugin.key] = koji_build_id
 
     (flexmock(time)

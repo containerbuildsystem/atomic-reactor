@@ -25,7 +25,7 @@ from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.plugin import PluginFailedException, PostBuildPluginsRunner
-from atomic_reactor.inner import TagConf, BuildResult
+from atomic_reactor.inner import TagConf
 from atomic_reactor.util import (ManifestDigest, DockerfileImages,
                                  get_manifest_media_version, get_manifest_media_type,
                                  graceful_chain_get, RegistryClient)
@@ -402,38 +402,10 @@ def mock_environment(workflow, source_dir: Path, session=None, name=None, oci=Fa
             'exported_image_sequence',
             [{'path': str(image_tar), 'type': exported_file_type}])
 
-    annotations = {
-        'worker-builds': {
-            'x86_64': {
-                'build': {
-                    'build-name': 'build-1-x64_64',
-                },
-                'metadata_fragment': 'configmap/build-1-x86_64-md',
-                'metadata_fragment_key': 'metadata.json',
-            },
-            'ppc64le': {
-                'build': {
-                    'build-name': 'build-1-ppc64le',
-                },
-                'metadata_fragment': 'configmap/build-1-ppc64le-md',
-                'metadata_fragment_key': 'metadata.json',
-            }
-        }
-    }
+    workflow.data.plugin_failed = build_process_failed
+    if build_process_failed and build_process_canceled:
+        workflow.data.build_canceled = True
 
-    if build_process_failed:
-        workflow.data.build_result = BuildResult(
-            logs=["docker build log - \u2018 \u2017 \u2019 \n'"],
-            fail_reason="not built",
-        )
-        if build_process_canceled:
-            workflow.data.build_canceled = True
-    else:
-        workflow.data.build_result = BuildResult(
-            logs=["docker build log - \u2018 \u2017 \u2019 \n'"],
-            image_id="id1234",
-            annotations=annotations,
-        )
     workflow.prebuild_plugins_conf = {}
     workflow.data.prebuild_results[PLUGIN_FETCH_SOURCES_KEY] = {
         'sources_for_nvr': SOURCES_FOR_KOJI_NVR,
@@ -2278,7 +2250,6 @@ class TestKojiImport(object):
                          version=version, release=release, has_config=has_config,
                          source_build=True)
 
-        workflow.data.build_result = BuildResult(source_docker_archive="oci_path")
         workflow.data.koji_source_nvr = {'name': component, 'version': version, 'release': release}
         workflow.data.koji_source_source_url = 'git://hostname/path#123456'
 

@@ -310,14 +310,3 @@ class ContextDir:
         platform_dir = self._path / platform
         platform_dir.mkdir(exist_ok=True)
         return platform_dir
-
-    def get_build_result_file(self, platform: str) -> Path:
-        """Get the build_result.json filename specific to specified platform.
-
-        :param str platform: the platform of the directory. The value must be a
-            valid platform supported by OSBS, e.g. x86_64.
-        :return: path of build_result.json file.
-        :rtype: pathlib.Path
-        :raise ValueError: if value of argument ``platform`` is empty or None.
-        """
-        return self.get_platform_dir(platform) / "build_result.json"

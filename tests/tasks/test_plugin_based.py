@@ -14,8 +14,8 @@ from pathlib import Path
 from flexmock import flexmock
 import pytest
 
-from atomic_reactor.inner import ImageBuildWorkflowData, BuildResult
-from atomic_reactor.plugin import BuildCanceledException
+from atomic_reactor.inner import ImageBuildWorkflowData
+from atomic_reactor.plugin import BuildCanceledException, PluginFailedException
 from atomic_reactor.tasks.common import TaskParams
 from atomic_reactor.util import DockerfileImages
 from osbs.exceptions import OsbsValidationException
@@ -39,10 +39,6 @@ class TestPluginsDef:
     def test_create_invalid(self):
         with pytest.raises(OsbsValidationException, match="1 is not of type 'boolean'"):
             plugin_based.PluginsDef(prebuild=[{"name": "some_plugin", "required": 1}])
-
-
-def fake_build_docker_image_normal_return(*args, **kwargs) -> BuildResult:
-    return BuildResult(logs=["Build successfully."])
 
 
 class TestPluginBasedTask:
@@ -107,8 +103,7 @@ class TestPluginBasedTask:
     def test_execute(self, task_with_mocked_deps, caplog):
         task, mocked_workflow = task_with_mocked_deps
 
-        success = inner.BuildResult()
-        mocked_workflow.should_receive("build_docker_image").and_return(success)
+        mocked_workflow.should_receive("build_docker_image").once()
 
         task.execute()
         assert r"task finished successfully \o/" in caplog.text
@@ -127,18 +122,18 @@ class TestPluginBasedTask:
     def test_execute_returns_failure(self, task_with_mocked_deps, caplog):
         task, mocked_workflow = task_with_mocked_deps
 
-        failure = inner.BuildResult(fail_reason="workflow returned failure")
-        mocked_workflow.should_receive("build_docker_image").and_return(failure)
+        err = PluginFailedException("something is wrong")
+        mocked_workflow.should_receive("build_docker_image").and_raise(err)
 
-        with pytest.raises(RuntimeError, match="task failed: workflow returned failure"):
+        with pytest.raises(PluginFailedException, match="something is wrong"):
             task.execute()
 
-        assert "task failed: workflow returned failure" in caplog.text
+        assert "task failed: something is wrong" in caplog.text
 
 
 @pytest.mark.parametrize(
     "build_result",
-    ["normal_return", "error_raised", "failed", "terminated"]
+    ["normal_return", "error_raised", "terminated"]
 )
 def test_ensure_workflow_data_is_saved_in_various_conditions(
     build_result, build_dir, dummy_source, tmpdir
@@ -157,7 +152,7 @@ def test_ensure_workflow_data_is_saved_in_various_conditions(
     if build_result == "normal_return":
         (flexmock(plugin_based.inner.DockerBuildWorkflow)
          .should_receive("build_docker_image")
-         .and_return(BuildResult(logs=["Build successfully."])))
+         .once())
 
         task.execute()
 
@@ -167,14 +162,6 @@ def test_ensure_workflow_data_is_saved_in_various_conditions(
          .and_raise(BuildCanceledException))
 
         with pytest.raises(BuildCanceledException):
-            task.execute()
-
-    elif build_result == "failed":
-        (flexmock(plugin_based.inner.DockerBuildWorkflow)
-         .should_receive("build_docker_image")
-         .and_return(BuildResult(fail_reason="Missing Dockerfile")))
-
-        with pytest.raises(RuntimeError, match="task failed: Missing Dockerfile"):
             task.execute()
 
     elif build_result == "terminated":
@@ -240,9 +227,8 @@ def test_workflow_data_is_restored_before_starting_to_build(build_dir, dummy_sou
         def __init__(self, build_dir, data=None, **kwargs):
             self.data = data
 
-        def build_docker_image(self) -> BuildResult:
+        def build_docker_image(self):
             assert DockerfileImages(["scratch"]) == self.data.dockerfile_images
-            return BuildResult(logs=["Build successfully."])
 
     (flexmock(plugin_based.inner)
      .should_receive("DockerBuildWorkflow")

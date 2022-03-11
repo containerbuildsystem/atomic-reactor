@@ -671,6 +671,7 @@ class TestSendMailPlugin(object):
             p._send_mail(['spam@spam.com'], 'subject', 'body')
 
     def test_run_ok(self, tmpdir, workflow, source_dir):
+        workflow.data.plugin_failed = True
         receivers = ['foo@bar.com', 'x@y.com']
 
         dockerfile = source_dir / DOCKERFILE_FILENAME
@@ -701,6 +702,8 @@ class TestSendMailPlugin(object):
         p.run()
 
     def test_run_ok_and_send(self, workflow):
+        workflow.data.plugin_failed = True
+
         class SMTP(object):
             def sendmail(self, from_addr, to, msg):
                 pass
@@ -734,6 +737,7 @@ class TestSendMailPlugin(object):
         p.run()
 
     def test_run_fails_to_obtain_receivers(self, workflow):
+        workflow.data.plugin_failed = True
         error_addresses = ['error@address.com']
         mock_store_metadata_results(workflow)
 
@@ -762,6 +766,7 @@ class TestSendMailPlugin(object):
         p.run()
 
     def test_run_invalid_receivers(self, caplog, workflow):
+        workflow.data.plugin_failed = True
         error_addresses = ['error@address.com']
 
         mock_store_metadata_results(workflow)
@@ -790,6 +795,7 @@ class TestSendMailPlugin(object):
         assert 'no valid addresses in requested addresses. Doing nothing' in caplog.text
 
     def test_run_does_nothing_if_conditions_not_met(self, workflow):
+        workflow.data.plugin_failed = True
         smtp_map = {
             'from_address': 'foo@bar.com',
             'host': 'smtp.spam.com',

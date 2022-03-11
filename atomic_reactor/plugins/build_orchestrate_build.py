@@ -17,8 +17,7 @@ from datetime import timedelta
 import datetime as dt
 import copy
 
-from atomic_reactor.inner import BuildResult
-from atomic_reactor.plugin import BuildStepPlugin
+from atomic_reactor.plugin import BuildStepPlugin, PluginFailedException
 from atomic_reactor.util import (df_parser, get_platforms, map_to_user_params)
 from atomic_reactor.utils.koji import generate_koji_upload_dir
 from atomic_reactor.constants import (PLUGIN_ADD_FILESYSTEM_KEY, PLUGIN_BUILD_ORCHESTRATE_KEY)
@@ -224,15 +223,9 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
     The list of available worker clusters is retrieved by fetching
     the result provided by reactor_config plugin.
 
-    If any of the worker builds fail, this plugin will return a
-    failed BuildResult. Although, it does wait for all worker builds
-    to complete in any case.
-
-    If all worker builds succeed, then this plugin returns a
-    successful BuildResult, but with a remote image result. The
-    image is built in the worker builds which is likely a different
-    host than the one running this build. This means that the local
-    docker daemon has no knowledge of the built image.
+    If any of the worker builds fail, this plugin will raise
+    PluginFailedException. Although, it does wait for all worker builds to
+    complete in any case.
 
     If build_image is defined it is passed to the worker build,
     but there is still possibility to have build_imagestream inside
@@ -642,11 +635,6 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
             thread_pool.close()
             thread_pool.join()
 
-        annotations = {'worker-builds': {
-            build_info.platform: build_info.get_annotations()
-            for build_info in self.worker_builds if build_info.build
-        }}
-
         fail_reasons = {
             build_info.platform: build_info.get_fail_reason()
             for build_info in self.worker_builds
@@ -659,7 +647,4 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
                                                for build_info in self.worker_builds}
 
         if fail_reasons:
-            return BuildResult(fail_reason=json.dumps(fail_reasons),
-                               annotations=annotations)
-
-        return BuildResult.make_remote_image_result(annotations)
+            raise PluginFailedException(json.dumps(fail_reasons))

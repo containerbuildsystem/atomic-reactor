@@ -4,7 +4,6 @@ from flexmock import flexmock
 
 from atomic_reactor.constants import EXPORTED_SQUASHED_IMAGE_NAME, IMAGE_TYPE_DOCKER_ARCHIVE
 from atomic_reactor.dirs import BuildDir
-from atomic_reactor.inner import BuildResult
 from atomic_reactor.plugin import PostBuildPluginsRunner
 from atomic_reactor.plugins.post_fetch_docker_archive import FetchDockerArchivePlugin
 from atomic_reactor.utils.imageutil import ImageUtil
@@ -25,7 +24,6 @@ class TestFetchDockerArchive(object):
 
         workflow.build_dir.for_each_platform(self.create_image)
         flexmock(ImageUtil).should_receive('download_image_archive_tarball').times(4)
-        workflow.data.build_result = BuildResult(image_id="12345")
 
         runner = PostBuildPluginsRunner(
             workflow,

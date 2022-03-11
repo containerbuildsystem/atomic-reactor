@@ -12,7 +12,6 @@ import inspect
 from flexmock import flexmock
 import pytest
 
-from atomic_reactor.inner import BuildResult
 from atomic_reactor.plugin import (BuildPluginsRunner, PreBuildPluginsRunner,
                                    PostBuildPluginsRunner,
                                    PluginFailedException, PrePublishPluginsRunner,
@@ -25,7 +24,7 @@ from tests.constants import DOCKERFILE_GIT
 
 TEST_IMAGE = "fedora:latest"
 SOURCE = {"provider": "git", "uri": DOCKERFILE_GIT}
-DUMMY_BUILD_RESULT = BuildResult(image_id="image_id")
+DUMMY_BUILD_RESULT = {"image_id": "image_id"}
 
 pytestmark = pytest.mark.usefixtures('user_params')
 
@@ -194,7 +193,7 @@ def test_buildstep_phase_build_plugin(caplog, workflow, success1, success2):
             will_fail = True
 
     if will_fail:
-        with pytest.raises(Exception):
+        with pytest.raises(PluginFailedException, match="No appropriate build step"):
             runner.run()
     else:
         runner.run()

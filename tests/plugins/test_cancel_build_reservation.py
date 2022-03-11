@@ -7,7 +7,6 @@ of the BSD license. See the LICENSE file for details.
 """
 
 import koji
-from atomic_reactor.inner import BuildResult
 import pytest
 from flexmock import flexmock
 
@@ -95,6 +94,7 @@ def test_reserved_build_has_been_released_already(build_state, workflow, caplog)
 def test_cancel_a_reserved_build(is_canceled, expected_dest_state, workflow):
     """A reserved build is canceled with a proper destination state."""
     mock_reactor_config(workflow)
+    workflow.data.plugin_failed = True
     workflow.data.build_canceled = is_canceled
     workflow.data.reserved_token = "1234"
     workflow.data.reserved_build_id = 1
@@ -119,7 +119,7 @@ def test_mark_reserved_build_fail_if_koji_import_does_not_run(workflow):
     reserved_build_id = 1
     mock_reactor_config(workflow)
     # Mark the build is successful.
-    workflow.data.build_result = BuildResult(logs=["Build succeeds."])
+    workflow.data.plugin_failed = False
     workflow.data.reserved_token = "1234"
     workflow.data.reserved_build_id = reserved_build_id
 

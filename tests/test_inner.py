@@ -31,7 +31,7 @@ import signal
 
 from atomic_reactor.inner import (BuildResults, BuildResultsEncoder,
                                   BuildResultsJSONDecoder, DockerBuildWorkflow,
-                                  FSWatcher, ImageBuildWorkflowData, BuildResult, TagConf)
+                                  FSWatcher, ImageBuildWorkflowData, TagConf)
 from atomic_reactor.constants import PLUGIN_BUILD_ORCHESTRATE_KEY
 from atomic_reactor.source import PathSource, DummySource
 from atomic_reactor.util import (
@@ -47,9 +47,9 @@ BUILD_RESULTS_ATTRS = ['build_logs',
                        'base_img_info',
                        'base_plugins_output',
                        'built_img_plugins_output']
-DUMMY_BUILD_RESULT = BuildResult(image_id="image_id")
-DUMMY_FAILED_BUILD_RESULT = BuildResult(fail_reason='it happens')
-DUMMY_REMOTE_BUILD_RESULT = BuildResult.make_remote_image_result()
+DUMMY_BUILD_RESULT = {'image_id': 'image_id'}
+DUMMY_FAILED_BUILD_RESULT = {'fail_reason': 'it happens'}
+DUMMY_REMOTE_BUILD_RESULT = {'image_id': 'remote_image'}
 
 pytestmark = pytest.mark.usefixtures('user_params')
 
@@ -805,6 +805,13 @@ class BuildStepRemoteResult(ValueRemoteBuildStep, BuildStepPlugin):
     key = 'buildstep_remote_value'
 
 
+class FailedBuildStepPlugin(BuildStepPlugin):
+    key = "failed_buildstep"
+
+    def run(self):
+        raise PluginFailedException("something is wrong")
+
+
 class PostBuildResult(ValueMixIn, PostBuildPlugin):
     """
     Post build plugin that returns a result when run.
@@ -829,16 +836,20 @@ class ExitResult(ValueMixIn, ExitPlugin):
     key = 'exit_value'
 
 
-@pytest.mark.parametrize(['buildstep_plugin', 'buildstep_raises'], [
-    ['buildstep_value', False],
-    ['buildstep_remote_value', False],
-    ['buildstep_failed_value', True],
-])
-def test_workflow_plugin_results(buildstep_plugin, buildstep_raises, build_dir):
+@pytest.mark.parametrize(
+    ['buildstep_plugin', 'expected_buildstep_result', 'buildstep_raises'],
+    [
+        ['buildstep_value', DUMMY_BUILD_RESULT, False],
+        ['buildstep_remote_value', DUMMY_REMOTE_BUILD_RESULT, False],
+        ['failed_buildstep', None, True],
+    ],
+)
+def test_workflow_plugin_results(
+    buildstep_plugin, expected_buildstep_result, buildstep_raises, build_dir
+):
     """
-    Verifies the results of plugins in different phases
-    are stored properly.
-    It also verifies failed and remote BuildResult is handled properly.
+    Verifies the results of plugins in different phases are stored properly.
+    It also verifies the error raised from failed buildstep plugin is handled properly.
     """
 
     flexmock(DockerfileParser, content='df_content')
@@ -857,13 +868,15 @@ def test_workflow_plugin_results(buildstep_plugin, buildstep_raises, build_dir):
     )
 
     if buildstep_raises:
-        with pytest.raises(PluginFailedException):
+        with pytest.raises(PluginFailedException, match="something is wrong"):
             workflow.build_docker_image()
     else:
         workflow.build_docker_image()
 
     assert workflow.data.prebuild_results == {'pre_build_value': 'pre_build_value_result'}
-    assert isinstance(workflow.data.buildstep_result[buildstep_plugin], BuildResult)
+
+    if not buildstep_raises:
+        assert workflow.data.buildstep_result[buildstep_plugin] == expected_buildstep_result
 
     if buildstep_raises:
         assert workflow.data.postbuild_results == {}
@@ -1101,85 +1114,6 @@ def test_fs_watcher(monkeypatch):
     assert "mb_used" in w.get_usage_data()
 
 
-def test_build_result():
-    with pytest.raises(AssertionError):
-        BuildResult(fail_reason='it happens', image_id='spam')
-
-
-class TestBuildResult:
-    """Test class BuildResult"""
-
-    def test_build_result(self):
-        with pytest.raises(AssertionError):
-            BuildResult(fail_reason='it happens', image_id='spam')
-
-        with pytest.raises(AssertionError):
-            BuildResult(fail_reason='', image_id='spam')
-
-        with pytest.raises(AssertionError):
-            BuildResult(fail_reason='it happens', source_docker_archive='/somewhere')
-
-        with pytest.raises(AssertionError):
-            BuildResult(image_id='spam', source_docker_archive='/somewhere')
-
-        with pytest.raises(AssertionError):
-            BuildResult(image_id='spam',
-                        fail_reason='it happens',
-                        source_docker_archive='/somewhere')
-
-        assert BuildResult(fail_reason='it happens').is_failed()
-        assert not BuildResult(image_id='spam').is_failed()
-
-        assert BuildResult(image_id='spam', logs=list('logs')).logs == list('logs')
-
-        assert BuildResult(fail_reason='it happens').fail_reason == 'it happens'
-        assert BuildResult(image_id='spam').image_id == 'spam'
-
-        annotations = {'ham': 'mah'}
-        assert BuildResult(image_id='spam', annotations=annotations).annotations == annotations
-
-        assert BuildResult(image_id='spam', labels={'ham': 'mah'}).labels == {'ham': 'mah'}
-
-        assert BuildResult(source_docker_archive='/somewhere').source_docker_archive == '/somewhere'
-
-        assert BuildResult(image_id='spam').is_image_available()
-        assert not BuildResult(fail_reason='it happens').is_image_available()
-        assert not BuildResult.make_remote_image_result().is_image_available()
-
-        assert not BuildResult.make_remote_image_result().is_failed()
-
-    def test_as_dict(self):
-        build_result = BuildResult(
-            logs=["start build", "fetch sources"],
-            image_id="registry/image:1.2",
-            annotations={"name": "app"},
-        )
-        expected = {
-            "annotations": {"name": "app"},
-            "fail_reason": None,
-            "image_id": "registry/image:1.2",
-            "labels": None,
-            "logs": ["start build", "fetch sources"],
-            "skip_layer_squash": False,
-            "source_docker_archive": None,
-        }
-        assert expected == build_result.as_dict()
-
-    def test_parse(self):
-        input_data = {
-            "image_id": "image_id",
-            "labels": {"label1": "value1", "label2": "value2"},
-        }
-        br = BuildResult.load(input_data)
-        assert input_data["image_id"] == br.image_id
-        assert input_data["labels"] == br.labels
-        assert br.fail_reason is None
-        assert br.logs == []
-        assert br.annotations is None
-        assert not br.skip_layer_squash
-        assert br.source_docker_archive is None
-
-
 class TestTagConf:
     """Test class TagConf"""
 
@@ -1268,7 +1202,6 @@ class TestWorkflowData:
         data = ImageBuildWorkflowData()
         assert data.dockerfile_images.is_empty
         assert data.tag_conf.is_empty
-        assert data.build_result is None
         assert {} == data.prebuild_results
 
     def test_load_from_empty_dump(self):
@@ -1341,7 +1274,7 @@ class TestWorkflowData:
         wf_data = ImageBuildWorkflowData(
             dockerfile_images=DockerfileImages(["scratch", "registry/f:35"]),
             # Test object in dict values is serialized
-            buildstep_result={"image_build": BuildResult(logs=["Build succeeds."])},
+            buildstep_result={"image_build": {"logs": ["Build succeeds."]}},
             postbuild_results={
                 "tag_and_push": [
                     # Such object in a list should be handled properly.

@@ -10,13 +10,12 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from atomic_reactor.inner import BuildResult
 from atomic_reactor.constants import (
     IMAGE_TYPE_DOCKER_ARCHIVE,
     PLUGIN_FETCH_SOURCES_KEY,
     PLUGIN_SOURCE_CONTAINER_KEY,
 )
-from atomic_reactor.plugin import BuildStepPlugin
+from atomic_reactor.plugin import BuildStepPlugin, PluginFailedException
 from atomic_reactor.util import get_exported_image_metadata
 from atomic_reactor.utils import retries
 
@@ -27,9 +26,10 @@ class SourceContainerPlugin(BuildStepPlugin):
     https://github.com/containers/BuildSourceImage
     """
 
+    is_allowed_to_fail = False
     key = PLUGIN_SOURCE_CONTAINER_KEY
 
-    def export_image(self, image_output_dir: Path) -> str:
+    def export_image(self, image_output_dir: Path):
         output_path = self.workflow.build_dir.any_platform.exported_squashed_image
 
         cmd = ['skopeo', 'copy']
@@ -46,7 +46,6 @@ class SourceContainerPlugin(BuildStepPlugin):
         img_metadata = get_exported_image_metadata(str(output_path), IMAGE_TYPE_DOCKER_ARCHIVE)
         # OSBS2 TBD exported_image_sequence will not work for multiple platform
         self.workflow.data.exported_image_sequence.append(img_metadata)
-        return str(output_path)
 
     def split_remote_sources_to_subdirs(self, remote_source_data_dir):
         """Splits remote source archives to subdirs"""
@@ -66,8 +65,9 @@ class SourceContainerPlugin(BuildStepPlugin):
     def run(self):
         """Build image inside current environment.
 
-        Returns:
-            BuildResult
+        :return: a mapping containing build results. If the build fails, key
+            ``fail_reason`` must be included with a meaningful message.
+        :rtype: Dict[str, Any]
         """
         fetch_sources_result = self.workflow.data.prebuild_results.get(PLUGIN_FETCH_SOURCES_KEY, {})
         source_data_dir = fetch_sources_result.get('image_sources_dir')
@@ -83,7 +83,7 @@ class SourceContainerPlugin(BuildStepPlugin):
             err_msg += "\nNo Remote source directory '{}' available".format(remote_source_data_dir)
             err_msg += "\nNo Maven source directory '{}' available".format(maven_source_data_dir)
             self.log.error(err_msg)
-            return BuildResult(logs=err_msg, fail_reason=err_msg)
+            raise PluginFailedException(err_msg)
 
         if source_exists and not os.listdir(source_data_dir):
             self.log.warning("SRPMs directory '%s' is empty", source_data_dir)
@@ -125,7 +125,7 @@ class SourceContainerPlugin(BuildStepPlugin):
             output = subprocess.check_output(cmd, stderr=subprocess.STDOUT, text=True)
         except subprocess.CalledProcessError as e:
             self.log.error("BSI failed with output:\n%s", e.output)
-            return BuildResult(logs=[e.output], fail_reason='BSI utility failed build source image')
+            raise PluginFailedException('BSI utility failed build source image') from e
 
         self.log.debug("Build log:\n%s\n", output)
 
@@ -150,13 +150,12 @@ class SourceContainerPlugin(BuildStepPlugin):
                           maven_source_data_dir)
             shutil.rmtree(maven_source_data_dir)
 
-        image_tar_path = self.export_image(image_output_dir)
+        self.export_image(image_output_dir)
 
         self.log.info('Will remove unpacked image directory: %s', image_output_dir)
         shutil.rmtree(image_output_dir)
 
-        return BuildResult(
-            logs=[output],
-            source_docker_archive=image_tar_path,
-            skip_layer_squash=True
-        )
+        return {
+            'logs': [output],
+            'skip_layer_squash': True,
+        }

@@ -23,7 +23,7 @@ from atomic_reactor.plugins.post_koji_upload import (KojiUploadLogger,
                                                      KojiUploadPlugin)
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 
-from atomic_reactor.inner import TagConf, BuildResult
+from atomic_reactor.inner import TagConf
 from atomic_reactor.util import ManifestDigest, DockerfileImages, RegistryClient
 from atomic_reactor.utils.rpm import parse_rpm_output
 from atomic_reactor.utils import imageutil
@@ -271,16 +271,7 @@ def mock_environment(workflow, source_dir: Path, session=None, name=None, compon
         }
     ])
 
-    if build_process_failed:
-        workflow.data.build_result = BuildResult(
-            logs=["docker build log - \u2018 \u2017 \u2019 \n'"],
-            fail_reason="not built",
-        )
-    else:
-        workflow.data.build_result = BuildResult(
-            logs=["docker build log - \u2018 \u2017 \u2019 \n'"],
-            image_id="id1234",
-        )
+    workflow.data.plugin_failed = build_process_failed
     workflow.prebuild_plugins_conf = {}
 
     workflow.data.image_components = parse_rpm_output([

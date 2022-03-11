@@ -47,10 +47,8 @@ class FetchWorkerMetadataPlugin(PostBuildPlugin):
 
         metadatas = {}
 
-        # get all the build annotations and labels from the orchestrator
-        build_result = self.workflow.data.build_result
-
-        annotations = build_result.annotations
+        # OSBS2 TBD: fetch metadata from remote hosts
+        annotations = {'worker-builds': {}}
         worker_builds = annotations['worker-builds']
 
         for platform, build_annotations in worker_builds.items():
