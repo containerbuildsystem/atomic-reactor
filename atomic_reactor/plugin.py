@@ -10,7 +10,6 @@ definition of plugin system
 
 plugins are supposed to be run when image is built and we need to extract some information
 """
-from abc import ABC, abstractmethod
 import copy
 import logging
 import os
@@ -20,7 +19,10 @@ import imp  # pylint: disable=deprecated-module
 import datetime
 import inspect
 import time
-from collections import namedtuple
+from abc import ABC, abstractmethod
+from contextlib import contextmanager
+from dataclasses import dataclass
+from typing import Any, Dict, Generator
 
 import atomic_reactor.inner
 from atomic_reactor.util import exception_message
@@ -28,6 +30,14 @@ from dockerfile_parse import DockerfileParser
 
 MODULE_EXTENSIONS = ('.py', '.pyc', '.pyo')
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class PluginExecutionInfo:
+    plugin_name: str
+    plugin_class: "Plugin"
+    conf: Dict[str, Any]
+    is_allowed_to_fail: bool
 
 
 class PluginFailedException(Exception):
@@ -222,7 +232,6 @@ class PluginsRunner(object):
         :return: list of namedtuples, runnable plugins data
         """
         available_plugins = []
-        PluginData = namedtuple('PluginData', 'name, plugin_class, conf, is_allowed_to_fail')
         for plugin_request in self.plugins_conf:
             plugin_name = plugin_request['name']
             try:
@@ -244,12 +253,33 @@ class PluginsRunner(object):
                                                            getattr(plugin_class,
                                                                    "is_allowed_to_fail", True))
             plugin_conf = plugin_request.get("args", {})
-            plugin = PluginData(plugin_name,
-                                plugin_class,
-                                plugin_conf,
-                                plugin_is_allowed_to_fail)
-            available_plugins.append(plugin)
+            available_plugins.append(
+                PluginExecutionInfo(
+                    plugin_name=plugin_name,
+                    plugin_class=plugin_class,
+                    conf=plugin_conf,
+                    is_allowed_to_fail=plugin_is_allowed_to_fail
+                )
+            )
         return available_plugins
+
+    @contextmanager
+    def _execution_timer(self, exec_info: PluginExecutionInfo) -> Generator:
+        logger.debug("running plugin '%s'", exec_info.plugin_name)
+        start_time = datetime.datetime.now()
+        plugin_key = exec_info.plugin_class.key
+        self.save_plugin_timestamp(plugin_key, start_time)
+        try:
+            yield
+        finally:
+            try:
+                finish_time = datetime.datetime.now()
+                duration = finish_time - start_time
+                seconds = duration.total_seconds()
+                logger.debug("plugin '%s' finished in %ds", exec_info.plugin_name, seconds)
+                self.save_plugin_duration(plugin_key, seconds)
+            except Exception:
+                logger.exception("failed to save plugin duration")
 
     def run(self, keep_going=False, buildstep_phase=False):
         """
@@ -268,16 +298,13 @@ class PluginsRunner(object):
         for plugin in available_plugins:
             plugin_successful = False
 
-            logger.debug("running plugin '%s'", plugin.name)
-            start_time = datetime.datetime.now()
-
             plugin_response = None
             skip_response = False
             try:
                 plugin_instance = self.create_instance_from_plugin(plugin.plugin_class,
                                                                    plugin.conf)
-                self.save_plugin_timestamp(plugin.plugin_class.key, start_time)
-                plugin_response = plugin_instance.run()
+                with self._execution_timer(plugin):
+                    plugin_response = plugin_instance.run()
                 plugin_successful = True
                 if buildstep_phase:
                     assert isinstance(plugin_response, atomic_reactor.inner.BuildResult)
@@ -314,16 +341,6 @@ class PluginsRunner(object):
                     raise PluginFailedException(msg) from ex
 
                 plugin_response = ex
-
-            try:
-                if start_time:
-                    finish_time = datetime.datetime.now()
-                    duration = finish_time - start_time
-                    seconds = duration.total_seconds()
-                    logger.debug("plugin '%s' finished in %ds", plugin.name, seconds)
-                    self.save_plugin_duration(plugin.plugin_class.key, seconds)
-            except Exception:
-                logger.exception("failed to save plugin duration")
 
             if not skip_response:
                 self.plugins_results[plugin.plugin_class.key] = plugin_response
