@@ -187,6 +187,176 @@ pull_registries:
 
         assert pull_registries == expected
 
+    @pytest.mark.parametrize(('config', 'expected_slots_dir', 'expected_enabled_hosts'), [
+        ("""\
+remote_hosts:
+  slots_dir: path/foo
+  pools:
+    x86_64:
+      remote-host1.x86_64:
+        enabled: true
+        auth: foo
+        username: bar
+        slots: 1
+        socket_path: /user/foo/podman.sock
+      remote-host2.x86_64:
+        enabled: false
+        auth: foo
+        username: bar
+        slots: 2
+        socket_path: /user/foo/podman.sock
+    ppc64le:
+      remote-host3.ppc64le:
+        enabled: true
+        auth: foo
+        username: bar
+        slots: 3
+        socket_path: /user/foo/podman.sock
+         """,
+         'path/foo', {'x86_64': ['remote-host1.x86_64'], 'ppc64le': ['remote-host3.ppc64le']}),
+    ])
+    def test_get_remote_hosts(self, config, expected_slots_dir, expected_enabled_hosts):
+        config += "\n" + REQUIRED_CONFIG
+        config_json = read_yaml(config, 'schemas/config.json')
+
+        conf = Configuration(raw_config=config_json)
+
+        remote_hosts = conf.remote_hosts
+        assert expected_slots_dir == remote_hosts['slots_dir']
+
+        pools = remote_hosts['pools']
+        assert len(pools), 'Remote hosts do not have 2 architectures'
+        assert len(pools['x86_64']) == 2, '2 entries expected for x86_64 architecture'
+        assert sorted(pools['x86_64']) == sorted(['remote-host1.x86_64', 'remote-host2.x86_64'])
+
+        assert len(pools['ppc64le']) == 1, '1 entry expected for ppc64le architecture'
+
+        host1_x86_64 = pools['x86_64']['remote-host1.x86_64']
+        assert host1_x86_64['auth'] == 'foo', 'Unexpected SSH key path'
+        assert host1_x86_64['socket_path'] == '/user/foo/podman.sock', 'Unexpected socket path'
+
+        host2_x86_64 = pools['x86_64']['remote-host2.x86_64']
+        assert host2_x86_64['username'] == 'bar', 'Unexpected user name'
+        host3_ppc64le = pools['ppc64le']['remote-host3.ppc64le']
+        assert host3_ppc64le['slots'] == 3, 'Unexpected number of slots'
+
+        for arch in ['x86_64', 'ppc64le']:
+            enabled_hosts = [host for host, items in pools[arch].items() if items['enabled']]
+            assert enabled_hosts == expected_enabled_hosts[arch]
+
+    @pytest.mark.parametrize('config, error', [
+        ("""\
+remote_hosts: []
+         """,
+         "is not of type {!r}".format("object")),
+        ("""\
+remote_hosts:
+  slots_dir: path/foo
+         """,
+         "{!r} is a required property".format("pools")),
+        ("""\
+remote_hosts:
+  pools:
+    x86_64:
+      remote-host1.x86_64:
+        enabled: true
+        auth: foo
+        username: bar
+        slots: 1
+        socket_path: /user/foo/podman.sock
+         """,
+         "{!r} is a required property".format("slots_dir")),
+        ("""\
+remote_hosts:
+  pools:
+    amd-64:
+      remote-host1:
+        enabled: true
+        auth: foo
+        username: bar
+        slots: 1
+        socket_path: /user/foo/podman.sock
+         """,
+         "{!r} does not match any of the regexes".format("amd-64")),
+        ("""\
+remote_hosts:
+  slots_dir: path/foo
+  pools:
+    s390x:
+      remote-host1:
+        auth: foo
+        username: bar
+        slots: 1
+        socket_path: /user/foo/podman.sock
+         """,
+         "{!r} is a required property".format("enabled")),
+        ("""\
+remote_hosts:
+  slots_dir: path/foo
+  pools:
+    s390x:
+      remote-host1.s390x:
+        enabled: true
+        username: bar
+        slots: 1
+        socket_path: /user/foo/podman.sock
+         """,
+         "{!r} is a required property".format("auth")),
+        ("""\
+remote_hosts:
+  slots_dir: path/foo
+  pools:
+    s390x:
+      remote-host1.s390x:
+        enabled: true
+        auth: foo
+        slots: 1
+        socket_path: /user/foo/podman.sock
+         """,
+         "{!r} is a required property".format("username")),
+        ("""\
+remote_hosts:
+  slots_dir: path/foo
+  pools:
+    s390x:
+      remote-host1.s390x:
+        enabled: true
+        auth: foo
+        username: bar
+        slots: 1
+         """,
+         "{!r} is a required property".format("socket_path")),
+        ("""\
+remote_hosts:
+  slots_dir: path/foo
+  pools:
+    s390x:
+      remote-host1.s390x:
+        enabled: true
+        auth: foo
+        username: bar
+        socket_path: /user/foo/podman.sock
+         """,
+         "{!r} is a required property".format("slots")),
+        ("""\
+remote_hosts:
+  slots_dir: path/foo
+  pools:
+    aarch64:
+      remote-host1.@aarch64@@:
+        enabled: true
+        auth: foo
+        username: bar
+        socket_path: /user/foo/podman.sock
+         """,
+         "{!r} does not match any of the regexes".format("remote-host1.@aarch64@@")),
+    ])
+    def test_get_remote_hosts_schema_validation(self, config, error):
+        config += "\n" + REQUIRED_CONFIG
+        with pytest.raises(OsbsValidationException) as exc_info:
+            read_yaml(config, 'schemas/config.json')
+        assert error in str(exc_info.value)
+
     @pytest.mark.parametrize('config, error', [
         ("""\
 pull_registries: {}
