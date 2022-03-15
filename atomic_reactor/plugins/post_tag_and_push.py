@@ -28,10 +28,6 @@ from osbs.constants import RAND_DIGITS
 __all__ = ('TagAndPushPlugin', )
 
 
-class ExceedsImageSizeError(RuntimeError):
-    """Error of exceeding image size"""
-
-
 @annotation_map('repositories')
 class TagAndPushPlugin(PostBuildPlugin):
     """
