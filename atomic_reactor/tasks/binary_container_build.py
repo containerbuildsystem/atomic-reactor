@@ -7,11 +7,13 @@ of the BSD license. See the LICENSE file for details.
 """
 import contextlib
 import functools
+import json
 import logging
 import shutil
 import subprocess
 from dataclasses import dataclass
 from typing import Any, Dict, Iterator, List, Optional
+from json import JSONDecodeError
 
 from osbs.utils import ImageName
 
@@ -33,8 +35,16 @@ class BuildProcessError(BuildTaskError):
     """The subprocess that was supposed to build the image failed."""
 
 
+class ExceedsImageSizeError(RuntimeError):
+    """Error of exceeding image size"""
+
+
 class PushError(BuildTaskError):
     """Failed to push the built image."""
+
+
+class InspectError(BuildTaskError):
+    """Failed to inspect the built image."""
 
 
 @dataclass(frozen=True)
@@ -91,7 +101,18 @@ class BinaryBuildTask(Task[BinaryBuildTaskParams]):
             for line in output_lines:
                 logger.info(line.rstrip())
 
-            logger.info("Build finished succesfully! Pushing image to %s", dest_tag)
+            logger.info("Build finished successfully! Pushing image to %s", dest_tag)
+
+            image_size_limit = config.image_size_limit['binary_image']
+            image_size = podman_remote.get_image_size(dest_tag)
+
+            if image_size > image_size_limit:
+                raise ExceedsImageSizeError(
+                    'The size {} of image {} exceeds the limitation {} '
+                    'configured in reactor config.'
+                    .format(image_size, dest_tag, image_size_limit)
+                )
+
             podman_remote.push_container(dest_tag, insecure=config.registry.get("insecure", False))
 
     def acquire_remote_resource(self, remote_hosts_config: dict) -> remote_host.LockedResource:
@@ -235,6 +256,24 @@ class PodmanRemote:
             # the last line of output likely contains the error message
             error = last_line.rstrip() if last_line else "<no output!>"
             raise BuildProcessError(f"Build failed (rc={rc}): {error}")
+
+    def get_image_size(self, dest_tag: ImageName) -> int:
+        inspect_cmd = [*self._podman_remote_cmd, 'image', 'inspect', str(dest_tag)]
+        try:
+            output = retries.run_cmd(inspect_cmd)
+            inspect_json = json.loads(output)
+            image_inspect = inspect_json[0]
+            image_size = image_inspect['Size']
+        except subprocess.CalledProcessError as e:
+            raise InspectError(f"Couldn't check image size for image:{str(dest_tag)}."
+                               f" (rc={e.returncode})") from e
+        except IndexError as e:
+            raise InspectError("Image inspect didn't return any results for image:"
+                               f"{str(dest_tag)}") from e
+        except JSONDecodeError as e:
+            raise InspectError("Image inspect returned invalid JSON for image:"
+                               f"{str(dest_tag)}") from e
+        return image_size
 
     def push_container(self, dest_tag: ImageName, *, insecure: bool = False) -> None:
         """Push the built container (named dest_tag) to the registry (as dest_tag).

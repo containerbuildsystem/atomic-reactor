@@ -7,9 +7,11 @@ of the BSD license. See the LICENSE file for details.
 """
 
 import io
+import json
 import re
 import shutil
 import subprocess
+from json import JSONDecodeError
 from pathlib import Path
 from textwrap import dedent
 from typing import Any, Dict, List, Optional
@@ -30,6 +32,8 @@ from atomic_reactor.tasks.binary_container_build import (
     # exceptions
     BuildTaskError,
     BuildProcessError,
+    ExceedsImageSizeError,
+    InspectError,
     PushError,
     # helpers
     PodmanRemote,
@@ -138,7 +142,8 @@ def mock_workflow_data(*, enabled_platforms: List[str]) -> inner.ImageBuildWorkf
     return mocked_data
 
 
-def mock_config(registry_config: Dict[str, Any], remote_hosts_config: Dict[str, Any]):
+def mock_config(registry_config: Dict[str, Any], remote_hosts_config: Dict[str, Any],
+                image_size_limit=0):
     """Make load_config() return mocked config.
 
     The registry property of the mocked config will return the specified registry_config.
@@ -147,6 +152,7 @@ def mock_config(registry_config: Dict[str, Any], remote_hosts_config: Dict[str, 
     cfg = config.Configuration()
     flexmock(cfg).should_receive("registry").and_return(registry_config)
     flexmock(cfg).should_receive("remote_hosts").and_return(remote_hosts_config)
+    flexmock(cfg).should_receive("image_size_limit").and_return({'binary_image': image_size_limit})
     flexmock(BinaryBuildTask).should_receive("load_config").and_return(cfg)
 
 
@@ -223,11 +229,16 @@ class TestBinaryBuildTask:
 
         assert "Platform aarch64 is not enabled for this build" in caplog.text
 
+    @pytest.mark.parametrize('fail_image_size_check', (True, False))
     def test_run_build(
-        self, x86_task_params, x86_build_dir, mock_podman_remote, mock_locked_resource, caplog
+        self, x86_task_params, x86_build_dir, mock_podman_remote, mock_locked_resource, caplog,
+            fail_image_size_check
     ):
         mock_workflow_data(enabled_platforms=["x86_64"])
-        mock_config(REGISTRY_CONFIG, REMOTE_HOST_CONFIG)
+        if fail_image_size_check:
+            mock_config(REGISTRY_CONFIG, REMOTE_HOST_CONFIG, image_size_limit=1233)
+        else:
+            mock_config(REGISTRY_CONFIG, REMOTE_HOST_CONFIG, image_size_limit=1234)
         x86_build_dir.dockerfile_path.write_text(DOCKERFILE_CONTENT)
 
         def mock_build_container(*, build_dir, build_args, dest_tag):
@@ -248,13 +259,26 @@ class TestBinaryBuildTask:
             flexmock(mock_podman_remote)
             .should_receive("push_container")
             .with_args(X86_UNIQUE_IMAGE, insecure=REGISTRY_CONFIG["insecure"])
+            .times(0 if fail_image_size_check else 1)
+        )
+        (
+            flexmock(mock_podman_remote)
+            .should_receive("get_image_size")
+            .with_args(X86_UNIQUE_IMAGE)
+            .and_return(1234)
             .once()
         )
 
         flexmock(mock_locked_resource).should_receive("unlock").once()
 
         task = BinaryBuildTask(x86_task_params)
-        task.execute()
+        if fail_image_size_check:
+            err_msg = 'The size 1234 of image registry.example.org/osbs/spam:v1.0-x86_64 exceeds ' \
+                      'the limitation 1233 configured in reactor config.'
+            with pytest.raises(ExceedsImageSizeError, match=err_msg):
+                task.execute()
+        else:
+            task.execute()
 
         assert (
             f"Building for the x86_64 platform from {x86_build_dir.dockerfile_path}" in caplog.text
@@ -492,3 +516,57 @@ class TestPodmanRemote:
 
         with pytest.raises(PushError, match=err_msg):
             podman_remote.push_container(X86_UNIQUE_IMAGE)
+
+    @pytest.mark.parametrize(('error', 'error_msg'), [
+        (None, None),
+        (IndexError, "inspect didn't return any results"),
+        (JSONDecodeError, 'inspect returned invalid JSON'),
+        (InspectError, "Couldn't check image size"),
+    ])
+    def test_get_image_size(self, x86_task_params, error, error_msg):
+        expect_cmd = [
+            "/usr/bin/podman",
+            "--remote",
+            "--connection=connection-name",
+            "image",
+            "inspect",
+            str(X86_UNIQUE_IMAGE),
+        ]
+
+        if error == IndexError:
+            inspect_json = json.dumps([])
+        elif error == JSONDecodeError:
+            inspect_json = 'invalid json'
+        else:
+            inspect_json = json.dumps(
+                [
+                    {
+                        "Id": "750037c05cfe1857e16500167c7c217658e15eb9bc6283020cfb3524c93d1240",
+                        "Digest": "sha256:1fcb4b8b5d3fcdba78119734db03328fb3b8463bbcc83e1dda3e4"
+                                  "ffb0ffe3b34",
+                        "Size": 158641422,
+                    }
+                ]
+            )
+        if error != InspectError:
+            (
+                flexmock(retries)
+                .should_receive("run_cmd")
+                .with_args(expect_cmd).once()
+                .and_return(inspect_json)
+            )
+        else:
+            (
+                flexmock(retries)
+                .should_receive("run_cmd")
+                .and_raise(subprocess.CalledProcessError(1, "some command"))
+            )
+
+        podman_remote = PodmanRemote("connection-name")
+
+        if error:
+            # all errors are re-raised as InspectError
+            with pytest.raises(InspectError, match=error_msg):
+                podman_remote.get_image_size(X86_UNIQUE_IMAGE)
+        else:
+            podman_remote.get_image_size(X86_UNIQUE_IMAGE)
