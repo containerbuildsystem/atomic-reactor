@@ -30,6 +30,9 @@ from atomic_reactor.utils.remote_host import (  # noqa
 )
 
 
+SOCKET_PATH = "/run/user/2022/podman/podman.sock"
+
+
 @pytest.fixture(autouse=True)
 def _mock_ssh_session(request):
     """ Mock the ssh session with things we don't want to test or change """
@@ -92,7 +95,7 @@ def make_flock_ssh_result(
 ))
 def test_host_is_operational(mkdir_stderr, mkdir_code, expected_result, caplog):
     host = RemoteHost(hostname="remote-host-001", username="builder",
-                      ssh_keyfile="/path/to/key", slots=3)
+                      ssh_keyfile="/path/to/key", slots=3, socket_path=SOCKET_PATH)
 
     def mocked_command(cmd, *args, **kwargs):
         if cmd == "mkdir -p /home/builder/osbs_slots":
@@ -117,7 +120,7 @@ def test_host_is_operational(mkdir_stderr, mkdir_code, expected_result, caplog):
 def test_using_non_default_slots_dir():
     slots_dir = "/var/tmp/osbs/slots/"
     host = RemoteHost(hostname="remote-host-001", username="builder",
-                      ssh_keyfile="/path/to/key", slots=3,
+                      ssh_keyfile="/path/to/key", slots=3, socket_path=SOCKET_PATH,
                       slots_dir=slots_dir)
 
     flexmock(SSHRetrySession).should_receive("connect")
@@ -138,7 +141,7 @@ def test_using_non_default_slots_dir():
 
 def test_check_slot_is_free_with_invalid_id(caplog):
     host = RemoteHost(hostname="remote-host-001", username="builder",
-                      ssh_keyfile="/path/to/key", slots=3)
+                      ssh_keyfile="/path/to/key", slots=3, socket_path=SOCKET_PATH)
     # slot id starts from 0
     free = host.is_free(3)
     assert "remote-host-001: invalid slot id 3, should be in" in caplog.text
@@ -151,7 +154,7 @@ def test_check_slot_is_free_with_invalid_id(caplog):
 ))
 def test_check_slot_is_free(cat_stdout, cat_stderr, cat_code, expected_result):
     host = RemoteHost(hostname="remote-host-001", username="builder",
-                      ssh_keyfile="/path/to/key", slots=3)
+                      ssh_keyfile="/path/to/key", slots=3, socket_path=SOCKET_PATH)
 
     def mocked_command(cmd, *args, **kwargs):
         if cmd == "touch /home/builder/osbs_slots/slot_2 && cat /home/builder/osbs_slots/slot_2":
@@ -170,7 +173,7 @@ def test_check_slot_is_free(cat_stdout, cat_stderr, cat_code, expected_result):
 
 def test_lock_a_free_slot(caplog):
     host = RemoteHost(hostname="remote-host-001", username="builder",
-                      ssh_keyfile="/path/to/key", slots=3)
+                      ssh_keyfile="/path/to/key", slots=3, socket_path=SOCKET_PATH)
 
     def mocked_command(cmd, *args, **kwargs):
         if cmd == "touch /home/builder/osbs_slots/slot_2 && cat /home/builder/osbs_slots/slot_2":
@@ -198,7 +201,7 @@ def test_lock_a_free_slot(caplog):
 
 def test_lock_an_occupied_slot(caplog):
     host = RemoteHost(hostname="remote-host-001", username="builder",
-                      ssh_keyfile="/path/to/key", slots=3)
+                      ssh_keyfile="/path/to/key", slots=3, socket_path=SOCKET_PATH)
 
     def mocked_command(cmd, *args, **kwargs):
         if cmd == "touch /home/builder/osbs_slots/slot_2 && cat /home/builder/osbs_slots/slot_2":
@@ -222,7 +225,7 @@ def test_lock_an_occupied_slot(caplog):
 
 def test_lock_slot_with_other_locking_on_it(caplog):
     host = RemoteHost(hostname="remote-host-001", username="builder",
-                      ssh_keyfile="/path/to/key", slots=3)
+                      ssh_keyfile="/path/to/key", slots=3, socket_path=SOCKET_PATH)
 
     def mocked_command(cmd, *args, **kwargs):
         if cmd == "touch /home/builder/osbs_slots/slot_2 && cat /home/builder/osbs_slots/slot_2":
@@ -246,7 +249,7 @@ def test_lock_slot_with_other_locking_on_it(caplog):
 
 def test_lock_slot_with_flock_cat_error(caplog):
     host = RemoteHost(hostname="remote-host-001", username="builder",
-                      ssh_keyfile="/path/to/key", slots=3)
+                      ssh_keyfile="/path/to/key", slots=3, socket_path=SOCKET_PATH)
 
     def mocked_command(cmd, *args, **kwargs):
         if cmd == "touch /home/builder/osbs_slots/slot_2 && cat /home/builder/osbs_slots/slot_2":
@@ -273,7 +276,7 @@ def test_lock_slot_with_flock_cat_error(caplog):
 
 def test_lock_an_invalid_slot(caplog):
     host = RemoteHost(hostname="remote-host-001", username="builder",
-                      ssh_keyfile="/path/to/key", slots=3)
+                      ssh_keyfile="/path/to/key", slots=3, socket_path=SOCKET_PATH)
     # Need to return different content for the same read slot commands,
     # which is not easy in a single mocked_command, so set it one by one
     read_slot = "touch /home/builder/osbs_slots/slot_2 && cat /home/builder/osbs_slots/slot_2"
@@ -303,7 +306,7 @@ def test_lock_an_invalid_slot(caplog):
 ))
 def test_unlock_host_slot(slot_content, expected_log, expected_result, caplog):
     host = RemoteHost(hostname="remote-host-001", username="builder",
-                      ssh_keyfile="/path/to/key", slots=3)
+                      ssh_keyfile="/path/to/key", slots=3, socket_path=SOCKET_PATH)
 
     def mocked_command(cmd, *args, **kwargs):
         if cmd == "touch /home/builder/osbs_slots/slot_2 && cat /home/builder/osbs_slots/slot_2":
@@ -344,7 +347,8 @@ def test_pool_lock_resource(slot_content, expected_log, expected_result, caplog)
                     "enabled": True,
                     "auth": "/path/to/key",
                     "username": "builder",
-                    "slots": 3
+                    "slots": 3,
+                    "socket_path": SOCKET_PATH,
                 }
             }
         }

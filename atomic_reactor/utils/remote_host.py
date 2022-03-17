@@ -150,6 +150,7 @@ class RemoteHost:
         username: str,
         ssh_keyfile: str,
         slots: int,
+        socket_path: str,
         slots_dir: Optional[str] = None,
     ):
         """ Instantiate RemoteHost with hostname, username, ssh key file and slot number
@@ -158,32 +159,38 @@ class RemoteHost:
         :param username: str, username for ssh connection
         :param ssh_keyfile: str, filepath to ssh private key
         :param slots: int, number of max allowed slots on remote host
+        :param socket_path: str, path to the podman socket on this host
         :param slots_dir: str, directory path for holding slots files
         """
         self._hostname = hostname
         self._username = username
         self._ssh_keyfile = ssh_keyfile
         self._slots = slots
+        self._socket_path = socket_path
         self._slots_dir = slots_dir
 
     @property
-    def hostname(self):
+    def hostname(self) -> str:
         return self._hostname
 
     @property
-    def username(self):
+    def username(self) -> str:
         return self._username
 
     @property
-    def ssh_keyfile(self):
+    def ssh_keyfile(self) -> str:
         return self._ssh_keyfile
 
     @property
-    def slots(self):
+    def slots(self) -> int:
         return self._slots
 
+    @property
+    def socket_path(self) -> str:
+        return self._socket_path
+
     @cached_property
-    def slots_dir(self):
+    def slots_dir(self) -> str:
         # Place the slots files under `~/$SLOTS_RELATIVE_PATH` when slots_dir is not specified
         if self._slots_dir is None:
             home, _, _ = self._run("pwd")
@@ -617,7 +624,7 @@ class RemoteHostsPool:
                 continue
             host = RemoteHost(
                 hostname=hostname, username=attr["username"], ssh_keyfile=attr["auth"],
-                slots=attr.get("slots", 1), slots_dir=slots_dir
+                slots=attr.get("slots", 1), socket_path=attr["socket_path"], slots_dir=slots_dir
             )
             # Check whether host is operational before use it
             if host.is_operational:
