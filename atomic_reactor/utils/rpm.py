@@ -5,6 +5,8 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
+from typing import Union, Dict
+
 import rpm
 
 image_component_rpm_tags = [
@@ -50,7 +52,7 @@ def rpm_qf_args(tags=None, separator=';'):
     return r"-qa --qf '{0}\n'".format(fmt)
 
 
-def parse_rpm_output(output, tags=None, separator=';'):
+def parse_rpm_output(output, tags=None, separator=';') -> Dict[str, Union[str, int]]:
     """
     Parse output of the rpm query.
 

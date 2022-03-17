@@ -43,7 +43,7 @@ except ImportError:
 from atomic_reactor.constants import (
     PLUGIN_KOJI_IMPORT_PLUGIN_KEY, PLUGIN_KOJI_IMPORT_SOURCE_CONTAINER_PLUGIN_KEY,
     PLUGIN_FETCH_MAVEN_KEY,
-    PLUGIN_FETCH_WORKER_METADATA_KEY,
+    PLUGIN_GATHER_BUILDS_METADATA_KEY,
     PLUGIN_MAVEN_URL_SOURCES_METADATA_KEY,
     PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_RESOLVE_COMPOSES_KEY,
     PLUGIN_VERIFY_MEDIA_KEY,
@@ -133,21 +133,25 @@ class KojiImportBase(PostBuildPlugin):
                 self.log.error("invalid task ID %r", koji_task_id, exc_info=1)
 
     @cached_property
-    def _worker_metadatas(self) -> Dict[str, Any]:
-        worker_metadatas = self.workflow.data.postbuild_results.get(
-            PLUGIN_FETCH_WORKER_METADATA_KEY, {}
-        )
-        if not worker_metadatas:
-            self.log.warning(
-                "No fetched worker metadata is found. Check if %s plugin ran already.",
-                PLUGIN_FETCH_WORKER_METADATA_KEY,
-            )
-        return worker_metadatas
+    def _builds_metadatas(self) -> Dict[str, Any]:
+        """Get builds metadata returned from gather_builds_metadata plugin.
 
-    def _iter_work_metadata_outputs(
+        :return: a mapping from platform to metadata mapping. e.g. {"x86_64": {...}}
+        """
+        metadatas = self.workflow.data.postbuild_results.get(
+            PLUGIN_GATHER_BUILDS_METADATA_KEY, {}
+        )
+        if not metadatas:
+            self.log.warning(
+                "No build metadata is found. Check if %s plugin ran already.",
+                PLUGIN_GATHER_BUILDS_METADATA_KEY,
+            )
+        return metadatas
+
+    def _iter_build_metadata_outputs(
         self, platform: Optional[str] = None, _filter: Optional[Dict[str, Any]] = None,
     ) -> Iterator[Tuple[str, Dict[str, Any]]]:
-        """Iterate outputs from worker metadata.
+        """Iterate outputs from build metadata.
 
         :param platform: iterate outputs for a specific platform. If omitted,
             no platform is limited.
@@ -157,15 +161,15 @@ class KojiImportBase(PostBuildPlugin):
         :type _filter: dict[str, any] or None
         :return: an iterator that yields a tuple in form (platform, output).
         """
-        for worker_platform, metadata in self._worker_metadatas.items():
-            if platform is not None and worker_platform != platform:
+        for build_platform, metadata in self._builds_metadatas.items():
+            if platform is not None and build_platform != platform:
                 continue
             for output in metadata["output"]:
                 if _filter:
                     if all(output.get(key) == value for key, value in _filter.items()):
-                        yield worker_platform, output
+                        yield build_platform, output
                 else:
-                    yield worker_platform, output
+                    yield build_platform, output
 
     def get_output(self, *args):
         # Must be implemented by subclasses
@@ -178,7 +182,7 @@ class KojiImportBase(PostBuildPlugin):
     def set_help(self, extra):
         # OSBS2 TBD: `get_worker_build_info` is imported from build_orchestrate_build
         all_annotations = [get_worker_build_info(self.workflow, platform).build.get_annotations()
-                           for platform in self._worker_metadatas]
+                           for platform in self._builds_metadatas]
         help_known = ['help_file' in annotations for annotations in all_annotations]
         # Only set the 'help' key when any 'help_file' annotation is set
         if any(help_known):
@@ -247,7 +251,9 @@ class KojiImportBase(PostBuildPlugin):
                 }
             })
 
-        outputs = self._iter_work_metadata_outputs(_filter={'filename': OPERATOR_MANIFESTS_ARCHIVE})
+        outputs = self._iter_build_metadata_outputs(
+            _filter={'filename': OPERATOR_MANIFESTS_ARCHIVE}
+        )
         for _, _ in outputs:
             extra['operator_manifests_archive'] = OPERATOR_MANIFESTS_ARCHIVE
             operators_typeinfo = {
@@ -367,7 +373,7 @@ class KojiImportBase(PostBuildPlugin):
         else:
             platform = "x86_64"
             _, instance = next(
-                self._iter_work_metadata_outputs(platform, {"type": "docker-image"}),
+                self._iter_build_metadata_outputs(platform, {"type": "docker-image"}),
                 (None, None),
             )
 
@@ -624,7 +630,7 @@ class KojiImportPlugin(KojiImportBase):
         # Set media_types for the base case
         super(KojiImportPlugin, self).set_media_types(extra)
         # Adjust media_types to include annotations
-        for platform in self._worker_metadatas:
+        for platform in self._builds_metadatas:
             # OSBS2 TBD: `get_worker_build_info` is imported from build_orchestrate_build
             annotations = get_worker_build_info(self.workflow,
                                                 platform).build.get_annotations()
@@ -647,7 +653,7 @@ class KojiImportPlugin(KojiImportBase):
         outputs = []
         output_file = None
 
-        for platform, instance in self._iter_work_metadata_outputs():
+        for platform, instance in self._iter_build_metadata_outputs():
             instance['buildroot_id'] = '{}-{}'.format(platform, instance['buildroot_id'])
             outputs.append(instance)
 
@@ -661,8 +667,8 @@ class KojiImportPlugin(KojiImportBase):
         """
         buildroots = []
 
-        for platform in sorted(self._worker_metadatas.keys()):
-            for instance in self._worker_metadatas[platform]['buildroots']:
+        for platform in sorted(self._builds_metadatas.keys()):
+            for instance in self._builds_metadatas[platform]['buildroots']:
                 instance['id'] = '{}-{}'.format(platform, instance['id'])
                 buildroots.append(instance)
 

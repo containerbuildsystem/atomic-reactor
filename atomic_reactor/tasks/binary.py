@@ -53,7 +53,7 @@ class BinaryPostBuildTask(plugin_based.PluginBasedTask[TaskParams]):
             {"name": "tag_and_push"},
             {"name": "all_rpm_packages"},
             {"name": "export_operator_manifests"},
-            {"name": "fetch_worker_metadata"},
+            {"name": "gather_builds_metadata"},
             {"name": "compare_components"},
             {"name": "group_manifests"},
             {"name": "maven_url_sources_metadata"},

@@ -15,7 +15,7 @@ import os
 
 import requests
 
-from atomic_reactor.plugins.post_fetch_worker_metadata import FetchWorkerMetadataPlugin
+from atomic_reactor.plugins.post_gather_builds_metadata import GatherBuildsMetadataPlugin
 from atomic_reactor.plugins.build_orchestrate_build import (OrchestrateBuildPlugin,
                                                             WORKSPACE_KEY_UPLOAD_DIR,
                                                             WORKSPACE_KEY_BUILD_INFO)
@@ -32,7 +32,6 @@ from atomic_reactor.util import (ManifestDigest, DockerfileImages,
 from atomic_reactor.source import GitSource, PathSource
 from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI_TAR,
                                       PLUGIN_ADD_FILESYSTEM_KEY,
-                                      PLUGIN_FETCH_WORKER_METADATA_KEY,
                                       PLUGIN_MAVEN_URL_SOURCES_METADATA_KEY,
                                       PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_KOJI_PARENT_KEY,
                                       PLUGIN_RESOLVE_COMPOSES_KEY, BASE_IMAGE_KOJI_BUILD,
@@ -419,7 +418,7 @@ def mock_environment(workflow, source_dir: Path, session=None, name=None, oci=Fa
         "RSA/SHA256, Tue 30 Aug 2016 00:00:00, Key ID 01234567890abd;(none)",
     ]
 
-    workflow.data.postbuild_results[FetchWorkerMetadataPlugin.key] = {
+    workflow.data.postbuild_results[GatherBuildsMetadataPlugin.key] = {
         'x86_64': {
             'buildroots': [
                 {
@@ -513,7 +512,7 @@ def mock_environment(workflow, source_dir: Path, session=None, name=None, oci=Fa
             'type': 'log',
             'filename': OPERATOR_MANIFESTS_ARCHIVE,
             'buildroot_id': 1}
-        (workflow.data.postbuild_results[FetchWorkerMetadataPlugin.key]['x86_64']['output']
+        (workflow.data.postbuild_results[GatherBuildsMetadataPlugin.key]['x86_64']['output']
          .append(manifests_entry))
 
     if has_remote_source:
@@ -695,7 +694,7 @@ class TestKojiImport(object):
                          name='ns/name', version='1.0', release='1')
 
         add_koji_map_in_workflow(workflow, hub_url='')
-        workflow.data.postbuild_results[PLUGIN_FETCH_WORKER_METADATA_KEY] = metadatas
+        workflow.data.postbuild_results[GatherBuildsMetadataPlugin.key] = metadatas
 
         plugin = KojiImportPlugin(workflow)
 
@@ -1573,7 +1572,7 @@ class TestKojiImport(object):
         mock_environment(workflow, source_dir,
                          name='ns/name', version='1.0', release='1', session=session)
 
-        worker_metadata = workflow.data.postbuild_results[FetchWorkerMetadataPlugin.key]
+        worker_metadata = workflow.data.postbuild_results[GatherBuildsMetadataPlugin.key]
 
         for metadata in worker_metadata.values():
             for output in metadata['output']:
@@ -1734,7 +1733,7 @@ class TestKojiImport(object):
         mock_environment(workflow, source_dir,
                          name='ns/name', version='1.0', release='1', session=session)
 
-        worker_metadata = workflow.data.postbuild_results[FetchWorkerMetadataPlugin.key]
+        worker_metadata = workflow.data.postbuild_results[GatherBuildsMetadataPlugin.key]
         for metadata in worker_metadata.values():
             for output in metadata['output']:
                 if output['type'] != 'docker-image':
@@ -2527,10 +2526,10 @@ class TestKojiImport(object):
         self, worker_metadatas, platform, _filter, expected, workflow
     ):
         mock_reactor_config(workflow)
-        workflow.data.postbuild_results[PLUGIN_FETCH_WORKER_METADATA_KEY] = worker_metadatas
+        workflow.data.postbuild_results[GatherBuildsMetadataPlugin.key] = worker_metadatas
 
         plugin = KojiImportPlugin(workflow)
-        outputs = list(plugin._iter_work_metadata_outputs(platform, _filter=_filter))
+        outputs = list(plugin._iter_build_metadata_outputs(platform, _filter=_filter))
         assert expected == outputs
 
     @pytest.mark.parametrize("fs_result,expected,log", [
