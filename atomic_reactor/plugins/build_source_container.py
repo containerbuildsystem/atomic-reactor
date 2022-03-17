@@ -9,6 +9,7 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
+from typing import Any, Dict, List, Union
 
 from atomic_reactor.constants import (
     IMAGE_TYPE_DOCKER_ARCHIVE,
@@ -29,7 +30,7 @@ class SourceContainerPlugin(BuildStepPlugin):
     is_allowed_to_fail = False
     key = PLUGIN_SOURCE_CONTAINER_KEY
 
-    def export_image(self, image_output_dir: Path):
+    def export_image(self, image_output_dir: Path) -> Dict[str, Union[str, int]]:
         output_path = self.workflow.build_dir.any_platform.exported_squashed_image
 
         cmd = ['skopeo', 'copy']
@@ -42,12 +43,9 @@ class SourceContainerPlugin(BuildStepPlugin):
         except subprocess.CalledProcessError as e:
             self.log.error("failed to save docker-archive :\n%s", e.output)
             raise
+        return get_exported_image_metadata(str(output_path), IMAGE_TYPE_DOCKER_ARCHIVE)
 
-        img_metadata = get_exported_image_metadata(str(output_path), IMAGE_TYPE_DOCKER_ARCHIVE)
-        # OSBS2 TBD exported_image_sequence will not work for multiple platform
-        self.workflow.data.exported_image_sequence.append(img_metadata)
-
-    def split_remote_sources_to_subdirs(self, remote_source_data_dir):
+    def split_remote_sources_to_subdirs(self, remote_source_data_dir) -> List[str]:
         """Splits remote source archives to subdirs"""
         sources_subdirs = []
         for count, archive in enumerate(os.listdir(remote_source_data_dir)):
@@ -62,7 +60,7 @@ class SourceContainerPlugin(BuildStepPlugin):
             sources_subdirs.append(subdir)
         return sources_subdirs
 
-    def run(self):
+    def run(self) -> Dict[str, Any]:
         """Build image inside current environment.
 
         :return: a mapping containing build results. If the build fails, key
@@ -150,12 +148,13 @@ class SourceContainerPlugin(BuildStepPlugin):
                           maven_source_data_dir)
             shutil.rmtree(maven_source_data_dir)
 
-        self.export_image(image_output_dir)
+        image_metadata = self.export_image(image_output_dir)
 
         self.log.info('Will remove unpacked image directory: %s', image_output_dir)
         shutil.rmtree(image_output_dir)
 
         return {
+            'image_metadata': image_metadata,
             'logs': [output],
             'skip_layer_squash': True,
         }

@@ -402,7 +402,7 @@ def get_checksums(filename: Union[str, BinaryIO], algorithms: List[str]) -> Dict
     return checksums
 
 
-def get_exported_image_metadata(path, image_type):
+def get_exported_image_metadata(path, image_type) -> Dict[str, Union[str, int]]:
     logger.info('getting metadata for exported image %s (%s)', path, image_type)
     metadata = {'path': path, 'type': image_type}
     if image_type != IMAGE_TYPE_OCI:
