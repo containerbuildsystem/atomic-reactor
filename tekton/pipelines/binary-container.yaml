@@ -17,6 +17,7 @@ spec:
     - name: ws-registries-secret
     - name: ws-koji-secret
     - name: ws-reactor-config-map
+    - name: ws-remote-host-auth
 
   results:
     - name: repositories
@@ -85,6 +86,8 @@ spec:
           workspace: ws-koji-secret
         - name: ws-reactor-config-map
           workspace: ws-reactor-config-map
+        - name: ws-remote-host-auth
+          workspace: ws-remote-host-auth
       params:
         - name: OSBS_IMAGE
           value: "$(params.OSBS_IMAGE)"
@@ -109,6 +112,8 @@ spec:
           workspace: ws-koji-secret
         - name: ws-reactor-config-map
           workspace: ws-reactor-config-map
+        - name: ws-remote-host-auth
+          workspace: ws-remote-host-auth
       params:
         - name: OSBS_IMAGE
           value: "$(params.OSBS_IMAGE)"
@@ -133,6 +138,8 @@ spec:
           workspace: ws-koji-secret
         - name: ws-reactor-config-map
           workspace: ws-reactor-config-map
+        - name: ws-remote-host-auth
+          workspace: ws-remote-host-auth
       params:
         - name: OSBS_IMAGE
           value: "$(params.OSBS_IMAGE)"
@@ -157,6 +164,8 @@ spec:
           workspace: ws-koji-secret
         - name: ws-reactor-config-map
           workspace: ws-reactor-config-map
+        - name: ws-remote-host-auth
+          workspace: ws-remote-host-auth
       params:
         - name: OSBS_IMAGE
           value: "$(params.OSBS_IMAGE)"
