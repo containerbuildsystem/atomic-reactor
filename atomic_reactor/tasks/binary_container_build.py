@@ -5,6 +5,7 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
+import contextlib
 import logging
 import subprocess
 from dataclasses import dataclass
@@ -67,7 +68,11 @@ class BinaryBuildTask(Task[BinaryBuildTaskParams]):
 
         logger.info("Building for the %s platform from %s", platform, build_dir.dockerfile_path)
 
-        try:
+        with contextlib.ExitStack() as defer:
+            defer.callback(
+                logger.info, "Dockerfile used for build:\n%s", build_dir.dockerfile_path.read_text()
+            )
+
             output_lines = self.build_container(
                 build_dir=build_dir,
                 build_args=data.buildargs,
@@ -78,8 +83,6 @@ class BinaryBuildTask(Task[BinaryBuildTaskParams]):
 
             logger.info("Build finished succesfully! Pushing image to %s", dest_tag)
             self.push_container(dest_tag, registry_config=config.registry)
-        finally:
-            logger.info("Dockerfile used for build:\n%s", build_dir.dockerfile_path.read_text())
 
     def build_container(
         self,
