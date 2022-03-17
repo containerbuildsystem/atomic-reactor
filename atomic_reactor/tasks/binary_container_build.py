@@ -73,7 +73,9 @@ class BinaryBuildTask(Task[BinaryBuildTaskParams]):
                 logger.info, "Dockerfile used for build:\n%s", build_dir.dockerfile_path.read_text()
             )
 
-            output_lines = self.build_container(
+            podman_remote = PodmanRemote()
+
+            output_lines = podman_remote.build_container(
                 build_dir=build_dir,
                 build_args=data.buildargs,
                 dest_tag=dest_tag,
@@ -82,7 +84,11 @@ class BinaryBuildTask(Task[BinaryBuildTaskParams]):
                 logger.info(line.rstrip())
 
             logger.info("Build finished succesfully! Pushing image to %s", dest_tag)
-            self.push_container(dest_tag, registry_config=config.registry)
+            podman_remote.push_container(dest_tag, registry_config=config.registry)
+
+
+class PodmanRemote:
+    """Wrapper for running podman --remote commands on a remote host."""
 
     def build_container(
         self,

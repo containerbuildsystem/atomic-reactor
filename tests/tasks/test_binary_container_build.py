@@ -26,6 +26,7 @@ from atomic_reactor.tasks.binary_container_build import (
     BinaryBuildTask,
     BinaryBuildTaskParams,
     BuildProcessError,
+    PodmanRemote,
     PushError,
 )
 from atomic_reactor.utils import retries
@@ -144,7 +145,7 @@ class TestBinaryBuildTask:
 
     def test_platform_is_not_enabled(self, aarch64_task_params, caplog):
         mock_workflow_data(enabled_platforms=["x86_64"])
-        flexmock(BinaryBuildTask).should_receive("build_container").never()
+        flexmock(PodmanRemote).should_receive("build_container").never()
 
         task = BinaryBuildTask(aarch64_task_params)
         task.execute()
@@ -165,13 +166,13 @@ class TestBinaryBuildTask:
             yield from ["output line 1", "output line 2"]
 
         (
-            flexmock(BinaryBuildTask)
+            flexmock(PodmanRemote)
             .should_receive("build_container")
             .once()
             .replace_with(mock_build_container)
         )
         (
-            flexmock(BinaryBuildTask)
+            flexmock(PodmanRemote)
             .should_receive("push_container")
             .with_args(X86_UNIQUE_IMAGE, registry_config=REGISTRY_CONFIG)
             .once()
@@ -192,7 +193,7 @@ class TestBinaryBuildTask:
         x86_build_dir.dockerfile_path.write_text(DOCKERFILE_CONTENT)
 
         (
-            flexmock(BinaryBuildTask)
+            flexmock(PodmanRemote)
             .should_receive("build_container")
             .and_raise(BuildProcessError("something went wrong"))
         )
@@ -203,12 +204,16 @@ class TestBinaryBuildTask:
 
         assert DOCKERFILE_CONTENT in caplog.text
 
-    def test_build_container(self, x86_task_params, x86_build_dir):
+
+class TestPodmanRemote:
+    """Tests for the PodmanRemote class."""
+
+    def test_build_container(self, x86_build_dir):
         # TBD: add the actual expect_cmd later
         mock_popen(0, ["starting the build\n", "finished successfully\n"], expect_cmd=None)
 
-        task = BinaryBuildTask(x86_task_params)
-        output_lines = task.build_container(
+        podman_remote = PodmanRemote()
+        output_lines = podman_remote.build_container(
             build_dir=x86_build_dir,
             build_args=BUILD_ARGS,
             dest_tag=X86_UNIQUE_IMAGE,
@@ -224,12 +229,12 @@ class TestBinaryBuildTask:
         ]
     )
     def test_build_container_fails(
-        self, output_lines, expect_err_line, x86_task_params, x86_build_dir
+        self, output_lines, expect_err_line, x86_build_dir
     ):
         mock_popen(1, output_lines)
 
-        task = BinaryBuildTask(x86_task_params)
-        returned_lines = task.build_container(
+        podman_remote = PodmanRemote()
+        returned_lines = podman_remote.build_container(
             build_dir=x86_build_dir,
             build_args=BUILD_ARGS,
             dest_tag=X86_UNIQUE_IMAGE,
@@ -243,7 +248,7 @@ class TestBinaryBuildTask:
         with pytest.raises(BuildProcessError, match=err_msg):
             next(returned_lines)
 
-    def test_push_container(self, x86_task_params):
+    def test_push_container(self):
         (
             flexmock(retries)
             .should_receive("run_cmd")
@@ -251,19 +256,19 @@ class TestBinaryBuildTask:
             .once()
         )
 
-        task = BinaryBuildTask(x86_task_params)
-        task.push_container(X86_UNIQUE_IMAGE)
+        podman_remote = PodmanRemote()
+        podman_remote.push_container(X86_UNIQUE_IMAGE)
 
-    def test_push_container_fails(self, x86_task_params):
+    def test_push_container_fails(self):
         (
             flexmock(retries)
             .should_receive("run_cmd")
             .and_raise(subprocess.CalledProcessError(1, 'some command'))
         )
 
-        task = BinaryBuildTask(x86_task_params)
+        podman_remote = PodmanRemote()
 
         err_msg = r"Push failed \(rc=1\). Check the logs for more details."
 
         with pytest.raises(PushError, match=err_msg):
-            task.push_container(X86_UNIQUE_IMAGE)
+            podman_remote.push_container(X86_UNIQUE_IMAGE)
