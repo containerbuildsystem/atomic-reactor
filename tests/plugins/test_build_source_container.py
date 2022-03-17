@@ -1,5 +1,5 @@
 """
-Copyright (c) 2019 Red Hat, Inc
+Copyright (c) 2019-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -15,9 +15,10 @@ import json
 import tarfile
 import re
 
-from atomic_reactor.constants import PLUGIN_FETCH_SOURCES_KEY
+from atomic_reactor.constants import IMAGE_TYPE_DOCKER_ARCHIVE, PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.plugin import BuildStepPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.build_source_container import SourceContainerPlugin
+from atomic_reactor.util import get_exported_image_metadata
 from atomic_reactor.utils import retries
 
 
@@ -154,6 +155,7 @@ def test_running_build(workflow, caplog,
                         "annotations": {"org.opencontainers.image.ref.name": "latest-source"},
                         "platform": {"architecture": "amd64", "os": "linux"}}]}
     blob_json = {"schemaVersion": 2, "layers": []}
+    expected_exported_image_metadata = {}
 
     temp_image_output_dir.joinpath("index.json").write_text(json.dumps(index_json), "utf-8")
     temp_image_output_dir.joinpath("blobs", "sha256", blob_sha).write_text(
@@ -166,6 +168,8 @@ def test_running_build(workflow, caplog,
             with tarfile.TarFile(mode="w", fileobj=f) as tf:
                 for f in os.listdir(temp_image_output_dir):
                     tf.add(str(temp_image_output_dir / f), f)
+        expected_exported_image_metadata = get_exported_image_metadata(str(export_tar),
+                                                                       IMAGE_TYPE_DOCKER_ARCHIVE)
 
     if not any([sources_dir_exists, remote_dir_exists, maven_dir_exists]):
         with pytest.raises(PluginFailedException) as exc_info:
@@ -186,7 +190,11 @@ def test_running_build(workflow, caplog,
         with pytest.raises(PluginFailedException):
             runner.run()
     else:
-        runner.run()
+        results = runner.run()
+        assert results.keys() == {'image_metadata', 'logs', 'skip_layer_squash'}
+        assert results['logs'] == ['stub stdout']
+        assert results['skip_layer_squash']
+        assert results['image_metadata'] == expected_exported_image_metadata
         assert 'stub stdout' in caplog.text
         empty_srpm_msg = f"SRPMs directory '{sources_dir_path}' is empty"
         empty_remote_msg = f"Remote source directory '{remote_dir_path}' is empty"
