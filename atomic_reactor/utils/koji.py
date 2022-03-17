@@ -11,6 +11,8 @@ import json
 import logging
 import os
 import tempfile
+from typing import Optional, List, Any, Dict, Union
+
 import time
 import platform
 
@@ -297,7 +299,7 @@ def get_koji_module_build(session, module_spec):
     return build, rpm_list
 
 
-def get_buildroot():
+def get_buildroot(arch: Optional[str] = None) -> Dict[str, Any]:
     """
     Build the buildroot entry of the metadata.
     :return: dict, partial metadata
@@ -305,8 +307,7 @@ def get_buildroot():
     # OSBS2 TBD
     # docker_info = tasker.get_info()
     podman_info = None  # podman info
-    # OSBS2 TBD
-    host_arch = platform.processor()
+    host_arch = arch or platform.processor()
 
     buildroot = {
         'id': 1,
@@ -322,7 +323,7 @@ def get_buildroot():
         },
         'container': {
             'type': 'none',
-            'arch': os.uname()[4],
+            'arch': host_arch,
         },
         'components': [],
         'tools': [],
@@ -405,20 +406,19 @@ def get_maven_metadata(workflow_data):
     return outputs, components
 
 
-def get_image_components(workflow):
+def get_image_components(workflow, platform: str) -> List[Dict[str, Union[str, int]]]:
     """
     Re-package the output of the rpmqa plugin into the format required
     for the metadata.
     """
-    output = workflow.data.image_components
-    if output is None:
+    components = workflow.data.postbuild_results.get(PostBuildRPMqaPlugin.key)
+    if components is None:
         logger.error("%s plugin did not run!", PostBuildRPMqaPlugin.key)
-        output = []
+        return []
+    return components.get(platform, [])
 
-    return output
 
-
-def add_custom_type(output, custom_type, content=None):
+def add_custom_type(output: Output, custom_type: str, content: Optional[Dict[str, Any]] = None):
     output.metadata.update({
         'type': custom_type,
         'extra': {
@@ -429,7 +429,9 @@ def add_custom_type(output, custom_type, content=None):
     })
 
 
-def get_output(workflow, buildroot_id, pullspec, platform, source_build=False, logs=None):
+def get_output(workflow, buildroot_id, pullspec, platform,
+               source_build=False,
+               logs: Optional[List[Output]] = None):
     """
     Build the 'output' section of the metadata.
     :param buildroot_id: str, buildroot_id
@@ -465,7 +467,7 @@ def get_output(workflow, buildroot_id, pullspec, platform, source_build=False, l
 
     else:
         output_files = [add_log_type(add_buildroot_id(metadata), arch)
-                        for metadata in logs]
+                        for metadata in logs or []]
 
         # Parent of squashed built image is base image
         # OSBS2 TBD
@@ -533,7 +535,7 @@ def get_output(workflow, buildroot_id, pullspec, platform, source_build=False, l
         del metadata['extra']['docker']['config']
 
     if not source_build:
-        metadata['components'] = get_image_components(workflow)
+        metadata['components'] = get_image_components(workflow, platform)
 
         if not workflow.data.dockerfile_images.base_from_scratch:
             metadata['extra']['docker']['parent_id'] = parent_id
