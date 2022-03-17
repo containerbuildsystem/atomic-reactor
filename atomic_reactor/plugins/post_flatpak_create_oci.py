@@ -15,7 +15,7 @@ import subprocess
 
 from flatpak_module_tools.flatpak_builder import FlatpakBuilder, FLATPAK_METADATA_ANNOTATIONS
 
-from atomic_reactor.constants import IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR
+from atomic_reactor.constants import IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR, PLUGIN_FLATPAK_CREATE_OCI
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.pre_flatpak_update_dockerfile import get_flatpak_source_info
 from atomic_reactor.utils import retries
@@ -60,7 +60,7 @@ class StreamAdapter(object):
 
 
 class FlatpakCreateOciPlugin(PostBuildPlugin):
-    key = 'flatpak_create_oci'
+    key = PLUGIN_FLATPAK_CREATE_OCI
     is_allowed_to_fail = False
 
     def __init__(self, workflow):
