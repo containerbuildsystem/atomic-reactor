@@ -10,15 +10,25 @@ import subprocess
 import time
 import platform
 import random
+from typing import Dict, List, Union
 
-from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR,
-                                      DOCKER_PUSH_MAX_RETRIES, DOCKER_PUSH_BACKOFF_FACTOR)
+from atomic_reactor.constants import (
+    DOCKER_PUSH_BACKOFF_FACTOR,
+    DOCKER_PUSH_MAX_RETRIES,
+    IMAGE_TYPE_DOCKER_ARCHIVE,
+    IMAGE_TYPE_OCI,
+    PLUGIN_FLATPAK_CREATE_OCI,
+    PLUGIN_SOURCE_CONTAINER_KEY,
+)
 from atomic_reactor.config import get_koji_session
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.metadata import annotation_map
-from atomic_reactor.util import (Dockercfg, get_all_manifests, map_to_user_params,
-                                 get_manifest_digests)
+from atomic_reactor.util import (Dockercfg, get_all_manifests,
+                                 get_manifest_digests,
+                                 get_platforms,
+                                 is_flatpak_build,
+                                 map_to_user_params)
 from atomic_reactor.utils import retries
 from osbs.utils import ImageName
 import osbs.utils
@@ -50,20 +60,10 @@ class TagAndPushPlugin(PostBuildPlugin):
         super(TagAndPushPlugin, self).__init__(workflow)
 
         self.registry = self.workflow.conf.registry
-        self.group = self.workflow.conf.group_manifests
         self.koji_target = koji_target
 
-    def need_skopeo_push(self):
-        # OSBS2 TBD exported_image_sequence will not work for multiple platform
-        if len(self.workflow.data.exported_image_sequence) > 0:
-            last_image = self.workflow.data.exported_image_sequence[-1]
-            if last_image['type'] == IMAGE_TYPE_OCI or last_image['type'] == IMAGE_TYPE_OCI_TAR:
-                return True
-
-        return False
-
-    def push_with_skopeo(self, registry_image, insecure, docker_push_secret,
-                         source_docker_archive=None):
+    def push_with_skopeo(self, image: Dict[str, str], registry_image: ImageName, insecure: bool,
+                         docker_push_secret: str) -> None:
         cmd = ['skopeo', 'copy']
         if docker_push_secret is not None:
             dockercfg = Dockercfg(docker_push_secret)
@@ -72,24 +72,17 @@ class TagAndPushPlugin(PostBuildPlugin):
         if insecure:
             cmd.append('--dest-tls-verify=false')
 
-        if not source_docker_archive:
-            # If the last image has type OCI_TAR, then hunt back and find the
-            # the untarred version, since skopeo only supports OCI's as an
-            # untarred directory
-            # OSBS2 TBD exported_image_sequence will not work for multiple platform
-            image = [x for x in self.workflow.data.exported_image_sequence if
-                     x['type'] != IMAGE_TYPE_OCI_TAR][-1]
-
-            if image['type'] == IMAGE_TYPE_OCI:
-                source_img = 'oci:{path}:{ref_name}'.format(**image)
-                cmd.append('--format=v2s2')
-            elif image['type'] == IMAGE_TYPE_DOCKER_ARCHIVE:
-                source_img = 'docker-archive://{path}'.format(**image)
-            else:
-                raise RuntimeError("Attempt to push unsupported image type %s with skopeo" %
-                                   image['type'])
+        if image['type'] == IMAGE_TYPE_OCI:
+            # ref_name is added by 'flatpak_create_oci'
+            # we have to be careful when changing the source container image type
+            # since assumption here is that source container image will always be 'docker-archive'
+            source_img = 'oci:{path}:{ref_name}'.format(**image)
+            cmd.append('--format=v2s2')
+        elif image['type'] == IMAGE_TYPE_DOCKER_ARCHIVE:
+            source_img = 'docker-archive://{path}'.format(**image)
         else:
-            source_img = 'docker-archive:{}'.format(source_docker_archive)
+            raise RuntimeError("Attempt to push unsupported image type %s with skopeo" %
+                               image['type'])
 
         dest_img = 'docker://' + registry_image.to_str()
 
@@ -101,7 +94,7 @@ class TagAndPushPlugin(PostBuildPlugin):
             self.log.error("push failed with output:\n%s", e.output)
             raise
 
-    def source_get_unique_image(self):
+    def source_get_unique_image(self) -> ImageName:
         source_result = self.workflow.data.prebuild_results[PLUGIN_FETCH_SOURCES_KEY]
         koji_build_id = source_result['sources_for_koji_build_id']
         kojisession = get_koji_session(self.workflow.conf)
@@ -129,7 +122,7 @@ class TagAndPushPlugin(PostBuildPlugin):
         source_image_spec.registry = self.workflow.conf.registry['uri']
         return source_image_spec
 
-    def get_repositories(self):
+    def get_repositories(self) -> Dict[str, List[str]]:
         # usually repositories formed from NVR labels
         # these should be used for pulling and layering
         primary_repositories = []
@@ -156,59 +149,43 @@ class TagAndPushPlugin(PostBuildPlugin):
             "floating": floating_repositories,
         }
 
-    def run(self):
+    def run(self) -> Dict[str, Union[List, Dict[str, List[str]]]]:
+        is_source_build = PLUGIN_FETCH_SOURCES_KEY in self.workflow.data.prebuild_results
+
+        if not is_source_build and not is_flatpak_build(self.workflow):
+            self.log.info('not a flatpak or source build, skipping plugin')
+            return {'pushed_images': [],
+                    'repositories': self.get_repositories()}
+
         pushed_images = []
         wf_data = self.workflow.data
 
-        is_source_build = PLUGIN_FETCH_SOURCES_KEY in self.workflow.data.prebuild_results
-        if is_source_build:
-            source_docker_archive = self.workflow.build_dir.any_platform.exported_squashed_image
-            source_unique_image = self.source_get_unique_image()
-
         tag_conf = wf_data.tag_conf
-        if not tag_conf.unique_images:
-            if is_source_build:
-                tag_conf.add_unique_image(source_unique_image)
-            else:
-                tag_conf.add_unique_image(self.workflow.image)
 
-        image_size_limit = self.workflow.conf.image_size_limit
+        images = []
+        if is_source_build:
+            source_image = self.source_get_unique_image()
+            plugin_results = wf_data.buildstep_result[PLUGIN_SOURCE_CONTAINER_KEY]
+            image = plugin_results['image_metadata']
+            tag_conf.add_unique_image(source_image)
+            images.append((image, source_image))
+        else:
+            for image_platform in get_platforms(self.workflow.data):
+                plugin_results = wf_data.postbuild_results[PLUGIN_FLATPAK_CREATE_OCI]
+                image = plugin_results[image_platform]
+                registry_image = tag_conf.get_unique_images_with_platform(image_platform)[0]
+                images.append((image, registry_image))
 
         insecure = self.registry.get('insecure', False)
 
         docker_push_secret = self.registry.get('secret', None)
         self.log.info("Registry %s secret %s", self.registry['uri'], docker_push_secret)
 
-        for image in wf_data.tag_conf.images:
-            if not is_source_build:
-                # OSBS2 TBD
-                # layer_sizes were removed from workflow data
-                # these should be fetched from imageutil method
-                image_size = sum(item['size'] for item in self.workflow.data.layer_sizes)
-                config_image_size = image_size_limit['binary_image']
-                # Only handle the case when size is set > 0 in config
-                if config_image_size and image_size > config_image_size:
-                    raise ExceedsImageSizeError(
-                        'The size {} of image {} exceeds the limitation {} '
-                        'configured in reactor config.'
-                        .format(image_size, image, image_size_limit)
-                    )
-
-            registry_image = image.copy()
+        for image, registry_image in images:
             max_retries = DOCKER_PUSH_MAX_RETRIES
 
             for retry in range(max_retries + 1):
-                if self.need_skopeo_push() or is_source_build:
-                    self.push_with_skopeo(registry_image, insecure, docker_push_secret,
-                                          source_docker_archive)
-                else:
-                    # OSBS2 TBD either use store manifest from ManifestUtil
-                    # or tag_imag from utils.image
-                    # we won't need pushing
-                    # self.tasker.tag_and_push_image(self.workflow.data.image_id,
-                    #                                registry_image, insecure=insecure,
-                    #                                force=True, dockercfg=docker_push_secret)
-                    pass
+                self.push_with_skopeo(image, registry_image, insecure, docker_push_secret)
 
                 if is_source_build:
                     manifests_dict = get_all_manifests(registry_image, self.registry['uri'],
