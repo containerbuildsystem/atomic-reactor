@@ -8,6 +8,7 @@ of the BSD license. See the LICENSE file for details.
 
 import io
 import re
+import shutil
 import subprocess
 from pathlib import Path
 from textwrap import dedent
@@ -25,10 +26,15 @@ from atomic_reactor.constants import PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
 from atomic_reactor.tasks.binary_container_build import (
     BinaryBuildTask,
     BinaryBuildTaskParams,
+    # exceptions
+    BuildTaskError,
     BuildProcessError,
-    PodmanRemote,
     PushError,
+    # helpers
+    PodmanRemote,
+    which_podman,
 )
+from atomic_reactor.utils import remote_host
 from atomic_reactor.utils import retries
 
 CONTEXT_DIR = "/workspace/ws-context-dir"
@@ -43,6 +49,34 @@ REGISTRY_CONFIG = {
     "version": "v2",
     "auth": AUTHFILE_PATH,
     "insecure": False,
+}
+
+PIPELINE_RUN_NAME = "binary-container-0-1-123456"
+
+X86_REMOTE_HOST = remote_host.RemoteHost(
+    hostname="osbs-remote-host-x86-64-1.example.com",
+    username="osbs-podman-dev",
+    ssh_keyfile="/workspace/ws-remote-host-auth/remote-host-auth",
+    slots=10,
+    socket_path="/run/user/2022/podman/podman.sock",
+    slots_dir="/run/user/2022/osbs/slots",
+)
+
+X86_LOCKED_RESOURCE = remote_host.LockedResource(X86_REMOTE_HOST, slot=1, prid=PIPELINE_RUN_NAME)
+
+REMOTE_HOST_CONFIG = {
+    "slots_dir": X86_REMOTE_HOST.slots_dir,
+    "pools": {
+        "x86_64": {
+            X86_REMOTE_HOST.hostname: {
+                "username": X86_REMOTE_HOST.username,
+                "auth": X86_REMOTE_HOST.ssh_keyfile,
+                "enabled": True,
+                "slots": X86_REMOTE_HOST.slots,
+                "socket_path": X86_REMOTE_HOST.socket_path,
+            },
+        },
+    },
 }
 
 BUILD_ARGS = {"REMOTE_SOURCES": "unpacked_remote_sources"}
@@ -62,7 +96,7 @@ def base_task_params(build_dir: Path) -> Dict[str, Any]:
         "build_dir": str(build_dir),
         "context_dir": CONTEXT_DIR,
         "config_file": CONFIG_PATH,
-        "user_params": {},
+        "user_params": {"pipeline_run_name": PIPELINE_RUN_NAME},
     }
 
 
@@ -102,13 +136,15 @@ def mock_workflow_data(*, enabled_platforms: List[str]) -> inner.ImageBuildWorkf
     return mocked_data
 
 
-def mock_config(registry_config: Dict[str, Any]):
+def mock_config(registry_config: Dict[str, Any], remote_hosts_config: Dict[str, Any]):
     """Make load_config() return mocked config.
 
     The registry property of the mocked config will return the specified registry_config.
+    The remote_hosts property will return the remote hosts config.
     """
     cfg = config.Configuration()
     flexmock(cfg).should_receive("registry").and_return(registry_config)
+    flexmock(cfg).should_receive("remote_hosts").and_return(remote_hosts_config)
     flexmock(BinaryBuildTask).should_receive("load_config").and_return(cfg)
 
 
@@ -143,6 +179,26 @@ def mock_popen(
 class TestBinaryBuildTask:
     """Tests from the BinaryBuildTask class."""
 
+    @pytest.fixture
+    def mock_locked_resource(self) -> remote_host.LockedResource:
+        (
+            flexmock(remote_host.RemoteHostsPool)
+            .should_receive("lock_resource")
+            .and_return(X86_LOCKED_RESOURCE)
+        )
+        return X86_LOCKED_RESOURCE
+
+    @pytest.fixture
+    def mock_podman_remote(self, mock_locked_resource) -> PodmanRemote:
+        podman_remote = PodmanRemote(connection_name=mock_locked_resource.host.hostname)
+        (
+            flexmock(PodmanRemote)
+            .should_receive("setup_for")
+            .with_args(mock_locked_resource)
+            .and_return(podman_remote)
+        )
+        return podman_remote
+
     def test_platform_is_not_enabled(self, aarch64_task_params, caplog):
         mock_workflow_data(enabled_platforms=["x86_64"])
         flexmock(PodmanRemote).should_receive("build_container").never()
@@ -152,9 +208,11 @@ class TestBinaryBuildTask:
 
         assert "Platform aarch64 is not enabled for this build" in caplog.text
 
-    def test_run_build(self, x86_task_params, x86_build_dir, caplog):
+    def test_run_build(
+        self, x86_task_params, x86_build_dir, mock_podman_remote, mock_locked_resource, caplog
+    ):
         mock_workflow_data(enabled_platforms=["x86_64"])
-        mock_config(REGISTRY_CONFIG)
+        mock_config(REGISTRY_CONFIG, REMOTE_HOST_CONFIG)
         x86_build_dir.dockerfile_path.write_text(DOCKERFILE_CONTENT)
 
         def mock_build_container(*, build_dir, build_args, dest_tag):
@@ -166,17 +224,19 @@ class TestBinaryBuildTask:
             yield from ["output line 1", "output line 2"]
 
         (
-            flexmock(PodmanRemote)
+            flexmock(mock_podman_remote)
             .should_receive("build_container")
             .once()
             .replace_with(mock_build_container)
         )
         (
-            flexmock(PodmanRemote)
+            flexmock(mock_podman_remote)
             .should_receive("push_container")
             .with_args(X86_UNIQUE_IMAGE, registry_config=REGISTRY_CONFIG)
             .once()
         )
+
+        flexmock(mock_locked_resource).should_receive("unlock").once()
 
         task = BinaryBuildTask(x86_task_params)
         task.execute()
@@ -188,31 +248,147 @@ class TestBinaryBuildTask:
         assert "output line 2" in caplog.text
         assert DOCKERFILE_CONTENT in caplog.text
 
-    def test_print_dockerfile_on_failure(self, x86_task_params, x86_build_dir, caplog):
+    def test_run_exit_steps_on_failure(
+        self, x86_task_params, x86_build_dir, mock_podman_remote, mock_locked_resource, caplog
+    ):
         mock_workflow_data(enabled_platforms=["x86_64"])
+        mock_config(REGISTRY_CONFIG, REMOTE_HOST_CONFIG)
         x86_build_dir.dockerfile_path.write_text(DOCKERFILE_CONTENT)
 
         (
-            flexmock(PodmanRemote)
+            flexmock(mock_podman_remote)
             .should_receive("build_container")
             .and_raise(BuildProcessError("something went wrong"))
         )
+
+        # test that the LockedResource is unlocked on failure
+        flexmock(mock_locked_resource).should_receive("unlock").once()
 
         task = BinaryBuildTask(x86_task_params)
         with pytest.raises(BuildProcessError):
             task.execute()
 
+        # test that the Dockerfile is printed on failure
         assert DOCKERFILE_CONTENT in caplog.text
+
+    def test_acquire_remote_resource_fails(self, x86_task_params):
+        pool = remote_host.RemoteHostsPool([X86_REMOTE_HOST])
+        # also test that the method passes params to the remote_host module correctly
+        (
+            flexmock(remote_host.RemoteHostsPool)
+            .should_receive("from_config")
+            .with_args(REMOTE_HOST_CONFIG, "x86_64")
+            .once()
+            .and_return(pool)
+        )
+        (
+            flexmock(pool)
+            .should_receive("lock_resource")
+            .with_args(PIPELINE_RUN_NAME)
+            .once()
+            .and_return(None)
+        )
+
+        task = BinaryBuildTask(x86_task_params)
+
+        err_msg = "Failed to acquire a build slot on any remote host!"
+
+        with pytest.raises(BuildTaskError, match=err_msg):
+            task.acquire_remote_resource(REMOTE_HOST_CONFIG)
+
+
+@pytest.mark.parametrize(
+    "podman_path, podman_remote_path, expect_path",
+    [
+        ("/usr/bin/podman", None, "/usr/bin/podman"),
+        (None, "/usr/bin/podman-remote", "/usr/bin/podman-remote"),
+        ("/usr/bin/podman", "/usr/bin/podman-remote", "/usr/bin/podman"),
+        (None, None, None),
+    ],
+)
+def test_which_podman(podman_path, podman_remote_path, expect_path):
+    def mock_which(cmd):
+        if cmd == "podman":
+            return podman_path
+        elif cmd == "podman-remote":
+            return podman_remote_path
+        else:
+            assert False, cmd
+
+    flexmock(shutil).should_receive("which").replace_with(mock_which)
+
+    # make sure which_podman() doesn't return results from the prev. run
+    which_podman.cache_clear()
+
+    if expect_path is None:
+        err_msg = r"Could not find either podman or podman-remote in \$PATH!"
+
+        with pytest.raises(BuildTaskError, match=err_msg):
+            which_podman()
+    else:
+        assert which_podman() == expect_path
 
 
 class TestPodmanRemote:
     """Tests for the PodmanRemote class."""
 
-    def test_build_container(self, x86_build_dir):
-        # TBD: add the actual expect_cmd later
-        mock_popen(0, ["starting the build\n", "finished successfully\n"], expect_cmd=None)
+    @pytest.fixture(autouse=True)
+    def mock_which_podman(self):
+        which_podman.cache_clear()
+        flexmock(shutil).should_receive("which").with_args("podman").and_return("/usr/bin/podman")
 
-        podman_remote = PodmanRemote()
+    def test_setup_for(self):
+        resource = X86_LOCKED_RESOURCE
+        expect_cmd = [
+            "/usr/bin/podman",
+            "system",
+            "connection",
+            "add",
+            PIPELINE_RUN_NAME,
+            "ssh://osbs-podman-dev@osbs-remote-host-x86-64-1.example.com",
+            "--identity=/workspace/ws-remote-host-auth/remote-host-auth",
+            "--socket-path=/run/user/2022/podman/podman.sock",
+        ]
+        (
+            flexmock(subprocess)
+            .should_receive("check_output")
+            .with_args(expect_cmd, stderr=subprocess.STDOUT)
+            .once()
+        )
+
+        podman_remote = PodmanRemote.setup_for(resource)
+        assert podman_remote._connection_name == PIPELINE_RUN_NAME
+
+    def test_setup_for_fails(self):
+        (
+            flexmock(subprocess)
+            .should_receive("check_output")
+            .and_raise(
+                subprocess.CalledProcessError(1, ["podman", "..."], output=b'something went wrong')
+            )
+        )
+
+        err_msg = "Failed to set up podman-remote connection: something went wrong"
+
+        with pytest.raises(BuildTaskError, match=err_msg):
+            PodmanRemote.setup_for(X86_LOCKED_RESOURCE)
+
+    def test_build_container(self, x86_build_dir):
+        expect_cmd = [
+            "/usr/bin/podman",
+            "--remote",
+            "--connection=connection-name",
+            "build",
+            f"--tag={X86_UNIQUE_IMAGE}",
+            str(x86_build_dir.path),
+            "--no-cache",
+            "--pull-always",
+            "--squash",
+            "--build-arg=REMOTE_SOURCES=unpacked_remote_sources",
+        ]
+        mock_popen(0, ["starting the build\n", "finished successfully\n"], expect_cmd=expect_cmd)
+
+        podman_remote = PodmanRemote("connection-name")
         output_lines = podman_remote.build_container(
             build_dir=x86_build_dir,
             build_args=BUILD_ARGS,
@@ -233,7 +409,7 @@ class TestPodmanRemote:
     ):
         mock_popen(1, output_lines)
 
-        podman_remote = PodmanRemote()
+        podman_remote = PodmanRemote("connection-name")
         returned_lines = podman_remote.build_container(
             build_dir=x86_build_dir,
             build_args=BUILD_ARGS,
@@ -249,14 +425,17 @@ class TestPodmanRemote:
             next(returned_lines)
 
     def test_push_container(self):
-        (
-            flexmock(retries)
-            .should_receive("run_cmd")
-            .with_args(["echo", str(X86_UNIQUE_IMAGE)])  # TBD: change me later
-            .once()
-        )
+        expect_cmd = [
+            "/usr/bin/podman",
+            "--remote",
+            "--connection=connection-name",
+            "push",
+            str(X86_UNIQUE_IMAGE),
+        ]
 
-        podman_remote = PodmanRemote()
+        flexmock(retries).should_receive("run_cmd").with_args(expect_cmd).once()
+
+        podman_remote = PodmanRemote("connection-name")
         podman_remote.push_container(X86_UNIQUE_IMAGE)
 
     def test_push_container_fails(self):
@@ -266,7 +445,7 @@ class TestPodmanRemote:
             .and_raise(subprocess.CalledProcessError(1, 'some command'))
         )
 
-        podman_remote = PodmanRemote()
+        podman_remote = PodmanRemote("connection-name")
 
         err_msg = r"Push failed \(rc=1\). Check the logs for more details."
 
