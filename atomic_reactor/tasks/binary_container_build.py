@@ -6,10 +6,12 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 import contextlib
+import functools
 import logging
+import shutil
 import subprocess
 from dataclasses import dataclass
-from typing import Any, Dict, Iterator, Optional
+from typing import Any, Dict, Iterator, List, Optional
 
 from osbs.utils import ImageName
 
@@ -17,6 +19,7 @@ from atomic_reactor import dirs
 from atomic_reactor import util
 from atomic_reactor.tasks.common import Task, TaskParams
 from atomic_reactor.utils import retries
+from atomic_reactor.utils import remote_host
 
 
 logger = logging.getLogger(__name__)
@@ -73,7 +76,10 @@ class BinaryBuildTask(Task[BinaryBuildTaskParams]):
                 logger.info, "Dockerfile used for build:\n%s", build_dir.dockerfile_path.read_text()
             )
 
-            podman_remote = PodmanRemote()
+            remote_resource = self.acquire_remote_resource(config.remote_hosts)
+            defer.callback(remote_resource.unlock)
+
+            podman_remote = PodmanRemote.setup_for(remote_resource)
 
             output_lines = podman_remote.build_container(
                 build_dir=build_dir,
@@ -86,9 +92,69 @@ class BinaryBuildTask(Task[BinaryBuildTaskParams]):
             logger.info("Build finished succesfully! Pushing image to %s", dest_tag)
             podman_remote.push_container(dest_tag, registry_config=config.registry)
 
+    def acquire_remote_resource(self, remote_hosts_config: dict) -> remote_host.LockedResource:
+        """Lock a build slot on a remote host."""
+        logger.info("Acquiring a build slot on a remote host")
+        pool = remote_host.RemoteHostsPool.from_config(remote_hosts_config, self._params.platform)
+        resource = pool.lock_resource(prid=self._params.user_params["pipeline_run_name"])
+        if not resource:
+            raise BuildTaskError(
+                "Failed to acquire a build slot on any remote host! See the logs for more details."
+            )
+        return resource
+
+
+@functools.lru_cache
+def which_podman() -> str:
+    """Return the full path to the podman or podman-remote executable. Prefer podman."""
+    podman = shutil.which("podman") or shutil.which("podman-remote")
+    if not podman:
+        raise BuildTaskError("Could not find either podman or podman-remote in $PATH!")
+    return podman
+
 
 class PodmanRemote:
-    """Wrapper for running podman --remote commands on a remote host."""
+    """Wrapper for running podman --remote commands on a remote host.
+
+    Works with both podman-remote and full podman.
+    """
+
+    def __init__(self, connection_name: str):
+        """Initialize a PodmanRemote instance.
+
+        :param connection_name: the name of an existing podman-remote connection
+        """
+        self._connection_name = connection_name
+
+    @property
+    def _podman_remote_cmd(self) -> List[str]:
+        return [which_podman(), "--remote", f"--connection={self._connection_name}"]
+
+    @classmethod
+    def setup_for(cls, remote_resource: remote_host.LockedResource):
+        """Set up a connection for the specified remote resource, return a PodmanRemote instance."""
+        connection_name = remote_resource.prid  # identify the connection by the pipelineRun name
+        host = remote_resource.host
+        cmd = [
+            which_podman(),
+            "system",
+            "connection",
+            "add",
+            connection_name,
+            f"ssh://{host.username}@{host.hostname}",
+            f"--identity={host.ssh_keyfile}",
+            f"--socket-path={host.socket_path}",
+        ]
+        logger.debug("Running %s", " ".join(cmd))
+
+        try:
+            subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+        except subprocess.CalledProcessError as e:
+            raise BuildTaskError(
+                f"Failed to set up podman-remote connection: {e.output.decode()}"
+            ) from e
+
+        return cls(connection_name)
 
     def build_container(
         self,
@@ -107,7 +173,18 @@ class PodmanRemote:
         This method returns an iterator which yields individual lines from the stdout
         and stderr of the build process as they become available.
         """
-        build_cmd = ["/bin/sh", "-c", "for i in 1 2 3; do echo output $i; sleep 0.1; done"]
+        cli_buildargs = [f"--build-arg={key}={value}" for key, value in build_args.items()]
+        build_cmd = [
+            *self._podman_remote_cmd,
+            "build",
+            f"--tag={dest_tag}",
+            str(build_dir.path),
+            "--no-cache",  # make sure the build uses a clean environment
+            "--pull-always",  # as above
+            # TBD: --authfile? --tls-verify?
+            "--squash",
+            *cli_buildargs,
+        ]
         logger.debug("Running %s", " ".join(build_cmd))
 
         build_process = subprocess.Popen(
@@ -146,7 +223,8 @@ class PodmanRemote:
         The registry_config, if any, should be the value of Configuration.registry and
         determines how to authenticate to the registry and whether to use an insecure connection.
         """
-        push_cmd = ["echo", str(dest_tag)]
+        # TBD: --authfile, --tls-verify
+        push_cmd = [*self._podman_remote_cmd, "push", str(dest_tag)]
         try:
             retries.run_cmd(push_cmd)
         except subprocess.CalledProcessError as e:
