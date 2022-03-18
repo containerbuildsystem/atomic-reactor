@@ -1293,6 +1293,16 @@ class TestWorkflowData:
                     },
                 },
             },
+            koji_upload_files=[
+                {
+                    "local_filename": "/path/to/build1.log",
+                    "dest_filename": "x86_64-build.log",
+                },
+                {
+                    "local_filename": "/path/to/dir1/remote-source.tar.gz",
+                    "dest_filename": "remote-source.tar.gz",
+                },
+            ]
         )
 
         context_dir = ContextDir(Path(tmpdir.join("context_dir").mkdir()))

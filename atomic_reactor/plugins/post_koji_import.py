@@ -13,7 +13,7 @@ import os
 import time
 import logging
 from tempfile import NamedTemporaryFile
-from typing import Any, Dict, Iterator, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from atomic_reactor.config import get_koji_session, get_openshift_session
 from atomic_reactor import start_time as atomic_reactor_start_time
@@ -442,16 +442,15 @@ class KojiImportBase(PostBuildPlugin):
 
         return build
 
-    def combine_metadata_fragments(self):
-        def add_buildroot_id(output, buildroot_id):
-            logfile, metadata = output
-            metadata.update({'buildroot_id': buildroot_id})
-            return Output(file=logfile, metadata=metadata)
+    def combine_metadata_fragments(self) -> Dict[str, Any]:
+        """Construct the CG metadata and collect the output files for upload later."""
+        def add_buildroot_id(output: Output, buildroot_id: str) -> Output:
+            output.metadata.update({'buildroot_id': buildroot_id})
+            return Output(filename=output.filename, metadata=output.metadata)
 
-        def add_log_type(output):
-            logfile, metadata = output
-            metadata.update({'type': 'log', 'arch': 'noarch'})
-            return Output(file=logfile, metadata=metadata)
+        def add_log_type(output: Output) -> Output:
+            output.metadata.update({'type': 'log', 'arch': 'noarch'})
+            return Output(filename=output.filename, metadata=output.metadata)
 
         try:
             self.pipeline_run_name = self.workflow.user_params['pipeline_run_name']
@@ -459,21 +458,38 @@ class KojiImportBase(PostBuildPlugin):
             self.log.error("No pipeline_run_name found")
             raise
 
-        metadata_version = 0
-
-        remote_source_file_outputs, kojifile_components = get_maven_metadata(self.workflow.data)
-
         build = self.get_build()
         buildroot = self.get_buildroot()
         buildroot_id = buildroot[0]['id']
-        output, output_file = self.get_output(buildroot_id)
-        osbs_logs = OSBSLogs(self.log, get_platforms(self.workflow.data))
-        output_files = [add_log_type(add_buildroot_id(md, buildroot_id))
-                        for md in osbs_logs.get_log_files(self.osbs, self.pipeline_run_name)]
 
-        output.extend([of.metadata for of in output_files])
+        # Collect the output files, which will be uploaded later.
+        koji_upload_files = self.workflow.data.koji_upload_files
+
+        output: List[Dict[str, Any]]  # List of metadatas
+        # The corresponding output file, only has one for source build
+        output_file: Optional[Output]
+
+        output, output_file = self.get_output(buildroot_id)
         if output_file:
-            output_files.append(output_file)
+            koji_upload_files.append({
+                "local_filename": output_file.filename,
+                "dest_filename": output[0]["filename"],
+            })
+
+        # Collect log files
+        osbs_logs = OSBSLogs(self.log, get_platforms(self.workflow.data))
+        output_log_files = [
+            add_log_type(add_buildroot_id(md, buildroot_id))
+            for md in osbs_logs.get_log_files(self.osbs, self.pipeline_run_name)
+        ]
+        for remote_source_file_output in output_log_files:
+            output.append(remote_source_file_output.metadata)
+            koji_upload_files.append({
+                "local_filename": remote_source_file_output.filename,
+                "dest_filename": remote_source_file_output.metadata["filename"],
+            })
+
+        remote_source_file_outputs, kojifile_components = get_maven_metadata(self.workflow.data)
 
         # add maven components alongside RPM components
         for worker_output in output:
@@ -485,66 +501,77 @@ class KojiImportBase(PostBuildPlugin):
             *get_source_tarballs_output(self.workflow),
             *get_remote_sources_json_output(self.workflow)
         ]:
-            if remote_source_output:
-                add_custom_type(remote_source_output, KOJI_BTYPE_REMOTE_SOURCES)
-                remote_source = add_buildroot_id(remote_source_output, buildroot_id)
-                output_files.append(remote_source)
-                output.append(remote_source.metadata)
+            add_custom_type(remote_source_output, KOJI_BTYPE_REMOTE_SOURCES)
+            remote_source = add_buildroot_id(remote_source_output, buildroot_id)
+            output.append(remote_source.metadata)
+            koji_upload_files.append({
+                "local_filename": remote_source.filename,
+                "dest_filename": remote_source.metadata["filename"],
+            })
 
         for remote_source_file_output in remote_source_file_outputs:
             remote_source_file = add_buildroot_id(remote_source_file_output, buildroot_id)
-            output_files.append(remote_source_file)
             output.append(remote_source_file.metadata)
+            koji_upload_files.append({
+                "local_filename": remote_source_file_output.filename,
+                "dest_filename": remote_source_file_output.metadata["filename"],
+            })
 
         koji_metadata = {
-            'metadata_version': metadata_version,
+            'metadata_version': 0,
             'build': build,
             'buildroots': buildroot,
             'output': output,
         }
-        return koji_metadata, output_files
+        return koji_metadata
 
-    def upload_file(self, session, output, serverdir):
+    def upload_file(self, local_filename: str, dest_filename: str, serverdir: str) -> str:
         """
         Upload a file to koji
 
         :return: str, pathname on server
         """
-        name = output.metadata['filename']
-        self.log.debug("uploading %r to %r as %r",
-                       output.file.name, serverdir, name)
+        self.log.debug("uploading %r to %r as %r", local_filename, serverdir, dest_filename)
 
         kwargs = {}
         if self.blocksize is not None:
             kwargs['blocksize'] = self.blocksize
             self.log.debug("using blocksize %d", self.blocksize)
 
-        upload_logger = KojiUploadLogger(self.log)
-        session.uploadWrapper(output.file.name, serverdir, name=name,
-                              callback=upload_logger.callback, **kwargs)
-        path = os.path.join(serverdir, name)
+        callback = KojiUploadLogger(self.log).callback
+        self.session.uploadWrapper(
+            local_filename, serverdir, name=dest_filename, callback=callback, **kwargs
+        )
+        # In case dest_filename includes path. uploadWrapper can handle this by itself.
+        path = os.path.join(serverdir, os.path.basename(dest_filename))
         self.log.debug("uploaded %r", path)
         return path
 
-    def upload_scratch_metadata(self, koji_metadata, koji_upload_dir, koji_session):
-        metadata_file = NamedTemporaryFile(prefix="metadata", suffix=".json", mode='wb')
+    def upload_scratch_metadata(self, koji_metadata, koji_upload_dir):
+        metadata_file = NamedTemporaryFile(
+            prefix="metadata", suffix=".json", mode='wb', delete=False
+        )
         metadata_file.write(json.dumps(koji_metadata, indent=2).encode('utf-8'))
-        metadata_file.flush()
+        metadata_file.close()
 
-        filename = "metadata.json"
-        meta_output = Output(file=metadata_file, metadata={'filename': filename})
-
+        local_filename = metadata_file.name
         try:
-            self.upload_file(koji_session, meta_output, koji_upload_dir)
-            path = os.path.join(koji_upload_dir, filename)
+            uploaded_filename = self.upload_file(local_filename, "metadata.json", koji_upload_dir)
             log = logging.LoggerAdapter(self.log, {'arch': METADATA_TAG})
-            log.info(path)
+            log.info(uploaded_filename)
         finally:
-            meta_output.file.close()
+            os.unlink(local_filename)
 
     def get_server_dir(self):
         # Must be implemented by subclasses
         raise NotImplementedError
+
+    def _upload_output_files(self, server_dir: str) -> None:
+        """Helper method to upload collected output files."""
+        for upload_info in self.workflow.data.koji_upload_files:
+            self.upload_file(upload_info["local_filename"],
+                             upload_info["dest_filename"],
+                             server_dir)
 
     def run(self):
         """
@@ -553,16 +580,6 @@ class KojiImportBase(PostBuildPlugin):
 
         # get the session and token information in case we need to refund a failed build
         self.session = get_koji_session(self.workflow.conf)
-        build_token = self.workflow.data.reserved_token
-        build_id = self.workflow.data.reserved_build_id
-
-        server_dir = self.get_server_dir()
-
-        koji_metadata, output_files = self.combine_metadata_fragments()
-
-        if is_scratch_build(self.workflow):
-            self.upload_scratch_metadata(koji_metadata, server_dir, self.session)
-            return
 
         # for all builds which have koji task
         if self.koji_task_id:
@@ -573,14 +590,17 @@ class KojiImportBase(PostBuildPlugin):
                                task_state)
                 return
 
-        try:
-            for output in output_files:
-                if output.file:
-                    self.upload_file(self.session, output, server_dir)
-        finally:
-            for output in output_files:
-                if output.file:
-                    output.file.close()
+        server_dir = self.get_server_dir()
+        koji_metadata = self.combine_metadata_fragments()
+
+        if is_scratch_build(self.workflow):
+            self.upload_scratch_metadata(koji_metadata, server_dir)
+            return
+
+        self._upload_output_files(server_dir)
+
+        build_token = self.workflow.data.reserved_token
+        build_id = self.workflow.data.reserved_build_id
 
         if build_id is not None and build_token is not None:
             koji_metadata['build']['build_id'] = build_id
