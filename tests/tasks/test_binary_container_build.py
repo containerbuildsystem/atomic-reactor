@@ -47,7 +47,7 @@ AUTHFILE_PATH = "/workspace/ws-registries-secret/.dockerconfigjson"
 REGISTRY_CONFIG = {
     "uri": "registry.example.org",
     "version": "v2",
-    "auth": AUTHFILE_PATH,
+    "secret": AUTHFILE_PATH,
     "insecure": False,
 }
 
@@ -194,7 +194,7 @@ class TestBinaryBuildTask:
         (
             flexmock(PodmanRemote)
             .should_receive("setup_for")
-            .with_args(mock_locked_resource)
+            .with_args(mock_locked_resource, registries_authfile=AUTHFILE_PATH)
             .and_return(podman_remote)
         )
         return podman_remote
@@ -232,7 +232,7 @@ class TestBinaryBuildTask:
         (
             flexmock(mock_podman_remote)
             .should_receive("push_container")
-            .with_args(X86_UNIQUE_IMAGE, registry_config=REGISTRY_CONFIG)
+            .with_args(X86_UNIQUE_IMAGE, insecure=REGISTRY_CONFIG["insecure"])
             .once()
         )
 
@@ -373,7 +373,8 @@ class TestPodmanRemote:
         with pytest.raises(BuildTaskError, match=err_msg):
             PodmanRemote.setup_for(X86_LOCKED_RESOURCE)
 
-    def test_build_container(self, x86_build_dir):
+    @pytest.mark.parametrize("authfile", [None, AUTHFILE_PATH])
+    def test_build_container(self, authfile, x86_build_dir):
         expect_cmd = [
             "/usr/bin/podman",
             "--remote",
@@ -386,9 +387,12 @@ class TestPodmanRemote:
             "--squash",
             "--build-arg=REMOTE_SOURCES=unpacked_remote_sources",
         ]
+        if authfile:
+            expect_cmd.append(f"--authfile={authfile}")
+
         mock_popen(0, ["starting the build\n", "finished successfully\n"], expect_cmd=expect_cmd)
 
-        podman_remote = PodmanRemote("connection-name")
+        podman_remote = PodmanRemote("connection-name", registries_authfile=authfile)
         output_lines = podman_remote.build_container(
             build_dir=x86_build_dir,
             build_args=BUILD_ARGS,
@@ -424,7 +428,9 @@ class TestPodmanRemote:
         with pytest.raises(BuildProcessError, match=err_msg):
             next(returned_lines)
 
-    def test_push_container(self):
+    @pytest.mark.parametrize("authfile", [None, AUTHFILE_PATH])
+    @pytest.mark.parametrize("insecure", [True, False])
+    def test_push_container(self, authfile, insecure):
         expect_cmd = [
             "/usr/bin/podman",
             "--remote",
@@ -432,11 +438,15 @@ class TestPodmanRemote:
             "push",
             str(X86_UNIQUE_IMAGE),
         ]
+        if authfile:
+            expect_cmd.append(f"--authfile={authfile}")
+        if insecure:
+            expect_cmd.append("--tls-verify=false")
 
         flexmock(retries).should_receive("run_cmd").with_args(expect_cmd).once()
 
-        podman_remote = PodmanRemote("connection-name")
-        podman_remote.push_container(X86_UNIQUE_IMAGE)
+        podman_remote = PodmanRemote("connection-name", registries_authfile=authfile)
+        podman_remote.push_container(X86_UNIQUE_IMAGE, insecure=insecure)
 
     def test_push_container_fails(self):
         (

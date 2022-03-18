@@ -11,7 +11,7 @@ import logging
 import shutil
 import subprocess
 from dataclasses import dataclass
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Dict, Iterator, List, Optional
 
 from osbs.utils import ImageName
 
@@ -79,7 +79,9 @@ class BinaryBuildTask(Task[BinaryBuildTaskParams]):
             remote_resource = self.acquire_remote_resource(config.remote_hosts)
             defer.callback(remote_resource.unlock)
 
-            podman_remote = PodmanRemote.setup_for(remote_resource)
+            podman_remote = PodmanRemote.setup_for(
+                remote_resource, registries_authfile=config.registry.get("secret")
+            )
 
             output_lines = podman_remote.build_container(
                 build_dir=build_dir,
@@ -90,7 +92,7 @@ class BinaryBuildTask(Task[BinaryBuildTaskParams]):
                 logger.info(line.rstrip())
 
             logger.info("Build finished succesfully! Pushing image to %s", dest_tag)
-            podman_remote.push_container(dest_tag, registry_config=config.registry)
+            podman_remote.push_container(dest_tag, insecure=config.registry.get("insecure", False))
 
     def acquire_remote_resource(self, remote_hosts_config: dict) -> remote_host.LockedResource:
         """Lock a build slot on a remote host."""
@@ -119,19 +121,28 @@ class PodmanRemote:
     Works with both podman-remote and full podman.
     """
 
-    def __init__(self, connection_name: str):
+    def __init__(self, connection_name: str, registries_authfile: Optional[str] = None):
         """Initialize a PodmanRemote instance.
 
-        :param connection_name: the name of an existing podman-remote connection
+        :param connection_name: The name of an existing podman-remote connection
+        :param registries_authfile: The path to a JSON file containing authentication (if needed)
+            for all the registries that are relevant to this build (pulling base images, pushing
+            the built image). See `man containers-auth.json` for the expected format.
         """
         self._connection_name = connection_name
+        self._registries_authfile = registries_authfile
 
     @property
     def _podman_remote_cmd(self) -> List[str]:
         return [which_podman(), "--remote", f"--connection={self._connection_name}"]
 
     @classmethod
-    def setup_for(cls, remote_resource: remote_host.LockedResource):
+    def setup_for(
+        cls,
+        remote_resource: remote_host.LockedResource,
+        *,
+        registries_authfile: Optional[str] = None,
+    ):
         """Set up a connection for the specified remote resource, return a PodmanRemote instance."""
         connection_name = remote_resource.prid  # identify the connection by the pipelineRun name
         host = remote_resource.host
@@ -154,7 +165,7 @@ class PodmanRemote:
                 f"Failed to set up podman-remote connection: {e.output.decode()}"
             ) from e
 
-        return cls(connection_name)
+        return cls(connection_name, registries_authfile=registries_authfile)
 
     def build_container(
         self,
@@ -181,10 +192,14 @@ class PodmanRemote:
             str(build_dir.path),
             "--no-cache",  # make sure the build uses a clean environment
             "--pull-always",  # as above
-            # TBD: --authfile? --tls-verify?
             "--squash",
             *cli_buildargs,
         ]
+        if self._registries_authfile:
+            # TBD: this only works if the OSBS deployment uses a single registry secret
+            # TBD: we also can't properly handle "insecure" config for pull registries
+            build_cmd.append(f"--authfile={self._registries_authfile}")
+
         logger.debug("Running %s", " ".join(build_cmd))
 
         build_process = subprocess.Popen(
@@ -215,16 +230,18 @@ class PodmanRemote:
             error = last_line.rstrip() if last_line else "<no output!>"
             raise BuildProcessError(f"Build failed (rc={rc}): {error}")
 
-    def push_container(
-        self, dest_tag: ImageName, *, registry_config: Optional[Dict[str, Any]] = None
-    ) -> None:
+    def push_container(self, dest_tag: ImageName, *, insecure: bool = False) -> None:
         """Push the built container (named dest_tag) to the registry (as dest_tag).
 
-        The registry_config, if any, should be the value of Configuration.registry and
-        determines how to authenticate to the registry and whether to use an insecure connection.
+        :param dest_tag: the name of the built container, and the destination for the push
+        :param insecure: disable --tls-verify?
         """
-        # TBD: --authfile, --tls-verify
         push_cmd = [*self._podman_remote_cmd, "push", str(dest_tag)]
+        if self._registries_authfile:
+            push_cmd.append(f"--authfile={self._registries_authfile}")
+        if insecure:
+            push_cmd.append("--tls-verify=false")
+
         try:
             retries.run_cmd(push_cmd)
         except subprocess.CalledProcessError as e:
