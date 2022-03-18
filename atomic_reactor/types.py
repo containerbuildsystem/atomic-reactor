@@ -6,9 +6,12 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 from abc import abstractmethod, ABC
-from typing import Any, Dict
+from typing import Any, Dict, Union
 
 ImageInspectionData = Dict[str, Any]
+
+# Describe a mapping containing RPM package's metadata got by rpm CLI.
+RpmComponent = Dict[str, Union[str, int]]
 
 
 class ISerializer(ABC):

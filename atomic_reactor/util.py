@@ -6,6 +6,7 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
+from dataclasses import dataclass
 import _hashlib
 import hashlib
 from itertools import chain
@@ -63,7 +64,12 @@ from osbs.utils import yaml as osbs_yaml
 from tempfile import NamedTemporaryFile
 from faulthandler import dump_traceback
 
-Output = namedtuple('Output', ['file', 'metadata'])
+
+@dataclass
+class Output:
+    filename: str
+    metadata: Dict[str, Any]
+
 
 logger = logging.getLogger(__name__)
 
@@ -1492,7 +1498,7 @@ class OSBSLogs(object):
 
         return metadata
 
-    def get_log_files(self, osbs, pipeline_run_name):
+    def get_log_files(self, osbs, pipeline_run_name) -> List[Output]:
         """
         Build list of log files
 
@@ -1500,7 +1506,7 @@ class OSBSLogs(object):
         """
 
         logs = None
-        outputs = []
+        outputs: List[Output] = []
 
         # Collect logs from server
         try:
@@ -1511,7 +1517,7 @@ class OSBSLogs(object):
 
         filename = 'osbs-build'
         logfiles = {'noarch': NamedTemporaryFile(prefix=f'{pipeline_run_name}-{filename}-noarch-',
-                                                 suffix='.log', mode='wb')}
+                                                 suffix='.log', mode='wb', delete=False)}
 
         # Correct log order depends on dict iteration order
         # and on osbs.get_build_logs returning correctly ordered dict
@@ -1521,14 +1527,20 @@ class OSBSLogs(object):
                  platform.replace('_', '-') in task_run_name),
                 'noarch'
             )
-            if task_platform not in logfiles:
-                logfiles[task_platform] = NamedTemporaryFile(prefix=f'{pipeline_run_name}-'
-                                                                    f'{filename}-{task_platform}-',
-                                                             suffix='.log', mode='wb')
+            if task_platform in logfiles:
+                log_file = logfiles[task_platform]
+            else:
+                log_file = NamedTemporaryFile(
+                    prefix=f'{pipeline_run_name}-{filename}-{task_platform}-',
+                    suffix='.log',
+                    mode='wb',
+                    delete=False,
+                )
+                logfiles[task_platform] = log_file
 
             for log_message in containers.values():
-                logfiles[task_platform].write((log_message + '\n').encode('utf-8'))
-            logfiles[task_platform].flush()
+                log_file.write((log_message + '\n').encode('utf-8'))
+            log_file.flush()
 
         for platform, logfile in logfiles.items():
             if platform == 'noarch':
@@ -1536,7 +1548,9 @@ class OSBSLogs(object):
             else:
                 log_filename = platform
             metadata = self.get_log_metadata(logfile.name, f'{log_filename}.log')
-            outputs.append(Output(file=logfile, metadata=metadata))
+            # No need to keep file open. After close, this temp log file still exists.
+            logfile.close()
+            outputs.append(Output(filename=logfile.name, metadata=metadata))
 
         return outputs
 
@@ -2059,7 +2073,7 @@ def graceful_chain_del(d, *args):
         pass
 
 
-def create_tar_gz_archive(file_name: str, file_content: str):
+def create_tar_gz_archive(file_name: str, file_content: str) -> str:
     """Create tar.gz archive with a single file with a specific content
 
     :param str file_name: Name of the file packed in archive
@@ -2074,4 +2088,4 @@ def create_tar_gz_archive(file_name: str, file_content: str):
             info.size = len(data)
             tar.addfile(tarinfo=info, fileobj=io.BytesIO(data))
 
-    return tar.name
+    return f.name

@@ -37,7 +37,7 @@ from atomic_reactor.constants import (
     REACTOR_CONFIG_FULL_PATH,
     DOCKERFILE_FILENAME,
 )
-from atomic_reactor.types import ISerializer
+from atomic_reactor.types import ISerializer, RpmComponent
 from atomic_reactor.util import (exception_message, DockerfileImages, df_parser,
                                  base_image_is_custom, print_version_of_tools, validate_with_schema)
 from atomic_reactor.config import Configuration
@@ -329,7 +329,7 @@ class ImageBuildWorkflowData(ISerializer):
 
     # List of RPMs that go into the final result, as per utils.rpm.parse_rpm_output
     # Each RPM inside is a mapping containing the name, version, release and other attributes.
-    image_components: Optional[List[Dict[str, Union[int, str]]]] = None
+    image_components: Optional[List[RpmComponent]] = None
 
     # List of all yum repos. The provided repourls might be changed (by resolve_composes) when
     # inheritance is enabled. This property holds the updated list of repos, allowing
@@ -344,6 +344,14 @@ class ImageBuildWorkflowData(ISerializer):
     # OSBS2 TBD
     image_id: Optional[str] = None
     parent_images_digests: Dict[str, Dict[str, str]] = field(default_factory=dict)
+
+    # List of output files that are uploaded to Brew/Koji
+    # Each element is a two-strings list, local_filename and dest_filename. E.g.
+    # [
+    #     {"local_filename": "/path/to/data.json", "dest_filename": "metadata.json"},
+    #     {"local_filename": "/path/to/build.log", "dest_filename": "x86_64-build.log"},
+    # ]
+    koji_upload_files: List[Dict[str, str]] = field(default_factory=list)
 
     @classmethod
     def load(cls, data: Dict[str, Any]):
