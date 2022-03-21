@@ -9,6 +9,7 @@ of the BSD license. See the LICENSE file for details.
 from collections import namedtuple
 import json
 from pathlib import Path
+from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 
 import koji
 import os
@@ -1416,54 +1417,28 @@ class TestKojiImport(object):
 
         assert runner.plugins_results[KojiImportPlugin.key] is None
 
-    @pytest.mark.parametrize('expect_result', [
-        'empty_config',
-        'no_help_file',
-        'skip',
-        'pass'
+    @pytest.mark.parametrize('add_help_results,expected_help_file', [
+        [{}, None],
+        [{AddHelpPlugin.key: {}}, None],
+        [{AddHelpPlugin.key: {'help_file': None}}, None],
+        [{AddHelpPlugin.key: {'help_file': 'help.md'}}, 'help.md'],
     ])
-    def test_koji_import_add_help(self, workflow, source_dir, expect_result):
+    def test_koji_import_add_help(self, add_help_results, expected_help_file, workflow, source_dir):
         session = MockedClientSession('')
         mock_environment(workflow, source_dir,
                          name='ns/name', version='1.0', release='1', session=session)
-
-        orchestrator_ws = workflow.data.plugin_workspace[OrchestrateBuildPlugin.key]
-        build_info = orchestrator_ws[WORKSPACE_KEY_BUILD_INFO]
-
-        if expect_result == 'pass':
-            build_info['x86_64'] = BuildInfo('foo.md')
-        elif expect_result == 'empty_config':
-            build_info['x86_64'] = BuildInfo('help.md')
-        elif expect_result == 'no_help_file':
-            build_info['x86_64'] = BuildInfo(None)
-        elif expect_result == 'skip':
-            build_info['x86_64'] = BuildInfo(None, False)
+        workflow.data.prebuild_results.update(add_help_results)
 
         runner = create_runner(workflow)
         runner.run()
 
         data = session.metadata
-        assert 'build' in data
-        build = data['build']
-        assert isinstance(build, dict)
-        assert 'extra' in build
-        extra = build['extra']
-        assert isinstance(extra, dict)
-        assert 'image' in extra
-        image = extra['image']
-        assert isinstance(image, dict)
+        extra_image = data['build']['extra']['image']
 
-        if expect_result == 'pass':
-            assert 'help' in image.keys()
-            assert image['help'] == 'foo.md'
-        elif expect_result == 'empty_config':
-            assert 'help' in image.keys()
-            assert image['help'] == 'help.md'
-        elif expect_result == 'no_help_file':
-            assert 'help' in image.keys()
-            assert image['help'] is None
-        elif expect_result in ['skip', 'unknown_status']:
-            assert 'help' not in image.keys()
+        if not add_help_results or not add_help_results[AddHelpPlugin.key]:
+            assert 'help' not in extra_image
+        else:
+            assert expected_help_file == extra_image['help']
 
     @pytest.mark.skipif(not MODULEMD_AVAILABLE,
                         reason="libmodulemd not available")
