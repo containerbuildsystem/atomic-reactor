@@ -634,26 +634,6 @@ class KojiImportPlugin(KojiImportBase):
             self.log.error("invalid task ID %r", fs_task_id, exc_info=1)
             return None
 
-    def set_media_types(self, extra):
-        media_types = []
-
-        # Set media_types for the base case
-        super(KojiImportPlugin, self).set_media_types(extra)
-        # Adjust media_types to include annotations
-        for platform in self._builds_metadatas:
-            # OSBS2 TBD: `get_worker_build_info` is imported from build_orchestrate_build
-            annotations = get_worker_build_info(self.workflow,
-                                                platform).build.get_annotations()
-            if annotations.get('media-types'):
-                media_types = json.loads(annotations['media-types'])
-                break
-
-        # Extend existing with new, if any; de-dupe and re-sort.
-        if media_types:
-            extra['image']['media_types'] = sorted(set(
-                extra['image'].get('media_types', []) + media_types
-            ))
-
     def get_output(self, buildroot_id):
         """
         Build the output entry of the metadata.

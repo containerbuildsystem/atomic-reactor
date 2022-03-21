@@ -1477,63 +1477,31 @@ class TestKojiImport(object):
             'signing_intent_overridden': False,
         }
 
-    @pytest.mark.parametrize(('config', 'expected'), [
-        ({'schema1': False,
-          'schema2': False,
-          'list': False},
-         None),
-        ({'schema1': True,
-          'schema2': False,
-          'list': False},
-         ["application/vnd.docker.distribution.manifest.v1+json"]),
-        ({'schema1': True,
-          'schema2': True,
-          'list': False},
-         ["application/vnd.docker.distribution.manifest.v1+json",
-          "application/vnd.docker.distribution.manifest.v2+json"]),
-        ({'schema1': True,
-          'schema2': True,
-          'list': True},
-         ["application/vnd.docker.distribution.manifest.v1+json",
-          "application/vnd.docker.distribution.manifest.v2+json",
-          "application/vnd.docker.distribution.manifest.list.v2+json"]),
+    @pytest.mark.parametrize('build_result,expected', [
+        [{}, None],
+        [{PLUGIN_VERIFY_MEDIA_KEY: []}, []],
+        [
+            {PLUGIN_VERIFY_MEDIA_KEY: [MEDIA_TYPE_DOCKER_V2_SCHEMA2]},
+            [MEDIA_TYPE_DOCKER_V2_SCHEMA2],
+        ],
     ])
     def test_koji_import_set_media_types(
-        self, workflow, source_dir, config, expected
+        self, workflow, source_dir, build_result, expected
     ):
         session = MockedClientSession('')
         mock_environment(workflow, source_dir,
                          name='ns/name', version='1.0', release='1', session=session)
-        worker_media_types = []
-        if config['schema1']:
-            worker_media_types += ['application/vnd.docker.distribution.manifest.v1+json']
-        if config['schema2']:
-            worker_media_types += ['application/vnd.docker.distribution.manifest.v2+json']
-        if config['list']:
-            worker_media_types += ['application/vnd.docker.distribution.manifest.list.v2+json']
-        if worker_media_types:
-            build_info = BuildInfo(media_types=worker_media_types)
-            orchestrate_plugin = workflow.data.plugin_workspace[OrchestrateBuildPlugin.key]
-            orchestrate_plugin[WORKSPACE_KEY_BUILD_INFO]['x86_64'] = build_info
+        workflow.data.postbuild_results.update(build_result)
 
         runner = create_runner(workflow)
         runner.run()
 
         data = session.metadata
-        assert 'build' in data
-        build = data['build']
-        assert isinstance(build, dict)
-        assert 'extra' in build
-        extra = build['extra']
-        assert isinstance(extra, dict)
-        assert 'image' in extra
-        image = extra['image']
-        assert isinstance(image, dict)
-        if expected:
-            assert 'media_types' in image.keys()
-            assert sorted(image['media_types']) == sorted(expected)
+        image = data['build']['extra']['image']
+        if not build_result or not build_result[PLUGIN_VERIFY_MEDIA_KEY]:
+            assert 'media_types' not in image
         else:
-            assert 'media_types' not in image.keys()
+            assert expected == image['media_types']
 
     @pytest.mark.parametrize('digest', [
         None,
