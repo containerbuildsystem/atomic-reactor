@@ -4,6 +4,7 @@ dist/
 *.egg-info/
 .eggs/
 build/
+*~
 
 # Unit test / coverage reports
 .cache
@@ -11,3 +12,4 @@ build/
 .coverage.*
 htmlcov
 __pytest_reports
+.tox/
