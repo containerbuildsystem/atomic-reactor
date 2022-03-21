@@ -50,6 +50,7 @@ class BinaryPostBuildTask(plugin_based.PluginBasedTask[TaskParams]):
         postbuild=[
             {"name": "fetch_docker_archive"},
             {"name": "flatpak_create_oci"},
+            {"name": "tag_and_push"},
             {"name": "all_rpm_packages"},
             {"name": "export_operator_manifests"},
             {"name": "fetch_worker_metadata"},
