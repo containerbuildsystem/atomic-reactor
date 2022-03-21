@@ -12,16 +12,6 @@ from setuptools import setup, find_packages
 DESCRIPTION = "Python library with command line interface for building docker images."
 HOMEPAGE = "https://github.com/containerbuildsystem/atomic-reactor"
 
-data_files = {
-    "share/atomic-reactor/images/privileged-builder": [
-        "images/privileged-builder/Dockerfile",
-        "images/privileged-builder/docker.sh",
-    ],
-    "share/atomic-reactor/images/dockerhost-builder": [
-        "images/dockerhost-builder/Dockerfile",
-    ],
-}
-
 setup(
     name='atomic-reactor',
     version='4.0.dev0',
@@ -50,5 +40,4 @@ setup(
     ],
     python_requires='>=3.8, <4',
     package_data={'atomic_reactor': ['schemas/*.json']},
-    data_files=data_files.items(),
 )
