@@ -11,9 +11,7 @@ import os
 from osbs.exceptions import OsbsResponseException
 
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
-from atomic_reactor.constants import (PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
-                                      PLUGIN_VERIFY_MEDIA_KEY,
-                                      SCRATCH_FROM)
+from atomic_reactor.constants import PLUGIN_VERIFY_MEDIA_KEY, SCRATCH_FROM
 from atomic_reactor.config import get_openshift_session
 from atomic_reactor.plugin import ExitPlugin
 from atomic_reactor.util import get_manifest_digests
@@ -47,13 +45,6 @@ class StoreMetadataPlugin(ExitPlugin):
 
     def get_exit_result(self, key):
         return self.get_result(self.workflow.data.exit_results.get(key, ''))
-
-    def get_config_map(self):
-        annotations = self.get_post_result(PLUGIN_KOJI_UPLOAD_PLUGIN_KEY)
-        if not annotations:
-            return {}
-
-        return annotations
 
     def get_digests(self):
         """
@@ -232,8 +223,6 @@ class StoreMetadataPlugin(ExitPlugin):
                 "sha256sum": tar_sha256sum,
                 "filename": os.path.basename(tar_path),
             })
-
-        annotations.update(self.get_config_map())
 
         self.apply_plugin_annotations(annotations)
         self.set_koji_task_annotations_whitelist(annotations)

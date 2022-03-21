@@ -16,9 +16,7 @@ import osbs.conf
 from osbs.exceptions import OsbsResponseException
 from osbs.utils import ImageName
 
-from atomic_reactor.constants import (PLUGIN_KOJI_UPLOAD_PLUGIN_KEY,
-                                      PLUGIN_VERIFY_MEDIA_KEY,
-                                      PLUGIN_FETCH_SOURCES_KEY)
+from atomic_reactor.constants import PLUGIN_VERIFY_MEDIA_KEY, PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
@@ -107,7 +105,6 @@ def prepare(workflow, registry=None):
     # pylint: enable=no-member
 
 
-@pytest.mark.parametrize('koji', [True, False])
 @pytest.mark.parametrize(('help_results', 'expected_help_results', 'base_from_scratch'), (
     (None, False, False),
     ({
@@ -124,7 +121,7 @@ def prepare(workflow, registry=None):
     (["application/vnd.docker.distribution.manifest.v1+json"],
      ["application/vnd.docker.distribution.manifest.v1+json"]),
 ))
-def test_metadata_plugin(workflow, source_dir, koji,
+def test_metadata_plugin(workflow, source_dir,
                          help_results, expected_help_results, base_from_scratch,
                          verify_media_results, expected_media_results):
     initial_timestamp = datetime.now()
@@ -175,13 +172,6 @@ CMD blabla"""
     }
     workflow.data.plugins_errors = {}
 
-    if koji:
-        cm_annotations = {'metadata_fragment_key': 'metadata.json',
-                          'metadata_fragment': 'configmap/build-1-md'}
-        workflow.data.postbuild_results[PLUGIN_KOJI_UPLOAD_PLUGIN_KEY] = cm_annotations
-        workflow.data.plugins_timestamps[PLUGIN_KOJI_UPLOAD_PLUGIN_KEY] = timestamp
-        workflow.data.plugins_durations[PLUGIN_KOJI_UPLOAD_PLUGIN_KEY] = 3.03
-
     runner = ExitPluginsRunner(
         workflow,
         [{
@@ -220,15 +210,6 @@ CMD blabla"""
     assert is_string_type(annotations['image-id'])
     assert "filesystem" in annotations
     assert "fs_data" in annotations['filesystem']
-
-    if koji:
-        assert "metadata_fragment" in annotations
-        assert is_string_type(annotations['metadata_fragment'])
-        assert "metadata_fragment_key" in annotations
-        assert is_string_type(annotations['metadata_fragment_key'])
-    else:
-        assert "metadata_fragment" not in annotations
-        assert "metadata_fragment_key" not in annotations
 
     assert "digests" in annotations
     assert is_string_type(annotations['digests'])
@@ -433,20 +414,15 @@ CMD blabla"""
     workflow.data.prebuild_results = {}
     workflow.data.postbuild_results = {
         PostBuildRPMqaPlugin.key: RuntimeError(),
-        PLUGIN_KOJI_UPLOAD_PLUGIN_KEY: {'metadata_fragment_key': 'metadata.json',
-                                        'metadata_fragment': 'configmap/build-1-md'}
     }
     workflow.data.plugins_timestamps = {
         PostBuildRPMqaPlugin.key: (initial_timestamp + timedelta(seconds=3)).isoformat(),
-        PLUGIN_KOJI_UPLOAD_PLUGIN_KEY: (initial_timestamp + timedelta(seconds=3)).isoformat(),
     }
     workflow.data.plugins_durations = {
         PostBuildRPMqaPlugin.key: 3.03,
-        PLUGIN_KOJI_UPLOAD_PLUGIN_KEY: 3.03,
     }
     workflow.data.plugins_errors = {
         PostBuildRPMqaPlugin.key: 'foo',
-        PLUGIN_KOJI_UPLOAD_PLUGIN_KEY: 'bar',
     }
 
     runner = ExitPluginsRunner(
@@ -466,8 +442,6 @@ CMD blabla"""
     assert "base-image-id" in annotations
     assert "base-image-name" in annotations
     assert "image-id" in annotations
-    assert "metadata_fragment" in annotations
-    assert "metadata_fragment_key" in annotations
     assert "plugins-metadata" in annotations
     assert "errors" in annotations["plugins-metadata"]
     assert "durations" in annotations["plugins-metadata"]
