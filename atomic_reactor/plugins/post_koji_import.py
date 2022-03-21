@@ -18,6 +18,7 @@ from typing import Any, Dict, Iterator, List, Optional, Tuple
 from atomic_reactor.config import get_koji_session, get_openshift_session
 from atomic_reactor import start_time as atomic_reactor_start_time
 from atomic_reactor.plugin import PostBuildPlugin
+from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 from atomic_reactor.source import GitSource
 from atomic_reactor.plugins.build_orchestrate_build import (get_worker_build_info,
                                                             get_koji_upload_dir)
@@ -179,23 +180,12 @@ class KojiImportBase(PostBuildPlugin):
         # Must be implemented by subclasses
         raise NotImplementedError
 
-    def set_help(self, extra):
-        # OSBS2 TBD: `get_worker_build_info` is imported from build_orchestrate_build
-        all_annotations = [get_worker_build_info(self.workflow, platform).build.get_annotations()
-                           for platform in self._builds_metadatas]
-        help_known = ['help_file' in annotations for annotations in all_annotations]
-        # Only set the 'help' key when any 'help_file' annotation is set
-        if any(help_known):
-            # See if any are not None
-            for known, annotations in zip(help_known, all_annotations):
-                if known:
-                    help_file = json.loads(annotations['help_file'])
-                    if help_file is not None:
-                        extra['image']['help'] = help_file
-                        break
-            else:
-                # They are all None
-                extra['image']['help'] = None
+    def set_help(self, extra: Dict[str, Any]) -> None:
+        """Set extra.image.help"""
+        result = self.workflow.data.prebuild_results.get(AddHelpPlugin.key)
+        if not result:
+            return
+        extra['image']['help'] = result['help_file']
 
     def set_media_types(self, extra):
         media_types = []
