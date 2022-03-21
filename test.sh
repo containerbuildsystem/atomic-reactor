@@ -89,6 +89,7 @@ function setup_osbs() {
 
   # Pip install packages for unit tests
   $RUN "${PIP_INST[@]}" -r tests/requirements.txt
+  $RUN "${PIP_INST[@]}" tox
 }
 
 case ${ACTION} in

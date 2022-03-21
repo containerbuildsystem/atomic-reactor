@@ -74,6 +74,30 @@ missing C libraries in the Dockerfile(s) as well as the test.sh script
 - [Dockerfile](Dockerfile)
 - [test.sh](test.sh)
 
+## Running tests
+
+The prerequisite of running tests is to create a test environment container by
+`test.sh`. For example:
+
+```bash
+OS=fedora OS_VERSION=35 PYTHON_VERSION=3 ACTION=test ./test.sh
+```
+
+When the container is ready and running, you have choice to test your changes
+by executing `pytest` directly:
+
+```bash
+podman exec -it atomic-reactor-fedora-35-py3 python3 -m pytest tests/
+```
+
+or by `tox`:
+
+```bash
+podman exec -it atomic-reactor-fedora-35-py3 tox -e test
+```
+
+The `tox.ini` has defined several testenvs, use `tox -l` to check them.
+
 ## Usage
 
 If you would like to build your images within build containers, you need to
