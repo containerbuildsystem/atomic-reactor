@@ -77,7 +77,7 @@ class BumpReleasePlugin(PreBuildPlugin):
         """Get next release for build."""
         if is_scratch_build(self.workflow):
             # no need to append for scratch build
-            next_release = self.workflow.user_params.get('pipeline_run_name')
+            next_release = self.workflow.user_params['pipeline_run_name']
         elif self.append:
             next_release = self.get_next_release_append(component, version, release)
         else:

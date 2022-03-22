@@ -22,10 +22,13 @@ import time
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Any, Dict, Generator
+from typing import Any, Dict, Generator, TYPE_CHECKING
 
 from atomic_reactor.util import exception_message
 from dockerfile_parse import DockerfileParser
+
+if TYPE_CHECKING:
+    from atomic_reactor.inner import DockerBuildWorkflow
 
 MODULE_EXTENSIONS = ('.py', '.pyc', '.pyo')
 logger = logging.getLogger(__name__)
@@ -112,7 +115,7 @@ class BuildPlugin(Plugin):
     flavored with BuildWorkflow instances
     """
 
-    def __init__(self, workflow, *args, **kwargs):
+    def __init__(self, workflow: "DockerBuildWorkflow", *args, **kwargs):
         """
         constructor
 
