@@ -90,7 +90,7 @@ def make_flock_ssh_result(
     ("", 0, True),
     ("mkdir: cannot create directory: ... permission denied", 1, False),
 ))
-def test_host_is_operational(mkdir_stderr, mkdir_code, expected_result):
+def test_host_is_operational(mkdir_stderr, mkdir_code, expected_result, caplog):
     host = RemoteHost(hostname="remote-host-001", username="builder",
                       ssh_keyfile="/path/to/key", slots=3)
 
@@ -106,7 +106,11 @@ def test_host_is_operational(mkdir_stderr, mkdir_code, expected_result):
         .replace_with(mocked_command)
     )
 
-    assert host.is_operational is expected_result
+    operational = host.is_operational
+    assert operational is expected_result
+
+    if not operational:
+        assert mkdir_stderr in caplog.text
 
 
 @pytest.mark.disable_autouse
