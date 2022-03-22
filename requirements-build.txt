@@ -139,9 +139,9 @@ semantic-version==2.9.0 \
     # via
     #   -r requirements-build.in
     #   setuptools-rust
-setuptools-rust==1.1.2 \
-    --hash=sha256:72288a34cbb2efc436227f61548a453e91b2b3de1ca5846ab5d6bbcb859595c7 \
-    --hash=sha256:a0adb9b503c0ffc4e8fe80b7c617898cefa78049983aaaea7f747e153a3e65d1
+setuptools-rust==1.2.0 \
+    --hash=sha256:0a4ada479e8c7e3d8bd7cb56e1a29acc2b2bb98c2325051b0cdcb57d7f056de8 \
+    --hash=sha256:decc6bdf4aef0ff3c323ba85e2fcabed8c77044443cd239ea01b67ca9b1d777e
     # via -r requirements-build.in
 setuptools-scm[toml]==6.4.2 \
     --hash=sha256:6833ac65c6ed9711a4d5d2266f8024cfa07c533a0e55f4c12f6eff280a5a9e30 \
