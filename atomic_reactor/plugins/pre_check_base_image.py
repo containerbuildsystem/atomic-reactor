@@ -127,7 +127,8 @@ class CheckBaseImagePlugin(PreBuildPlugin):
             # image tag may have been replaced with a ref for autorebuild; use original tag
             # to simplify fetching parent_images_digests data in other plugins
             image = image.copy()
-            image.tag = self.workflow.data.dockerfile_images.base_image_key.tag
+            base_image_key: ImageName = self.workflow.data.dockerfile_images.base_image_key
+            image.tag = base_image_key.tag
             image_str = image.to_str()
 
         self.workflow.data.parent_images_digests[image_str] = parent_digests
