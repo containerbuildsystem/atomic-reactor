@@ -328,12 +328,12 @@ class RemoteHost:
     def is_operational(self) -> bool:
         """ Check whether this host is operational """
         try:
-            _, _, code = self._run(f"mkdir -p {quote(self.slots_dir)}")
+            _, stderr, code = self._run(f"mkdir -p {quote(self.slots_dir)}")
         except Exception as e:
             logger.exception("%s: host is not operational: %s", self.hostname, e)
             return False
         if code != 0:
-            logger.error("%s: cannot prepare slots directory", self.hostname)
+            logger.error("%s: cannot prepare slots directory:\n%s", self.hostname, stderr)
             return False
         return True
 
