@@ -72,12 +72,19 @@ class MockSource(object):
 
 
 def make_reactor_config_map(platforms):
-    clusters = {}
+    remote_hosts = {'slots_dir': '/some/slots', 'pools': {}}
     if platforms:
         for platform, enabled in platforms.items():
-            clusters[platform] = [{'enabled': enabled, 'max_concurrent_builds': 1,
-                                   'name': platform}]
-        return {'version': 1, 'koji': {'auth': {}, 'hub_url': 'test'}, 'clusters': clusters}
+            remote_hosts['pools'][platform] = {
+                'some-hostname': {
+                    'enabled': enabled,
+                    'username': 'somebody',
+                    'auth': '/some/ssh/key',
+                    'slots': 10,
+                    'socket_path': '/some/socket',
+                },
+            }
+        return {'version': 1, 'koji': {'auth': {}, 'hub_url': 'test'}, 'remote_hosts': remote_hosts}
     else:
         return {'version': 1, 'koji': {'auth': {}, 'hub_url': 'test'}}
 
@@ -338,7 +345,7 @@ def test_disabled_clusters(workflow, source_dir, caplog, koji_platforms,
         if fails == 'no_platforms':
             msg = 'No platforms to build for'
         elif fails == 'disabled':
-            msg = 'Platforms specified in config map, but have all clusters disabled'
+            msg = 'Platforms specified in config map, but have all remote hosts disabled'
         assert msg in str(e.value)
     else:
         plugin_result = runner.run()
@@ -351,7 +358,7 @@ def test_disabled_clusters(workflow, source_dir, caplog, koji_platforms,
 
             if skips:
                 for skip in skips:
-                    msg = "No cluster found for platform '{}' in reactor config map, " \
+                    msg = "No remote hosts found for platform '{}' in reactor config map, " \
                           "skipping".format(skip)
                     assert msg in caplog.text
 
