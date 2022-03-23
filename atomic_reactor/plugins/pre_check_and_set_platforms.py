@@ -93,20 +93,25 @@ class CheckAndSetPlatformsPlugin(PreBuildPlugin):
         if not platforms:
             raise RuntimeError("Cannot determine platforms; no koji target or platform list")
 
-        # Filter platforms based on clusters
+        # Filter platforms based on configured remote hosts
+        remote_host_pools = self.workflow.conf.remote_hosts.get("pools", {})
         enabled_platforms = []
         defined_but_disabled = []
+
+        def has_enabled_hosts(platform: str) -> bool:
+            platform_hosts = remote_host_pools.get(platform, {})
+            return any(host_info["enabled"] for host_info in platform_hosts.values())
+
         for p in platforms:
-            if self.workflow.conf.get_enabled_clusters_for_platform(p):
+            if has_enabled_hosts(p):
                 enabled_platforms.append(p)
-            elif self.workflow.conf.cluster_defined_for_platform(p):
+            elif p in remote_host_pools:
                 defined_but_disabled.append(p)
             else:
-                self.log.warning("No cluster found for platform '%s' in "
+                self.log.warning("No remote hosts found for platform '%s' in "
                                  "reactor config map, skipping", p)
-
         if defined_but_disabled:
-            msg = 'Platforms specified in config map, but have all clusters disabled' \
+            msg = 'Platforms specified in config map, but have all remote hosts disabled' \
                   ' {}'.format(defined_but_disabled)
             raise RuntimeError(msg)
 
