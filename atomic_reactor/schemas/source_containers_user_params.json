@@ -5,7 +5,6 @@
 
   "type": "object",
   "properties": {
-    "build_json_dir": {"type": "string"},
     "component": {"type": "string"},
     "image_tag": {"type": "string"},
     "kind": {"type": "string"},
@@ -19,5 +18,5 @@
     "sources_for_koji_build_id": {"type": "integer"},
     "user": {"type": "string"}
   },
-  "required": ["build_json_dir", "user"]
+  "required": ["user"]
 }

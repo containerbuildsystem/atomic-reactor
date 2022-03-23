@@ -117,7 +117,6 @@ openshift:
         enable: True
         ssl_certs_dir: /var/run/secrets/atomic-reactor/odcssecret
     insecure: True
-    build_json_dir: /usr/share/osbs/
 
 group_manifests: False
 

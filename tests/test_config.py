@@ -1301,9 +1301,6 @@ cachito:
             with pytest.raises(RuntimeError, match="Cachito ssl_certs_dir doesn't exist"):
                 get_cachito_session(conf)
 
-    @pytest.mark.parametrize('build_json_dir', [
-        None, "/tmp/build_json_dir",
-    ])
     @pytest.mark.parametrize(('config', 'raise_error'), [
         ("""\
 openshift:
@@ -1380,7 +1377,7 @@ openshift:
     ssl_certs_dir: /var/run/secrets/atomic-reactor/odcssecret
         """, True),
     ])
-    def test_get_openshift_session(self, build_json_dir, config, raise_error):
+    def test_get_openshift_session(self, config, raise_error):
         required_config = """\
 version: 1
 koji:
@@ -1393,8 +1390,6 @@ registries:
   - url: registry_url
 """
 
-        if build_json_dir:
-            config += "\n  build_json_dir: " + build_json_dir
         config += "\n" + required_config
 
         if raise_error:
@@ -1409,7 +1404,6 @@ registries:
             'use_auth': False,
             'conf_file': None,
             'namespace': 'namespace',
-            'build_json_dir': build_json_dir
         }
         if config_json['openshift'].get('auth'):
             if config_json['openshift']['auth'].get('krb_keytab_path'):

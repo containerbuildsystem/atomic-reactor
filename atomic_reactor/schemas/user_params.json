@@ -10,7 +10,6 @@
       "items": {"type": "string"}
     },
     "base_image": {"type": "string"},
-    "build_json_dir": {"type": "string"},
     "component": {"type": "string"},
     "compose_ids": {
       "type": "array",
@@ -74,5 +73,5 @@
       "items": {"type": "string"}
     }
   },
-  "required": ["build_json_dir", "git_ref", "git_uri", "user"]
+  "required": ["git_ref", "git_uri", "user"]
 }

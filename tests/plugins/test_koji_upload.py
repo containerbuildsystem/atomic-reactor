@@ -305,7 +305,7 @@ def create_runner(workflow, ssl_certs=False, principal=None,
     }
     full_conf = {
         'version': 1,
-        'openshift': {'url': '/', 'build_json_dir': ''},
+        'openshift': {'url': '/'},
         'registries': [{'url': 'docker.example.com',
                         'insecure': True}],
     }

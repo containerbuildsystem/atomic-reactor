@@ -97,7 +97,6 @@ def get_openshift_session(config, namespace):
         'use_auth': False,
         'conf_file': None,
         'openshift_url': config.openshift['url'],
-        'build_json_dir': config.openshift.get('build_json_dir')
     }
 
     if config.openshift.get('auth'):
