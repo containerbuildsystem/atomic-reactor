@@ -941,7 +941,6 @@ def test_orchestrate_build_worker_build_kwargs(workflow, source_dir, caplog):
     reactor_config_override = mock_reactor_config(workflow, source_dir)
     reactor_config_override['openshift'] = {
         'auth': {'enable': None},
-        'build_json_dir': None,
         'insecure': False,
         'url': 'https://worker_x86_64.com/'
     }
@@ -985,7 +984,6 @@ def test_orchestrate_override_build_kwarg(workflow, source_dir, overrides):
     reactor_config_override = mock_reactor_config(workflow, source_dir)
     reactor_config_override['openshift'] = {
         'auth': {'enable': None},
-        'build_json_dir': None,
         'insecure': False,
         'url': 'https://worker_x86_64.com/'
     }
@@ -1043,7 +1041,6 @@ def test_orchestrate_override_content_versions(workflow, source_dir, caplog, con
     )
     reactor_config_override['openshift'] = {
         'auth': {'enable': None},
-        'build_json_dir': None,
         'insecure': False,
         'url': 'https://worker_x86_64.com/'
     }
@@ -1448,7 +1445,6 @@ def test_parent_images_digests(workflow, source_dir, caplog):
     reactor_config_override = mock_reactor_config(workflow, source_dir)
     reactor_config_override['openshift'] = {
         'auth': {'enable': None},
-        'build_json_dir': None,
         'insecure': False,
         'url': 'https://worker_x86_64.com/'
     }

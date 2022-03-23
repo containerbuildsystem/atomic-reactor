@@ -53,7 +53,6 @@ def prepare(workflow, registry=None):
         'openshift_url': 'http://example.com/',
         'use_auth': True,
         'conf_file': None,
-        'build_json_dir': None
     }
     (flexmock(osbs.conf.Configuration)
      .should_call("__init__")

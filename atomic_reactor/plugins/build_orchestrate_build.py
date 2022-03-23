@@ -379,8 +379,6 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         # kwargs = {
         # # we don't even want any default config
         # 'conf_file': None,
-        # # use from rcm: openshift->build_json_dir
-        # 'build_json_dir':  '/usr/share/osbs',
         # # use from rcm: worker_pipeline_clusters->aarch64[0]->namespace
         # 'namespace': 'worker',
         # # use from rcm: worker_pipeline_clusters->aarch64[0]->openshift_url
@@ -500,7 +498,6 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         try:
             worker_openshift = {
                 'url': cluster_info.osbs.build_conf.get_openshift_base_uri(),
-                'build_json_dir': cluster_info.osbs.build_conf.get_builder_build_json_store(),
                 'insecure': not cluster_info.osbs.build_conf.get_verify_ssl(),
                 'auth': {
                     'enable': cluster_info.osbs.build_conf.get_use_auth(),

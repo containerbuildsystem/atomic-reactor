@@ -13,7 +13,6 @@ from osbs.exceptions import OsbsValidationException
 
 
 SOURCE_CONTAINERS_USER_PARAMS_ALL_PROPERTIES = {
-    "build_json_dir": "/usr/share/osbs/",
     "component": "osbs-test-base-container-source",
     "image_tag": "user/osbs-test-base-container-source:osbs-test-1.0-rhel-7",
     "kind": "source_containers_user_params",
@@ -26,19 +25,16 @@ SOURCE_CONTAINERS_USER_PARAMS_ALL_PROPERTIES = {
 }
 
 SOURCE_CONTAINERS_USER_PARAMS_MINIMAL = {
-    "build_json_dir": "/usr/share/osbs/",
     "user": "user",
 }
 SOURCE_CONTAINERS_USER_PARAMS_MISSING_BUILD_JSON_DIR = {"user": "user"}
-SOURCE_CONTAINERS_USER_PARAMS_MISSING_USER = {"build_json_dir": "/usr/share/osbs/"}
+SOURCE_CONTAINERS_USER_PARAMS_MISSING_USER = {}
 SOURCE_CONTAINERS_USER_PARAMS_ADDITIONAL_NONDEFINED_PROPERTY = {
-    "build_json_dir": "/usr/share/osbs/",
     "user": "user",
     "additional_random_property": "value",
 }
 
 USER_PARAMS_MINIMAL = {
-    "build_json_dir": "/usr/share/osbs/",
     "user": "user",
     "git_uri": "git://git/uri",
     "git_ref": "aaaaaaa",
@@ -49,22 +45,18 @@ USER_PARAMS_MISSING_BUILD_JSON_DIR = {
     "git_ref": "aaaaaaa",
 }
 USER_PARAMS_MISSING_USER = {
-    "build_json_dir": "/usr/share/osbs/",
     "git_uri": "git://git/uri",
     "git_ref": "aaaaaaa",
 }
 USER_PARAMS_MISSING_GIT_URI = {
-    "build_json_dir": "/usr/share/osbs/",
     "user": "user",
     "git_ref": "aaaaaaa",
 }
 USER_PARAMS_MISSING_GIT_REF = {
-    "build_json_dir": "/usr/share/osbs/",
     "user": "user",
     "git_uri": "git://git/uri",
 }
 USER_PARAMS_ADDITIONAL_NONDEFINED_PROPERTY = {
-    "build_json_dir": "/usr/share/osbs/",
     "user": "user",
     "git_uri": "git://git/uri",
     "git_ref": "aaaaaaa",
@@ -240,17 +232,11 @@ CONTENT_MANIFEST_MISSING_SOURCES_PURL = {
         (SOURCE_CONTAINERS_USER_PARAMS_MISSING_USER,
          "schemas/source_containers_user_params.json",
          r"validating 'required' has failed \('user' is a required property\)"),
-        (SOURCE_CONTAINERS_USER_PARAMS_MISSING_BUILD_JSON_DIR,
-         "schemas/source_containers_user_params.json",
-         r"validating 'required' has failed \('build_json_dir' is a required property\)"),
         (SOURCE_CONTAINERS_USER_PARAMS_ADDITIONAL_NONDEFINED_PROPERTY,
          "schemas/source_containers_user_params.json", None),
 
         # user_params.json
         (USER_PARAMS_MINIMAL, "schemas/user_params.json", None),
-        (USER_PARAMS_MISSING_BUILD_JSON_DIR,
-         "schemas/user_params.json",
-         r"validating 'required' has failed \('build_json_dir' is a required property\)"),
         (USER_PARAMS_MISSING_USER,
          "schemas/user_params.json",
          r"validating 'required' has failed \('user' is a required property\)"),
