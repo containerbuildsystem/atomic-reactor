@@ -482,9 +482,9 @@ class KojiImportBase(PostBuildPlugin):
         remote_source_file_outputs, kojifile_components = get_maven_metadata(self.workflow.data)
 
         # add maven components alongside RPM components
-        for worker_output in output:
-            if worker_output['type'] == 'docker-image':
-                worker_output['components'] += kojifile_components
+        for metadata in output:
+            if metadata['type'] == 'docker-image':
+                metadata['components'] += kojifile_components
 
         # add remote sources tarballs and remote sources json files to output
         for remote_source_output in [

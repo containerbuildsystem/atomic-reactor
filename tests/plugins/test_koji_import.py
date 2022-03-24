@@ -1515,9 +1515,9 @@ class TestKojiImport(object):
         mock_environment(workflow, source_dir,
                          name='ns/name', version='1.0', release='1', session=session)
 
-        worker_metadata = workflow.data.postbuild_results[GatherBuildsMetadataPlugin.key]
+        builds_metadata = workflow.data.postbuild_results[GatherBuildsMetadataPlugin.key]
 
-        for metadata in worker_metadata.values():
+        for metadata in builds_metadata.values():
             for output in metadata['output']:
                 if output['type'] != 'docker-image':
                     continue
@@ -1676,8 +1676,8 @@ class TestKojiImport(object):
         mock_environment(workflow, source_dir,
                          name='ns/name', version='1.0', release='1', session=session)
 
-        worker_metadata = workflow.data.postbuild_results[GatherBuildsMetadataPlugin.key]
-        for metadata in worker_metadata.values():
+        builds_metadata = workflow.data.postbuild_results[GatherBuildsMetadataPlugin.key]
+        for metadata in builds_metadata.values():
             for output in metadata['output']:
                 if output['type'] != 'docker-image':
                     continue
@@ -2351,7 +2351,7 @@ class TestKojiImport(object):
 
         assert workflow.data.labels['koji-build-id'] == '123'
 
-    @pytest.mark.parametrize('worker_metadatas,platform,_filter,expected', [
+    @pytest.mark.parametrize('build_metadatas,platform,_filter,expected', [
         [{}, None, None, []],
         [{}, None, {}, []],
         [{}, None, {"type": "docker-image"}, []],
@@ -2465,11 +2465,11 @@ class TestKojiImport(object):
             [("x86_64", {"type": "docker-image", "filename": "img.tar.gz"})],
         ],
     ])
-    def test_iter_worker_metadata_outputs(
-        self, worker_metadatas, platform, _filter, expected, workflow
+    def test_iter_build_metadata_outputs(
+        self, build_metadatas, platform, _filter, expected, workflow
     ):
         mock_reactor_config(workflow)
-        workflow.data.postbuild_results[GatherBuildsMetadataPlugin.key] = worker_metadatas
+        workflow.data.postbuild_results[GatherBuildsMetadataPlugin.key] = build_metadatas
 
         plugin = KojiImportPlugin(workflow)
         outputs = list(plugin._iter_build_metadata_outputs(platform, _filter=_filter))
