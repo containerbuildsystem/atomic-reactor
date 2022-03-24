@@ -1,5 +1,5 @@
 """
-Copyright (c) 2021 Red Hat, Inc
+Copyright (c) 2021-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -154,6 +154,12 @@ def _add_common_task_args(task_parser: argparse.ArgumentParser) -> None:
         metavar="STRING",
         required=True,
         help="OpenShift namespace of the task"
+    )
+    task_parser.add_argument(
+        '--pipeline-run-name',
+        metavar="STRING",
+        required=True,
+        help="PipelineRun name to reference current PipelineRun"
     )
     # Two different ways to pass user params
     userparams_ex = task_parser.add_mutually_exclusive_group()

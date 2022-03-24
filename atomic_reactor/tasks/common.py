@@ -1,5 +1,5 @@
 """
-Copyright (c) 2021 Red Hat, Inc
+Copyright (c) 2021-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -28,6 +28,7 @@ class TaskParams:
     context_dir: str
     config_file: str
     namespace: str
+    pipeline_run_name: str
     user_params: Dict[str, Any]
 
     # Note: do not give any attributes in this class default values, that would make dataclass

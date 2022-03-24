@@ -136,11 +136,7 @@ class StoreMetadataPlugin(ExitPlugin):
         self._update_annotations(annotations, self.workflow.data.annotations)
 
     def run(self):
-        try:
-            pipeline_run_name = self.workflow.user_params['pipeline_run_name']
-        except KeyError:
-            self.log.error("No pipeline_run_name found")
-            raise
+        pipeline_run_name = self.workflow.pipeline_run_name
         self.log.info("pipelineRun name = %s", pipeline_run_name)
         osbs = get_openshift_session(self.workflow.conf,
                                      self.workflow.namespace)

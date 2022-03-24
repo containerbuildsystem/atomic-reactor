@@ -1,5 +1,5 @@
 """
-Copyright (c) 2021 Red Hat, Inc
+Copyright (c) 2021-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -25,6 +25,7 @@ class TestCloneTask:
             context_dir="/context",
             config_file="config.yaml",
             namespace="test-namespace",
+            pipeline_run_name='test-pipeline-run',
             user_params={'user': 'foo',
                          'git_uri': DOCKERFILE_GIT,
                          'git_ref': 'master',

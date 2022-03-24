@@ -1,5 +1,5 @@
 """
-Copyright (c) 2021 Red Hat, Inc
+Copyright (c) 2021-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -23,6 +23,7 @@ TASK_ARGS = {
     "context_dir": "/context",
     "config_file": "config.yaml",
     "namespace": "test-namespace",
+    "pipeline_run_name": "test-pipeline-run",
 }
 
 USER_PARAMS_STR = '{"a": "b"}'
@@ -126,6 +127,7 @@ class TestTaskParams:
             context_dir="/context",
             config_file="config.yaml",
             namespace="test-namespace",
+            pipeline_run_name="test-pipeline-run",
             user_params=user_params,
         )
         src = params.source
@@ -141,6 +143,7 @@ class TestTaskParams:
             context_dir="/context",
             config_file="config.yaml",
             namespace="test-namespace",
+            pipeline_run_name="test-pipeline-run",
             user_params={},
         )
 
@@ -162,6 +165,7 @@ class TestTask:
             context_dir=str(tmp_path),
             config_file="",
             namespace="test-namespace",
+            pipeline_run_name='',
             user_params={}
         )
 

@@ -122,7 +122,6 @@ class KojiImportBase(PostBuildPlugin):
                                           self.workflow.namespace)
         self.build_id = None
         self.session = None
-        self.pipeline_run_name = None
         self.userdata = userdata
 
         self.koji_task_id = None
@@ -443,12 +442,6 @@ class KojiImportBase(PostBuildPlugin):
             output.metadata.update({'type': 'log', 'arch': 'noarch'})
             return Output(filename=output.filename, metadata=output.metadata)
 
-        try:
-            self.pipeline_run_name = self.workflow.user_params['pipeline_run_name']
-        except KeyError:
-            self.log.error("No pipeline_run_name found")
-            raise
-
         build = self.get_build()
         buildroot = self.get_buildroot()
         buildroot_id = buildroot[0]['id']
@@ -471,7 +464,7 @@ class KojiImportBase(PostBuildPlugin):
         osbs_logs = OSBSLogs(self.log, get_platforms(self.workflow.data))
         log_files_output = [
             add_log_type(add_buildroot_id(md, buildroot_id))
-            for md in osbs_logs.get_log_files(self.osbs, self.pipeline_run_name)
+            for md in osbs_logs.get_log_files(self.osbs, self.workflow.pipeline_run_name)
         ]
         for log_file_output in log_files_output:
             output.append(log_file_output.metadata)
