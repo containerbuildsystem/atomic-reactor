@@ -603,7 +603,6 @@ def mock_environment(workflow: DockerBuildWorkflow, source_dir: Path,
 def workflow(workflow):
     """Add additional data to provide pipeline_run_name specifically."""
     workflow.user_params.update({
-        'pipeline_run_name': PIPELINE_RUN_NAME,
         'koji_task_id': MockedClientSession.TAG_TASK_ID,
     })
     return workflow
@@ -704,6 +703,7 @@ class TestKojiImport(object):
 
         # No metadata
         workflow.user_params = {}
+        workflow.pipeline_run_name = None
         with pytest.raises(PluginFailedException):
             runner.run()
 

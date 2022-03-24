@@ -1,5 +1,5 @@
 """
-Copyright (c) 2015, 2019 Red Hat, Inc
+Copyright (c) 2015-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -390,7 +390,7 @@ class TestBumpRelease(object):
                               append=append, scratch=next_release['scratch'])
 
         if next_release['scratch'] and next_release['build_name']:
-            plugin.workflow.user_params['pipeline_run_name'] = "scratch-123456"
+            plugin.workflow.pipeline_run_name = "scratch-123456"
 
         if init_fails and reserve_build and not next_release['scratch']:
             with pytest.raises(RuntimeError) as exc:

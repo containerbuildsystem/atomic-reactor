@@ -45,6 +45,8 @@ spec:
       params:
         - name: OSBS_IMAGE
           value: "$(params.OSBS_IMAGE)"
+        - name: PIPELINE_RUN_NAME
+          value: "$(context.pipelineRun.name)"
         - name: USER_PARAMS
           value: "$(params.USER_PARAMS)"
 
@@ -67,6 +69,8 @@ spec:
       params:
         - name: OSBS_IMAGE
           value: "$(params.OSBS_IMAGE)"
+        - name: PIPELINE_RUN_NAME
+          value: "$(context.pipelineRun.name)"
         - name: USER_PARAMS
           value: "$(params.USER_PARAMS)"
 
@@ -91,6 +95,8 @@ spec:
       params:
         - name: OSBS_IMAGE
           value: "$(params.OSBS_IMAGE)"
+        - name: PIPELINE_RUN_NAME
+          value: "$(context.pipelineRun.name)"
         - name: USER_PARAMS
           value: "$(params.USER_PARAMS)"
         - name: PLATFORM
@@ -117,6 +123,8 @@ spec:
       params:
         - name: OSBS_IMAGE
           value: "$(params.OSBS_IMAGE)"
+        - name: PIPELINE_RUN_NAME
+          value: "$(context.pipelineRun.name)"
         - name: USER_PARAMS
           value: "$(params.USER_PARAMS)"
         - name: PLATFORM
@@ -143,6 +151,8 @@ spec:
       params:
         - name: OSBS_IMAGE
           value: "$(params.OSBS_IMAGE)"
+        - name: PIPELINE_RUN_NAME
+          value: "$(context.pipelineRun.name)"
         - name: USER_PARAMS
           value: "$(params.USER_PARAMS)"
         - name: PLATFORM
@@ -169,6 +179,8 @@ spec:
       params:
         - name: OSBS_IMAGE
           value: "$(params.OSBS_IMAGE)"
+        - name: PIPELINE_RUN_NAME
+          value: "$(context.pipelineRun.name)"
         - name: USER_PARAMS
           value: "$(params.USER_PARAMS)"
         - name: PLATFORM
@@ -196,6 +208,8 @@ spec:
       params:
         - name: OSBS_IMAGE
           value: "$(params.OSBS_IMAGE)"
+        - name: PIPELINE_RUN_NAME
+          value: "$(context.pipelineRun.name)"
         - name: USER_PARAMS
           value: "$(params.USER_PARAMS)"
 
@@ -229,5 +243,7 @@ spec:
       params:
         - name: OSBS_IMAGE
           value: "$(params.OSBS_IMAGE)"
+        - name: PIPELINE_RUN_NAME
+          value: "$(context.pipelineRun.name)"
         - name: USER_PARAMS
           value: "$(params.USER_PARAMS)"

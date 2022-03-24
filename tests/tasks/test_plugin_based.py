@@ -1,5 +1,5 @@
 """
-Copyright (c) 2021 Red Hat, Inc
+Copyright (c) 2021-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -56,6 +56,7 @@ class TestPluginBasedTask:
                                  config_file="config.yaml",
                                  context_dir=str(context_dir),
                                  namespace="test-namespace",
+                                 pipeline_run_name='test-pipeline-run',
                                  user_params={"a": "b"})
 
         expect_source = dummy_source
@@ -89,6 +90,7 @@ class TestPluginBasedTask:
                 build_dir=root_build_dir,
                 data=wf_data,
                 namespace="test-namespace",
+                pipeline_run_name='test-pipeline-run',
                 source=expect_source,
                 plugins=expect_plugins,
                 user_params={"a": "b"},
@@ -145,6 +147,7 @@ def test_ensure_workflow_data_is_saved_in_various_conditions(
                         config_file="config.yaml",
                         context_dir=str(context_dir),
                         namespace="test-namespace",
+                        pipeline_run_name='test-pipeline-run',
                         user_params={})
     (flexmock(params)
      .should_receive("source")
@@ -220,6 +223,7 @@ def test_workflow_data_is_restored_before_starting_to_build(build_dir, dummy_sou
                         config_file="config.yaml",
                         context_dir=str(context_dir),
                         namespace="test-namespace",
+                        pipeline_run_name='test-pipeline-run',
                         user_params={})
     (flexmock(params)
      .should_receive("source")

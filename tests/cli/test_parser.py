@@ -1,5 +1,5 @@
 """
-Copyright (c) 2021 Red Hat, Inc
+Copyright (c) 2021-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -16,8 +16,9 @@ from atomic_reactor.cli import parser, task
 BUILD_DIR = "/build"
 CONTEXT_DIR = "/context"
 NAMESPACE = "test-namespace"
+PIPELINE_RUN_NAME = 'test-pipeline-run'
 REQUIRED_COMMON_ARGS = ["--build-dir", BUILD_DIR, "--context-dir", CONTEXT_DIR,
-                        "--namespace", NAMESPACE]
+                        "--namespace", NAMESPACE, "--pipeline-run-name", PIPELINE_RUN_NAME]
 REQUIRED_PLATFORM_FOR_BINARY_BUILD = ["--platform", "x86_64"]
 
 SOURCE_URI = "git://example.org/namespace/repo"
@@ -29,6 +30,7 @@ EXPECTED_ARGS = {
     "context_dir": CONTEXT_DIR,
     "config_file": constants.REACTOR_CONFIG_FULL_PATH,
     "namespace": NAMESPACE,
+    "pipeline_run_name": PIPELINE_RUN_NAME,
     "user_params": None,
     "user_params_file": None,
 }

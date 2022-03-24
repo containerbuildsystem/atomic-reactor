@@ -1,5 +1,5 @@
 """
-Copyright (c) 2015 Red Hat, Inc
+Copyright (c) 2015-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -69,7 +69,8 @@ def user_params(monkeypatch):
 @pytest.fixture
 def workflow(build_dir, dummy_source, user_params):
     return DockerBuildWorkflow(build_dir=RootBuildDir(build_dir), source=dummy_source,
-                               namespace='test-namespace')
+                               namespace='test-namespace',
+                               pipeline_run_name='test-pipeline-run')
 
 
 @pytest.mark.optionalhook

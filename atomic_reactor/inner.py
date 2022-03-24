@@ -481,6 +481,7 @@ class DockerBuildWorkflow(object):
         self,
         build_dir: RootBuildDir,
         namespace: str,
+        pipeline_run_name: str,
         data: Optional[ImageBuildWorkflowData] = None,
         source: Source = None,
         plugins: PluginsDef = None,
@@ -496,6 +497,7 @@ class DockerBuildWorkflow(object):
         :type data: ImageBuildWorkflowData
         :param source: where/how to get source code to put in image
         :param namespace: OpenShift namespace of the task
+        :param pipeline_run_name: PipelineRun name to reference PipelineRun
         :param plugins: the plugins to be executed in this workflow
         :param user_params: user (and other) params that control various aspects of the build
         :param reactor_config_path: path to atomic-reactor configuration file
@@ -505,6 +507,7 @@ class DockerBuildWorkflow(object):
         self.build_dir = build_dir
         self.data = data or ImageBuildWorkflowData()
         self.namespace = namespace
+        self.pipeline_run_name = pipeline_run_name
         self.source = source or DummySource(None, None)
         self.plugins = plugins or PluginsDef()
         self.user_params = user_params or self._default_user_params.copy()

@@ -1,5 +1,5 @@
 """
-Copyright (c) 2021 Red Hat, Inc
+Copyright (c) 2021-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -32,6 +32,7 @@ class PluginBasedTask(Task[ParamsT]):
             build_dir=self.get_build_dir(),
             data=self.load_workflow_data(),
             namespace=self._params.namespace,
+            pipeline_run_name=self._params.pipeline_run_name,
             source=self._params.source,
             plugins=self.plugins_def,
             user_params=self._params.user_params,

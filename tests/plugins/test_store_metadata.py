@@ -56,8 +56,6 @@ def prepare(workflow, registry=None):
      .should_call("__init__")
      .with_args(**config_kwargs))
 
-    workflow.user_params['pipeline_run_name'] = 'store_metadata_test'
-
     openshift_map = {
         'url': 'http://example.com/',
         'insecure': False,

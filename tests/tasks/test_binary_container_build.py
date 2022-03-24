@@ -48,6 +48,8 @@ from atomic_reactor.utils import retries
 CONTEXT_DIR = "/workspace/ws-context-dir"
 CONFIG_PATH = "/etc/atomic-reactor/config.yaml"
 
+PIPELINE_RUN_NAME = 'test-pipeline-run'
+
 NOARCH_UNIQUE_IMAGE = ImageName.parse("registry.example.org/osbs/spam:v1.0")
 X86_UNIQUE_IMAGE = ImageName.parse("registry.example.org/osbs/spam:v1.0-x86_64")
 
@@ -108,7 +110,8 @@ def base_task_params(build_dir: Path) -> Dict[str, Any]:
         "context_dir": CONTEXT_DIR,
         "config_file": CONFIG_PATH,
         "namespace": NAMESPACE,
-        "user_params": {"pipeline_run_name": PIPELINE_RUN_NAME},
+        "pipeline_run_name": PIPELINE_RUN_NAME,
+        "user_params": {},
     }
 
 

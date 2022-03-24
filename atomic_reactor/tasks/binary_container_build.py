@@ -122,7 +122,7 @@ class BinaryBuildTask(Task[BinaryBuildTaskParams]):
         """Lock a build slot on a remote host."""
         logger.info("Acquiring a build slot on a remote host")
         pool = remote_host.RemoteHostsPool.from_config(remote_hosts_config, self._params.platform)
-        resource = pool.lock_resource(prid=self._params.user_params["pipeline_run_name"])
+        resource = pool.lock_resource(prid=self._params.pipeline_run_name)
         if not resource:
             raise BuildTaskError(
                 "Failed to acquire a build slot on any remote host! See the logs for more details."
