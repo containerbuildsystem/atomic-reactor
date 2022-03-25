@@ -36,20 +36,12 @@ class GatherBuildsMetadataPlugin(PostBuildPlugin):
     key = PLUGIN_GATHER_BUILDS_METADATA_KEY
     is_allowed_to_fail = False
 
-    def _determine_image_pullspec(self) -> ImageName:
+    def _determine_image_pullspec(self, platform: str) -> ImageName:
         tag_conf = self.workflow.data.tag_conf
-        pullspec = None
-        for image in tag_conf.unique_images:
-            pullspec = image
-            break
-        for image in tag_conf.primary_images:
-            # dash at first/last position does not count
-            if '-' in image.tag[1:-1]:
-                pullspec = image
-                break
-        if not pullspec:
+        unique_images = tag_conf.get_unique_images_with_platform(platform)
+        if not unique_images:
             raise RuntimeError('Unable to determine pullspec_image')
-        return pullspec
+        return unique_images[0]
 
     def _get_build_metadata(self, platform: str):
         """
@@ -57,7 +49,7 @@ class GatherBuildsMetadataPlugin(PostBuildPlugin):
 
         :return: tuple, the metadata and the list of Output instances
         """
-        pullspec_image = self._determine_image_pullspec()
+        pullspec_image = self._determine_image_pullspec(platform)
         buildroot = get_buildroot(platform)
         output_files, _ = get_output(workflow=self.workflow, buildroot_id=buildroot['id'],
                                      pullspec=pullspec_image, platform=platform,
