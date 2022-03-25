@@ -11,7 +11,7 @@ import logging
 import shutil
 import subprocess
 from dataclasses import dataclass
-from typing import Dict, Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, Optional
 
 from osbs.utils import ImageName
 
@@ -80,7 +80,7 @@ class BinaryBuildTask(Task[BinaryBuildTaskParams]):
             defer.callback(remote_resource.unlock)
 
             podman_remote = PodmanRemote.setup_for(
-                remote_resource, registries_authfile=config.registry.get("secret")
+                remote_resource, registries_authfile=get_authfile_path(config.registry)
             )
 
             output_lines = podman_remote.build_container(
@@ -104,6 +104,13 @@ class BinaryBuildTask(Task[BinaryBuildTaskParams]):
                 "Failed to acquire a build slot on any remote host! See the logs for more details."
             )
         return resource
+
+
+def get_authfile_path(registry_config: Dict[str, Any]) -> Optional[str]:
+    """Get the authentication file path (if any) for the registry."""
+    if secret_path := registry_config.get("secret"):
+        return util.Dockercfg(secret_path).json_secret_path
+    return None
 
 
 @functools.lru_cache
