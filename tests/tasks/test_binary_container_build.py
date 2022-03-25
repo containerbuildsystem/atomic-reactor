@@ -22,6 +22,7 @@ from flexmock import flexmock
 from atomic_reactor import config
 from atomic_reactor import dirs
 from atomic_reactor import inner
+from atomic_reactor import util
 from atomic_reactor.constants import PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
 from atomic_reactor.tasks.binary_container_build import (
     BinaryBuildTask,
@@ -32,6 +33,7 @@ from atomic_reactor.tasks.binary_container_build import (
     PushError,
     # helpers
     PodmanRemote,
+    get_authfile_path,
     which_podman,
 )
 from atomic_reactor.utils import remote_host
@@ -43,7 +45,7 @@ CONFIG_PATH = "/etc/atomic-reactor/config.yaml"
 NOARCH_UNIQUE_IMAGE = ImageName.parse("registry.example.org/osbs/spam:v1.0")
 X86_UNIQUE_IMAGE = ImageName.parse("registry.example.org/osbs/spam:v1.0-x86_64")
 
-AUTHFILE_PATH = "/workspace/ws-registries-secret/.dockerconfigjson"
+AUTHFILE_PATH = "/workspace/ws-registries-secret/"
 REGISTRY_CONFIG = {
     "uri": "registry.example.org",
     "version": "v2",
@@ -189,12 +191,25 @@ class TestBinaryBuildTask:
         return X86_LOCKED_RESOURCE
 
     @pytest.fixture
-    def mock_podman_remote(self, mock_locked_resource) -> PodmanRemote:
+    def mock_dockercfg_path(self, tmp_path) -> str:
+        dockercfg_path = tmp_path / ".dockerconfigjson"
+        dockercfg_path.write_text("{}")
+        mock_dockercfg = util.Dockercfg(str(dockercfg_path.parent))
+        (
+            flexmock(util)
+            .should_receive("Dockercfg")
+            .with_args(AUTHFILE_PATH)
+            .and_return(mock_dockercfg)
+        )
+        return str(dockercfg_path)
+
+    @pytest.fixture
+    def mock_podman_remote(self, mock_locked_resource, mock_dockercfg_path) -> PodmanRemote:
         podman_remote = PodmanRemote(connection_name=mock_locked_resource.host.hostname)
         (
             flexmock(PodmanRemote)
             .should_receive("setup_for")
-            .with_args(mock_locked_resource, registries_authfile=AUTHFILE_PATH)
+            .with_args(mock_locked_resource, registries_authfile=mock_dockercfg_path)
             .and_return(podman_remote)
         )
         return podman_remote
@@ -295,6 +310,21 @@ class TestBinaryBuildTask:
 
         with pytest.raises(BuildTaskError, match=err_msg):
             task.acquire_remote_resource(REMOTE_HOST_CONFIG)
+
+
+@pytest.mark.parametrize("has_authfile", [True, False])
+def test_get_authfile_path(has_authfile, tmp_path):
+    dockercfg_path = tmp_path / ".dockerconfigjson"
+    dockercfg_path.write_text("{}")
+
+    registry_confg = {**REGISTRY_CONFIG, "secret": str(dockercfg_path.parent)}
+    if not has_authfile:
+        del registry_confg["secret"]
+
+    if has_authfile:
+        assert get_authfile_path(registry_confg) == str(dockercfg_path)
+    else:
+        assert get_authfile_path(registry_confg) is None
 
 
 @pytest.mark.parametrize(
