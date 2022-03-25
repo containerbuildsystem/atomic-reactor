@@ -9,6 +9,7 @@ of the BSD license. See the LICENSE file for details.
 from collections import namedtuple
 import json
 from pathlib import Path
+from atomic_reactor.plugins.post_fetch_docker_archive import FetchDockerArchivePlugin
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 
 import koji
@@ -26,12 +27,12 @@ from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.plugin import PluginFailedException, PostBuildPluginsRunner
-from atomic_reactor.inner import TagConf
+from atomic_reactor.inner import DockerBuildWorkflow, TagConf
 from atomic_reactor.util import (ManifestDigest, DockerfileImages,
                                  get_manifest_media_version, get_manifest_media_type,
                                  graceful_chain_get, RegistryClient)
 from atomic_reactor.source import GitSource, PathSource
-from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI_TAR,
+from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE,
                                       PLUGIN_ADD_FILESYSTEM_KEY,
                                       PLUGIN_MAVEN_URL_SOURCES_METADATA_KEY,
                                       PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_KOJI_PARENT_KEY,
@@ -251,7 +252,8 @@ def mock_reactor_config(workflow, allow_multiple_remote_sources=False):
     workflow.conf.conf = config
 
 
-def mock_environment(workflow, source_dir: Path, session=None, name=None, oci=False,
+def mock_environment(workflow: DockerBuildWorkflow, source_dir: Path,
+                     session=None, name=None, oci=False,
                      component=None, version=None, release=None,
                      source=None, build_process_failed=False, build_process_canceled=False,
                      additional_tags=None, has_config=None, add_tag_conf_primaries=True,
@@ -390,18 +392,15 @@ def mock_environment(workflow, source_dir: Path, session=None, name=None, oci=Fa
          .should_receive('request')
          .replace_with(custom_get))
 
-    if source_build:
-        exported_file_type = IMAGE_TYPE_OCI_TAR
-    else:
-        exported_file_type = IMAGE_TYPE_DOCKER_ARCHIVE
+    if not source_build:
+        workflow.data.postbuild_results[FetchDockerArchivePlugin.key] = {
+            workflow.build_dir.any_platform.platform: {"type": IMAGE_TYPE_DOCKER_ARCHIVE}
+        }
 
     build_dir_path = workflow.build_dir.any_platform.path
 
     image_tar = build_dir_path / 'image.tar.gz'
     image_tar.write_text('x' * 2**12, "utf-8")
-    setattr(workflow.data,
-            'exported_image_sequence',
-            [{'path': str(image_tar), 'type': exported_file_type}])
 
     workflow.data.plugin_failed = build_process_failed
     if build_process_failed and build_process_canceled:
@@ -2341,10 +2340,10 @@ class TestKojiImport(object):
         build_id = runner.plugins_results[KojiImportSourceContainerPlugin.key]
         assert build_id == "123"
 
-        uploaded_oic_file = 'oci-image-{}.{}.tar.gz'.format(expect_id, os.uname()[4])
+        uploaded_filename = 'docker-image-{}.{}.tar.gz'.format(expect_id, os.uname()[4])
         assert set(session.uploaded_files.keys()) == {
             OSBS_BUILD_LOG_FILENAME,
-            uploaded_oic_file,
+            uploaded_filename,
         }
         orchestrator_log = session.uploaded_files[OSBS_BUILD_LOG_FILENAME]
         assert orchestrator_log == b"log message A\nlog message B\nlog message C\n"
