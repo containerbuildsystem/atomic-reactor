@@ -15,12 +15,16 @@ from typing import Optional, List, Any, Dict, Tuple, Union
 
 import time
 import platform
+from atomic_reactor.inner import DockerBuildWorkflow
+from atomic_reactor.plugins.post_fetch_docker_archive import FetchDockerArchivePlugin
 
 import koji
 import koji_cli.lib
 
 from atomic_reactor import __version__ as atomic_reactor_version
-from atomic_reactor.constants import (DEFAULT_DOWNLOAD_BLOCK_SIZE, PROG,
+from atomic_reactor.constants import (DEFAULT_DOWNLOAD_BLOCK_SIZE,
+                                      IMAGE_TYPE_DOCKER_ARCHIVE,
+                                      PROG,
                                       KOJI_BTYPE_OPERATOR_MANIFESTS,
                                       OPERATOR_MANIFESTS_ARCHIVE,
                                       PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY,
@@ -35,6 +39,7 @@ from atomic_reactor.util import (Output, get_image_upload_filename,
                                  create_tar_gz_archive, get_config_from_registry,
                                  get_manifest_digests)
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
+from osbs.utils import ImageName
 
 logger = logging.getLogger(__name__)
 
@@ -430,8 +435,11 @@ def add_custom_type(output: Output, custom_type: str, content: Optional[Dict[str
     })
 
 
-def get_output(workflow, buildroot_id, pullspec, platform,
-               source_build=False,
+def get_output(workflow: DockerBuildWorkflow,
+               buildroot_id: str,
+               pullspec: ImageName,
+               platform: str,
+               source_build: bool = False,
                logs: Optional[List[Output]] = None):
     """
     Build the 'output' section of the metadata.
@@ -507,9 +515,14 @@ def get_output(workflow, buildroot_id, pullspec, platform,
         if version != "v1"
     }
 
+    if source_build:
+        image_type = IMAGE_TYPE_DOCKER_ARCHIVE
+    else:
+        image_metadatas = workflow.data.postbuild_results[FetchDockerArchivePlugin.key]
+        image_type = image_metadatas[platform]["type"]
+
     tags = set(image.tag for image in workflow.data.tag_conf.images)
-    metadata, output = get_image_output(workflow.data.exported_image_sequence[-1].get('type'),
-                                        image_id, platform, pullspec)
+    metadata, output = get_image_output(image_type, image_id, platform, pullspec)
 
     metadata.update({
         'arch': arch,
