@@ -11,6 +11,7 @@ import json
 import re
 import shutil
 import subprocess
+from copy import deepcopy
 from json import JSONDecodeError
 from pathlib import Path
 from textwrap import dedent
@@ -25,6 +26,7 @@ from atomic_reactor import config
 from atomic_reactor import dirs
 from atomic_reactor import inner
 from atomic_reactor import util
+from atomic_reactor.config import ReactorConfigKeys
 from atomic_reactor.constants import PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
 from atomic_reactor.tasks.binary_container_build import (
     BinaryBuildTask,
@@ -50,12 +52,15 @@ NOARCH_UNIQUE_IMAGE = ImageName.parse("registry.example.org/osbs/spam:v1.0")
 X86_UNIQUE_IMAGE = ImageName.parse("registry.example.org/osbs/spam:v1.0-x86_64")
 
 AUTHFILE_PATH = "/workspace/ws-registries-secret/"
-REGISTRY_CONFIG = {
-    "uri": "registry.example.org",
-    "version": "v2",
-    "secret": AUTHFILE_PATH,
-    "insecure": False,
-}
+REGISTRY_CONFIG = [
+    {
+        "url": "https://registry.example.org/v2",
+        "auth": {
+            "cfg_path": AUTHFILE_PATH,
+        },
+        "insecure": False,
+    }
+]
 
 PIPELINE_RUN_NAME = "binary-container-0-1-123456"
 
@@ -142,18 +147,20 @@ def mock_workflow_data(*, enabled_platforms: List[str]) -> inner.ImageBuildWorkf
     return mocked_data
 
 
-def mock_config(registry_config: Dict[str, Any], remote_hosts_config: Dict[str, Any],
-                image_size_limit=0):
+def mock_config(registry_config: List[Dict[str, Any]], remote_hosts_config: Dict[str, Any],
+                image_size_limit=0) -> config.Configuration:
     """Make load_config() return mocked config.
 
     The registry property of the mocked config will return the specified registry_config.
     The remote_hosts property will return the remote hosts config.
     """
-    cfg = config.Configuration()
-    flexmock(cfg).should_receive("registry").and_return(registry_config)
-    flexmock(cfg).should_receive("remote_hosts").and_return(remote_hosts_config)
-    flexmock(cfg).should_receive("image_size_limit").and_return({'binary_image': image_size_limit})
+    raw_config = {'version': 1,
+                  ReactorConfigKeys.REGISTRIES_KEY: registry_config,
+                  ReactorConfigKeys.REMOTE_HOSTS_KEY: remote_hosts_config,
+                  ReactorConfigKeys.IMAGE_SIZE_LIMIT_KEY: {'binary_image': image_size_limit}}
+    cfg = config.Configuration(raw_config=raw_config)
     flexmock(BinaryBuildTask).should_receive("load_config").and_return(cfg)
+    return cfg
 
 
 class MockedPopen:
@@ -258,7 +265,7 @@ class TestBinaryBuildTask:
         (
             flexmock(mock_podman_remote)
             .should_receive("push_container")
-            .with_args(X86_UNIQUE_IMAGE, insecure=REGISTRY_CONFIG["insecure"])
+            .with_args(X86_UNIQUE_IMAGE, insecure=REGISTRY_CONFIG[0]["insecure"])
             .times(0 if fail_image_size_check else 1)
         )
         (
@@ -341,14 +348,17 @@ def test_get_authfile_path(has_authfile, tmp_path):
     dockercfg_path = tmp_path / ".dockerconfigjson"
     dockercfg_path.write_text("{}")
 
-    registry_confg = {**REGISTRY_CONFIG, "secret": str(dockercfg_path.parent)}
-    if not has_authfile:
-        del registry_confg["secret"]
+    registry_config = deepcopy(REGISTRY_CONFIG[0])
+    if has_authfile:
+        registry_config['auth']['cfg_path'] = str(dockercfg_path.parent)
+    else:
+        registry_config['auth'] = dict()
+    task_config = mock_config([registry_config], REMOTE_HOST_CONFIG)
 
     if has_authfile:
-        assert get_authfile_path(registry_confg) == str(dockercfg_path)
+        assert get_authfile_path(task_config.registry) == str(dockercfg_path)
     else:
-        assert get_authfile_path(registry_confg) is None
+        assert get_authfile_path(task_config.registry) is None
 
 
 @pytest.mark.parametrize(
