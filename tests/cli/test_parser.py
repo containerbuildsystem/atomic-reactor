@@ -11,12 +11,14 @@ import re
 import pytest
 
 from atomic_reactor import constants
-from atomic_reactor.cli import parser, task
+from atomic_reactor.cli import parser, task, job
 
 BUILD_DIR = "/build"
 CONTEXT_DIR = "/context"
 REQUIRED_COMMON_ARGS = ["--build-dir", BUILD_DIR, "--context-dir", CONTEXT_DIR]
 REQUIRED_PLATFORM_FOR_BINARY_BUILD = ["--platform", "x86_64"]
+JOB_NAMESPACE = "job_namespace"
+REQUIRED_JOB_ARGS = ["--namespace", JOB_NAMESPACE]
 
 SOURCE_URI = "git://example.org/namespace/repo"
 
@@ -32,6 +34,12 @@ EXPECTED_ARGS = {
 EXPECTED_ARGS_BINARY_CONTAINER_BUILD = {
     **EXPECTED_ARGS,
     "platform": "x86_64",
+}
+EXPECTED_ARGS_JOB = {
+    "quiet": False,
+    "verbose": False,
+    "config_file": constants.REACTOR_CONFIG_FULL_PATH,
+    "namespace": JOB_NAMESPACE,
 }
 
 
@@ -105,6 +113,16 @@ def test_parse_args_version(capsys):
         (
             ["task", *REQUIRED_COMMON_ARGS, "--config-file=config.yaml", "binary-container-exit"],
             {**EXPECTED_ARGS, "config_file": "config.yaml", "func": task.binary_container_exit},
+        ),
+        (
+            ["job", *REQUIRED_JOB_ARGS, "remote-hosts-unlocking-recovery"],
+            {**EXPECTED_ARGS_JOB, "func": job.remote_hosts_unlocking_recovery},
+        ),
+        (
+            ["job", *REQUIRED_JOB_ARGS, "--config-file=config.yaml",
+             "remote-hosts-unlocking-recovery"],
+            {**EXPECTED_ARGS_JOB, "config_file": "config.yaml",
+             "func": job.remote_hosts_unlocking_recovery},
         ),
     ],
 )
