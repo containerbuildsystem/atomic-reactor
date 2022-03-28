@@ -158,10 +158,10 @@ class PodmanRemote:
             "system",
             "connection",
             "add",
-            connection_name,
-            f"ssh://{host.username}@{host.hostname}",
             f"--identity={host.ssh_keyfile}",
             f"--socket-path={host.socket_path}",
+            connection_name,
+            f"ssh://{host.username}@{host.hostname}",
         ]
         logger.debug("Running %s", " ".join(cmd))
 
@@ -192,21 +192,19 @@ class PodmanRemote:
         This method returns an iterator which yields individual lines from the stdout
         and stderr of the build process as they become available.
         """
-        cli_buildargs = [f"--build-arg={key}={value}" for key, value in build_args.items()]
-        build_cmd = [
-            *self._podman_remote_cmd,
-            "build",
+        options = [
             f"--tag={dest_tag}",
-            str(build_dir.path),
             "--no-cache",  # make sure the build uses a clean environment
             "--pull-always",  # as above
             "--squash",
-            *cli_buildargs,
         ]
+        options.extend(f"--build-arg={key}={value}" for key, value in build_args.items())
         if self._registries_authfile:
             # TBD: this only works if the OSBS deployment uses a single registry secret
             # TBD: we also can't properly handle "insecure" config for pull registries
-            build_cmd.append(f"--authfile={self._registries_authfile}")
+            options.append(f"--authfile={self._registries_authfile}")
+
+        build_cmd = [*self._podman_remote_cmd, "build", *options, str(build_dir.path)]
 
         logger.debug("Running %s", " ".join(build_cmd))
 
@@ -246,11 +244,13 @@ class PodmanRemote:
         :param dest_tag: the name of the built container, and the destination for the push
         :param insecure: disable --tls-verify?
         """
-        push_cmd = [*self._podman_remote_cmd, "push", str(dest_tag), "--format=v2s2"]
+        options = ["--format=v2s2"]
         if self._registries_authfile:
-            push_cmd.append(f"--authfile={self._registries_authfile}")
+            options.append(f"--authfile={self._registries_authfile}")
         if insecure:
-            push_cmd.append("--tls-verify=false")
+            options.append("--tls-verify=false")
+
+        push_cmd = [*self._podman_remote_cmd, "push", *options, str(dest_tag)]
 
         try:
             retries.run_cmd(push_cmd)

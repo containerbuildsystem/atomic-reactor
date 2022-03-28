@@ -374,10 +374,10 @@ class TestPodmanRemote:
             "system",
             "connection",
             "add",
-            PIPELINE_RUN_NAME,
-            "ssh://osbs-podman-dev@osbs-remote-host-x86-64-1.example.com",
             "--identity=/workspace/ws-remote-host-auth/remote-host-auth",
             "--socket-path=/run/user/2022/podman/podman.sock",
+            PIPELINE_RUN_NAME,
+            "ssh://osbs-podman-dev@osbs-remote-host-x86-64-1.example.com",
         ]
         (
             flexmock(subprocess)
@@ -411,14 +411,14 @@ class TestPodmanRemote:
             "--connection=connection-name",
             "build",
             f"--tag={X86_UNIQUE_IMAGE}",
-            str(x86_build_dir.path),
             "--no-cache",
             "--pull-always",
             "--squash",
             "--build-arg=REMOTE_SOURCES=unpacked_remote_sources",
+            str(x86_build_dir.path),
         ]
         if authfile:
-            expect_cmd.append(f"--authfile={authfile}")
+            expect_cmd.insert(-1, f"--authfile={authfile}")
 
         mock_popen(0, ["starting the build\n", "finished successfully\n"], expect_cmd=expect_cmd)
 
@@ -466,13 +466,13 @@ class TestPodmanRemote:
             "--remote",
             "--connection=connection-name",
             "push",
-            str(X86_UNIQUE_IMAGE),
             "--format=v2s2",
+            str(X86_UNIQUE_IMAGE),
         ]
         if authfile:
-            expect_cmd.append(f"--authfile={authfile}")
+            expect_cmd.insert(-1, f"--authfile={authfile}")
         if insecure:
-            expect_cmd.append("--tls-verify=false")
+            expect_cmd.insert(-1, "--tls-verify=false")
 
         flexmock(retries).should_receive("run_cmd").with_args(expect_cmd).once()
 
