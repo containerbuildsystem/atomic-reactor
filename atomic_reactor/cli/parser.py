@@ -149,6 +149,12 @@ def _add_common_task_args(task_parser: argparse.ArgumentParser) -> None:
         default=REACTOR_CONFIG_FULL_PATH,
         help=f"{PROG} configuration file",
     )
+    task_parser.add_argument(
+        '--namespace',
+        metavar="STRING",
+        required=True,
+        help="OpenShift namespace of the task"
+    )
     # Two different ways to pass user params
     userparams_ex = task_parser.add_mutually_exclusive_group()
     userparams_ex.add_argument(

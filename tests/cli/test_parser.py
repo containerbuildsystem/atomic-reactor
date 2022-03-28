@@ -15,7 +15,9 @@ from atomic_reactor.cli import parser, task
 
 BUILD_DIR = "/build"
 CONTEXT_DIR = "/context"
-REQUIRED_COMMON_ARGS = ["--build-dir", BUILD_DIR, "--context-dir", CONTEXT_DIR]
+NAMESPACE = "test-namespace"
+REQUIRED_COMMON_ARGS = ["--build-dir", BUILD_DIR, "--context-dir", CONTEXT_DIR,
+                        "--namespace", NAMESPACE]
 REQUIRED_PLATFORM_FOR_BINARY_BUILD = ["--platform", "x86_64"]
 
 SOURCE_URI = "git://example.org/namespace/repo"
@@ -26,6 +28,7 @@ EXPECTED_ARGS = {
     "build_dir": BUILD_DIR,
     "context_dir": CONTEXT_DIR,
     "config_file": constants.REACTOR_CONFIG_FULL_PATH,
+    "namespace": NAMESPACE,
     "user_params": None,
     "user_params_file": None,
 }

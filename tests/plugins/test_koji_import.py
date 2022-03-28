@@ -605,7 +605,6 @@ def mock_environment(workflow, source_dir: Path, session=None, name=None, oci=Fa
 def workflow(workflow):
     """Add additional data to provide pipeline_run_name specifically."""
     workflow.user_params.update({
-        'namespace': NAMESPACE,
         'pipeline_run_name': PIPELINE_RUN_NAME,
         'koji_task_id': MockedClientSession.TAG_TASK_ID,
     })

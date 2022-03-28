@@ -472,6 +472,7 @@ class DockerBuildWorkflow(object):
     def __init__(
         self,
         build_dir: RootBuildDir,
+        namespace: str,
         data: Optional[ImageBuildWorkflowData] = None,
         source: Source = None,
         plugins: PluginsDef = None,
@@ -486,6 +487,7 @@ class DockerBuildWorkflow(object):
         :param data:
         :type data: ImageBuildWorkflowData
         :param source: where/how to get source code to put in image
+        :param namespace: OpenShift namespace of the task
         :param plugins: the plugins to be executed in this workflow
         :param user_params: user (and other) params that control various aspects of the build
         :param reactor_config_path: path to atomic-reactor configuration file
@@ -494,7 +496,7 @@ class DockerBuildWorkflow(object):
         """
         self.build_dir = build_dir
         self.data = data or ImageBuildWorkflowData()
-
+        self.namespace = namespace
         self.source = source or DummySource(None, None)
         self.plugins = plugins or PluginsDef()
         self.user_params = user_params or self._default_user_params.copy()
@@ -513,8 +515,6 @@ class DockerBuildWorkflow(object):
         self.df_dir = build_file_dir
         self._df_path: Optional[str] = None
 
-        # openshift in configuration needs namespace, it was reading it from get_builds_json()
-        # we should have it in user_params['namespace']
         self.conf = Configuration(config_path=reactor_config_path)
 
         # If the Dockerfile will be entirely generated from the container.yaml

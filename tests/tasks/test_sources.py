@@ -21,6 +21,7 @@ def params(build_dir, tmpdir) -> sources.SourceBuildTaskParams:
         build_dir=str(build_dir),
         context_dir=os.path.join(str(tmpdir), 'context'),
         config_file="config.yaml",
+        namespace="test-namespace",
         user_params={},
     )
 

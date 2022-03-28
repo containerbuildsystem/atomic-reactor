@@ -53,9 +53,10 @@ class TestPluginBasedTask:
         """
         context_dir = tmpdir.join("context_dir")
         task_params = TaskParams(build_dir=build_dir,
+                                 config_file="config.yaml",
                                  context_dir=str(context_dir),
-                                 user_params={"a": "b"},
-                                 config_file="config.yaml")
+                                 namespace="test-namespace",
+                                 user_params={"a": "b"})
 
         expect_source = dummy_source
         (flexmock(task_params)
@@ -87,6 +88,7 @@ class TestPluginBasedTask:
             .with_args(
                 build_dir=root_build_dir,
                 data=wf_data,
+                namespace="test-namespace",
                 source=expect_source,
                 plugins=expect_plugins,
                 user_params={"a": "b"},
@@ -140,8 +142,9 @@ def test_ensure_workflow_data_is_saved_in_various_conditions(
 ):
     context_dir = tmpdir.join("context_dir").mkdir()
     params = TaskParams(build_dir=str(build_dir),
-                        context_dir=str(context_dir),
                         config_file="config.yaml",
+                        context_dir=str(context_dir),
+                        namespace="test-namespace",
                         user_params={})
     (flexmock(params)
      .should_receive("source")
@@ -214,8 +217,9 @@ def test_workflow_data_is_restored_before_starting_to_build(build_dir, dummy_sou
     data.save(ContextDir(Path(context_dir)))
 
     params = TaskParams(build_dir=str(build_dir),
-                        context_dir=str(context_dir),
                         config_file="config.yaml",
+                        context_dir=str(context_dir),
+                        namespace="test-namespace",
                         user_params={})
     (flexmock(params)
      .should_receive("source")
