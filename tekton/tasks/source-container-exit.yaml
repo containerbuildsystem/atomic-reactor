@@ -36,4 +36,5 @@ spec:
         --build-dir=$(workspaces.ws-build-dir.path)
         --context-dir=$(workspaces.ws-context-dir.path)
         --config-file=$(workspaces.ws-reactor-config-map.path)/config.yaml
+        --namespace=$(context.taskRun.namespace)
         source-container-exit

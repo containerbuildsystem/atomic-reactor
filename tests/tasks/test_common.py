@@ -22,6 +22,7 @@ TASK_ARGS = {
     "build_dir": "/build",
     "context_dir": "/context",
     "config_file": "config.yaml",
+    "namespace": "test-namespace",
 }
 
 USER_PARAMS_STR = '{"a": "b"}'
@@ -124,6 +125,7 @@ class TestTaskParams:
             build_dir="/build",
             context_dir="/context",
             config_file="config.yaml",
+            namespace="test-namespace",
             user_params=user_params,
         )
         src = params.source
@@ -138,6 +140,7 @@ class TestTaskParams:
             build_dir="/build",
             context_dir="/context",
             config_file="config.yaml",
+            namespace="test-namespace",
             user_params={},
         )
 
@@ -155,7 +158,11 @@ class TestTask:
 
     def test_load_workflow_data(self, tmp_path):
         params = common.TaskParams(
-            build_dir="", context_dir=str(tmp_path), config_file="", user_params={}
+            build_dir="",
+            context_dir=str(tmp_path),
+            config_file="",
+            namespace="test-namespace",
+            user_params={}
         )
 
         expect_data = inner.ImageBuildWorkflowData()

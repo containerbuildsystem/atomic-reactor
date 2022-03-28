@@ -143,7 +143,7 @@ class StoreMetadataPlugin(ExitPlugin):
             raise
         self.log.info("pipelineRun name = %s", pipeline_run_name)
         osbs = get_openshift_session(self.workflow.conf,
-                                     self.workflow.user_params.get('namespace'))
+                                     self.workflow.namespace)
 
         wf_data = self.workflow.data
 

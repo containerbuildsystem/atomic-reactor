@@ -24,6 +24,7 @@ class TestCloneTask:
             build_dir=str(tmpdir),
             context_dir="/context",
             config_file="config.yaml",
+            namespace="test-namespace",
             user_params={'user': 'foo',
                          'git_uri': DOCKERFILE_GIT,
                          'git_ref': 'master',

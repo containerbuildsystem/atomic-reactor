@@ -119,7 +119,7 @@ class KojiImportBase(PostBuildPlugin):
         self.poll_interval = poll_interval
 
         self.osbs = get_openshift_session(self.workflow.conf,
-                                          self.workflow.user_params.get('namespace'))
+                                          self.workflow.namespace)
         self.build_id = None
         self.session = None
         self.pipeline_run_name = None

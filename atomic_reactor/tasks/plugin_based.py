@@ -31,6 +31,7 @@ class PluginBasedTask(Task[ParamsT]):
         workflow = inner.DockerBuildWorkflow(
             build_dir=self.get_build_dir(),
             data=self.load_workflow_data(),
+            namespace=self._params.namespace,
             source=self._params.source,
             plugins=self.plugins_def,
             user_params=self._params.user_params,

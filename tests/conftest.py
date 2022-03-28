@@ -68,7 +68,8 @@ def user_params(monkeypatch):
 
 @pytest.fixture
 def workflow(build_dir, dummy_source, user_params):
-    return DockerBuildWorkflow(build_dir=RootBuildDir(build_dir), source=dummy_source)
+    return DockerBuildWorkflow(build_dir=RootBuildDir(build_dir), source=dummy_source,
+                               namespace='test-namespace')
 
 
 @pytest.mark.optionalhook

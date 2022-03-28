@@ -52,6 +52,8 @@ NOARCH_UNIQUE_IMAGE = ImageName.parse("registry.example.org/osbs/spam:v1.0")
 X86_UNIQUE_IMAGE = ImageName.parse("registry.example.org/osbs/spam:v1.0-x86_64")
 
 AUTHFILE_PATH = "/workspace/ws-registries-secret/"
+NAMESPACE = "test-namespace"
+PIPELINE_RUN_NAME = "binary-container-0-1-123456"
 REGISTRY_CONFIG = [
     {
         "url": "https://registry.example.org/v2",
@@ -61,8 +63,6 @@ REGISTRY_CONFIG = [
         "insecure": False,
     }
 ]
-
-PIPELINE_RUN_NAME = "binary-container-0-1-123456"
 
 X86_REMOTE_HOST = remote_host.RemoteHost(
     hostname="osbs-remote-host-x86-64-1.example.com",
@@ -107,6 +107,7 @@ def base_task_params(build_dir: Path) -> Dict[str, Any]:
         "build_dir": str(build_dir),
         "context_dir": CONTEXT_DIR,
         "config_file": CONFIG_PATH,
+        "namespace": NAMESPACE,
         "user_params": {"pipeline_run_name": PIPELINE_RUN_NAME},
     }
 

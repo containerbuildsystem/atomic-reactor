@@ -27,6 +27,7 @@ class TaskParams:
     build_dir: str
     context_dir: str
     config_file: str
+    namespace: str
     user_params: Dict[str, Any]
 
     # Note: do not give any attributes in this class default values, that would make dataclass

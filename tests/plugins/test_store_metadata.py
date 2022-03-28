@@ -46,7 +46,7 @@ def prepare(workflow, registry=None):
     flexmock(OSBS, update_annotations_on_build=update_annotations_on_build)
     flexmock(OSBS, update_labels_on_build=update_labels_on_build)
     config_kwargs = {
-        'namespace': 'namespace',
+        'namespace': workflow.namespace,
         'verify_ssl': True,
         'openshift_url': 'http://example.com/',
         'use_auth': True,
@@ -56,7 +56,6 @@ def prepare(workflow, registry=None):
      .should_call("__init__")
      .with_args(**config_kwargs))
 
-    workflow.user_params['namespace'] = 'namespace'
     workflow.user_params['pipeline_run_name'] = 'store_metadata_test'
 
     openshift_map = {
