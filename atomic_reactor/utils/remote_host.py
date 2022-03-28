@@ -16,7 +16,7 @@ from contextlib import contextmanager
 from datetime import datetime
 from functools import cached_property
 from shlex import quote
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Set
 from paramiko.channel import ChannelFile  # just for type annotation
 
 SSH_COMMAND_TIMEOUT = 30
@@ -360,6 +360,22 @@ class RemoteHost:
             slot = HostSlot(self, session, slot_id)
             return slot.is_free
 
+    def prid_in_slot(self, slot_id: int) -> Optional[str]:
+        """ Check which prid is in the slot
+
+        :param slot_id: int, slot ID
+        :return: prid string
+        :rtype: str
+        """
+        if not self._is_valid_slot_id(slot_id):
+            return None
+
+        # We don't need to lock the slot to check whether it's free,
+        # so using a normal ssh session is good enough
+        with self._ssh_session() as session:
+            slot = HostSlot(self, session, slot_id)
+            return slot.prid
+
     @backoff.on_exception(
         backoff.expo,
         (SlotLockError, SlotReadError, SlotWriteError),
@@ -441,6 +457,14 @@ class RemoteHost:
             available_slots.append(slot_id)
 
         return available_slots
+
+    def occupied_slots(self) -> Set[int]:
+        """ Get slots on host which are occupied """
+        logger.debug("%s: retrieve list of occupied slots", self.hostname)
+
+        available_slots = set(self.available_slots())
+
+        return set(range(self.slots)) - available_slots
 
 
 class HostSlot:

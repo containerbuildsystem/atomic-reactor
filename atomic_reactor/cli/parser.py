@@ -38,6 +38,18 @@ def parse_args(args: Optional[Sequence[str]] = None) -> dict:
         description="Run a specific job \
             (job is not intended to run as task in tekton pipeline but rather as cronjob)",
     )
+    job_parser.add_argument(
+        "--config-file",
+        metavar="FILE",
+        default=REACTOR_CONFIG_FULL_PATH,
+        help=f"{PROG} configuration file",
+    )
+    job_parser.add_argument(
+        "--namespace",
+        help="name of namespace for job",
+        required=True,
+        metavar="NAMESPACE",
+    )
 
     # The individual tasks
     tasks = task_parser.add_subparsers(title="tasks", metavar="task", required=True)

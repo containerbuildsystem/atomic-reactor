@@ -388,3 +388,71 @@ def test_pool_lock_resource(slot_content, expected_log, expected_result, caplog)
     locked = pool.lock_resource("pr123")
     assert bool(locked) is expected_result
     assert expected_log in caplog.text
+
+
+@pytest.mark.parametrize(("slot0", "slot1", "slot2", "available", "occupied"), (
+    ("", "", "", {0, 1, 2}, set()),
+    ("pr123@2022-02-15T10:22:33.234234", "", "", {1, 2}, {0}),
+    ("pr123@2022-02-15T10:22:33.234234", "pr124@2022-02-15T10:22:33.234234", "", {2}, {0, 1}),
+    ("pr123@2022-02-15T10:22:33.234234", "pr124@2022-02-15T10:22:33.234234",
+     "pr124@2022-02-15T10:22:33.234234", set(), {0, 1, 2}),
+))
+def test_available_and_occupied_slots(caplog, slot0, slot1, slot2, available, occupied):
+    host = RemoteHost(hostname="remote-host-001", username="builder",
+                      ssh_keyfile="/path/to/key", slots=3, socket_path=SOCKET_PATH)
+
+    def mocked_command(cmd, *args, **kwargs):
+        if cmd == "touch /home/builder/osbs_slots/slot_0 && cat /home/builder/osbs_slots/slot_0":
+            return make_ssh_result(stdout=slot0)
+
+        if cmd == "touch /home/builder/osbs_slots/slot_1 && cat /home/builder/osbs_slots/slot_1":
+            return make_ssh_result(stdout=slot1)
+
+        if cmd == "touch /home/builder/osbs_slots/slot_2 && cat /home/builder/osbs_slots/slot_2":
+            return make_ssh_result(stdout=slot2)
+
+        assert False, f"Unexpected command: {cmd}"
+
+    (
+        flexmock(SSHRetrySession)
+        .should_receive("exec_command")
+        .replace_with(mocked_command)
+    )
+
+    assert set(host.available_slots()) == available
+    assert host.occupied_slots() == occupied
+
+
+@pytest.mark.parametrize(("slot0", "slot1", "slot2", "prid0", "prid1", "prid2"), (
+    ("", "", "", None, None, None),
+    ("pr123@2022-02-15T10:22:33.234234", "", "", "pr123", None, None),
+    ("pr123@2022-02-15T10:22:33.234234", "pr124@2022-02-15T10:22:33.234234", "",
+     "pr123", "pr124", None),
+    ("pr123@2022-02-15T10:22:33.234234", "pr124@2022-02-15T10:22:33.234234",
+     "pr125@2022-02-15T10:22:33.234234", "pr123", "pr124", "pr125"),
+))
+def test_prid_in_slot(caplog, slot0, slot1, slot2, prid0, prid1, prid2):
+    host = RemoteHost(hostname="remote-host-001", username="builder",
+                      ssh_keyfile="/path/to/key", slots=3, socket_path=SOCKET_PATH)
+
+    def mocked_command(cmd, *args, **kwargs):
+        if cmd == "touch /home/builder/osbs_slots/slot_0 && cat /home/builder/osbs_slots/slot_0":
+            return make_ssh_result(stdout=slot0)
+
+        if cmd == "touch /home/builder/osbs_slots/slot_1 && cat /home/builder/osbs_slots/slot_1":
+            return make_ssh_result(stdout=slot1)
+
+        if cmd == "touch /home/builder/osbs_slots/slot_2 && cat /home/builder/osbs_slots/slot_2":
+            return make_ssh_result(stdout=slot2)
+
+        assert False, f"Unexpected command: {cmd}"
+
+    (
+        flexmock(SSHRetrySession)
+        .should_receive("exec_command")
+        .replace_with(mocked_command)
+    )
+
+    assert host.prid_in_slot(0) == prid0
+    assert host.prid_in_slot(1) == prid1
+    assert host.prid_in_slot(2) == prid2
