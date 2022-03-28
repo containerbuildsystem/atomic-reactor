@@ -467,6 +467,7 @@ class TestPodmanRemote:
             "--connection=connection-name",
             "push",
             str(X86_UNIQUE_IMAGE),
+            "--format=v2s2",
         ]
         if authfile:
             expect_cmd.append(f"--authfile={authfile}")

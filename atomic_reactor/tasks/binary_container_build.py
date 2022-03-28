@@ -186,7 +186,8 @@ class PodmanRemote:
         Pass the specified build arguments as ARG values using --build-arg.
 
         The built image will be available locally on the machine that built it, tagged with
-        the specified dest_tag.
+        the specified dest_tag. This method does not specify the format of the built image
+        (nor does the format really matter), but podman will typically default to 'oci'.
 
         This method returns an iterator which yields individual lines from the stdout
         and stderr of the build process as they become available.
@@ -240,10 +241,12 @@ class PodmanRemote:
     def push_container(self, dest_tag: ImageName, *, insecure: bool = False) -> None:
         """Push the built container (named dest_tag) to the registry (as dest_tag).
 
+        Push the container as v2s2 (Docker v2 schema 2) regardless of the original format.
+
         :param dest_tag: the name of the built container, and the destination for the push
         :param insecure: disable --tls-verify?
         """
-        push_cmd = [*self._podman_remote_cmd, "push", str(dest_tag)]
+        push_cmd = [*self._podman_remote_cmd, "push", str(dest_tag), "--format=v2s2"]
         if self._registries_authfile:
             push_cmd.append(f"--authfile={self._registries_authfile}")
         if insecure:
