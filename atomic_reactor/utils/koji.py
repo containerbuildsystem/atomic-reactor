@@ -461,8 +461,6 @@ def get_output(workflow: DockerBuildWorkflow,
     extra_output_file = None
     output_files: List[Output] = []
 
-    arch = os.uname()[4]
-
     if source_build:
         manifest = workflow.data.koji_source_manifest
         image_id = manifest['config']['digest']
@@ -470,10 +468,10 @@ def get_output(workflow: DockerBuildWorkflow,
         # unless we pull image, which would fail due because there are so many layers
         layer_sizes = [{'digest': layer['digest'], 'size': layer['size']}
                        for layer in manifest['layers']]
-        platform = arch
+        platform = os.uname()[4]
 
     else:
-        output_files = [add_log_type(add_buildroot_id(metadata), arch)
+        output_files = [add_log_type(add_buildroot_id(metadata), platform)
                         for metadata in logs or []]
 
         # Parent of squashed built image is base image
@@ -526,12 +524,12 @@ def get_output(workflow: DockerBuildWorkflow,
     metadata, output = get_image_output(image_type, image_id, platform, pullspec)
 
     metadata.update({
-        'arch': arch,
+        'arch': platform,
         'type': 'docker-image',
         'components': [],
         'extra': {
             'image': {
-                'arch': arch,
+                'arch': platform,
             },
             'docker': {
                 'id': image_id,
