@@ -468,15 +468,15 @@ class KojiImportBase(PostBuildPlugin):
 
         # Collect log files
         osbs_logs = OSBSLogs(self.log, get_platforms(self.workflow.data))
-        output_log_files = [
+        log_files_output = [
             add_log_type(add_buildroot_id(md, buildroot_id))
             for md in osbs_logs.get_log_files(self.osbs, self.pipeline_run_name)
         ]
-        for remote_source_file_output in output_log_files:
-            output.append(remote_source_file_output.metadata)
+        for log_file_output in log_files_output:
+            output.append(log_file_output.metadata)
             koji_upload_files.append({
-                "local_filename": remote_source_file_output.filename,
-                "dest_filename": remote_source_file_output.metadata["filename"],
+                "local_filename": log_file_output.filename,
+                "dest_filename": log_file_output.metadata["filename"],
             })
 
         remote_source_file_outputs, kojifile_components = get_maven_metadata(self.workflow.data)
