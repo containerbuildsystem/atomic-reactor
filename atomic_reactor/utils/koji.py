@@ -484,7 +484,8 @@ def get_output(workflow: DockerBuildWorkflow,
             # OSBS2 TBD: inspect the correct architecture
             parent_id = workflow.imageutil.base_image_inspect()['Id']
 
-        layer_sizes = workflow.data.layer_sizes
+        image_archive = str(workflow.build_dir.platform_dir(platform).exported_squashed_image)
+        layer_sizes = workflow.imageutil.get_uncompressed_image_layer_sizes(image_archive)
 
     digests = get_manifest_digests(pullspec, workflow.conf.registry['uri'],
                                    workflow.conf.registry['insecure'],
