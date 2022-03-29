@@ -13,13 +13,13 @@ from atomic_reactor.plugins.post_fetch_docker_archive import FetchDockerArchiveP
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 
 import koji
+import koji_cli.lib
 import os
 
 import requests
 
 from atomic_reactor.plugins.post_gather_builds_metadata import GatherBuildsMetadataPlugin
 from atomic_reactor.plugins.build_orchestrate_build import (OrchestrateBuildPlugin,
-                                                            WORKSPACE_KEY_UPLOAD_DIR,
                                                             WORKSPACE_KEY_BUILD_INFO)
 from atomic_reactor.plugins.post_koji_import import (KojiImportPlugin,
                                                      KojiImportSourceContainerPlugin)
@@ -592,7 +592,6 @@ def mock_environment(workflow: DockerBuildWorkflow, source_dir: Path,
 
     workflow.data.plugin_workspace = {
         OrchestrateBuildPlugin.key: {
-            WORKSPACE_KEY_UPLOAD_DIR: 'test-dir',
             WORKSPACE_KEY_BUILD_INFO: {
                'x86_64': BuildInfo(help_file='help.md')
             }
@@ -1575,6 +1574,9 @@ class TestKojiImport(object):
         workflow.data.postbuild_results[PLUGIN_GROUP_MANIFESTS_KEY] = group_manifest_result
         orchestrate_plugin = workflow.data.plugin_workspace[OrchestrateBuildPlugin.key]
         orchestrate_plugin[WORKSPACE_KEY_BUILD_INFO]['x86_64'] = BuildInfo()
+
+        flexmock(koji_cli.lib).should_receive('unique_path').and_return('upload-dir')
+
         runner = create_runner(workflow)
         runner.run()
 
@@ -1586,10 +1588,7 @@ class TestKojiImport(object):
             meta_rec = {x.arch: x.message for x in caplog.records if hasattr(x, 'arch')
                         and x.arch == medata_tag}
             assert medata_tag in meta_rec
-            orchestrator_ws = workflow.data.plugin_workspace[OrchestrateBuildPlugin.key]
-            upload_dir = orchestrator_ws[WORKSPACE_KEY_UPLOAD_DIR]
-            dest_file = os.path.join(upload_dir, metadata_file)
-            assert dest_file == meta_rec[medata_tag]
+            assert os.path.join('upload-dir', metadata_file) == meta_rec[medata_tag]
         else:
             data = session.metadata
 

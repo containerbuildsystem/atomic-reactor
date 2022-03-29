@@ -15,20 +15,21 @@ import logging
 from tempfile import NamedTemporaryFile
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
+import koji_cli.lib
+
 from atomic_reactor.config import get_koji_session, get_openshift_session
 from atomic_reactor import start_time as atomic_reactor_start_time
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 from atomic_reactor.source import GitSource
-from atomic_reactor.plugins.build_orchestrate_build import (get_worker_build_info,
-                                                            get_koji_upload_dir)
+from atomic_reactor.plugins.build_orchestrate_build import get_worker_build_info
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.util import (OSBSLogs, get_parent_image_koji_data, get_manifest_media_version,
                                  get_platforms, is_manifest_list, map_to_user_params)
 from atomic_reactor.utils.koji import get_buildroot as koji_get_buildroot
 from atomic_reactor.utils.koji import get_output as koji_get_output
 from atomic_reactor.utils.koji import (
-        generate_koji_upload_dir, add_custom_type,
+        add_custom_type,
         get_source_tarballs_output, get_remote_sources_json_output,
         get_maven_metadata
 )
@@ -553,8 +554,7 @@ class KojiImportBase(PostBuildPlugin):
             os.unlink(local_filename)
 
     def get_server_dir(self):
-        # Must be implemented by subclasses
-        raise NotImplementedError
+        return koji_cli.lib.unique_path('koji-upload')
 
     def _upload_output_files(self, server_dir: str) -> None:
         """Helper method to upload collected output files."""
@@ -735,13 +735,6 @@ class KojiImportPlugin(KojiImportBase):
             'source': "{0}#{1}".format(source.uri, source.commit_id),
         })
 
-    def get_server_dir(self):
-        """
-        Obtain koji_upload_dir value used for worker builds.
-        """
-        # OSBS2 TBD: `get_koji_upload_dir` is imported from build_orchestrate_build
-        return get_koji_upload_dir(self.workflow)
-
 
 class KojiImportSourceContainerPlugin(KojiImportBase):
 
@@ -784,10 +777,3 @@ class KojiImportSourceContainerPlugin(KojiImportBase):
             'release': nvr['release'],
             'source': self.workflow.data.koji_source_source_url,
         })
-
-    @staticmethod
-    def get_server_dir():
-        """
-        Create a path name for uploading files to.
-        """
-        return generate_koji_upload_dir()
