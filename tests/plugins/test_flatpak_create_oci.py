@@ -25,14 +25,14 @@ from atomic_reactor.constants import (
     IMAGE_TYPE_OCI_TAR,
     SUBPROCESS_MAX_RETRIES,
 )
-from atomic_reactor.plugin import PrePublishPluginsRunner, PluginFailedException
+from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from osbs.utils import ImageName
 
 from tests.flatpak import (MODULEMD_AVAILABLE,
                            setup_flatpak_source_info, build_flatpak_test_configs)
 
 if MODULEMD_AVAILABLE:
-    from atomic_reactor.plugins.prepub_flatpak_create_oci import FlatpakCreateOciPlugin
+    from atomic_reactor.plugins.post_flatpak_create_oci import FlatpakCreateOciPlugin
     from gi.repository import Modulemd
 
 CONTAINER_ID = 'CONTAINER-ID'
@@ -574,7 +574,7 @@ def test_flatpak_create_oci(workflow, source_dir, config_name, flatpak_metadata,
 
     setup_flatpak_source_info(workflow, config)
 
-    runner = PrePublishPluginsRunner(
+    runner = PostBuildPluginsRunner(
         workflow,
         [{
             'name': FlatpakCreateOciPlugin.key,
@@ -681,7 +681,7 @@ def test_flatpak_create_oci(workflow, source_dir, config_name, flatpak_metadata,
 @pytest.mark.skipif(not MODULEMD_AVAILABLE,  # noqa
                     reason="libmodulemd not available")
 def test_skip_plugin(workflow, caplog):
-    runner = PrePublishPluginsRunner(
+    runner = PostBuildPluginsRunner(
         workflow,
         [{
             'name': FlatpakCreateOciPlugin.key,
