@@ -571,6 +571,13 @@ class KojiImportBase(PostBuildPlugin):
         # get the session and token information in case we need to refund a failed build
         self.session = get_koji_session(self.workflow.conf)
 
+        server_dir = self.get_server_dir()
+        koji_metadata = self.combine_metadata_fragments()
+
+        if is_scratch_build(self.workflow):
+            self.upload_scratch_metadata(koji_metadata, server_dir)
+            return
+
         # for all builds which have koji task
         if self.koji_task_id:
             task_info = self.session.getTaskInfo(self.koji_task_id)
@@ -579,13 +586,6 @@ class KojiImportBase(PostBuildPlugin):
                 self.log.error("Koji task is not in Open state, but in %s, not importing build",
                                task_state)
                 return
-
-        server_dir = self.get_server_dir()
-        koji_metadata = self.combine_metadata_fragments()
-
-        if is_scratch_build(self.workflow):
-            self.upload_scratch_metadata(koji_metadata, server_dir)
-            return
 
         self._upload_output_files(server_dir)
 
