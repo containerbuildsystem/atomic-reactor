@@ -6,16 +6,28 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
+import re
+from typing import Any, Dict
+
 import koji
+from atomic_reactor.inner import DockerBuildWorkflow
+from atomic_reactor.plugins.post_fetch_docker_archive import FetchDockerArchivePlugin
+from atomic_reactor.util import DockerfileImages, ManifestDigest, RegistryClient
 import atomic_reactor.utils.koji as koji_util
 
 from osbs.repo_utils import ModuleSpec
+from osbs.utils import ImageName
 from atomic_reactor.utils.koji import (koji_login, create_koji_session,
                                        TaskWatcher, tag_koji_build,
-                                       get_koji_module_build, KojiUploadLogger)
+                                       get_koji_module_build, KojiUploadLogger,
+                                       get_output)
 from atomic_reactor.plugin import BuildCanceledException
-from atomic_reactor.constants import (KOJI_MAX_RETRIES, KOJI_RETRY_INTERVAL,
-                                      KOJI_OFFLINE_RETRY_INTERVAL)
+from atomic_reactor.constants import (KOJI_MAX_RETRIES,
+                                      KOJI_OFFLINE_RETRY_INTERVAL,
+                                      KOJI_RETRY_INTERVAL,
+                                      OPERATOR_MANIFESTS_ARCHIVE,
+                                      PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY,
+                                      IMAGE_TYPE_DOCKER_ARCHIVE)
 from flexmock import flexmock
 import pytest
 
@@ -416,3 +428,146 @@ class TestKojiUploadLogger(object):
         upload_logger = KojiUploadLogger(logger, notable_percent=notable)
         for offset in range(0, totalsize + step, step):
             upload_logger.callback(offset, totalsize, step, 1.0, 1.0)
+
+
+# Test whether extra.docker.parent_id should be set
+@pytest.mark.parametrize('from_scratch', [True, False])
+@pytest.mark.parametrize('no_v2_digest', [True, False])
+@pytest.mark.parametrize('has_export_operator_manifests', [True, False])
+def test_binary_build_get_output(has_export_operator_manifests: bool,
+                                 no_v2_digest: bool,
+                                 from_scratch: bool,
+                                 workflow: DockerBuildWorkflow,
+                                 tmpdir):
+    platform = "x86_64"
+
+    if from_scratch:
+        workflow.data.dockerfile_images = DockerfileImages(['scratch'])
+        parent_id = None
+    else:
+        workflow.data.dockerfile_images = DockerfileImages(['fedora:35'])
+        parent_id = 'parent-id'
+        (flexmock(workflow.imageutil)
+         .should_receive('base_image_inspect')
+         .and_return({'Id': parent_id}))
+
+    # For verifying the tags in final metadata
+    primary_image = ImageName.parse("ns/image:1-2")
+    workflow.data.tag_conf.add_primary_image(primary_image)
+    unique_image = ImageName.parse("ns/image:candidate-202203291618")
+    workflow.data.tag_conf.add_unique_image(unique_image)
+
+    # Mock for ImageUtil.get_uncompressed_layer_sizes
+    layer_sizes = [
+        {"diff_id": 1, "size": 100},
+        {"diff_id": 2, "size": 200},
+    ]
+    workflow.build_dir.init_build_dirs([platform], workflow.source)
+    platform_dir = workflow.build_dir.platform_dir(platform)
+    (flexmock(workflow.imageutil)
+     .should_receive('get_uncompressed_image_layer_sizes')
+     .with_args(str(platform_dir.exported_squashed_image))
+     .and_return(layer_sizes))
+
+    workflow.conf.conf = {
+        'registries': [
+            {'url': 'https://registry.host/', 'insecure': False},
+        ],
+    }
+    # Mock get manifest digests
+    # What would happen if there is no both v2 and oci digest?
+    image_manifest_digest = ManifestDigest(
+        {'oci': 'oci-1234'} if no_v2_digest else {'v2': '1234'}
+    )
+    (flexmock(RegistryClient)
+     .should_receive('get_manifest_digests')
+     .and_return(image_manifest_digest))
+    # Mock getting image config
+    blob_config = {'oci': 'oci-1234'} if no_v2_digest else {'v2': '1234'}
+    (flexmock(RegistryClient)
+     .should_receive('get_config_and_id_from_registry')
+     .and_return((blob_config, None)))
+
+    # Assume FetchDockerArchivePlugin has run and metadata of the
+    # platform-specific built image archive has been saved.
+    workflow.data.postbuild_results[FetchDockerArchivePlugin.key] = {
+        platform: {'type': IMAGE_TYPE_DOCKER_ARCHIVE}
+    }
+
+    if has_export_operator_manifests:
+        archive_file = tmpdir.join(OPERATOR_MANIFESTS_ARCHIVE)
+        archive_file.write_binary(b'20220329')
+        workflow.data.postbuild_results[PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY] = str(archive_file)
+
+    buildroot_id = f'{platform}-1'
+    image_pullspec = ImageName.parse("ns/image:latest")
+    output, output_file = get_output(
+        workflow, buildroot_id, image_pullspec, platform, source_build=False
+    )
+
+    # Prepare expected metadata
+
+    expected_repositories = sorted([
+        # Pull image with a specific tag
+        image_pullspec.to_str(),
+        # Pull image with a specific digest
+        f'{image_pullspec.to_str(tag=False)}@{image_manifest_digest.oci}'
+        if no_v2_digest else
+        f'{image_pullspec.to_str(tag=False)}@{image_manifest_digest.v2}',
+    ])
+    expected_metadata: Dict[str, Any] = {
+        'buildroot_id': buildroot_id,
+        'checksum_type': 'md5',
+        'arch': platform,
+        'type': 'docker-image',
+        'components': [],
+        'extra': {
+            'image': {'arch': platform},
+            'docker': {
+                'id': None,
+                'repositories': expected_repositories,
+                'layer_sizes': layer_sizes,
+                'tags': sorted([primary_image.tag, unique_image.tag]),
+                'config': blob_config,
+                'digests': None,  # Set later below
+            },
+        },
+    }
+
+    extra_docker = expected_metadata['extra']['docker']
+    if not from_scratch:
+        extra_docker['parent_id'] = parent_id
+
+    extra_docker['digests'] = (
+        {ManifestDigest.content_type['oci']: image_manifest_digest.oci}
+        if no_v2_digest else
+        {ManifestDigest.content_type['v2']: image_manifest_digest.v2}
+    )
+
+    # Start assertions
+    assert output_file is None
+    if has_export_operator_manifests:
+        assert len(output) == 2
+    else:
+        assert len(output) == 1
+
+    image_metadata = output[0].metadata
+
+    # Assert these image metadata firstly, then remove them and assert the
+    # rest. So, no need to mock anything for get_image_output.
+    assert 'docker-image-None.x86_64.tar.gz' == image_metadata.pop('filename')
+    assert image_metadata.pop('filesize') > 0
+    assert re.match(r'^[0-9a-f]+$', image_metadata.pop('checksum'))
+
+    # Make it easier for comparison below
+    extra_docker = image_metadata['extra']['docker']
+    extra_docker['repositories'] = sorted(extra_docker['repositories'])
+    extra_docker['tags'] = sorted(extra_docker['tags'])
+
+    assert expected_metadata == image_metadata
+
+    if has_export_operator_manifests:
+        manifests_output = output[1]
+        assert str(tmpdir.join(OPERATOR_MANIFESTS_ARCHIVE)) == manifests_output.filename
+        assert buildroot_id == manifests_output.metadata['buildroot_id']
+        assert OPERATOR_MANIFESTS_ARCHIVE == manifests_output.metadata['filename']

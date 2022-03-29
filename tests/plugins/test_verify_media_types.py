@@ -162,8 +162,6 @@ class TestVerifyImageTypes(object):
         if platform_descriptors:
             conf['platform_descriptors'] = platform_descriptors
 
-        flexmock(HTTPRegistryAuth).should_receive('__new__').and_return(None)
-        mock_auth = None
         for registry in registries:
             def get_manifest(request):
                 media_types = request.headers.get('Accept', '').split(',')
@@ -228,27 +226,27 @@ class TestVerifyImageTypes(object):
             (flexmock(requests.Session)
                 .should_receive('get')
                 .with_args(actual_v2_url, headers=v2_header_v1,
-                           auth=mock_auth, verify=False)
+                           auth=HTTPRegistryAuth, verify=False)
                 .and_return(v1_response))
             (flexmock(requests.Session)
                 .should_receive('get')
                 .with_args(actual_v2_url, headers=v2_header_v2,
-                           auth=mock_auth, verify=False)
+                           auth=HTTPRegistryAuth, verify=False)
                 .and_return(v2_response))
             (flexmock(requests.Session)
                 .should_receive('get')
                 .with_args(actual_v2_url, headers={'Accept': MEDIA_TYPE_OCI_V1},
-                           auth=mock_auth, verify=False)
+                           auth=HTTPRegistryAuth, verify=False)
                 .and_return(v1_oci_response))
             (flexmock(requests.Session)
                 .should_receive('get')
                 .with_args(actual_v2_url, headers={'Accept': MEDIA_TYPE_OCI_V1_INDEX},
-                           auth=mock_auth, verify=False)
+                           auth=HTTPRegistryAuth, verify=False)
                 .and_return(v1_oci_index_response))
             (flexmock(requests.Session)
                 .should_receive('get')
                 .with_args(actual_v2_url, headers=manifest_header,
-                           auth=mock_auth, verify=False)
+                           auth=HTTPRegistryAuth, verify=False)
                 .and_return(v2_list_response))
 
         digests = {'media_type': MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST}
