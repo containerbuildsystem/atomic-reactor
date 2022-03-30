@@ -481,8 +481,7 @@ def get_output(workflow: DockerBuildWorkflow,
         image_id = workflow.data.image_id
         parent_id = None
         if not workflow.data.dockerfile_images.base_from_scratch:
-            # OSBS2 TBD: inspect the correct architecture
-            parent_id = workflow.imageutil.base_image_inspect()['Id']
+            parent_id = workflow.imageutil.base_image_inspect(platform)['Id']
 
         image_archive = str(workflow.build_dir.platform_dir(platform).exported_squashed_image)
         layer_sizes = workflow.imageutil.get_uncompressed_image_layer_sizes(image_archive)
