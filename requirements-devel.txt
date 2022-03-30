@@ -69,7 +69,7 @@ osbs-client @ git+https://github.com/containerbuildsystem/osbs-client@ab8a5e5cd9
     # via -r requirements.in
 packaging==21.2
     # via pytest
-paramiko==2.9.2
+paramiko==2.10.3
     # via -r requirements.in
 pep8==1.7.1
     # via -r requirements-devel.in
@@ -149,6 +149,7 @@ six==1.16.0
     #   dockerfile-parse
     #   koji
     #   osbs-client
+    #   paramiko
     #   python-dateutil
     #   requests-mock
     #   responses
