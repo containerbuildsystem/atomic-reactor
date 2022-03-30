@@ -8,9 +8,11 @@ of the BSD license. See the LICENSE file for details.
 import os
 import subprocess
 import tempfile
+from typing import List, Optional
 
 from atomic_reactor.dirs import BuildDir
 from atomic_reactor.plugin import PostBuildPlugin
+from atomic_reactor.types import RpmComponent
 from atomic_reactor.utils.rpm import parse_rpm_output
 from atomic_reactor.utils.rpm import rpm_qf_args
 
@@ -38,7 +40,7 @@ class PostBuildRPMqaPlugin(PostBuildPlugin):
     def run(self):
         return self.workflow.build_dir.for_each_platform(self.gather_output)
 
-    def gather_output(self, build_dir: BuildDir):
+    def gather_output(self, build_dir: BuildDir) -> Optional[List[RpmComponent]]:
         image = self.workflow.data.tag_conf.get_unique_images_with_platform(build_dir.platform)[0]
         with tempfile.TemporaryDirectory(dir=build_dir.path) as rpmdb_dir:
             self.workflow.imageutil.extract_file_from_image(image, RPMDB_PATH, rpmdb_dir)
