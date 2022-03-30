@@ -55,7 +55,7 @@ krb5==0.2.0
     # via pyspnego
 osbs-client @ git+https://github.com/containerbuildsystem/osbs-client@ab8a5e5cd97911cd5a37b0d49f2d4ecf1083ddd4
     # via -r requirements.in
-paramiko==2.9.2
+paramiko==2.10.3
     # via -r requirements.in
 pycairo==1.20.1
     # via pygobject
@@ -101,6 +101,7 @@ six==1.16.0
     #   dockerfile-parse
     #   koji
     #   osbs-client
+    #   paramiko
     #   python-dateutil
 urllib3==1.26.7
     # via requests
