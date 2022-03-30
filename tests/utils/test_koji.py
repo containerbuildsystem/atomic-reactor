@@ -449,6 +449,7 @@ def test_binary_build_get_output(has_export_operator_manifests: bool,
         parent_id = 'parent-id'
         (flexmock(workflow.imageutil)
          .should_receive('base_image_inspect')
+         .with_args(platform)
          .and_return({'Id': parent_id}))
 
     # For verifying the tags in final metadata
