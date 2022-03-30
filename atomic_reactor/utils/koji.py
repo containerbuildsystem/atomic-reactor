@@ -11,7 +11,7 @@ import json
 import logging
 import os
 import tempfile
-from typing import Optional, List, Any, Dict, Tuple, Union
+from typing import Optional, List, Any, Dict, Tuple
 
 import time
 import platform
@@ -412,16 +412,18 @@ def get_maven_metadata(workflow_data) -> Tuple[List[Output], List[RpmComponent]]
     return outputs, components
 
 
-def get_image_components(workflow, platform: str) -> List[Dict[str, Union[str, int]]]:
+def get_image_components(workflow: DockerBuildWorkflow, platform: str) -> List[RpmComponent]:
     """
     Re-package the output of the rpmqa plugin into the format required
     for the metadata.
     """
+    # platform => None or list of rpms
+    components: Optional[Dict[str, Optional[List[RpmComponent]]]]
     components = workflow.data.postbuild_results.get(PostBuildRPMqaPlugin.key)
     if components is None:
         logger.error("%s plugin did not run!", PostBuildRPMqaPlugin.key)
         return []
-    return components.get(platform, [])
+    return components[platform] or []
 
 
 def add_custom_type(output: Output, custom_type: str, content: Optional[Dict[str, Any]] = None):
