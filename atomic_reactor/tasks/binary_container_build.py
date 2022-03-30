@@ -66,6 +66,8 @@ class BinaryBuildTask(Task[BinaryBuildTaskParams]):
 
         data = self.load_workflow_data()
         enabled_platforms = util.get_platforms(data)
+        flatpak = self._params.user_params.get('flatpak', False)
+        squash_all = flatpak  # squash all layers for flatpak build
 
         if platform not in enabled_platforms:
             logger.info(
@@ -97,6 +99,7 @@ class BinaryBuildTask(Task[BinaryBuildTaskParams]):
                 build_dir=build_dir,
                 build_args=data.buildargs,
                 dest_tag=dest_tag,
+                squash_all=squash_all,
             )
             for line in output_lines:
                 logger.info(line.rstrip())
@@ -201,6 +204,7 @@ class PodmanRemote:
         build_dir: dirs.BuildDir,
         build_args: Dict[str, str],
         dest_tag: ImageName,
+        squash_all: bool,
     ) -> Iterator[str]:
         """Build a container image from the specified build directory.
 
@@ -217,8 +221,11 @@ class PodmanRemote:
             f"--tag={dest_tag}",
             "--no-cache",  # make sure the build uses a clean environment
             "--pull-always",  # as above
-            "--squash",
         ]
+        if squash_all:
+            options.append("--squash-all")
+        else:
+            options.append("--squash")
         options.extend(f"--build-arg={key}={value}" for key, value in build_args.items())
         if self._registries_authfile:
             # TBD: this only works if the OSBS deployment uses a single registry secret
