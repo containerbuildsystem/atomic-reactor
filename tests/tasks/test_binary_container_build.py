@@ -238,9 +238,10 @@ class TestBinaryBuildTask:
         assert "Platform aarch64 is not enabled for this build" in caplog.text
 
     @pytest.mark.parametrize('fail_image_size_check', (True, False))
+    @pytest.mark.parametrize('is_flatpak', (True, False))
     def test_run_build(
         self, x86_task_params, x86_build_dir, mock_podman_remote, mock_locked_resource, caplog,
-            fail_image_size_check
+            fail_image_size_check, is_flatpak
     ):
         mock_workflow_data(enabled_platforms=["x86_64"])
         if fail_image_size_check:
@@ -249,11 +250,12 @@ class TestBinaryBuildTask:
             mock_config(REGISTRY_CONFIG, REMOTE_HOST_CONFIG, image_size_limit=1234)
         x86_build_dir.dockerfile_path.write_text(DOCKERFILE_CONTENT)
 
-        def mock_build_container(*, build_dir, build_args, dest_tag):
+        def mock_build_container(*, build_dir, build_args, dest_tag, squash_all):
             assert build_dir.path == x86_build_dir.path
             assert build_dir.platform == "x86_64"
             assert build_args == BUILD_ARGS
             assert dest_tag == X86_UNIQUE_IMAGE
+            assert squash_all == is_flatpak
 
             yield from ["output line 1", "output line 2"]
 
@@ -278,6 +280,8 @@ class TestBinaryBuildTask:
         )
 
         flexmock(mock_locked_resource).should_receive("unlock").once()
+
+        x86_task_params.user_params['flatpak'] = is_flatpak
 
         task = BinaryBuildTask(x86_task_params)
         if fail_image_size_check:
@@ -439,21 +443,29 @@ class TestPodmanRemote:
             PodmanRemote.setup_for(X86_LOCKED_RESOURCE)
 
     @pytest.mark.parametrize("authfile", [None, AUTHFILE_PATH])
-    def test_build_container(self, authfile, x86_build_dir):
+    @pytest.mark.parametrize('is_flatpak', (True, False))
+    def test_build_container(self, authfile, is_flatpak, x86_build_dir):
+        options = [
+            f"--tag={X86_UNIQUE_IMAGE}",
+            "--no-cache",
+            "--pull-always",
+        ]
+        if is_flatpak:
+            options.append("--squash-all")
+        else:
+            options.append("--squash")
+        options.append("--build-arg=REMOTE_SOURCES=unpacked_remote_sources")
+        if authfile:
+            options.append(f"--authfile={authfile}")
+
         expect_cmd = [
             "/usr/bin/podman",
             "--remote",
             "--connection=connection-name",
             "build",
-            f"--tag={X86_UNIQUE_IMAGE}",
-            "--no-cache",
-            "--pull-always",
-            "--squash",
-            "--build-arg=REMOTE_SOURCES=unpacked_remote_sources",
+            *options,
             str(x86_build_dir.path),
         ]
-        if authfile:
-            expect_cmd.insert(-1, f"--authfile={authfile}")
 
         mock_popen(0, ["starting the build\n", "finished successfully\n"], expect_cmd=expect_cmd)
 
@@ -462,6 +474,7 @@ class TestPodmanRemote:
             build_dir=x86_build_dir,
             build_args=BUILD_ARGS,
             dest_tag=X86_UNIQUE_IMAGE,
+            squash_all=is_flatpak
         )
 
         assert list(output_lines) == ["starting the build\n", "finished successfully\n"]
@@ -483,6 +496,7 @@ class TestPodmanRemote:
             build_dir=x86_build_dir,
             build_args=BUILD_ARGS,
             dest_tag=X86_UNIQUE_IMAGE,
+            squash_all=False,
         )
 
         for expect_line in output_lines:
