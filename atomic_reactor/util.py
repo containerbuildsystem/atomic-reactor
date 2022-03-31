@@ -1224,7 +1224,12 @@ def get_inspect_for_image(image, registry, insecure=False, dockercfg_path=None, 
 
 
 def get_config_and_id_from_registry(
-    image, registry, digest: str, insecure=False, dockercfg_path=None, version='v2'
+    image: ImageName,
+    registry: str,
+    digest: str,
+    insecure: bool = False,
+    dockercfg_path: Optional[str] = None,
+    version: str = 'v2',
 ) -> Tuple[Dict, str]:
     """Return image config by digest
 
@@ -1236,7 +1241,7 @@ def get_config_and_id_from_registry(
     :param dockercfg_path: str, dirname of .dockercfg location
     :param version: str, which manifest schema versions to fetch digest
 
-    :return: dict, versions mapped to their digest
+    :return: tuple, (image config, config digest)
     """
     registry_session = RegistrySession(registry, insecure=insecure, dockercfg_path=dockercfg_path)
     registry_client = RegistryClient(registry_session)
