@@ -453,10 +453,11 @@ def test_binary_build_get_output(has_export_operator_manifests: bool,
          .and_return({'Id': parent_id}))
 
     # For verifying the tags in final metadata
-    primary_image = ImageName.parse("ns/image:1-2")
-    workflow.data.tag_conf.add_primary_image(primary_image)
-    unique_image = ImageName.parse("ns/image:candidate-202203291618")
-    workflow.data.tag_conf.add_unique_image(unique_image)
+    workflow.data.tag_conf.add_unique_image("ns/image:1")
+    workflow.data.tag_conf.add_unique_image("ns/image:2")
+    # This primary image is noise. For binary build, this should not be
+    # included in the metadata.
+    workflow.data.tag_conf.add_primary_image("ns/image:1-2")
 
     # Mock for ImageUtil.get_uncompressed_layer_sizes
     layer_sizes = [
@@ -476,7 +477,6 @@ def test_binary_build_get_output(has_export_operator_manifests: bool,
         ],
     }
     # Mock get manifest digests
-    # What would happen if there is no both v2 and oci digest?
     image_manifest_digest = ManifestDigest(
         {'oci': 'oci-1234'} if no_v2_digest else {'v2': '1234'}
     )
@@ -516,6 +516,10 @@ def test_binary_build_get_output(has_export_operator_manifests: bool,
         if no_v2_digest else
         f'{image_pullspec.to_str(tag=False)}@{image_manifest_digest.v2}',
     ])
+    per_platform_image_tags = sorted(
+        image.tag for image in
+        workflow.data.tag_conf.get_unique_images_with_platform(platform)
+    )
     expected_metadata: Dict[str, Any] = {
         'buildroot_id': buildroot_id,
         'checksum_type': 'md5',
@@ -528,7 +532,7 @@ def test_binary_build_get_output(has_export_operator_manifests: bool,
                 'id': None,
                 'repositories': expected_repositories,
                 'layer_sizes': layer_sizes,
-                'tags': sorted([primary_image.tag, unique_image.tag]),
+                'tags': per_platform_image_tags,
                 'config': blob_config,
                 'digests': None,  # Set later below
             },
@@ -563,7 +567,6 @@ def test_binary_build_get_output(has_export_operator_manifests: bool,
     # Make it easier for comparison below
     extra_docker = image_metadata['extra']['docker']
     extra_docker['repositories'] = sorted(extra_docker['repositories'])
-    extra_docker['tags'] = sorted(extra_docker['tags'])
 
     assert expected_metadata == image_metadata
 
