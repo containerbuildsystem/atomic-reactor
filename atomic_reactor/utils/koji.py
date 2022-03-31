@@ -462,6 +462,7 @@ def get_output(workflow: DockerBuildWorkflow,
 
     extra_output_file = None
     output_files: List[Output] = []
+    image_id: str
 
     if source_build:
         manifest = workflow.data.koji_source_manifest
@@ -476,15 +477,15 @@ def get_output(workflow: DockerBuildWorkflow,
         output_files = [add_log_type(add_buildroot_id(metadata), platform)
                         for metadata in logs or []]
 
-        # Parent of squashed built image is base image
-        # OSBS2 TBD
-        image_id = workflow.data.image_id
+        imageutil = workflow.imageutil
+        image_id = imageutil.get_inspect_for_image(pullspec, platform=platform)['Id']
+
         parent_id = None
         if not workflow.data.dockerfile_images.base_from_scratch:
-            parent_id = workflow.imageutil.base_image_inspect(platform)['Id']
+            parent_id = imageutil.base_image_inspect(platform)['Id']
 
         image_archive = str(workflow.build_dir.platform_dir(platform).exported_squashed_image)
-        layer_sizes = workflow.imageutil.get_uncompressed_image_layer_sizes(image_archive)
+        layer_sizes = imageutil.get_uncompressed_image_layer_sizes(image_archive)
 
     digests = get_manifest_digests(pullspec, workflow.conf.registry['uri'],
                                    workflow.conf.registry['insecure'],

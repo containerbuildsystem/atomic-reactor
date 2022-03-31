@@ -440,6 +440,8 @@ def test_binary_build_get_output(has_export_operator_manifests: bool,
                                  workflow: DockerBuildWorkflow,
                                  tmpdir):
     platform = "x86_64"
+    buildroot_id = f'{platform}-1'
+    image_pullspec = ImageName.parse("ns/image:latest")
 
     if from_scratch:
         workflow.data.dockerfile_images = DockerfileImages(['scratch'])
@@ -476,6 +478,14 @@ def test_binary_build_get_output(has_export_operator_manifests: bool,
             {'url': 'https://registry.host/', 'insecure': False},
         ],
     }
+
+    # Mock get_inspect_for_image
+    image_id = 'image-id-1234'
+    (flexmock(workflow.imageutil)
+     .should_receive('get_inspect_for_image')
+     .with_args(image_pullspec, platform=platform)
+     .and_return({'Id': image_id}))
+
     # Mock get manifest digests
     image_manifest_digest = ManifestDigest(
         {'oci': 'oci-1234'} if no_v2_digest else {'v2': '1234'}
@@ -500,8 +510,6 @@ def test_binary_build_get_output(has_export_operator_manifests: bool,
         archive_file.write_binary(b'20220329')
         workflow.data.postbuild_results[PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY] = str(archive_file)
 
-    buildroot_id = f'{platform}-1'
-    image_pullspec = ImageName.parse("ns/image:latest")
     output, output_file = get_output(
         workflow, buildroot_id, image_pullspec, platform, source_build=False
     )
@@ -529,7 +537,7 @@ def test_binary_build_get_output(has_export_operator_manifests: bool,
         'extra': {
             'image': {'arch': platform},
             'docker': {
-                'id': None,
+                'id': image_id,
                 'repositories': expected_repositories,
                 'layer_sizes': layer_sizes,
                 'tags': per_platform_image_tags,
@@ -560,7 +568,7 @@ def test_binary_build_get_output(has_export_operator_manifests: bool,
 
     # Assert these image metadata firstly, then remove them and assert the
     # rest. So, no need to mock anything for get_image_output.
-    assert 'docker-image-None.x86_64.tar.gz' == image_metadata.pop('filename')
+    assert f'docker-image-{image_id}.x86_64.tar.gz' == image_metadata.pop('filename')
     assert image_metadata.pop('filesize') > 0
     assert re.match(r'^[0-9a-f]+$', image_metadata.pop('checksum'))
 
