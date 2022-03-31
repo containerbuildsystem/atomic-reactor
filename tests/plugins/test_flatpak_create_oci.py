@@ -1,33 +1,34 @@
 """
-Copyright (c) 2017, 2019 Red Hat, Inc
+Copyright (c) 2017-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
-from pathlib import Path
-
-from flexmock import flexmock
-from io import BytesIO
+import functools
 import json
 import os
-import png
-import pytest
 import re
 import subprocess
 import tarfile
-import time
+from io import BytesIO
+from pathlib import Path
+from tempfile import NamedTemporaryFile
 from textwrap import dedent
+
+import png
+import pytest
+from flatpak_module_tools.flatpak_builder import FlatpakBuilder, FLATPAK_METADATA_ANNOTATIONS
+from flexmock import flexmock
 
 from atomic_reactor.constants import (
     DOCKERFILE_FILENAME,
     IMAGE_TYPE_OCI,
-    IMAGE_TYPE_OCI_TAR,
-    SUBPROCESS_MAX_RETRIES,
 )
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
-from osbs.utils import ImageName
-
+from atomic_reactor.plugins.pre_flatpak_update_dockerfile import get_flatpak_source_info
+from atomic_reactor.utils.imageutil import ImageUtil
+from atomic_reactor.utils.rpm import parse_rpm_output
 from tests.flatpak import (MODULEMD_AVAILABLE,
                            setup_flatpak_source_info, build_flatpak_test_configs)
 
@@ -359,18 +360,6 @@ CONFIGS = build_flatpak_test_configs({
 })
 
 
-class MockSource(object):
-    dockerfile_path = None
-    path = None
-
-
-class MockBuilder(object):
-    def __init__(self):
-        self.image_id = "xxx"
-        self.source = MockSource()
-        self.base_image = ImageName(repo="qwe", tag="asd")
-
-
 def load_labels_and_annotations(metadata):
     def get_path(descriptor):
         digest = descriptor["digest"]
@@ -391,7 +380,7 @@ def load_labels_and_annotations(metadata):
 
 class DefaultInspector(object):
     def __init__(self, source_dir: str, metadata):
-        # Import the OCI bundle into a ostree repository for examination
+        # Import the OCI bundle into an ostree repository for examination
         self.repodir = os.path.join(source_dir, 'repo')
         subprocess.check_call(['ostree', 'init', '--mode=archive-z2', '--repo=' + self.repodir])
         subprocess.check_call(['flatpak', 'build-import-bundle', '--oci',
@@ -442,8 +431,8 @@ def make_and_store_reactor_config_map(workflow, flatpak_metadata):
     workflow.conf.conf = reactor_map
 
 
-def write_docker_file(config, source_dir: Path):
-    dockerfile = source_dir / DOCKERFILE_FILENAME
+def write_docker_file(config, source_path):
+    dockerfile = os.path.join(source_path, DOCKERFILE_FILENAME)
     base_module_name = config['base_module']
     base_module = config['modules'][base_module_name]
     with open(dockerfile, "w") as f:
@@ -459,22 +448,51 @@ def write_docker_file(config, source_dir: Path):
                                   stream=base_module['stream'],
                                   version=base_module['version'])))
 
-    return dockerfile
+
+def mock_extract_filesystem(config, src, dest):
+    tmp_dir = Path(dest)
+    filesystem_dir = tmp_dir / 'filesystem'
+    filesystem_dir.mkdir()
+
+    filesystem_contents = config['filesystem_contents']
+
+    for path, contents in filesystem_contents.items():
+        parts = path.split(':', 1)
+        path = parts[0]
+        mode = parts[1] if len(parts) == 2 else None
+
+        fullpath = Path(os.path.join(filesystem_dir, path[1:]))
+        if not fullpath.parent.exists():
+            fullpath.parent.mkdir(parents=True)
+
+        if contents is None:
+            fullpath.mkdir()
+        else:
+            fullpath.write_bytes(contents)
+
+        if mode is not None:
+            fullpath.chmod(int(mode, 8))
+
+    filesystem_tar = tmp_dir / 'filesystem.tar'
+
+    with tarfile.TarFile(filesystem_tar, mode='w') as tf:
+        for f in os.listdir(filesystem_dir):
+            tf.add(os.path.join(filesystem_dir, f), f)
+
+    return 'filesystem.tar'
 
 
-@pytest.mark.skip(reason="plugin needs rework to get image content")
 @pytest.mark.skipif(not MODULEMD_AVAILABLE,  # noqa
                     reason="libmodulemd not available")
 @pytest.mark.parametrize('config_name, flatpak_metadata, breakage', [
     ('app', 'both', None),
-    ('app', 'both', 'copy_error'),
     ('app', 'both', 'no_runtime'),
     ('app', 'annotations', None),
     ('app', 'labels', None),
     ('runtime', 'both', None),
     ('sdk', 'both', None),
 ])
-def test_flatpak_create_oci(workflow, source_dir, config_name, flatpak_metadata, breakage):
+def test_flatpak_create_oci(workflow, config_name, flatpak_metadata, breakage):
     # Check that we actually have flatpak available
     have_flatpak = False
     try:
@@ -498,36 +516,17 @@ def test_flatpak_create_oci(workflow, source_dir, config_name, flatpak_metadata,
 
     config = CONFIGS[config_name]
 
-    workflow.user_params.update(USER_PARAMS)
-    df_path = write_docker_file(config, source_dir)
-    flexmock(workflow, df_path=df_path)
+    platforms = ['x86_64', 'aarch64', 's390x', 'ppc64le']
 
-    #  Make a local copy instead of pushing oci to docker storage
-    workflow.storage_transport = f'oci:{source_dir}'
+    workflow.user_params['flatpak'] = True
+    write_docker_file(config, workflow.source.path)
+    workflow.build_dir.init_build_dirs(platforms, workflow.source)
+    mock_extract_filesystem_call = functools.partial(mock_extract_filesystem, config)
+    (flexmock(ImageUtil)
+     .should_receive('extract_filesystem_layer')
+     .replace_with(mock_extract_filesystem_call))
 
     make_and_store_reactor_config_map(workflow, flatpak_metadata)
-
-    filesystem_dir = source_dir / 'filesystem'
-    filesystem_dir.mkdir()
-
-    filesystem_contents = config['filesystem_contents']
-
-    for path, contents in filesystem_contents.items():
-        parts = path.split(':', 1)
-        path = parts[0]
-        mode = parts[1] if len(parts) == 2 else None
-
-        fullpath = filesystem_dir / path[1:]
-        if not fullpath.parent.exists():
-            fullpath.parent.mkdir(parents=True)
-
-        if contents is None:
-            fullpath.mkdir()
-        else:
-            fullpath.write_bytes(contents)
-
-        if mode is not None:
-            fullpath.chmod(int(mode, 8))
 
     if breakage == 'no_runtime':
         # Copy the parts of the config we are going to change
@@ -545,32 +544,9 @@ def test_flatpak_create_oci(workflow, source_dir, config_name, flatpak_metadata,
         module_config['metadata'] = mmd_index.dump_to_string()
 
         expected_exception = 'Failed to identify runtime module'
-    elif breakage == 'copy_error':
-        workflow.storage_transport = 'idontexist'
-        expected_exception = 'CalledProcessError'
-        # mock the time.sleep() call between skopeo retries, otherwise test would take too long
-        flexmock(time).should_receive('sleep').times(SUBPROCESS_MAX_RETRIES)
     else:
         assert breakage is None
         expected_exception = None
-
-    filesystem_tar = os.path.join(filesystem_dir, 'tar')
-    with open(filesystem_tar, "wb") as f:
-        with tarfile.TarFile(fileobj=f, mode='w') as tf:
-            for f in os.listdir(filesystem_dir):
-                tf.add(os.path.join(filesystem_dir, f), f)
-
-    # export_stream = open(filesystem_tar, "rb")
-
-    # def stream_to_generator(s):
-    #     while True:
-    #         # Yield small chunks to test the StreamAdapter code better
-    #         buf = s.read(100)
-    #         if len(buf) == 0:
-    #             return
-    #         yield buf
-
-    # export_generator = stream_to_generator(export_stream)
 
     setup_flatpak_source_info(workflow, config)
 
@@ -587,22 +563,21 @@ def test_flatpak_create_oci(workflow, source_dir, config_name, flatpak_metadata,
             runner.run()
         assert expected_exception in str(ex.value)
     else:
-        # Check if run replaces image_id and marks filesystem image for removal
-        filesystem_image_id = 'xxx'
-        for_removal = workflow.data.plugin_workspace.get(
-            'remove_built_image', {}).get('images_to_remove', [])
-        assert workflow.data.image_id == filesystem_image_id
-        assert filesystem_image_id not in for_removal
-        runner.run()
-        for_removal = workflow.data.plugin_workspace['remove_built_image']['images_to_remove']
-        assert re.match(r'^sha256:\w{64}$', workflow.data.image_id)
-        assert filesystem_image_id in for_removal
-
-        dir_metadata = workflow.data.exported_image_sequence[-2]
+        builder = FlatpakBuilder(get_flatpak_source_info(workflow),
+                                 workflow.build_dir.any_platform.path,
+                                 'var/tmp/flatpak-build',
+                                 parse_manifest=parse_rpm_output,
+                                 flatpak_metadata=FLATPAK_METADATA_ANNOTATIONS)
+        with NamedTemporaryFile(dir=workflow.build_dir.any_platform.path) as f:
+            f.write(config['filesystem_contents']['/var/tmp/flatpak-build.rpm_qf'])
+            f.flush()
+            expected_components = builder.get_components(f.name)
+        results = runner.run()
+        x86_64_results = results[FlatpakCreateOciPlugin.key][platforms[0]]
+        dir_metadata = x86_64_results['metadata']
+        components = x86_64_results['components']
+        assert components == expected_components
         assert dir_metadata['type'] == IMAGE_TYPE_OCI
-
-        tar_metadata = workflow.data.exported_image_sequence[-1]
-        assert tar_metadata['type'] == IMAGE_TYPE_OCI_TAR
 
         # Check that the correct labels and annotations were written
 
@@ -642,16 +617,10 @@ def test_flatpak_create_oci(workflow, source_dir, config_name, flatpak_metadata,
         if flatpak_metadata != 'both':
             return
 
-        inspector = DefaultInspector(str(source_dir), dir_metadata)
+        inspector = DefaultInspector(str(workflow.build_dir.any_platform.path), dir_metadata)
 
         files = inspector.list_files()
         assert sorted(files) == config['expected_contents']
-
-        components = {c['name'] for c in workflow.data.image_components}  # noqa:E501; pylint: disable=not-an-iterable
-        for n in config['expected_components']:
-            assert n in components
-        for n in config['unexpected_components']:
-            assert n not in components
 
         metadata_lines = inspector.cat_file('/metadata').split('\n')
         assert any(re.match(r'runtime=org.fedoraproject.Platform/.*/f28$', line)
@@ -677,6 +646,25 @@ def test_flatpak_create_oci(workflow, source_dir, config_name, flatpak_metadata,
             assert 'name=org.fedoraproject.Platform' in metadata_lines
         else:  # SDK
             assert 'name=org.fedoraproject.Sdk' in metadata_lines
+
+
+@pytest.mark.skipif(not MODULEMD_AVAILABLE,  # noqa
+                    reason="libmodulemd not available")
+def test_flatpak_create_oci_no_source(workflow):
+    workflow.user_params['flatpak'] = True
+    runner = PostBuildPluginsRunner(
+        workflow,
+        [{
+            'name': FlatpakCreateOciPlugin.key,
+            'args': {}
+        }]
+    )
+
+    msg = "flatpak_create_dockerfile must be run before flatpak_create_oci"
+
+    with pytest.raises(PluginFailedException, match=msg):
+        runner.run()
+
 
 @pytest.mark.skipif(not MODULEMD_AVAILABLE,  # noqa
                     reason="libmodulemd not available")
