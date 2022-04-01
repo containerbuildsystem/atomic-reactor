@@ -1,4 +1,0 @@
--r requirements.in
--r tests/requirements.in
-pyflakes
-pep8

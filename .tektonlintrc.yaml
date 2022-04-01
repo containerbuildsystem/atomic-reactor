@@ -1,3 +1,0 @@
----
-rules: # error | warning | off
-  prefer-kebab-case: off
