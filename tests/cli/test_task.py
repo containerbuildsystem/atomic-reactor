@@ -25,7 +25,7 @@ TASK_ARGS = {
 TASK_RESULT = object()
 
 
-def mock(task_cls):
+def mock(task_cls, init_build_dirs=False):
     params = flexmock()
     (
         #  mock the common TaskParams because child classes do not override from_cli_args
@@ -35,7 +35,13 @@ def mock(task_cls):
         .and_return(params)
     )
     flexmock(task_cls).should_receive("__init__").with_args(params)
-    flexmock(task_cls).should_receive("execute").and_return(TASK_RESULT)
+    if init_build_dirs:
+        (flexmock(task_cls)
+         .should_receive("execute")
+         .with_args(init_build_dirs=True)
+         .and_return(TASK_RESULT))
+    else:
+        flexmock(task_cls).should_receive("execute").and_return(TASK_RESULT)
 
 
 def test_source_build():
@@ -54,7 +60,7 @@ def test_binary_container_build():
 
 
 def test_binary_container_postbuild():
-    mock(binary.BinaryPostBuildTask)
+    mock(binary.BinaryPostBuildTask, init_build_dirs=True)
     assert task.binary_container_postbuild(TASK_ARGS) == TASK_RESULT
 
 

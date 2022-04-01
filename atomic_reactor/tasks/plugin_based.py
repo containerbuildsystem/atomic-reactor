@@ -7,10 +7,12 @@ of the BSD license. See the LICENSE file for details.
 """
 
 import logging
+from typing import Optional
 
 from atomic_reactor import inner
 from atomic_reactor.tasks import PluginsDef
 from atomic_reactor.tasks.common import Task, ParamsT
+from atomic_reactor.util import get_platforms
 
 
 # PluginsDef can be considered as part of this module, but is defined elsewhere to avoid cyclic
@@ -40,9 +42,16 @@ class PluginBasedTask(Task[ParamsT]):
         )
         return workflow
 
-    def execute(self):
-        """Execute the plugins defined in plugins_def."""
+    def execute(self, init_build_dirs: Optional[bool] = False):
+        """Execute the plugins defined in plugins_def.
+
+        :param init_build_dirs: bool, whether to initialize build dirs
+        :return: None
+        """
         workflow = self.prepare_workflow()
+
+        if init_build_dirs:
+            workflow.build_dir.init_build_dirs(get_platforms(workflow.data), workflow.source)
 
         try:
             workflow.build_docker_image()
