@@ -20,7 +20,7 @@ from atomic_reactor.tasks.common import TaskParams
 from atomic_reactor.util import DockerfileImages
 from osbs.exceptions import OsbsValidationException
 
-from atomic_reactor import inner
+from atomic_reactor import inner, dirs
 from atomic_reactor.dirs import RootBuildDir, ContextDir
 from atomic_reactor.tasks import plugin_based
 
@@ -104,12 +104,14 @@ class TestPluginBasedTask:
         task = plugin_based.PluginBasedTask(task_params)
         return task, mocked_workflow
 
-    def test_execute(self, task_with_mocked_deps, caplog):
+    @pytest.mark.parametrize("call_init_build_dirs", [True, False])
+    def test_execute(self, task_with_mocked_deps, caplog, call_init_build_dirs):
         task, mocked_workflow = task_with_mocked_deps
 
         mocked_workflow.should_receive("build_docker_image").once()
+        flexmock(dirs.RootBuildDir).should_call('init_build_dirs').times(int(call_init_build_dirs))
 
-        task.execute()
+        task.execute(init_build_dirs=call_init_build_dirs)
         assert r"task finished successfully \o/" in caplog.text
 
     def test_execute_raises_exception(self, task_with_mocked_deps, caplog):

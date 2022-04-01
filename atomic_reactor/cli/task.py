@@ -71,7 +71,7 @@ def binary_container_postbuild(task_args: dict):
     """
     params = TaskParams.from_cli_args(task_args)
     task = BinaryPostBuildTask(params)
-    return task.execute()
+    return task.execute(init_build_dirs=True)
 
 
 def binary_container_exit(task_args: dict):
