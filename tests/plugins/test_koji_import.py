@@ -19,8 +19,6 @@ import os
 import requests
 
 from atomic_reactor.plugins.post_gather_builds_metadata import GatherBuildsMetadataPlugin
-from atomic_reactor.plugins.build_orchestrate_build import (OrchestrateBuildPlugin,
-                                                            WORKSPACE_KEY_BUILD_INFO)
 from atomic_reactor.plugins.post_koji_import import (KojiImportPlugin,
                                                      KojiImportSourceContainerPlugin)
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
@@ -29,7 +27,7 @@ from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.plugin import PluginFailedException, PostBuildPluginsRunner
 from atomic_reactor.inner import DockerBuildWorkflow, TagConf
 from atomic_reactor.util import (ManifestDigest, DockerfileImages,
-                                 get_manifest_media_version, get_manifest_media_type,
+                                 get_manifest_media_version,
                                  graceful_chain_get, RegistryClient)
 from atomic_reactor.source import GitSource, PathSource
 from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE,
@@ -589,14 +587,6 @@ def mock_environment(workflow: DockerBuildWorkflow, source_dir: Path,
     if push_operator_manifests_enabled:
         workflow.data.postbuild_results[PLUGIN_PUSH_OPERATOR_MANIFESTS_KEY] = \
             PUSH_OPERATOR_MANIFESTS_RESULTS
-
-    workflow.data.plugin_workspace = {
-        OrchestrateBuildPlugin.key: {
-            WORKSPACE_KEY_BUILD_INFO: {
-               'x86_64': BuildInfo(help_file='help.md')
-            }
-        }
-    }
 
 
 @pytest.fixture
@@ -1500,55 +1490,6 @@ class TestKojiImport(object):
         else:
             assert expected == image['media_types']
 
-    @pytest.mark.parametrize('digest', [
-        None,
-        ManifestDigest(v2='sha256:abcdef345'),
-        ManifestDigest(v1='sha256:abcdef678'),
-        ManifestDigest(oci='sha256:abcdef901'),
-        ManifestDigest(v2='sha256:abcdef123', v1='sha256:abcdef456'),
-    ])
-    def test_koji_import_set_digests_info(self, workflow, source_dir, digest):
-        session = MockedClientSession('')
-        mock_environment(workflow, source_dir,
-                         name='ns/name', version='1.0', release='1', session=session)
-
-        builds_metadata = workflow.data.postbuild_results[GatherBuildsMetadataPlugin.key]
-
-        for metadata in builds_metadata.values():
-            for output in metadata['output']:
-                if output['type'] != 'docker-image':
-                    continue
-
-                output['extra']['docker']['repositories'] = [
-                    'crane.example.com/foo:tag',
-                    'crane.example.com/foo@sha256:bar',
-                ]
-        workflow.data.postbuild_results[PLUGIN_GROUP_MANIFESTS_KEY] = {
-            "media_type": MEDIA_TYPE_DOCKER_V2_SCHEMA2
-        }
-        orchestrate_plugin = workflow.data.plugin_workspace[OrchestrateBuildPlugin.key]
-        if digest:
-            build_info = BuildInfo(digests=[digest])
-        else:
-            build_info = BuildInfo()
-        orchestrate_plugin[WORKSPACE_KEY_BUILD_INFO]['x86_64'] = build_info
-
-        runner = create_runner(workflow)
-        runner.run()
-
-        data = session.metadata
-        for output in data['output']:
-            if output['type'] != 'docker-image':
-                continue
-            if not digest:
-                assert 'digests' not in output['extra']['docker']
-            else:
-                digest_version = get_manifest_media_version(digest)
-                expected_media_type = get_manifest_media_type(digest_version)
-                expected_digest_value = digest.default
-                expected_digests = {expected_media_type: expected_digest_value}
-                assert output['extra']['docker']['digests'] == expected_digests
-
     @pytest.mark.parametrize('is_scratch', [True, False])
     @pytest.mark.parametrize('digest', [
         None,
@@ -1571,8 +1512,6 @@ class TestKojiImport(object):
                 'manifest_digest': digest
             }
         workflow.data.postbuild_results[PLUGIN_GROUP_MANIFESTS_KEY] = group_manifest_result
-        orchestrate_plugin = workflow.data.plugin_workspace[OrchestrateBuildPlugin.key]
-        orchestrate_plugin[WORKSPACE_KEY_BUILD_INFO]['x86_64'] = BuildInfo()
 
         flexmock(koji_cli.lib).should_receive('unique_path').and_return('upload-dir')
 
@@ -1661,52 +1600,6 @@ class TestKojiImport(object):
                 registry = 'docker-registry.example.com:8888'
                 assert by_tag == '%s/myproject/hello-world:%s' % (registry,
                                                                   version_release)
-
-    @pytest.mark.parametrize('available,expected', [
-        (None, ['sha256:v1', 'sha256:v2']),
-        (['foo', 'sha256:v1'], ['sha256:v1', 'sha256:v2']),
-        (['sha256:v1', 'sha256:v2'], ['sha256:v1', 'sha256:v2']),
-    ])
-    def test_koji_import_unavailable_manifest_digests(self, workflow, source_dir,
-                                                      available, expected):
-        session = MockedClientSession('')
-        mock_environment(workflow, source_dir,
-                         name='ns/name', version='1.0', release='1', session=session)
-
-        builds_metadata = workflow.data.postbuild_results[GatherBuildsMetadataPlugin.key]
-        for metadata in builds_metadata.values():
-            for output in metadata['output']:
-                if output['type'] != 'docker-image':
-                    continue
-
-                output['extra']['docker']['repositories'] = [
-                    'crane.example.com/foo:tag',
-                    'crane.example.com/foo@sha256:v1',
-                    'crane.example.com/foo@sha256:v2',
-                ]
-
-        workflow.data.postbuild_results[PLUGIN_GROUP_MANIFESTS_KEY] = {}
-
-        orchestrate_plugin = workflow.data.plugin_workspace[OrchestrateBuildPlugin.key]
-        orchestrate_plugin[WORKSPACE_KEY_BUILD_INFO]['x86_64'] = BuildInfo()
-
-        runner = create_runner(workflow)
-        runner.run()
-
-        data = session.metadata
-        outputs = data['output']
-        for output in outputs:
-            if output['type'] != 'docker-image':
-                continue
-
-            repositories = output['extra']['docker']['repositories']
-            repositories = [pullspec.split('@', 1)[1]
-                            for pullspec in repositories
-                            if '@' in pullspec]
-            assert repositories == expected
-            break
-        else:
-            raise RuntimeError("no docker-image output found")
 
     @pytest.mark.parametrize(('add_tag_conf_primaries', 'success'), (
         (False, False),
