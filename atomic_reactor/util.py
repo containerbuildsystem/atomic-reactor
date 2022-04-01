@@ -1046,17 +1046,6 @@ def get_manifest_media_version(digest):
     return found_version
 
 
-def get_digests_map_from_annotations(digests_str):
-    digests = {}
-    digests_annotations = json.loads(digests_str)
-    for digest_annotation in digests_annotations:
-        digest_version = digest_annotation['version']
-        digest = digest_annotation['digest']
-        media_type = get_manifest_media_type(digest_version)
-        digests[media_type] = digest
-    return digests
-
-
 def query_registry(
     registry_session, image: ImageName, digest=None, version='v1', is_blob=False
 ) -> requests.Response:

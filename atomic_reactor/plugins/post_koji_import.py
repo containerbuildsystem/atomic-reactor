@@ -22,7 +22,6 @@ from atomic_reactor import start_time as atomic_reactor_start_time
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 from atomic_reactor.source import GitSource
-from atomic_reactor.plugins.build_orchestrate_build import get_worker_build_info
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.util import (OSBSLogs, get_parent_image_koji_data, get_manifest_media_version,
                                  get_platforms, is_manifest_list, map_to_user_params)
@@ -67,7 +66,7 @@ from atomic_reactor.util import (Output,
                                  get_primary_images,
                                  get_floating_images, get_unique_images,
                                  get_manifest_media_type,
-                                 get_digests_map_from_annotations, is_scratch_build,
+                                 is_scratch_build,
                                  has_operator_bundle_manifest,
                                  has_operator_appregistry_manifest,
                                  )
@@ -384,14 +383,6 @@ class KojiImportBase(PostBuildPlugin):
 
                 instance['extra']['docker']['repositories'] = repositories
                 self.log.debug("reset tags to so that docker is %s", instance['extra']['docker'])
-                # OSBS2 TBD: `get_worker_build_info` is imported from
-                # build_orchestrate_build
-                annotations = get_worker_build_info(self.workflow, platform).build.get_annotations()
-
-                digests = {}
-                if 'digests' in annotations:
-                    digests = get_digests_map_from_annotations(annotations['digests'])
-                    instance['extra']['docker']['digests'] = digests
 
     def _update_extra(self, extra):
         # Must be implemented by subclasses
