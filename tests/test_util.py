@@ -1190,27 +1190,37 @@ def test_osbs_logs_get_log_files(tmpdir, source_build):
     osbs_logfiles_metadata = [{'checksum': '1b6c0f6e47915b0d0d12cc0fc863750a',
                                'checksum_type': 'md5',
                                'filename': 'osbs-build.log',
-                               'filesize': 42
+                               'filesize': 42,
+                               'type': 'log',
+                               'arch': 'noarch',
                                },
                               {'checksum': '1d1756214255fcd6941a9ddb37d71020',
                                'checksum_type': 'md5',
                                'filename': 's390x.log',
-                               'filesize': 14
+                               'filesize': 14,
+                               'type': 'log',
+                               'arch': 'noarch',
                                },
                               {'checksum': '790b112736bdb108969589658b069c5b',
                                'checksum_type': 'md5',
                                'filename': 'ppc64le.log',
-                               'filesize': 14
+                               'filesize': 14,
+                               'type': 'log',
+                               'arch': 'noarch',
                                },
                               {'checksum': 'bb6976a430d9a614fe09e87f3ae26a39',
                                'checksum_type': 'md5',
                                'filename': 'aarch64.log',
-                               'filesize': 14
+                               'filesize': 14,
+                               'type': 'log',
+                               'arch': 'noarch',
                                },
                               {'checksum': '782797acf067a76034d5ae0f58618e2f',
                                'checksum_type': 'md5',
                                'filename': 'x86_64.log',
-                               'filesize': 14
+                               'filesize': 14,
+                               'type': 'log',
+                               'arch': 'noarch',
                                }
                               ]
 

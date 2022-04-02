@@ -10,7 +10,7 @@ import functools
 import hashlib
 import os
 from pathlib import Path
-from typing import Iterator, Sequence, Dict
+from typing import Iterator, List, Sequence, Dict
 
 import koji
 
@@ -68,7 +68,7 @@ class FetchMavenArtifactsPlugin(PreBuildPlugin):
             self._pnc_util = PNCUtil(pnc_map)
         return self._pnc_util
 
-    def process_by_nvr(self, nvr_requests):
+    def process_by_nvr(self, nvr_requests: List[NvrRequest]):
         # components are metadata about nvr artifacts that we're going to fetch
         components = []
         download_queue = []

@@ -13,7 +13,7 @@ import tarfile
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, List, Dict
+from typing import Any, Optional, List, Dict
 
 from atomic_reactor.config import get_koji_session, get_cachito_session
 from atomic_reactor.constants import (
@@ -125,7 +125,7 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
 
         return dependency_replacements
 
-    def run(self):
+    def run(self) -> Optional[List[Dict[str, Any]]]:
         if (not self.workflow.conf.allow_multiple_remote_sources
                 and self.multiple_remote_sources_params):
             raise ValueError('Multiple remote sources are not enabled, '
@@ -133,7 +133,7 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
 
         if not (self.single_remote_source_params or self.multiple_remote_sources_params):
             self.log.info('Aborting plugin execution: missing remote source configuration')
-            return
+            return None
 
         if not self.workflow.conf.cachito:
             raise RuntimeError('No Cachito configuration defined')
@@ -328,7 +328,7 @@ class ResolveRemoteSourcePlugin(PreBuildPlugin):
         )
         return remote_source
 
-    def remote_source_to_output(self, remote_source: RemoteSource) -> dict:
+    def remote_source_to_output(self, remote_source: RemoteSource) -> Dict[str, Any]:
         """Convert a processed remote source to a dict to be used as output of this plugin."""
         download_url = self.cachito_session.assemble_download_url(remote_source.id)
         json_filename = RemoteSource.json_filename(remote_source.name)

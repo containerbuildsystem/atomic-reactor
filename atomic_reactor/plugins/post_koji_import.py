@@ -8,12 +8,15 @@ of the BSD license. See the LICENSE file for details.
 
 from functools import cached_property
 import json
+import tempfile
+from itertools import chain
+
 import koji
 import os
 import time
 import logging
 from tempfile import NamedTemporaryFile
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple, Iterable
 
 import koji_cli.lib
 
@@ -27,17 +30,18 @@ from atomic_reactor.util import (OSBSLogs, get_parent_image_koji_data, get_manif
                                  get_platforms, is_flatpak_build, is_manifest_list,
                                  map_to_user_params)
 from atomic_reactor.utils.flatpak_util import FlatpakUtil
-from atomic_reactor.utils.koji import get_buildroot as koji_get_buildroot
-from atomic_reactor.utils.koji import get_output as koji_get_output
 from atomic_reactor.utils.koji import (
-        add_custom_type,
-        get_source_tarballs_output, get_remote_sources_json_output,
-        get_maven_metadata
+    add_type_info,
+    get_buildroot as koji_get_buildroot,
+    get_output as koji_get_output,
+    get_output_metadata,
 )
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 
 from atomic_reactor.constants import (
-    PLUGIN_KOJI_IMPORT_PLUGIN_KEY, PLUGIN_KOJI_IMPORT_SOURCE_CONTAINER_PLUGIN_KEY,
+    PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY,
+    PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
+    PLUGIN_KOJI_IMPORT_SOURCE_CONTAINER_PLUGIN_KEY,
     PLUGIN_FETCH_MAVEN_KEY,
     PLUGIN_GATHER_BUILDS_METADATA_KEY,
     PLUGIN_MAVEN_URL_SOURCES_METADATA_KEY,
@@ -57,8 +61,7 @@ from atomic_reactor.constants import (
     KOJI_SUBTYPE_OP_BUNDLE,
     KOJI_SOURCE_ENGINE,
 )
-from atomic_reactor.util import (Output,
-                                 get_primary_images,
+from atomic_reactor.util import (get_primary_images,
                                  get_floating_images, get_unique_images,
                                  get_manifest_media_type,
                                  is_scratch_build,
@@ -68,6 +71,16 @@ from atomic_reactor.util import (Output,
 from atomic_reactor.utils.koji import (KojiUploadLogger, get_koji_task_owner)
 from atomic_reactor.metadata import label
 from osbs.utils import Labels, ImageName
+
+ArtifactOutputInfo = Tuple[
+    str,  # local file name, metadata is generated from this file.
+    str,  # destination file name, the file name used in Koji.
+    # The type of this output file. It is not set for the maven metadata since
+    # it is already generated in a specific plugin.
+    str,
+    # If set, it is the generated metadata of maven artifacts.
+    Optional[Dict[str, Any]],
+]
 
 
 @label('koji-build-id')
@@ -166,9 +179,23 @@ class KojiImportBase(PostBuildPlugin):
                 else:
                     yield build_platform, output
 
-    def get_output(self, *args):
-        # Must be implemented by subclasses
-        raise NotImplementedError
+    def get_output(self, buildroot_id: str) -> List[Dict[str, Any]]:
+        # Both binary and source build have log files.
+        outputs: List[Dict[str, Any]] = []
+        koji_upload_files = self.workflow.data.koji_upload_files
+        osbs_logs = OSBSLogs(self.log, get_platforms(self.workflow.data))
+        log_files_outputs = osbs_logs.get_log_files(
+            self.osbs, self.workflow.pipeline_run_name
+        )
+        for output in log_files_outputs:
+            metadata = output.metadata
+            metadata['buildroot_id'] = buildroot_id
+            outputs.append(metadata)
+            koji_upload_files.append({
+                "local_filename": output.filename,
+                "dest_filename": metadata["filename"],
+            })
+        return outputs
 
     def get_buildroot(self, *args):
         # Must be implemented by subclasses
@@ -420,80 +447,16 @@ class KojiImportBase(PostBuildPlugin):
 
     def combine_metadata_fragments(self) -> Dict[str, Any]:
         """Construct the CG metadata and collect the output files for upload later."""
-        def add_buildroot_id(output: Output, buildroot_id: str) -> Output:
-            output.metadata.update({'buildroot_id': buildroot_id})
-            return Output(filename=output.filename, metadata=output.metadata)
-
-        def add_log_type(output: Output) -> Output:
-            output.metadata.update({'type': 'log', 'arch': 'noarch'})
-            return Output(filename=output.filename, metadata=output.metadata)
-
         build = self.get_build()
         buildroot = self.get_buildroot()
         buildroot_id = buildroot[0]['id']
-
-        # Collect the output files, which will be uploaded later.
-        koji_upload_files = self.workflow.data.koji_upload_files
-
-        output: List[Dict[str, Any]]  # List of metadatas
-        # The corresponding output file, only has one for source build
-        output_file: Optional[Output]
-
-        output, output_file = self.get_output(buildroot_id)
-        if output_file:
-            koji_upload_files.append({
-                "local_filename": output_file.filename,
-                "dest_filename": output[0]["filename"],
-            })
-
-        # Collect log files
-        osbs_logs = OSBSLogs(self.log, get_platforms(self.workflow.data))
-        log_files_output = [
-            add_log_type(add_buildroot_id(md, buildroot_id))
-            for md in osbs_logs.get_log_files(self.osbs, self.workflow.pipeline_run_name)
-        ]
-        for log_file_output in log_files_output:
-            output.append(log_file_output.metadata)
-            koji_upload_files.append({
-                "local_filename": log_file_output.filename,
-                "dest_filename": log_file_output.metadata["filename"],
-            })
-
-        remote_source_file_outputs, kojifile_components = get_maven_metadata(self.workflow.data)
-
-        # add maven components alongside RPM components
-        for metadata in output:
-            if metadata['type'] == 'docker-image':
-                metadata['components'] += kojifile_components
-
-        # add remote sources tarballs and remote sources json files to output
-        for remote_source_output in [
-            *get_source_tarballs_output(self.workflow),
-            *get_remote_sources_json_output(self.workflow)
-        ]:
-            add_custom_type(remote_source_output, KOJI_BTYPE_REMOTE_SOURCES)
-            remote_source = add_buildroot_id(remote_source_output, buildroot_id)
-            output.append(remote_source.metadata)
-            koji_upload_files.append({
-                "local_filename": remote_source.filename,
-                "dest_filename": remote_source.metadata["filename"],
-            })
-
-        for remote_source_file_output in remote_source_file_outputs:
-            remote_source_file = add_buildroot_id(remote_source_file_output, buildroot_id)
-            output.append(remote_source_file.metadata)
-            koji_upload_files.append({
-                "local_filename": remote_source_file_output.filename,
-                "dest_filename": remote_source_file_output.metadata["filename"],
-            })
-
-        koji_metadata = {
+        output = self.get_output(buildroot_id)
+        return {
             'metadata_version': 0,
             'build': build,
             'buildroots': buildroot,
             'output': output,
         }
-        return koji_metadata
 
     def upload_file(self, local_filename: str, dest_filename: str, serverdir: str) -> str:
         """
@@ -613,20 +576,98 @@ class KojiImportPlugin(KojiImportBase):
             self.log.error("invalid task ID %r", fs_task_id, exc_info=1)
             return None
 
-    def get_output(self, buildroot_id):
-        """
-        Build the output entry of the metadata.
+    def _collect_remote_sources(self) -> Iterable[ArtifactOutputInfo]:
+        wf_data = self.workflow.data
+        # a list of metadata describing the remote sources.
+        plugin_results: List[Dict[str, Any]]
+        plugin_results = wf_data.prebuild_results.get(PLUGIN_RESOLVE_REMOTE_SOURCE) or []
+        tmpdir = tempfile.mkdtemp()
 
+        for remote_source in plugin_results:
+            remote_source_tarball = remote_source['remote_source_tarball']
+            local_filename = remote_source_tarball['path']
+            dest_filename = remote_source_tarball['filename']
+            yield local_filename, dest_filename, KOJI_BTYPE_REMOTE_SOURCES, None
+
+            remote_source_json = remote_source['remote_source_json']
+            remote_source_json_filename = remote_source_json['filename']
+            file_path = os.path.join(tmpdir, remote_source_json_filename)
+            with open(file_path, 'w') as f:
+                json.dump(remote_source_json['json'], f, indent=4, sort_keys=True)
+            yield (file_path,
+                   remote_source_json_filename,
+                   KOJI_BTYPE_REMOTE_SOURCES,
+                   None)
+
+    def _collect_exported_operator_manifests(self) -> Iterable[ArtifactOutputInfo]:
+        wf_data = self.workflow.data
+        operator_manifests_path = wf_data.postbuild_results.get(
+            PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY
+        )
+        if operator_manifests_path:
+            yield (operator_manifests_path,
+                   OPERATOR_MANIFESTS_ARCHIVE,
+                   KOJI_BTYPE_OPERATOR_MANIFESTS,
+                   None)
+
+    def _collect_maven_metadata(self) -> Iterable[ArtifactOutputInfo]:
+        wf_data = self.workflow.data
+        result = wf_data.postbuild_results.get(PLUGIN_MAVEN_URL_SOURCES_METADATA_KEY) or {}
+        for remote_source_file in result.get('remote_source_files', []):
+            metadata = remote_source_file['metadata']
+            yield remote_source_file['file'], metadata['filename'], '', metadata
+
+    def get_output(self, buildroot_id: str) -> List[Dict[str, Any]]:
+        """Assemble outputs specific to a binary build.
+
+        The corresponding files to be uploaded are also recorded for later
+        upload.
+
+        :param str buildroot_id: for binary build, this argument is ignored.
+            Instead, use the buildroot id which is already set in the build
+            metadata.
         :return: list, containing dicts of partial metadata
         """
-        outputs = []
-        output_file = None
+        wf_data = self.workflow.data
 
-        for platform, instance in self._iter_build_metadata_outputs():
-            instance['buildroot_id'] = '{}-{}'.format(platform, instance['buildroot_id'])
-            outputs.append(instance)
+        result = wf_data.prebuild_results.get(PLUGIN_FETCH_MAVEN_KEY) or {}
+        maven_components = result.get('components', [])
 
-        return outputs, output_file
+        platform: str
+        output: Dict[str, Any]  # an output metadata of the build
+        outputs: List[Dict[str, Any]] = []
+
+        for platform, output in self._iter_build_metadata_outputs():
+            buildroot_id = output['buildroot_id']
+            output['buildroot_id'] = f'{platform}-{buildroot_id}'
+            if maven_components and output['type'] == 'docker-image':
+                # add maven components alongside RPM components
+                output['components'] += maven_components
+            outputs.append(output)
+
+        buildroot_id = outputs[0]['buildroot_id']
+
+        for local_filename, dest_filename, type_info, metadata in chain(
+            self._collect_exported_operator_manifests(),
+            self._collect_remote_sources(),
+            self._collect_maven_metadata(),
+        ):
+            # Maven metadata has been generated already, use it directly.
+            if metadata is None:
+                metadata = get_output_metadata(local_filename, dest_filename)
+                add_type_info(metadata, type_info)
+            metadata['buildroot_id'] = buildroot_id
+            outputs.append(metadata)
+            wf_data.koji_upload_files.append(
+                {
+                    'local_filename': local_filename,
+                    'dest_filename': dest_filename,
+                }
+            )
+
+        outputs.extend(super().get_output(buildroot_id))
+
+        return outputs
 
     def get_buildroot(self):
         """
@@ -722,12 +763,22 @@ class KojiImportSourceContainerPlugin(KojiImportBase):
 
     key = PLUGIN_KOJI_IMPORT_SOURCE_CONTAINER_PLUGIN_KEY  # type: ignore
 
-    def get_output(self, buildroot_id):
+    def get_output(self, buildroot_id: str) -> List[Dict[str, Any]]:
+        outputs = super().get_output(buildroot_id)
         pullspec = get_unique_images(self.workflow)[0]
-
-        return koji_get_output(workflow=self.workflow, buildroot_id=buildroot_id,
-                               pullspec=pullspec, platform=os.uname()[4],
-                               source_build=True)
+        metadatas, output_file = koji_get_output(
+            workflow=self.workflow,
+            buildroot_id=buildroot_id,
+            pullspec=pullspec,
+            platform=os.uname()[4],
+            source_build=True,
+        )
+        self.workflow.data.koji_upload_files.append({
+            "local_filename": output_file.filename,
+            "dest_filename": output_file.metadata['filename'],
+        })
+        outputs.extend(metadatas)
+        return outputs
 
     def get_buildroot(self):
         """

@@ -9,6 +9,7 @@ of the BSD license. See the LICENSE file for details.
 from collections import namedtuple
 import json
 from pathlib import Path
+from typing import Any, Dict
 from atomic_reactor.plugins.post_fetch_docker_archive import FetchDockerArchivePlugin
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 
@@ -30,8 +31,9 @@ from atomic_reactor.util import (ManifestDigest, DockerfileImages,
                                  get_manifest_media_version,
                                  graceful_chain_get, RegistryClient)
 from atomic_reactor.source import GitSource, PathSource
-from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE,
+from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, KOJI_BTYPE_OPERATOR_MANIFESTS,
                                       PLUGIN_ADD_FILESYSTEM_KEY,
+                                      PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY,
                                       PLUGIN_MAVEN_URL_SOURCES_METADATA_KEY,
                                       PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_KOJI_PARENT_KEY,
                                       PLUGIN_RESOLVE_COMPOSES_KEY, BASE_IMAGE_KOJI_BUILD,
@@ -98,7 +100,9 @@ class MockedClientSession(object):
     DEST_TAG = 'images-candidate'
 
     def __init__(self, hub, opts=None, task_states=None):
-        self.uploaded_files = {}
+        self.metadata: Dict[str, Any] = {}
+        # destination filename on Koji => file content
+        self.uploaded_files: Dict[str, bytes] = {}
         self.build_tags = {}
         self.task_states = task_states or ['OPEN']
 
@@ -2383,3 +2387,39 @@ class TestKojiImport(object):
 
         if log is not None:
             assert log in caplog.text
+
+    @pytest.mark.parametrize('has_exported_operator_manifests', [True, False])
+    def test_binary_build_metadata_includes_exported_operator_manifests(
+            self, has_exported_operator_manifests, workflow, source_dir
+    ):
+        session = MockedClientSession('')
+        mock_environment(workflow, source_dir,
+                         name='ns/name', version='1.0', release='1',
+                         session=session)
+
+        if has_exported_operator_manifests:
+            build_dir_path = workflow.build_dir.any_platform.path
+            archive_file = build_dir_path / OPERATOR_MANIFESTS_ARCHIVE
+            archive_file.write_bytes(b'20220329')
+            results = workflow.data.postbuild_results
+            results[PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY] = str(archive_file)
+
+        runner = create_runner(workflow)
+        runner.run()
+
+        # Find the operator manifests output
+        output = None
+        for item in session.metadata['output']:
+            if item['type'] == KOJI_BTYPE_OPERATOR_MANIFESTS:
+                output = item
+                break
+
+        if not has_exported_operator_manifests:
+            assert output is None, \
+                'Metadata output should not have exported operator manifests.'
+            return
+
+        assert output is not None, 'Missing output of exported operator manifests'
+        expected_buildroot_id = session.metadata['buildroots'][0]['id']
+        assert expected_buildroot_id == output['buildroot_id']
+        assert OPERATOR_MANIFESTS_ARCHIVE in session.uploaded_files
