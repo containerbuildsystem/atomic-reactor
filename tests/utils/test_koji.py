@@ -22,12 +22,10 @@ from atomic_reactor.utils.koji import (koji_login, create_koji_session,
                                        get_koji_module_build, KojiUploadLogger,
                                        get_output)
 from atomic_reactor.plugin import BuildCanceledException
-from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE,
-                                      KOJI_MAX_RETRIES,
+from atomic_reactor.constants import (KOJI_MAX_RETRIES,
                                       KOJI_OFFLINE_RETRY_INTERVAL,
                                       KOJI_RETRY_INTERVAL,
-                                      OPERATOR_MANIFESTS_ARCHIVE,
-                                      PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY)
+                                      IMAGE_TYPE_DOCKER_ARCHIVE)
 from flexmock import flexmock
 import pytest
 
@@ -434,12 +432,10 @@ class TestKojiUploadLogger(object):
 # Test whether extra.docker.parent_id should be set
 @pytest.mark.parametrize('from_scratch', [True, False])
 @pytest.mark.parametrize('no_v2_digest', [True, False])
-@pytest.mark.parametrize('has_export_operator_manifests', [True, False])
 @pytest.mark.parametrize('is_flatpak', [True, False])
-def test_binary_build_get_output(has_export_operator_manifests: bool,
-                                 is_flatpak: bool,
-                                 no_v2_digest: bool,
+def test_binary_build_get_output(no_v2_digest: bool,
                                  from_scratch: bool,
+                                 is_flatpak: bool,
                                  workflow: DockerBuildWorkflow,
                                  tmpdir):
     platform = "x86_64"
@@ -523,11 +519,6 @@ def test_binary_build_get_output(has_export_operator_manifests: bool,
         platform: {'type': IMAGE_TYPE_DOCKER_ARCHIVE}
     }
 
-    if has_export_operator_manifests:
-        archive_file = tmpdir.join(OPERATOR_MANIFESTS_ARCHIVE)
-        archive_file.write_binary(b'20220329')
-        workflow.data.postbuild_results[PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY] = str(archive_file)
-
     output, output_file = get_output(
         workflow, buildroot_id, image_pullspec, platform, source_build=False
     )
@@ -577,10 +568,7 @@ def test_binary_build_get_output(has_export_operator_manifests: bool,
 
     # Start assertions
     assert output_file is None
-    if has_export_operator_manifests:
-        assert len(output) == 2
-    else:
-        assert len(output) == 1
+    assert len(output) == 1
 
     image_metadata = output[0].metadata
 
@@ -595,9 +583,3 @@ def test_binary_build_get_output(has_export_operator_manifests: bool,
     extra_docker['repositories'] = sorted(extra_docker['repositories'])
 
     assert expected_metadata == image_metadata
-
-    if has_export_operator_manifests:
-        manifests_output = output[1]
-        assert str(tmpdir.join(OPERATOR_MANIFESTS_ARCHIVE)) == manifests_output.filename
-        assert buildroot_id == manifests_output.metadata['buildroot_id']
-        assert OPERATOR_MANIFESTS_ARCHIVE == manifests_output.metadata['filename']

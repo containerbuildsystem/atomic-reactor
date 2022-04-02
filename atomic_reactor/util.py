@@ -57,6 +57,7 @@ from dockerfile_parse import DockerfileParser
 from importlib import import_module
 from requests.utils import guess_json_utf
 
+from osbs.api import OSBS
 from osbs.exceptions import OsbsException
 from osbs.utils import clone_git_repo, reset_git_repo, Labels, ImageName
 from osbs.utils import yaml as osbs_yaml
@@ -1473,11 +1474,13 @@ class OSBSLogs(object):
         metadata = {'filename': filename,
                     'filesize': os.path.getsize(path),
                     'checksum': checksums['md5sum'],
-                    'checksum_type': 'md5'}
+                    'checksum_type': 'md5',
+                    'type': 'log',
+                    'arch': 'noarch'}
 
         return metadata
 
-    def get_log_files(self, osbs, pipeline_run_name) -> List[Output]:
+    def get_log_files(self, osbs: OSBS, pipeline_run_name) -> List[Output]:
         """
         Build list of log files
 
