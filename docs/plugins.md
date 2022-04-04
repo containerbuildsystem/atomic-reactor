@@ -158,7 +158,7 @@ containing the Dockerfile.
   - Labels that are specified in the builder configuration, such as the vendor
     name, distribution scope, and authoritative registry, are added to the
     Dockerfile using LABEL. This plugin also adds automatic labels such as the
-    build date, architecture, build host, info url, and git reference.
+    build date, architecture, info url, and git reference.
 - **change_from_in_dockerfile**
   - Status: Enabled
   - The FROM line in the Dockerfile is changed so that it references the

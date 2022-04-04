@@ -81,8 +81,7 @@ class AddLabelsPlugin(PreBuildPlugin):
                  auto_labels=("build-date",
                               "architecture",
                               "vcs-type",
-                              "vcs-ref",
-                              "com.redhat.build-host"),
+                              "vcs-ref"),
                  aliases=None,
                  dont_overwrite_if_in_dockerfile=("distribution-scope",
                                                   "com.redhat.license_terms")):
@@ -137,13 +136,7 @@ class AddLabelsPlugin(PreBuildPlugin):
         # build date
         dt = datetime.datetime.utcfromtimestamp(atomic_reactor_start_time)
 
-        generated = {
-            'build-date': dt.isoformat(),
-            'architecture': platform,
-            # OSBS2 TBD: the build-host label will either be dropped or will require
-            #   extra logic in the build task implementation
-            # 'com.redhat.build-host': <not yet known>,
-        }
+        generated = {'build-date': dt.isoformat(), 'architecture': platform}
 
         # VCS info
         vcs = self.workflow.source.get_vcs_info()
