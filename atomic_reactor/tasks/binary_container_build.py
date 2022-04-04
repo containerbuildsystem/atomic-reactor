@@ -95,6 +95,9 @@ class BinaryBuildTask(Task[BinaryBuildTaskParams]):
                 remote_resource, registries_authfile=get_authfile_path(config.registry)
             )
 
+            # log the image+host for auditing purposes
+            logger.info("Building image=%s on host=%s", dest_tag, remote_resource.host.hostname)
+
             output_lines = podman_remote.build_container(
                 build_dir=build_dir,
                 build_args=data.buildargs,
