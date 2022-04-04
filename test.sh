@@ -50,7 +50,7 @@ function setup_osbs() {
 
   # List common install dependencies
   PKG_COMMON_EXTRA=(git-core gcc krb5-devel "$PY_PKG-devel" popt-devel redhat-rpm-config
-                    cairo-devel gobject-introspection-devel cairo-gobject-devel)
+                    cairo-devel gobject-introspection-devel cairo-gobject-devel ostree)
   PKG_EXTRA+=("${PKG_COMMON_EXTRA[@]}")
 
   PIP_INST=("$PIP" install --index-url "${PYPI_INDEX:-https://pypi.org/simple}")
