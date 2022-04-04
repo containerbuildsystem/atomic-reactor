@@ -314,17 +314,8 @@ class KojiImportBase(PostBuildPlugin):
             extra.setdefault('typeinfo', {}).update(r_s_f_typeinfo)
 
     def set_group_manifest_info(self, extra):
-        version_release = None
-        primary_images = get_primary_images(self.workflow)
-        if primary_images:
-            version_release = primary_images[0].tag
-
-        if is_scratch_build(self.workflow):
-            tags = [image.tag for image in self.workflow.data.tag_conf.images]
-            version_release = tags[0]
-        else:
-            assert version_release is not None, 'Unable to find version-release image'
-            tags = [image.tag for image in primary_images]
+        tags = [image.tag for image in self.workflow.data.tag_conf.images]
+        version_release = tags[0]
 
         floating_tags = [image.tag for image in get_floating_images(self.workflow)]
         unique_images = get_unique_images(self.workflow)
