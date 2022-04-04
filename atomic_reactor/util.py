@@ -913,7 +913,8 @@ class RegistryClient(object):
             image_inspect['RootFS'] = {'Type': rootfs['type'], 'Layers': rootfs['diff_ids']}
 
         for old_key, new_key in config_2_inspect.items():
-            image_inspect[new_key] = blob_config[old_key]
+            if old_key in blob_config:
+                image_inspect[new_key] = blob_config[old_key]
 
         return image_inspect
 
