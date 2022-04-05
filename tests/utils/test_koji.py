@@ -1,5 +1,5 @@
 """
-Copyright (c) 2016, 2019 Red Hat, Inc
+Copyright (c) 2016-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -12,6 +12,7 @@ from typing import Any, Dict
 import koji
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugins.post_fetch_docker_archive import FetchDockerArchivePlugin
+from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.util import DockerfileImages, ManifestDigest, RegistryClient
 import atomic_reactor.utils.koji as koji_util
 
@@ -22,15 +23,17 @@ from atomic_reactor.utils.koji import (koji_login, create_koji_session,
                                        get_koji_module_build, KojiUploadLogger,
                                        get_output)
 from atomic_reactor.plugin import BuildCanceledException
-from atomic_reactor.constants import (KOJI_MAX_RETRIES,
+from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE,
+                                      KOJI_MAX_RETRIES,
                                       KOJI_OFFLINE_RETRY_INTERVAL,
                                       KOJI_RETRY_INTERVAL,
                                       OPERATOR_MANIFESTS_ARCHIVE,
                                       PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY,
-                                      IMAGE_TYPE_DOCKER_ARCHIVE)
+                                      PLUGIN_FLATPAK_CREATE_OCI)
 from flexmock import flexmock
 import pytest
 
+from atomic_reactor.utils.rpm import parse_rpm_output
 
 KOJI_RETRY_OPTS = {'anon_retry': True, 'max_retries': KOJI_MAX_RETRIES,
                    'retry_interval': KOJI_RETRY_INTERVAL, 'offline_retry': True,
@@ -434,7 +437,9 @@ class TestKojiUploadLogger(object):
 @pytest.mark.parametrize('from_scratch', [True, False])
 @pytest.mark.parametrize('no_v2_digest', [True, False])
 @pytest.mark.parametrize('has_export_operator_manifests', [True, False])
+@pytest.mark.parametrize('is_flatpak', [True, False])
 def test_binary_build_get_output(has_export_operator_manifests: bool,
+                                 is_flatpak: bool,
                                  no_v2_digest: bool,
                                  from_scratch: bool,
                                  workflow: DockerBuildWorkflow,
@@ -442,6 +447,24 @@ def test_binary_build_get_output(has_export_operator_manifests: bool,
     platform = "x86_64"
     buildroot_id = f'{platform}-1'
     image_pullspec = ImageName.parse("ns/image:latest")
+    expected_components = []
+
+    if not from_scratch:
+        package_list = ['python-docker-py;1.3.1;1.fc24;noarch;(none);191456;'
+                        '7c1f60d8cde73e97a45e0c489f4a3b26;1438058212;(none);(none);(none);(none)',
+                        'fedora-repos-rawhide;24;0.1;noarch;(none);2149;'
+                        'd41df1e059544d906363605d47477e60;1436940126;(none);(none);(none);(none)',
+                        'gpg-pubkey-doc;1.0;1;noarch;(none);1000;'
+                        '00000000000000000000000000000000;1436940126;(none);(none);(none);(none)']
+        expected_components = parse_rpm_output(package_list)
+
+    if is_flatpak:
+        workflow.user_params['flatpak'] = True
+        workflow.data.postbuild_results[PLUGIN_FLATPAK_CREATE_OCI] = {platform: {'components':
+                                                                                 expected_components
+                                                                                 }}
+    else:
+        workflow.data.postbuild_results[PostBuildRPMqaPlugin.key] = {platform: expected_components}
 
     if from_scratch:
         workflow.data.dockerfile_images = DockerfileImages(['scratch'])
@@ -533,7 +556,7 @@ def test_binary_build_get_output(has_export_operator_manifests: bool,
         'checksum_type': 'md5',
         'arch': platform,
         'type': 'docker-image',
-        'components': [],
+        'components': expected_components,
         'extra': {
             'image': {'arch': platform},
             'docker': {
