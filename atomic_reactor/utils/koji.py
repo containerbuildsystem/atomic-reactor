@@ -32,12 +32,12 @@ from atomic_reactor.constants import (DEFAULT_DOWNLOAD_BLOCK_SIZE,
                                       PLUGIN_MAVEN_URL_SOURCES_METADATA_KEY,
                                       KOJI_MAX_RETRIES,
                                       KOJI_RETRY_INTERVAL, KOJI_OFFLINE_RETRY_INTERVAL,
-                                      PLUGIN_FETCH_MAVEN_KEY)
+                                      PLUGIN_FETCH_MAVEN_KEY, PLUGIN_FLATPAK_CREATE_OCI)
 from atomic_reactor.types import RpmComponent
 from atomic_reactor.util import (Output, get_image_upload_filename,
                                  get_checksums, get_manifest_media_type,
                                  create_tar_gz_archive, get_config_from_registry,
-                                 get_manifest_digests)
+                                 get_manifest_digests, is_flatpak_build)
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from osbs.utils import ImageName
 
@@ -412,18 +412,18 @@ def get_maven_metadata(workflow_data) -> Tuple[List[Output], List[RpmComponent]]
     return outputs, components
 
 
-def get_image_components(workflow: DockerBuildWorkflow, platform: str) -> List[RpmComponent]:
+def get_image_components(workflow: DockerBuildWorkflow, image_platform: str) -> List[RpmComponent]:
     """
-    Re-package the output of the rpmqa plugin into the format required
-    for the metadata.
+    Re-package the output of the `rpmqa` or `flatpak_create_oci`(for flatpak) plugin into the format
+    required for the metadata.
     """
-    # platform => None or list of rpms
-    components: Optional[Dict[str, Optional[List[RpmComponent]]]]
-    components = workflow.data.postbuild_results.get(PostBuildRPMqaPlugin.key)
-    if components is None:
-        logger.error("%s plugin did not run!", PostBuildRPMqaPlugin.key)
-        return []
-    return components[platform] or []
+    components: List[RpmComponent]
+    if is_flatpak_build(workflow):
+        flatpak_result = workflow.data.postbuild_results[PLUGIN_FLATPAK_CREATE_OCI][image_platform]
+        components = flatpak_result['components']
+    else:
+        components = workflow.data.postbuild_results[PostBuildRPMqaPlugin.key][image_platform]
+    return components or []
 
 
 def add_custom_type(output: Output, custom_type: str, content: Optional[Dict[str, Any]] = None):
