@@ -85,7 +85,7 @@ class GroupManifestsPlugin(PostBuildPlugin):
             # At this point, only the unique image has been built and pushed. Primary tags will
             #   be pushed by this plugin, floating tags by the push_floating_tags plugin.
             image = tag_conf.get_unique_images_with_platform(platform)[0]
-            manifest_digests = client.get_manifest_digests(image)
+            manifest_digests = client.get_manifest_digests(image, versions=('v2',))
 
             if len(manifest_digests) != 1:
                 raise RuntimeError(
