@@ -126,7 +126,8 @@ def test_tag_and_push_plugin(
     for current_platform in platforms:
         metadata = deepcopy(IMAGE_METADATA_OCI)
         metadata['ref_name'] = f'app/org.gnome.eog/{current_platform}/master'
-        workflow.data.postbuild_results[PLUGIN_FLATPAK_CREATE_OCI][current_platform] = metadata
+        workflow.data.postbuild_results[PLUGIN_FLATPAK_CREATE_OCI][current_platform] = {
+            'metadata': metadata}
 
     manifest_latest_url = "https://{}/v2/{}/manifests/latest".format(LOCALHOST_REGISTRY, TEST_IMAGE)
     manifest_url = "https://{}/v2/{}/manifests/{}".format(LOCALHOST_REGISTRY, TEST_IMAGE, DIGEST_V2)
@@ -324,7 +325,8 @@ def test_tag_and_push_plugin_oci(workflow, monkeypatch, is_source_build, v2s2,
             metadata = deepcopy(IMAGE_METADATA_OCI)
             metadata['ref_name'] = ref_name.replace('x86_64', current_platform)
             metadata['type'] = image_type
-            workflow.data.postbuild_results[PLUGIN_FLATPAK_CREATE_OCI][current_platform] = metadata
+            workflow.data.postbuild_results[PLUGIN_FLATPAK_CREATE_OCI][current_platform] = {
+                'metadata': metadata}
 
     # Mock the call to skopeo
 
