@@ -17,11 +17,13 @@ from typing import Any, Dict, Optional
 
 from flatpak_module_tools.flatpak_builder import FlatpakBuilder, FLATPAK_METADATA_ANNOTATIONS
 
-from atomic_reactor.constants import IMAGE_TYPE_OCI, PLUGIN_FLATPAK_CREATE_OCI
+from atomic_reactor.constants import (IMAGE_TYPE_OCI,
+                                      PLUGIN_FLATPAK_CREATE_OCI,
+                                      PLUGIN_RESOLVE_COMPOSES_KEY)
 from atomic_reactor.dirs import BuildDir
 from atomic_reactor.plugin import PostBuildPlugin
-from atomic_reactor.plugins.pre_flatpak_update_dockerfile import get_flatpak_source_info
 from atomic_reactor.util import get_exported_image_metadata, is_flatpak_build
+from atomic_reactor.utils.flatpak_util import FlatpakUtil
 from atomic_reactor.utils.rpm import parse_rpm_output
 
 
@@ -84,7 +86,12 @@ class FlatpakCreateOciPlugin(PostBuildPlugin):
             self.log.info('not flatpak build, skipping plugin')
             return None
 
-        source = get_flatpak_source_info(self.workflow)
+        resolve_comp_result: Dict[str, Any] = self.workflow.data.prebuild_results[
+            PLUGIN_RESOLVE_COMPOSES_KEY]
+        flatpak_util = FlatpakUtil(workflow_config=self.workflow.conf,
+                                   source_config=self.workflow.source.config,
+                                   composes=resolve_comp_result['composes'])
+        source = flatpak_util.get_flatpak_source_info()
         if not source:
             raise RuntimeError("flatpak_create_dockerfile must be run before flatpak_create_oci")
 

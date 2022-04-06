@@ -20,6 +20,7 @@ from osbs.repo_utils import ModuleSpec
 
 from atomic_reactor.constants import RELATIVE_REPOS_PATH, YUM_REPOS_DIR
 from atomic_reactor.plugin import PreBuildPlugin
+from atomic_reactor.utils.flatpak_util import FlatpakUtil
 from atomic_reactor.utils.rpm import rpm_qf_args
 from atomic_reactor.util import is_flatpak_build
 
@@ -66,7 +67,6 @@ RUN chroot /var/tmp/flatpak-build/ /bin/sh /tmp/cleanup.sh
 
 FLATPAK_INCLUDEPKGS_FILENAME = 'atomic-reactor-includepkgs'
 FLATPAK_CLEANUPSCRIPT_FILENAME = 'cleanup.sh'
-WORKSPACE_SOURCE_SPEC_KEY = 'source_spec'
 
 
 class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
@@ -84,22 +84,6 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
 
         self.default_base_image = self.workflow.conf.flatpak_base_image
 
-    def _load_source_spec(self):
-        # Find out the name:stream of the module we're building from (the version is
-        # not known until ODCS resolves the module to a particular build)
-
-        modules = self.workflow.source.config.compose.get('modules', [])
-
-        if not modules:
-            raise RuntimeError('"compose" config has no modules, a module is required for Flatpaks')
-
-        source_spec = modules[0]
-        if len(modules) > 1:
-            self.log.info("compose config contains multiple modules,"
-                          "using first module %s", source_spec)
-
-        set_flatpak_source_spec(self.workflow, source_spec)
-
     def run(self):
         """
         run the plugin
@@ -108,8 +92,10 @@ class FlatpakCreateDockerfilePlugin(PreBuildPlugin):
             self.log.info('not flatpak build, skipping plugin')
             return
 
-        self._load_source_spec()
-        source_spec = get_flatpak_source_spec(self.workflow)
+        flatpak_util = FlatpakUtil(workflow_config=self.workflow.conf,
+                                   source_config=self.workflow.source.config,
+                                   composes=None)
+        source_spec = flatpak_util.get_flatpak_source_spec()
         module_info = ModuleSpec.from_str(source_spec)
 
         # Load additional information from the flatpak section
