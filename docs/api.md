@@ -476,7 +476,6 @@ This class defines a workflow for building images
 - kwargs
 - plugin_failed
 - plugin_files
-- plugin_workspace
 - plugins_durations
 - plugins_errors
 - plugins_timestamps

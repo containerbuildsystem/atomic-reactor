@@ -294,7 +294,6 @@ class ImageBuildWorkflowData(ISerializer):
     postbuild_results: Dict[str, Any] = field(default_factory=dict)
     prepub_results: Dict[str, Any] = field(default_factory=dict)
     exit_results: Dict[str, Any] = field(default_factory=dict)
-    plugin_workspace: Dict[str, Any] = field(default_factory=dict)
 
     # Plugin name -> timestamp in isoformat
     plugins_timestamps: Dict[str, str] = field(default_factory=dict)

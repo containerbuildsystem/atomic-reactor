@@ -9,10 +9,7 @@ from pathlib import Path
 
 from atomic_reactor.plugin import BuildCanceledException, PluginFailedException
 from atomic_reactor.plugin import BuildStepPluginsRunner
-from atomic_reactor.plugins.build_orchestrate_build import (OrchestrateBuildPlugin,
-                                                            get_worker_build_info,
-                                                            get_koji_upload_dir,
-                                                            override_build_kwarg)
+from atomic_reactor.plugins.build_orchestrate_build import OrchestrateBuildPlugin
 from atomic_reactor.util import df_parser
 import atomic_reactor.util
 from atomic_reactor.constants import (PLUGIN_ADD_FILESYSTEM_KEY,
@@ -371,9 +368,6 @@ def test_orchestrate_build(workflow, source_dir, caplog,
         }
     })
 
-    build_info = get_worker_build_info(workflow, 'x86_64')
-    assert build_info.osbs
-
     for record in caplog.records:
         if not record.name.startswith("atomic_reactor"):
             continue
@@ -477,12 +471,6 @@ def test_orchestrate_build_annotations_and_labels(workflow, source_dir, metadata
         expected['worker-builds']['ppc64le'].update(md)
 
     assert (build_result.annotations == expected)
-
-    build_info = get_worker_build_info(workflow, 'x86_64')
-    assert build_info.osbs
-
-    koji_upload_dir = get_koji_upload_dir(workflow)
-    assert koji_upload_dir
 
 
 def test_orchestrate_choose_cluster_retry(workflow, source_dir):
@@ -996,9 +984,6 @@ def test_orchestrate_override_build_kwarg(workflow, source_dir, overrides):
         'worker_build_image': 'fedora:latest',
     }
 
-    for plat, value in overrides.items():
-        override_build_kwarg(workflow, 'release', value, plat)
-
     runner = BuildStepPluginsRunner(
         workflow,
         [{
@@ -1384,12 +1369,6 @@ def test_set_build_image_with_override(workflow, source_dir, platforms, override
     )
 
     runner.run()
-
-    for plat in platforms:
-        used_image = get_worker_build_info(workflow, plat).osbs.build_conf.get_build_from()
-        expected_image = 'image:' + reactor_config['build_image_override'].get(plat,
-                                                                               default_build_image)
-        assert used_image == expected_image
 
 
 def test_no_platforms(workflow, source_dir):

@@ -1,5 +1,5 @@
 """
-Copyright (c) 2017 Red Hat, Inc
+Copyright (c) 2017-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -67,21 +67,6 @@ RUN chroot /var/tmp/flatpak-build/ /bin/sh /tmp/cleanup.sh
 FLATPAK_INCLUDEPKGS_FILENAME = 'atomic-reactor-includepkgs'
 FLATPAK_CLEANUPSCRIPT_FILENAME = 'cleanup.sh'
 WORKSPACE_SOURCE_SPEC_KEY = 'source_spec'
-
-
-def get_flatpak_source_spec(workflow):
-    key = FlatpakCreateDockerfilePlugin.key
-    if key not in workflow.data.plugin_workspace:
-        return None
-    return workflow.data.plugin_workspace[key].get(WORKSPACE_SOURCE_SPEC_KEY, None)
-
-
-def set_flatpak_source_spec(workflow, module_info):
-    key = FlatpakCreateDockerfilePlugin.key
-
-    workflow.data.plugin_workspace.setdefault(key, {})
-    workspace = workflow.data.plugin_workspace[key]
-    workspace[WORKSPACE_SOURCE_SPEC_KEY] = module_info
 
 
 class FlatpakCreateDockerfilePlugin(PreBuildPlugin):

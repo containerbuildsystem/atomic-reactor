@@ -45,35 +45,6 @@ def get_build_json():
     return {}
 
 
-def get_worker_build_info(workflow, platform):
-    """
-    Obtain worker build information for a given platform
-    """
-    workspace = workflow.data.plugin_workspace[OrchestrateBuildPlugin.key]
-    return workspace[WORKSPACE_KEY_BUILD_INFO][platform]
-
-
-def get_koji_upload_dir(workflow):
-    """
-    Obtain koji_upload_dir value used for worker builds
-    """
-    workspace = workflow.data.plugin_workspace[OrchestrateBuildPlugin.key]
-    return workspace[WORKSPACE_KEY_UPLOAD_DIR]
-
-
-def override_build_kwarg(workflow, k, v, platform=None):
-    """
-    Override a build-kwarg for all worker builds
-    """
-    key = OrchestrateBuildPlugin.key
-    # Use None to indicate an override for all platforms
-
-    workspace = workflow.data.plugin_workspace.setdefault(key, {})
-    override_kwargs = workspace.setdefault(WORKSPACE_KEY_OVERRIDE_KWARGS, {})
-    override_kwargs.setdefault(platform, {})
-    override_kwargs[platform][k] = v
-
-
 class UnknownPlatformException(Exception):
     """ No clusters could be found for a platform """
 
@@ -490,8 +461,7 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
         return task_id
 
     def do_worker_build(self, cluster_info):
-        workspace = self.workflow.data.plugin_workspace.get(self.key, {})
-        override_kwargs = workspace.get(WORKSPACE_KEY_OVERRIDE_KWARGS, {})
+        override_kwargs = {}
 
         build = None
 
@@ -637,11 +607,6 @@ class OrchestrateBuildPlugin(BuildStepPlugin):
             for build_info in self.worker_builds
             if not build_info.build or not build_info.build.is_succeeded()
         }
-
-        workspace = self.workflow.data.plugin_workspace.setdefault(self.key, {})
-        workspace[WORKSPACE_KEY_UPLOAD_DIR] = self.koji_upload_dir
-        workspace[WORKSPACE_KEY_BUILD_INFO] = {build_info.platform: build_info
-                                               for build_info in self.worker_builds}
 
         if fail_reasons:
             raise PluginFailedException(json.dumps(fail_reasons))

@@ -30,8 +30,7 @@ from atomic_reactor.config import get_koji_session
 from atomic_reactor.utils.koji import get_koji_module_build
 from atomic_reactor.plugin import PreBuildPlugin
 from atomic_reactor.plugins.pre_flatpak_create_dockerfile import (FLATPAK_INCLUDEPKGS_FILENAME,
-                                                                  FLATPAK_CLEANUPSCRIPT_FILENAME,
-                                                                  get_flatpak_source_spec)
+                                                                  FLATPAK_CLEANUPSCRIPT_FILENAME)
 from atomic_reactor.util import is_flatpak_build, map_to_user_params
 
 
@@ -58,36 +57,6 @@ class ComposeInfo(object):
             'modules': ['-'.join((m.name, m.stream, m.version)) for
                         m in sorted_modules if m.name != 'platform'],
         }
-
-
-def get_flatpak_source_info(workflow):
-    key = FlatpakUpdateDockerfilePlugin.key
-    if key not in workflow.data.plugin_workspace:
-        return None
-    return workflow.data.plugin_workspace[key].get(WORKSPACE_SOURCE_KEY, None)
-
-
-def set_flatpak_source_info(workflow, source):
-    key = FlatpakUpdateDockerfilePlugin.key
-
-    workflow.data.plugin_workspace.setdefault(key, {})
-    workspace = workflow.data.plugin_workspace[key]
-    workspace[WORKSPACE_SOURCE_KEY] = source
-
-
-def get_flatpak_compose_info(workflow):
-    key = FlatpakUpdateDockerfilePlugin.key
-    if key not in workflow.data.plugin_workspace:
-        return None
-    return workflow.data.plugin_workspace[key].get(WORKSPACE_COMPOSE_KEY, None)
-
-
-def set_flatpak_compose_info(workflow, source):
-    key = FlatpakUpdateDockerfilePlugin.key
-
-    workflow.data.plugin_workspace.setdefault(key, {})
-    workspace = workflow.data.plugin_workspace[key]
-    workspace[WORKSPACE_COMPOSE_KEY] = source
 
 
 class FlatpakUpdateDockerfilePlugin(PreBuildPlugin):
