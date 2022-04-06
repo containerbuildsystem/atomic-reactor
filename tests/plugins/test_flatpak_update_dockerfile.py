@@ -16,11 +16,11 @@ import os
 import pytest
 import re
 
+from atomic_reactor.constants import PLUGIN_RESOLVE_COMPOSES_KEY
+from atomic_reactor.utils.flatpak_util import FlatpakUtil
+
 try:
-    from atomic_reactor.plugins.pre_flatpak_create_dockerfile import set_flatpak_source_spec
-    from atomic_reactor.plugins.pre_flatpak_update_dockerfile import (FlatpakUpdateDockerfilePlugin,
-                                                                      get_flatpak_compose_info,
-                                                                      get_flatpak_source_info)
+    from atomic_reactor.plugins.pre_flatpak_update_dockerfile import FlatpakUpdateDockerfilePlugin
 except ImportError:
     pass
 
@@ -167,9 +167,6 @@ def test_flatpak_update_dockerfile(workflow, build_dir, config_name, breakage):
 
     workflow = mock_workflow(workflow, build_dir, container_yaml)
 
-    assert get_flatpak_compose_info(workflow) is None
-    assert get_flatpak_source_info(workflow) is None
-
     if breakage == 'branch_mismatch':
         config = deepcopy(config)
         base_module = config['modules'][config['base_module']]
@@ -186,8 +183,6 @@ def test_flatpak_update_dockerfile(workflow, build_dir, config_name, breakage):
         expected_exception = None
 
     mock_koji_session(config)
-
-    set_flatpak_source_spec(workflow, config['source_spec'])
 
     # composes run by resolve_composes plugin
     setup_flatpak_composes(workflow, config)
@@ -255,7 +250,11 @@ def test_flatpak_update_dockerfile(workflow, build_dir, config_name, breakage):
 
         assert os.path.exists(os.path.join(workflow.build_dir.any_platform.path, 'cleanup.sh'))
 
-        compose_info = get_flatpak_compose_info(workflow)
+        resolve_comp_result = workflow.data.prebuild_results.get(PLUGIN_RESOLVE_COMPOSES_KEY)
+        flatpak_util = FlatpakUtil(workflow_config=workflow.conf,
+                                   source_config=workflow.source.config,
+                                   composes=resolve_comp_result['composes'])
+        compose_info = flatpak_util.get_flatpak_compose_info()
         assert compose_info.source_spec == config['source_spec']
 
         if config_name == 'app':
@@ -270,7 +269,7 @@ def test_flatpak_update_dockerfile(workflow, build_dir, config_name, breakage):
                 'eog-0:3.28.3-1.module_2123+73a9ef6f.ppc64le.rpm',
             ]
 
-        source_info = get_flatpak_source_info(workflow)
+        source_info = flatpak_util.get_flatpak_source_info()
         assert source_info.base_module.name == config['base_module']
 
 

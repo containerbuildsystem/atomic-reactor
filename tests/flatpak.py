@@ -5,10 +5,8 @@ from osbs.repo_utils import ModuleSpec
 from atomic_reactor.constants import PLUGIN_RESOLVE_COMPOSES_KEY
 
 try:
-    from atomic_reactor.plugins.pre_flatpak_update_dockerfile import (ComposeInfo,
-                                                                      set_flatpak_compose_info,
-                                                                      set_flatpak_source_info)
     from flatpak_module_tools.flatpak_builder import FlatpakSourceInfo, ModuleInfo
+    from atomic_reactor.utils.flatpak_util import ComposeInfo
     from gi.repository import Modulemd
     MODULEMD_AVAILABLE = True
 except ImportError:
@@ -383,7 +381,7 @@ def setup_flatpak_composes(workflow, config=None):
     }
 
 
-def setup_flatpak_compose_info(workflow, config=None):
+def setup_flatpak_compose_info(config=None):
     config = APP_CONFIG if config is None else config
     modules = {}
     for name, module_config in config['modules'].items():
@@ -403,14 +401,13 @@ def setup_flatpak_compose_info(workflow, config=None):
     compose = ComposeInfo(source_spec,
                           base_module,
                           modules)
-    set_flatpak_compose_info(workflow, compose)
 
     return compose
 
 
-def setup_flatpak_source_info(workflow, config=None):
+def setup_flatpak_source_info(config=None):
     config = APP_CONFIG if config is None else config
-    compose = setup_flatpak_compose_info(workflow, config)
+    compose = setup_flatpak_compose_info(config)
 
     flatpak_yaml = yaml.safe_load(config['container_yaml'])['flatpak']
 
@@ -418,6 +415,5 @@ def setup_flatpak_source_info(workflow, config=None):
 
     source = FlatpakSourceInfo(flatpak_yaml, compose.modules, compose.main_module,
                                module_spec.profile)
-    set_flatpak_source_info(workflow, source)
 
     return source

@@ -54,9 +54,10 @@ from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE,
                                       DOCKERFILE_FILENAME,
                                       REPO_CONTAINER_CONFIG, PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
                                       PLUGIN_FETCH_MAVEN_KEY)
+from atomic_reactor.utils.flatpak_util import FlatpakUtil
 from tests.flatpak import (MODULEMD_AVAILABLE,
                            setup_flatpak_composes,
-                           setup_flatpak_source_info)
+                           setup_flatpak_compose_info)
 from tests.util import add_koji_map_in_workflow
 from tests.constants import OSBS_BUILD_LOG_FILENAME
 
@@ -268,6 +269,7 @@ def mock_environment(workflow: DockerBuildWorkflow, source_dir: Path,
 
     platforms = ['x86_64']
     workflow.data.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = platforms
+    workflow.data.prebuild_results[PLUGIN_RESOLVE_COMPOSES_KEY] = {'composes': None}
 
     mock_reactor_config(workflow)
     workflow.user_params['scratch'] = scratch
@@ -1430,12 +1432,15 @@ class TestKojiImport(object):
     @pytest.mark.skipif(not MODULEMD_AVAILABLE,
                         reason="libmodulemd not available")
     def test_koji_import_flatpak(self, workflow, source_dir):
+        workflow.user_params['flatpak'] = True
         session = MockedClientSession('')
         mock_environment(workflow, source_dir,
                          name='ns/name', version='1.0', release='1', session=session)
 
         setup_flatpak_composes(workflow)
-        setup_flatpak_source_info(workflow)
+        (flexmock(FlatpakUtil)
+            .should_receive('get_flatpak_compose_info')
+            .replace_with(setup_flatpak_compose_info))
 
         runner = create_runner(workflow)
         runner.run()
@@ -1634,15 +1639,13 @@ class TestKojiImport(object):
         mock_environment(workflow, source_dir,
                          name='ns/name', version='1.0', release='1', session=session)
 
-        resolve_comp_entry = False
-        if comp is not None and sign_int is not None and override is not None:
-            resolve_comp_entry = True
-
-            workflow.data.prebuild_results[PLUGIN_RESOLVE_COMPOSES_KEY] = {
-                'composes': comp,
-                'signing_intent': sign_int,
-                'signing_intent_overridden': override,
-            }
+        workflow.data.prebuild_results[PLUGIN_RESOLVE_COMPOSES_KEY] = {
+            'composes': comp,
+            'yum_repourls': {'x86_64': []},
+            'include_koji_repo': False,
+            'signing_intent': sign_int,
+            'signing_intent_overridden': override,
+        }
 
         runner = create_runner(workflow)
         runner.run()
@@ -1658,16 +1661,14 @@ class TestKojiImport(object):
         image = extra['image']
         assert isinstance(image, dict)
 
-        if resolve_comp_entry:
+        if comp:
             comp_ids = [item['id'] for item in comp]
-
             assert 'odcs' in image
             odcs = image['odcs']
             assert isinstance(odcs, dict)
             assert odcs['compose_ids'] == comp_ids
             assert odcs['signing_intent'] == sign_int
             assert odcs['signing_intent_overridden'] == override
-
         else:
             assert 'odcs' not in image
 
@@ -1681,7 +1682,7 @@ class TestKojiImport(object):
                          name='ns/name', version='1.0', release='1', session=session)
 
         if resolve_run:
-            workflow.data.prebuild_results[PLUGIN_RESOLVE_COMPOSES_KEY] = None
+            workflow.data.prebuild_results[PLUGIN_RESOLVE_COMPOSES_KEY] = {'composes': None}
 
         runner = create_runner(workflow)
         runner.run()

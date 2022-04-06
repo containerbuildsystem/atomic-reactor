@@ -16,9 +16,10 @@ import yaml
 from typing import List
 
 from atomic_reactor.dirs import BuildDir
+from atomic_reactor.utils.flatpak_util import FlatpakUtil
+
 try:
-    from atomic_reactor.plugins.pre_flatpak_create_dockerfile import (get_flatpak_source_spec,
-                                                                      FlatpakCreateDockerfilePlugin)
+    from atomic_reactor.plugins.pre_flatpak_create_dockerfile import FlatpakCreateDockerfilePlugin
 except ImportError:
     pass
 
@@ -122,9 +123,6 @@ def test_flatpak_create_dockerfile(workflow, source_dir, config_name, override_b
     platforms = ["x86_64", "s390x"]
     mock_workflow(workflow, source_dir, container_yaml, platforms)
 
-    source_spec = get_flatpak_source_spec(workflow)
-    assert source_spec is None
-
     base_image = "registry.fedoraproject.org/fedora:latest"
 
     workflow.conf.conf = {'version': 1, 'flatpak': {'base_image': base_image},
@@ -145,7 +143,8 @@ def test_flatpak_create_dockerfile(workflow, source_dir, config_name, override_b
     else:
         runner.run()
 
-        source_spec = get_flatpak_source_spec(workflow)
+        flatpak_util = FlatpakUtil(workflow_config=None, source_config=workflow.source.config)
+        source_spec = flatpak_util.get_flatpak_source_spec()
         assert source_spec == config['source_spec']
 
         expect_base_image = override_base_image if override_base_image else base_image
