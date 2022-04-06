@@ -26,21 +26,19 @@ from atomic_reactor.constants import (
     IMAGE_TYPE_OCI,
 )
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
-from atomic_reactor.plugins.pre_flatpak_update_dockerfile import get_flatpak_source_info
+from atomic_reactor.utils.flatpak_util import FlatpakUtil
 from atomic_reactor.utils.imageutil import ImageUtil
 from atomic_reactor.utils.rpm import parse_rpm_output
 from tests.flatpak import (MODULEMD_AVAILABLE,
-                           setup_flatpak_source_info, build_flatpak_test_configs)
+                           build_flatpak_test_configs,
+                           setup_flatpak_source_info,
+                           setup_flatpak_composes)
 
 if MODULEMD_AVAILABLE:
     from atomic_reactor.plugins.post_flatpak_create_oci import FlatpakCreateOciPlugin
     from gi.repository import Modulemd
 
-CONTAINER_ID = 'CONTAINER-ID'
-
 ROOT = '/var/tmp/flatpak-build'
-
-USER_PARAMS = {'flatpak': True}
 
 DESKTOP_FILE_CONTENTS = b"""[Desktop Entry]
 Name=Image Viewer
@@ -548,8 +546,6 @@ def test_flatpak_create_oci(workflow, config_name, flatpak_metadata, breakage):
         assert breakage is None
         expected_exception = None
 
-    setup_flatpak_source_info(workflow, config)
-
     runner = PostBuildPluginsRunner(
         workflow,
         [{
@@ -558,12 +554,18 @@ def test_flatpak_create_oci(workflow, config_name, flatpak_metadata, breakage):
         }]
     )
 
+    setup_flatpak_composes(workflow)
+    source = setup_flatpak_source_info(config)
+    (flexmock(FlatpakUtil)
+     .should_receive('get_flatpak_source_info')
+     .and_return(source))
+
     if expected_exception:
         with pytest.raises(PluginFailedException) as ex:
             runner.run()
         assert expected_exception in str(ex.value)
     else:
-        builder = FlatpakBuilder(get_flatpak_source_info(workflow),
+        builder = FlatpakBuilder(source,
                                  workflow.build_dir.any_platform.path,
                                  'var/tmp/flatpak-build',
                                  parse_manifest=parse_rpm_output,
@@ -652,6 +654,10 @@ def test_flatpak_create_oci(workflow, config_name, flatpak_metadata, breakage):
                     reason="libmodulemd not available")
 def test_flatpak_create_oci_no_source(workflow):
     workflow.user_params['flatpak'] = True
+    setup_flatpak_composes(workflow)
+    (flexmock(FlatpakUtil)
+     .should_receive('get_flatpak_source_info')
+     .and_return(None))
     runner = PostBuildPluginsRunner(
         workflow,
         [{
@@ -669,6 +675,7 @@ def test_flatpak_create_oci_no_source(workflow):
 @pytest.mark.skipif(not MODULEMD_AVAILABLE,  # noqa
                     reason="libmodulemd not available")
 def test_skip_plugin(workflow, caplog):
+    setup_flatpak_composes(workflow)
     runner = PostBuildPluginsRunner(
         workflow,
         [{

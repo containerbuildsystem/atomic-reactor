@@ -24,7 +24,9 @@ from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 from atomic_reactor.source import GitSource
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
 from atomic_reactor.util import (OSBSLogs, get_parent_image_koji_data, get_manifest_media_version,
-                                 get_platforms, is_manifest_list, map_to_user_params)
+                                 get_platforms, is_flatpak_build, is_manifest_list,
+                                 map_to_user_params)
+from atomic_reactor.utils.flatpak_util import FlatpakUtil
 from atomic_reactor.utils.koji import get_buildroot as koji_get_buildroot
 from atomic_reactor.utils.koji import get_output as koji_get_output
 from atomic_reactor.utils.koji import (
@@ -33,13 +35,6 @@ from atomic_reactor.utils.koji import (
         get_maven_metadata
 )
 from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
-
-try:
-    from atomic_reactor.plugins.pre_flatpak_update_dockerfile import get_flatpak_compose_info
-except ImportError:
-    # modulemd not available
-    def get_flatpak_compose_info(workflow):
-        return None
 
 from atomic_reactor.constants import (
     PLUGIN_KOJI_IMPORT_PLUGIN_KEY, PLUGIN_KOJI_IMPORT_SOURCE_CONTAINER_PLUGIN_KEY,
@@ -665,15 +660,8 @@ class KojiImportPlugin(KojiImportBase):
 
         extra['image'].update(get_parent_image_koji_data(self.workflow))
 
-        flatpak_compose_info = get_flatpak_compose_info(self.workflow)
-        if flatpak_compose_info:
-            koji_metadata = flatpak_compose_info.koji_metadata()
-            koji_metadata['flatpak'] = True
-            extra['image'].update(koji_metadata)
-            extra['osbs_build']['subtypes'].append('flatpak')
-
         resolve_comp_result = self.workflow.data.prebuild_results.get(PLUGIN_RESOLVE_COMPOSES_KEY)
-        if resolve_comp_result:
+        if resolve_comp_result['composes']:
             extra['image']['odcs'] = {
                 'compose_ids': [item['id'] for item in resolve_comp_result['composes']],
                 'signing_intent': resolve_comp_result['signing_intent'],
@@ -681,6 +669,16 @@ class KojiImportPlugin(KojiImportBase):
             }
         if self.workflow.data.all_yum_repourls:
             extra['image']['yum_repourls'] = self.workflow.data.all_yum_repourls
+
+        if is_flatpak_build(self.workflow):
+            flatpak_util = FlatpakUtil(workflow_config=self.workflow.conf,
+                                       source_config=self.workflow.source.config,
+                                       composes=resolve_comp_result['composes'])
+            flatpak_compose_info = flatpak_util.get_flatpak_compose_info()
+            if flatpak_compose_info:
+                koji_metadata = flatpak_compose_info.koji_metadata()
+                extra['image'].update(koji_metadata)
+                extra['osbs_build']['subtypes'].append('flatpak')
 
         self.set_help(extra)
         self.set_operators_metadata(extra)
