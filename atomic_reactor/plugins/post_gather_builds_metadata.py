@@ -5,12 +5,12 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.constants import PLUGIN_GATHER_BUILDS_METADATA_KEY
-from atomic_reactor.util import is_scratch_build, get_platforms
-from atomic_reactor.utils.koji import get_buildroot, get_output
+from atomic_reactor.util import Output, is_scratch_build, get_platforms
+from atomic_reactor.utils.koji import get_buildroot, get_output, get_output_metadata
 from osbs.utils import ImageName
 
 
@@ -43,6 +43,17 @@ class GatherBuildsMetadataPlugin(PostBuildPlugin):
             raise RuntimeError('Unable to determine pullspec_image')
         return unique_images[0]
 
+    def _generate_build_log_output(self, platform: str, buildroot_id: int) -> Optional[Output]:
+        build_log_file = self.workflow.context_dir.get_platform_build_log(platform)
+        if not build_log_file.exists():
+            self.log.info("Build log file is not found: %s", str(build_log_file))
+            return None
+        metadata = get_output_metadata(str(build_log_file), build_log_file.name)
+        metadata['buildroot_id'] = buildroot_id
+        metadata['type'] = 'log'
+        metadata['arch'] = platform
+        return Output(metadata=metadata, filename=str(build_log_file))
+
     def _get_build_metadata(self, platform: str):
         """
         Build the metadata needed for importing the build
@@ -54,6 +65,8 @@ class GatherBuildsMetadataPlugin(PostBuildPlugin):
         output_files, _ = get_output(workflow=self.workflow, buildroot_id=buildroot['id'],
                                      pullspec=pullspec_image, platform=platform,
                                      source_build=False)
+        if build_log_output := self._generate_build_log_output(platform, buildroot['id']):
+            output_files.append(build_log_output)
         koji_metadata = {
             'metadata_version': 0,
             'buildroots': [buildroot],

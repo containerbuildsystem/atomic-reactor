@@ -31,6 +31,7 @@ class PluginBasedTask(Task[ParamsT]):
     def prepare_workflow(self) -> inner.DockerBuildWorkflow:
         """Fully initialize the workflow instance to be used for running the list of plugins."""
         workflow = inner.DockerBuildWorkflow(
+            context_dir=self.get_context_dir(),
             build_dir=self.get_build_dir(),
             data=self.load_workflow_data(),
             namespace=self._params.namespace,

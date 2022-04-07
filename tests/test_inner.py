@@ -244,7 +244,7 @@ class WatcherWithSignal(Watcher):
             os.kill(os.getpid(), self.signal)
 
 
-def test_workflow_base_images(build_dir):
+def test_workflow_base_images(context_dir, build_dir):
     """
     Test workflow for base images
     """
@@ -257,6 +257,7 @@ def test_workflow_base_images(build_dir):
     watch_post = Watcher()
     watch_exit = Watcher()
     workflow = DockerBuildWorkflow(
+        context_dir,
         build_dir,
         namespace=NAMESPACE,
         pipeline_run_name=PIPELINE_RUN_NAME,
@@ -280,7 +281,7 @@ def test_workflow_base_images(build_dir):
     assert watch_exit.was_called()
 
 
-def test_workflow_compat(build_dir, caplog):
+def test_workflow_compat(context_dir, build_dir, caplog):
     """
     Some of our plugins have changed from being run post-build to
     being run at exit. Let's test what happens when we try running an
@@ -294,6 +295,7 @@ def test_workflow_compat(build_dir, caplog):
     caplog.clear()
 
     workflow = DockerBuildWorkflow(
+        context_dir,
         build_dir,
         namespace=NAMESPACE,
         pipeline_run_name=PIPELINE_RUN_NAME,
@@ -476,7 +478,7 @@ class Exit(ExitPlugin):
      False,  # does not log error
      ),
 ])
-def test_plugin_errors(plugins, should_fail, should_log, build_dir, caplog):
+def test_plugin_errors(plugins, should_fail, should_log, context_dir, build_dir, caplog):
     """
     Try bad plugin configuration.
     """
@@ -484,7 +486,8 @@ def test_plugin_errors(plugins, should_fail, should_log, build_dir, caplog):
     this_file = inspect.getfile(PreRaises)
 
     caplog.clear()
-    workflow = DockerBuildWorkflow(build_dir,
+    workflow = DockerBuildWorkflow(context_dir,
+                                   build_dir,
                                    namespace=NAMESPACE,
                                    pipeline_run_name=PIPELINE_RUN_NAME,
                                    source=None,
@@ -524,7 +527,7 @@ def test_plugin_errors(plugins, should_fail, should_log, build_dir, caplog):
                                      'post_raises',
                                      'exit_raises',
                                      'exit_raises_allowed'])
-def test_workflow_plugin_error(fail_at, build_dir):
+def test_workflow_plugin_error(fail_at, context_dir, build_dir):
     """
     This is a test for what happens when plugins fail.
 
@@ -563,6 +566,7 @@ def test_workflow_plugin_error(fail_at, build_dir):
         assert False
 
     workflow = DockerBuildWorkflow(
+        context_dir,
         build_dir,
         namespace=NAMESPACE,
         pipeline_run_name=PIPELINE_RUN_NAME,
@@ -609,7 +613,7 @@ def test_workflow_plugin_error(fail_at, build_dir):
     assert watch_exit.was_called()
 
 
-def test_workflow_docker_build_error(build_dir):
+def test_workflow_docker_build_error(context_dir, build_dir):
     """
     This is a test for what happens when the docker build fails.
     """
@@ -622,6 +626,7 @@ def test_workflow_docker_build_error(build_dir):
     watch_exit = Watcher()
 
     workflow = DockerBuildWorkflow(
+        context_dir,
         build_dir,
         namespace=NAMESPACE,
         pipeline_run_name=PIPELINE_RUN_NAME,
@@ -666,7 +671,7 @@ def test_workflow_docker_build_error(build_dir):
     ({'buildstep', 'post'}, 'buildstep'),
     ({'prepub', 'post'}, 'prepub'),
 ))
-def test_workflow_docker_build_error_reports(steps_to_fail, step_reported, build_dir):
+def test_workflow_docker_build_error_reports(steps_to_fail, step_reported, context_dir, build_dir):
     """
     Test if first error is reported properly. (i.e. exit plugins are not
     hiding the original root cause)
@@ -687,6 +692,7 @@ def test_workflow_docker_build_error_reports(steps_to_fail, step_reported, build
     watch_exit = construct_watcher('exit')
 
     workflow = DockerBuildWorkflow(
+        context_dir,
         build_dir,
         namespace=NAMESPACE,
         pipeline_run_name=PIPELINE_RUN_NAME,
@@ -724,12 +730,13 @@ class ExitUsesSource(ExitWatched):
         WatchedMixIn.run(self)
 
 
-def test_source_not_removed_for_exit_plugins(build_dir):
+def test_source_not_removed_for_exit_plugins(context_dir, build_dir):
     flexmock(DockerfileParser, content='df_content')
     this_file = inspect.getfile(PreRaises)
     watch_exit = Watcher()
     watch_buildstep = Watcher()
     workflow = DockerBuildWorkflow(
+        context_dir,
         build_dir,
         namespace=NAMESPACE,
         pipeline_run_name=PIPELINE_RUN_NAME,
@@ -865,7 +872,7 @@ class ExitResult(ValueMixIn, ExitPlugin):
     ],
 )
 def test_workflow_plugin_results(
-    buildstep_plugin, expected_buildstep_result, buildstep_raises, build_dir
+    buildstep_plugin, expected_buildstep_result, buildstep_raises, context_dir, build_dir
 ):
     """
     Verifies the results of plugins in different phases are stored properly.
@@ -884,6 +891,7 @@ def test_workflow_plugin_results(
     )
 
     workflow = DockerBuildWorkflow(
+        context_dir,
         build_dir,
         namespace=NAMESPACE,
         pipeline_run_name=PIPELINE_RUN_NAME,
@@ -913,12 +921,12 @@ def test_workflow_plugin_results(
     assert workflow.data.exit_results == {'exit_value': 'exit_value_result'}
 
 
-def test_parse_dockerfile_again_after_data_is_loaded(build_dir, tmpdir):
+def test_parse_dockerfile_again_after_data_is_loaded(context_dir, build_dir, tmpdir):
     context_dir = ContextDir(Path(tmpdir.join("context_dir")))
     wf_data = ImageBuildWorkflowData.load_from_dir(context_dir)
     # Note that argument source is None, that causes a DummySource is created
     # and "FROM scratch" is included in the Dockerfile.
-    workflow = DockerBuildWorkflow(build_dir, NAMESPACE, PIPELINE_RUN_NAME, wf_data)
+    workflow = DockerBuildWorkflow(context_dir, build_dir, NAMESPACE, PIPELINE_RUN_NAME, wf_data)
     assert ["scratch"] == workflow.data.dockerfile_images.original_parents
 
     # Now, save the workflow data and load it again
@@ -931,14 +939,14 @@ def test_parse_dockerfile_again_after_data_is_loaded(build_dir, tmpdir):
     wf_data = ImageBuildWorkflowData.load_from_dir(context_dir)
     flexmock(DockerBuildWorkflow).should_receive("_parse_dockerfile_images").never()
     flexmock(wf_data.dockerfile_images).should_receive("set_source_registry").never()
-    workflow = DockerBuildWorkflow(build_dir, NAMESPACE, PIPELINE_RUN_NAME, wf_data,
+    workflow = DockerBuildWorkflow(context_dir, build_dir, NAMESPACE, PIPELINE_RUN_NAME, wf_data,
                                    source=another_source)
     assert ["scratch"] == workflow.data.dockerfile_images.original_parents, \
         "The dockerfile_images should not be changed."
 
 
 @pytest.mark.parametrize('fail_at', ['pre', 'prepub', 'buildstep', 'post', 'exit'])
-def test_cancel_build(fail_at, build_dir, caplog):
+def test_cancel_build(fail_at, context_dir, build_dir, caplog):
     """
     Verifies that exit plugins are executed when the build is canceled
     """
@@ -956,6 +964,7 @@ def test_cancel_build(fail_at, build_dir, caplog):
     caplog.clear()
 
     workflow = DockerBuildWorkflow(
+        context_dir,
         build_dir,
         namespace=NAMESPACE,
         pipeline_run_name=PIPELINE_RUN_NAME,
@@ -1007,7 +1016,7 @@ def test_cancel_build(fail_at, build_dir, caplog):
 
 
 @pytest.mark.parametrize('has_version', [True, False])
-def test_show_version(has_version, build_dir, caplog):
+def test_show_version(has_version, context_dir, build_dir, caplog):
     """
     Test atomic-reactor print version of osbs-client used to build the build json
     if available
@@ -1029,7 +1038,8 @@ def test_show_version(has_version, build_dir, caplog):
     if has_version:
         params['client_version'] = VERSION
 
-    workflow = DockerBuildWorkflow(build_dir,
+    workflow = DockerBuildWorkflow(context_dir,
+                                   build_dir,
                                    namespace=NAMESPACE,
                                    pipeline_run_name=PIPELINE_RUN_NAME,
                                    source=None,
@@ -1051,8 +1061,9 @@ def test_show_version(has_version, build_dir, caplog):
     ([{'name': 'some_other_name'},
       {'name': PLUGIN_BUILD_ORCHESTRATE_KEY}], True)
 ])
-def test_workflow_is_orchestrator_build(buildstep_plugins, is_orchestrator, build_dir):
-    workflow = DockerBuildWorkflow(build_dir,
+def test_workflow_is_orchestrator_build(buildstep_plugins, is_orchestrator, context_dir, build_dir):
+    workflow = DockerBuildWorkflow(context_dir,
+                                   build_dir,
                                    namespace=NAMESPACE,
                                    pipeline_run_name=PIPELINE_RUN_NAME,
                                    source=None,
@@ -1060,8 +1071,9 @@ def test_workflow_is_orchestrator_build(buildstep_plugins, is_orchestrator, buil
     assert workflow.is_orchestrator_build() == is_orchestrator
 
 
-def test_parent_images_to_str(caplog, build_dir):
-    workflow = DockerBuildWorkflow(build_dir,
+def test_parent_images_to_str(caplog, context_dir, build_dir):
+    workflow = DockerBuildWorkflow(context_dir,
+                                   build_dir,
                                    namespace=NAMESPACE,
                                    pipeline_run_name=PIPELINE_RUN_NAME,
                                    source=None)
@@ -1074,23 +1086,25 @@ def test_parent_images_to_str(caplog, build_dir):
     assert "None in: base bacon:latest has parent None" in caplog.text
 
 
-def test_no_base_image(build_dir):
+def test_no_base_image(context_dir, build_dir):
     source = DummySource("git", "https://git.host/")
     dfp = df_parser(source.source_path)
     dfp.content = "# no FROM\nADD spam /eggs"
     with pytest.raises(RuntimeError, match="no base image specified"):
-        DockerBuildWorkflow(build_dir,
+        DockerBuildWorkflow(context_dir,
+                            build_dir,
                             namespace=NAMESPACE,
                             pipeline_run_name=PIPELINE_RUN_NAME,
                             source=source)
 
 
-def test_different_custom_base_images(build_dir, source_dir):
+def test_different_custom_base_images(context_dir, build_dir, source_dir):
     source = PathSource(
         "path", f"file://{DOCKERFILE_MULTISTAGE_CUSTOM_BAD_PATH}", workdir=str(source_dir)
     )
     with pytest.raises(NotImplementedError) as exc:
-        DockerBuildWorkflow(build_dir,
+        DockerBuildWorkflow(context_dir,
+                            build_dir,
                             namespace=NAMESPACE,
                             pipeline_run_name=PIPELINE_RUN_NAME,
                             source=source)
@@ -1098,7 +1112,7 @@ def test_different_custom_base_images(build_dir, source_dir):
     assert message in str(exc.value)
 
 
-def test_copy_from_unkown_stage(build_dir, source_dir):
+def test_copy_from_unkown_stage(context_dir, build_dir, source_dir):
     """test when user has specified COPY --from=image (instead of builder)"""
     source = PathSource("path", f"file://{source_dir}", workdir=str(source_dir))
 
@@ -1110,14 +1124,15 @@ def test_copy_from_unkown_stage(build_dir, source_dir):
         COPY --from=notvikings /spam/eggs /bin/eggs
     """)
     with pytest.raises(RuntimeError) as exc_info:
-        DockerBuildWorkflow(build_dir,
+        DockerBuildWorkflow(context_dir,
+                            build_dir,
                             namespace=NAMESPACE,
                             pipeline_run_name=PIPELINE_RUN_NAME,
                             source=source)
     assert "FROM notvikings AS source" in str(exc_info.value)
 
 
-def test_copy_from_invalid_index(build_dir, source_dir):
+def test_copy_from_invalid_index(context_dir, build_dir, source_dir):
     source = PathSource("path", f"file://{source_dir}", workdir=str(source_dir))
 
     dfp = df_parser(str(source_dir))
@@ -1127,7 +1142,8 @@ def test_copy_from_invalid_index(build_dir, source_dir):
         COPY --from=5 /spam/eggs /bin/eggs
     """)
     with pytest.raises(RuntimeError) as exc_info:
-        DockerBuildWorkflow(build_dir,
+        DockerBuildWorkflow(context_dir,
+                            build_dir,
                             namespace=NAMESPACE,
                             pipeline_run_name=PIPELINE_RUN_NAME,
                             source=source)

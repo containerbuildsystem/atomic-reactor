@@ -13,7 +13,7 @@ import pytest
 import requests
 import requests.exceptions
 from atomic_reactor.constants import DOCKERFILE_FILENAME
-from atomic_reactor.dirs import RootBuildDir
+from atomic_reactor.dirs import ContextDir, RootBuildDir
 from atomic_reactor.source import DummySource
 from tests.constants import LOCALHOST_REGISTRY_HTTP, DOCKER0_REGISTRY_HTTP, TEST_IMAGE
 from tests.util import uuid_value
@@ -67,10 +67,14 @@ def user_params(monkeypatch):
 
 
 @pytest.fixture
-def workflow(build_dir, dummy_source, user_params):
-    return DockerBuildWorkflow(build_dir=RootBuildDir(build_dir), source=dummy_source,
-                               namespace='test-namespace',
-                               pipeline_run_name='test-pipeline-run')
+def workflow(context_dir, build_dir, dummy_source, user_params):
+    return DockerBuildWorkflow(
+        ContextDir(context_dir),
+        RootBuildDir(build_dir),
+        source=dummy_source,
+        namespace='test-namespace',
+        pipeline_run_name='test-pipeline-run',
+    )
 
 
 @pytest.mark.optionalhook
