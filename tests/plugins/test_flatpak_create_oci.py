@@ -524,6 +524,10 @@ def test_flatpak_create_oci(workflow, config_name, flatpak_metadata, breakage):
      .should_receive('extract_filesystem_layer')
      .replace_with(mock_extract_filesystem_call))
 
+    for image_platform in platforms:
+        image_path = workflow.build_dir.platform_dir(image_platform).exported_squashed_image
+        os.mknod(image_path)
+
     make_and_store_reactor_config_map(workflow, flatpak_metadata)
 
     if breakage == 'no_runtime':
