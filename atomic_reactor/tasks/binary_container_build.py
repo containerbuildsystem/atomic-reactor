@@ -87,6 +87,9 @@ class BinaryBuildTask(Task[BinaryBuildTaskParams]):
             defer.callback(
                 logger.info, "Dockerfile used for build:\n%s", build_dir.dockerfile_path.read_text()
             )
+            build_log_file = defer.enter_context(
+                open(self.get_context_dir().get_platform_build_log(platform), 'w+')
+            )
 
             remote_resource = self.acquire_remote_resource(config.remote_hosts)
             defer.callback(remote_resource.unlock)
@@ -106,6 +109,7 @@ class BinaryBuildTask(Task[BinaryBuildTaskParams]):
             )
             for line in output_lines:
                 logger.info(line.rstrip())
+                build_log_file.write(line)
 
             logger.info("Build finished successfully! Pushing image to %s", dest_tag)
 

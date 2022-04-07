@@ -97,6 +97,12 @@ def source_dir(tmpdir):
 
 
 @pytest.fixture
+def context_dir(tmpdir):
+    """This is the --context-dir passed to atomic-reactor tasks"""
+    return Path(tmpdir.join("context_dir").mkdir())
+
+
+@pytest.fixture
 def dummy_source(source_dir):
     return DummySource(None, None, workdir=source_dir)
 
