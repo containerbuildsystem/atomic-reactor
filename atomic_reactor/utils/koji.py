@@ -441,8 +441,7 @@ def get_output(workflow: DockerBuildWorkflow,
                buildroot_id: str,
                pullspec: ImageName,
                platform: str,
-               source_build: bool = False,
-               logs: Optional[List[Output]] = None):
+               source_build: bool = False):
     """
     Build the 'output' section of the metadata.
     :param buildroot_id: str, buildroot_id
@@ -454,10 +453,6 @@ def get_output(workflow: DockerBuildWorkflow,
     """
     def add_buildroot_id(output: Output) -> Output:
         output.metadata.update({'buildroot_id': buildroot_id})
-        return output
-
-    def add_log_type(output: Output, arch: str) -> Output:
-        output.metadata.update({'type': 'log', 'arch': arch})
         return output
 
     extra_output_file = None
@@ -474,9 +469,6 @@ def get_output(workflow: DockerBuildWorkflow,
         platform = os.uname()[4]
 
     else:
-        output_files = [add_log_type(add_buildroot_id(metadata), platform)
-                        for metadata in logs or []]
-
         imageutil = workflow.imageutil
         image_id = imageutil.get_inspect_for_image(pullspec, platform=platform)['Id']
 

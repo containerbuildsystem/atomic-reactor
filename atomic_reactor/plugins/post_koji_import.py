@@ -729,7 +729,7 @@ class KojiImportSourceContainerPlugin(KojiImportBase):
 
         return koji_get_output(workflow=self.workflow, buildroot_id=buildroot_id,
                                pullspec=pullspec, platform=os.uname()[4],
-                               source_build=True, logs=None)
+                               source_build=True)
 
     def get_buildroot(self):
         """
