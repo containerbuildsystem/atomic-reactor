@@ -104,10 +104,10 @@ DOCKERFILE_CONTENT = dedent(
 
 
 @pytest.fixture
-def base_task_params(build_dir: Path) -> Dict[str, Any]:
+def base_task_params(build_dir: Path, context_dir: Path) -> Dict[str, Any]:
     return {
         "build_dir": str(build_dir),
-        "context_dir": CONTEXT_DIR,
+        "context_dir": str(context_dir),
         "config_file": CONFIG_PATH,
         "namespace": NAMESPACE,
         "pipeline_run_name": PIPELINE_RUN_NAME,
@@ -260,7 +260,7 @@ class TestBinaryBuildTask:
             assert dest_tag == X86_UNIQUE_IMAGE
             assert squash_all == is_flatpak
 
-            yield from ["output line 1", "output line 2"]
+            yield from ["output line 1\n", "output line 2\n"]
 
         (
             flexmock(mock_podman_remote)
@@ -301,6 +301,11 @@ class TestBinaryBuildTask:
         assert "output line 1" in caplog.text
         assert "output line 2" in caplog.text
         assert DOCKERFILE_CONTENT in caplog.text
+
+        build_log_file = Path(x86_task_params.context_dir, 'x86_64-build.log')
+        assert build_log_file.exists()
+        build_logs = build_log_file.read_text().splitlines()
+        assert ["output line 1", "output line 2"] == build_logs
 
     def test_run_exit_steps_on_failure(
         self, x86_task_params, x86_build_dir, mock_podman_remote, mock_locked_resource, caplog

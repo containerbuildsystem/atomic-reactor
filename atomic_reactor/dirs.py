@@ -310,3 +310,7 @@ class ContextDir:
         platform_dir = self._path / platform
         platform_dir.mkdir(exist_ok=True)
         return platform_dir
+
+    def get_platform_build_log(self, platform: str) -> Path:
+        """Get platform-specific build log file."""
+        return self._path / f"{platform}-build.log"
