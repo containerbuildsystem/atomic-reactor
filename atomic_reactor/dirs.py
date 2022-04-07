@@ -9,7 +9,7 @@ import logging
 
 from pathlib import Path
 from shutil import copy2, copytree
-from typing import Dict, Any, List, Callable, Iterable, Optional
+from typing import Dict, List, Callable, Iterable, Optional, TypeVar
 
 from dockerfile_parse import DockerfileParser
 
@@ -113,6 +113,8 @@ class BuildDir(object):
 
 FileCreationFunc = Callable[[BuildDir], Iterable[Path]]
 
+T = TypeVar("T")
+
 
 class RootBuildDir(object):
     """A directory containing all artifacts for building images.
@@ -201,7 +203,7 @@ class RootBuildDir(object):
         """Get the build directory for the specified platform."""
         return BuildDir(self.path / platform, platform)
 
-    def for_each_platform(self, action: Callable[[BuildDir], Any]) -> Dict[str, Any]:
+    def for_each_platform(self, action: Callable[[BuildDir], T]) -> Dict[str, T]:
         """Apply an action on every platform-specific directory.
 
         The action callable will be applied to the platform-specific
@@ -224,7 +226,7 @@ class RootBuildDir(object):
         """
         if not self.has_sources:
             raise BuildDirIsNotInitialized()
-        results: Dict[str, Any] = {}
+        results: Dict[str, T] = {}
         for platform in self.platforms:
             results[platform] = action(self.platform_dir(platform))
         return results
