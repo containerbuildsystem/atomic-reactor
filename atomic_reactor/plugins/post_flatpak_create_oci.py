@@ -59,6 +59,8 @@ class FlatpakCreateOciPlugin(PostBuildPlugin):
         image_filesystem = self.workflow.imageutil.extract_filesystem_layer(
             str(build_dir.exported_squashed_image), str(tmp_dir))
 
+        build_dir.exported_squashed_image.unlink()
+
         filesystem_path = os.path.join(tmp_dir, image_filesystem)
 
         with open(filesystem_path, 'rb') as f:
@@ -66,11 +68,15 @@ class FlatpakCreateOciPlugin(PostBuildPlugin):
             # for building flatpak image since it does the setup for it
             flatpak_filesystem, flatpak_manifest = builder._export_from_stream(f)
 
+        os.remove(filesystem_path)
+
         self.log.info('filesystem tarfile written to %s', flatpak_filesystem)
 
         image_rpm_components = builder.get_components(flatpak_manifest)
 
-        ref_name, outfile, _ = builder.build_container(flatpak_filesystem)
+        ref_name, outfile, outfile_tarred = builder.build_container(flatpak_filesystem)
+
+        os.remove(outfile_tarred)
 
         metadata = get_exported_image_metadata(outfile, IMAGE_TYPE_OCI)
         metadata['ref_name'] = ref_name
