@@ -6,7 +6,9 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
+import re
 from unittest.mock import patch
+from atomic_reactor.inner import DockerBuildWorkflow
 
 from atomic_reactor.utils.koji import get_buildroot
 from atomic_reactor.constants import PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
@@ -48,11 +50,26 @@ def test_fail_if_no_platform_is_set(workflow):
         runner.run()
 
 
+def assert_log_file_metadata(metadata, expected_filename, expected_platform):
+    assert metadata["buildroot_id"] == 1
+    assert metadata["type"] == "log"
+    assert metadata["arch"] == expected_platform
+    assert metadata["filename"] == expected_filename
+    assert metadata["filesize"] > 0
+    assert re.match(r"^[0-9a-z]+$", metadata["checksum"])
+    assert metadata["checksum_type"] == "md5"
+
+
+@pytest.mark.parametrize("has_s390x_build_logs", [True, False])
 @patch("koji.ClientSession", new=MockedClientSession)
-def test_gather_builds_metadata(workflow):
+def test_gather_builds_metadata(has_s390x_build_logs, workflow: DockerBuildWorkflow, caplog):
     mock_reactor_config(workflow)
     workflow.data.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = ["x86_64", "s390x"]
     workflow.data.tag_conf.add_unique_image("ns/img:1.0-1")
+
+    build_log_file = workflow.context_dir.get_platform_build_log("s390x")
+    if has_s390x_build_logs:
+        build_log_file.write_text("line 1\nline 2\nline 3\n", "utf-8")
 
     plugin = GatherBuildsMetadataPlugin(workflow, koji_upload_dir="path/to/upload")
 
@@ -72,4 +89,23 @@ def test_gather_builds_metadata(workflow):
             "output": [],
         },
     }
+
+    if has_s390x_build_logs:
+        log_file_metadata = output["s390x"]["output"].pop()
+        assert_log_file_metadata(
+            log_file_metadata,
+            expected_filename=build_log_file.name,
+            expected_platform="s390x",
+        )
+
+        upload_file_info = {
+            "local_filename": str(build_log_file),
+            "dest_filename": build_log_file.name,
+        }
+        assert [upload_file_info] == workflow.data.koji_upload_files
+    else:
+        assert re.search(r"not found: .+s390x-build.log", caplog.text)
+
+    # There is always no build log for x86_64 in this test.
+    assert re.search(r"not found: .+x86_64-build.log", caplog.text)
     assert expected == output

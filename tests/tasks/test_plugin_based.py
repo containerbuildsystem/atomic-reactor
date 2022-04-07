@@ -45,13 +45,12 @@ class TestPluginBasedTask:
     """Tests for the PluginBasedTask class"""
 
     @pytest.fixture
-    def task_with_mocked_deps(self, monkeypatch, build_dir, dummy_source, tmpdir):
+    def task_with_mocked_deps(self, monkeypatch, context_dir, build_dir, dummy_source, tmpdir):
         """Create a PluginBasedTask instance with mocked task parameters.
 
         Mock DockerBuildWorkflow accordingly. Return the mocked workflow instance for further
         customization in individual tests.
         """
-        context_dir = tmpdir.join("context_dir")
         task_params = TaskParams(build_dir=build_dir,
                                  config_file="config.yaml",
                                  context_dir=str(context_dir),
@@ -87,6 +86,7 @@ class TestPluginBasedTask:
             .should_call("__init__")
             .once()
             .with_args(
+                context_dir=ContextDir,
                 build_dir=root_build_dir,
                 data=wf_data,
                 namespace="test-namespace",

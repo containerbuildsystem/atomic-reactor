@@ -479,6 +479,7 @@ class DockerBuildWorkflow(object):
 
     def __init__(
         self,
+        context_dir: ContextDir,
         build_dir: RootBuildDir,
         namespace: str,
         pipeline_run_name: str,
@@ -491,6 +492,8 @@ class DockerBuildWorkflow(object):
         client_version: str = None,
     ):
         """
+        :param context_dir: the directory passed to task --context-dir argument.
+        :type context_dir: ContextDir
         :param build_dir: a directory holding all the artifacts to build an image.
         :type build_dir: RootBuildDir
         :param data:
@@ -504,6 +507,7 @@ class DockerBuildWorkflow(object):
         :param plugin_files: load plugins also from these files
         :param client_version: osbs-client version used to render build json
         """
+        self.context_dir = context_dir
         self.build_dir = build_dir
         self.data = data or ImageBuildWorkflowData()
         self.namespace = namespace
