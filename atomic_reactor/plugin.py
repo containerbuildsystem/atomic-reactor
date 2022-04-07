@@ -471,11 +471,6 @@ class BuildStepPluginsRunner(BuildPluginsRunner):
     def run(self, keep_going=False, buildstep_phase=True):
         logger.info('building image %r inside current environment',
                     self.workflow.image)
-        if self.workflow.df_path:
-            logger.debug('using dockerfile:\n%s',
-                         DockerfileParser(self.workflow.df_path).content)
-        else:
-            logger.debug("No Dockerfile path has been specified")
 
         plugins_results = super(BuildStepPluginsRunner, self).run(
             keep_going=keep_going, buildstep_phase=buildstep_phase

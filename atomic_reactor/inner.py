@@ -523,7 +523,7 @@ class DockerBuildWorkflow(object):
         build_file_path, build_file_dir = self.source.get_build_file_path()
 
         self.df_dir = build_file_dir
-        self._df_path: Optional[str] = None
+        self.df_path = self.source.dockerfile_path
 
         self.conf = Configuration(config_path=reactor_config_path)
 
@@ -532,13 +532,6 @@ class DockerBuildWorkflow(object):
         # and set the base image
         if build_file_path.endswith(DOCKERFILE_FILENAME):
             self.reset_dockerfile_images(build_file_path)
-
-    @property
-    def df_path(self):
-        if self._df_path is None:
-            raise AttributeError("Dockerfile has not yet been generated")
-
-        return self._df_path
 
     def reset_dockerfile_images(self, path: str) -> None:
         """Given a new Dockerfile path, (re)set all the mutable state that relates to it.
@@ -553,8 +546,6 @@ class DockerBuildWorkflow(object):
         flatpak_create_dockerfile), this method *must* be used to replace the existing
         dockerfile_images object with a new one and re-apply some mutations.
         """
-        self._df_path = path  # OSBS2 TBD: delete this
-
         df_images = self.data.dockerfile_images
 
         # Consider dockerfile_images data was saved when previous task ended,
