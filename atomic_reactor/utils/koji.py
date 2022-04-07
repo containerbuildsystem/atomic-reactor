@@ -464,6 +464,8 @@ def get_output(workflow: DockerBuildWorkflow,
     output_files: List[Output] = []
     image_id: str
 
+    image_type = IMAGE_TYPE_DOCKER_ARCHIVE
+
     if source_build:
         manifest = workflow.data.koji_source_manifest
         image_id = manifest['config']['digest']
@@ -484,7 +486,14 @@ def get_output(workflow: DockerBuildWorkflow,
         if not workflow.data.dockerfile_images.base_from_scratch:
             parent_id = imageutil.base_image_inspect(platform)['Id']
 
-        image_archive = str(workflow.build_dir.platform_dir(platform).exported_squashed_image)
+        if not is_flatpak_build(workflow):
+            image_metadatas = workflow.data.postbuild_results[FetchDockerArchivePlugin.key][
+                platform]
+        else:
+            flatpak_result = workflow.data.postbuild_results[PLUGIN_FLATPAK_CREATE_OCI]
+            image_metadatas = flatpak_result[platform]['metadata']
+        image_archive = image_metadatas['path']
+        image_type = image_metadatas["type"]
         layer_sizes = imageutil.get_uncompressed_image_layer_sizes(image_archive)
 
     digests = get_manifest_digests(pullspec, workflow.conf.registry['uri'],
@@ -518,11 +527,8 @@ def get_output(workflow: DockerBuildWorkflow,
 
     tag_conf = workflow.data.tag_conf
     if source_build:
-        image_type = IMAGE_TYPE_DOCKER_ARCHIVE
         tags = sorted(set(image.tag for image in tag_conf.images))
     else:
-        image_metadatas = workflow.data.postbuild_results[FetchDockerArchivePlugin.key]
-        image_type = image_metadatas[platform]["type"]
         tags = sorted(image.tag for image in tag_conf.get_unique_images_with_platform(platform))
 
     metadata, output = get_image_output(image_type, image_id, platform, pullspec)

@@ -59,12 +59,16 @@ class FlatpakCreateOciPlugin(PostBuildPlugin):
         image_filesystem = self.workflow.imageutil.extract_filesystem_layer(
             str(build_dir.exported_squashed_image), str(tmp_dir))
 
+        build_dir.exported_squashed_image.unlink()
+
         filesystem_path = os.path.join(tmp_dir, image_filesystem)
 
         with open(filesystem_path, 'rb') as f:
             # this part is 'not ideal' but this function seems to be a prerequisite
             # for building flatpak image since it does the setup for it
             flatpak_filesystem, flatpak_manifest = builder._export_from_stream(f)
+
+        os.remove(filesystem_path)
 
         self.log.info('filesystem tarfile written to %s', flatpak_filesystem)
 
