@@ -601,7 +601,7 @@ def test_get_built_images_multiple_manifest_types(workflow):
     (
         flexmock(RegistryClient)
         .should_receive("get_manifest_digests")
-        .with_args(ImageName.parse(f"{UNIQUE_IMAGE}-x86_64"))
+        .with_args(ImageName.parse(f"{UNIQUE_IMAGE}-x86_64"), versions=("v2", "oci"))
         .and_return(ManifestDigest({"v2": make_digest("foo"), "oci": make_digest("bar")}))
     )
 
