@@ -590,9 +590,8 @@ def test_flatpak_create_oci(workflow, config_name, flatpak_metadata, breakage):
             expected_components = builder.get_components(f.name)
         results = runner.run()
         x86_64_results = results[FlatpakCreateOciPlugin.key][platforms[0]]
-        dir_metadata = x86_64_results['metadata']
-        components = x86_64_results['components']
-        assert components == expected_components
+        dir_metadata = x86_64_results
+        assert workflow.data.image_components[platforms[0]] == expected_components
         assert dir_metadata['type'] == IMAGE_TYPE_OCI
         for image_platform in platforms:
             image_path = workflow.build_dir.platform_dir(image_platform).exported_squashed_image

@@ -15,8 +15,7 @@ from typing import Optional, List, Any, Dict, Tuple
 
 import time
 import platform
-from atomic_reactor.inner import DockerBuildWorkflow
-from atomic_reactor.plugins.post_fetch_docker_archive import FetchDockerArchivePlugin
+from atomic_reactor.inner import DockerBuildWorkflow, ImageBuildWorkflowData
 
 import koji
 import koji_cli.lib
@@ -32,13 +31,12 @@ from atomic_reactor.constants import (DEFAULT_DOWNLOAD_BLOCK_SIZE,
                                       PLUGIN_MAVEN_URL_SOURCES_METADATA_KEY,
                                       KOJI_MAX_RETRIES,
                                       KOJI_RETRY_INTERVAL, KOJI_OFFLINE_RETRY_INTERVAL,
-                                      PLUGIN_FETCH_MAVEN_KEY, PLUGIN_FLATPAK_CREATE_OCI)
+                                      PLUGIN_FETCH_MAVEN_KEY)
 from atomic_reactor.types import RpmComponent
 from atomic_reactor.util import (Output, get_image_upload_filename,
                                  get_checksums, get_manifest_media_type,
                                  create_tar_gz_archive, get_config_from_registry,
-                                 get_manifest_digests, is_flatpak_build)
-from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
+                                 get_manifest_digests)
 from osbs.utils import ImageName
 
 logger = logging.getLogger(__name__)
@@ -412,17 +410,15 @@ def get_maven_metadata(workflow_data) -> Tuple[List[Output], List[RpmComponent]]
     return outputs, components
 
 
-def get_image_components(workflow: DockerBuildWorkflow, image_platform: str) -> List[RpmComponent]:
+def get_image_components(
+        workflow_data: ImageBuildWorkflowData, image_platform: str
+) -> List[RpmComponent]:
     """
-    Re-package the output of the `rpmqa` or `flatpak_create_oci`(for flatpak) plugin into the format
+    Re-package the image_components into the format
     required for the metadata.
     """
     components: List[RpmComponent]
-    if is_flatpak_build(workflow):
-        flatpak_result = workflow.data.postbuild_results[PLUGIN_FLATPAK_CREATE_OCI][image_platform]
-        components = flatpak_result['components']
-    else:
-        components = workflow.data.postbuild_results[PostBuildRPMqaPlugin.key][image_platform]
+    components = workflow_data.image_components[image_platform]
     return components or []
 
 
@@ -540,7 +536,7 @@ def get_output(workflow: DockerBuildWorkflow,
         del metadata['extra']['docker']['config']
 
     if not source_build:
-        metadata['components'] = get_image_components(workflow, platform)
+        metadata['components'] = get_image_components(workflow.data, platform)
 
         if not workflow.data.dockerfile_images.base_from_scratch:
             metadata['extra']['docker']['parent_id'] = parent_id

@@ -15,7 +15,6 @@ from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.post_compare_components import (
     filter_components_by_name
 )
-from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.util import DockerfileImages
 
 from tests.constants import FILES
@@ -81,7 +80,7 @@ def test_compare_components_plugin(workflow, caplog, base_from_scratch, mismatch
     if exception:
         workflow.conf.conf = {'version': 1, 'package_comparison_exceptions': [component['name']]}
 
-    workflow.data.postbuild_results[PostBuildRPMqaPlugin.key] = components_per_arch
+    workflow.data.image_components = components_per_arch
     if base_from_scratch:
         workflow.data.dockerfile_images = DockerfileImages(['scratch'])
 
@@ -111,7 +110,7 @@ def test_no_components(workflow):
     components_per_arch['x86_64'] = None
     components_per_arch['ppc64le'] = None
 
-    workflow.data.postbuild_results[PostBuildRPMqaPlugin.key] = components_per_arch
+    workflow.data.image_components = components_per_arch
 
     runner = PostBuildPluginsRunner(
         workflow,
@@ -132,7 +131,7 @@ def test_bad_component_type(workflow):
     # example data has 2 log items before component item hence output[2]
     components_per_arch['x86_64'][0]['type'] = "foo"
 
-    workflow.data.postbuild_results[PostBuildRPMqaPlugin.key] = components_per_arch
+    workflow.data.image_components = components_per_arch
 
     runner = PostBuildPluginsRunner(
         workflow,
@@ -167,7 +166,7 @@ def test_mismatch_reporting(workflow, caplog, mismatch):
         component_ppc64le['version'] = 'bacon'
         component_s390x['version'] = 'sandwich'
 
-    workflow.data.postbuild_results[PostBuildRPMqaPlugin.key] = components_per_arch
+    workflow.data.image_components = components_per_arch
 
     runner = PostBuildPluginsRunner(
         workflow,

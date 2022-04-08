@@ -40,8 +40,13 @@
 
     "files": {"type": "object"},
     "image_components": {
-      "type": ["array", "null"],
-      "items": {"$ref": "#/definitions/rpm_info"}
+      "type": ["object", "null"],
+      "patternProperties": {
+        ".*": {
+          "type": ["array"],
+          "items": {"$ref": "#/definitions/rpm_info"}
+        }
+      }
     },
     "all_yum_repourls": {
       "type": ["array", "null"],

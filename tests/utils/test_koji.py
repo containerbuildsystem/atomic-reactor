@@ -12,7 +12,6 @@ from typing import Any, Dict
 import koji
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugins.post_fetch_docker_archive import FetchDockerArchivePlugin
-from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.util import DockerfileImages, ManifestDigest, RegistryClient
 import atomic_reactor.utils.koji as koji_util
 
@@ -28,8 +27,7 @@ from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE,
                                       KOJI_OFFLINE_RETRY_INTERVAL,
                                       KOJI_RETRY_INTERVAL,
                                       OPERATOR_MANIFESTS_ARCHIVE,
-                                      PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY,
-                                      PLUGIN_FLATPAK_CREATE_OCI)
+                                      PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY)
 from flexmock import flexmock
 import pytest
 
@@ -460,11 +458,8 @@ def test_binary_build_get_output(has_export_operator_manifests: bool,
 
     if is_flatpak:
         workflow.user_params['flatpak'] = True
-        workflow.data.postbuild_results[PLUGIN_FLATPAK_CREATE_OCI] = {platform: {'components':
-                                                                                 expected_components
-                                                                                 }}
-    else:
-        workflow.data.postbuild_results[PostBuildRPMqaPlugin.key] = {platform: expected_components}
+
+    workflow.data.image_components = {platform: expected_components}
 
     if from_scratch:
         workflow.data.dockerfile_images = DockerfileImages(['scratch'])
