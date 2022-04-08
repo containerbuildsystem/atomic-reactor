@@ -214,6 +214,16 @@ class TagAndPushPlugin(PostBuildPlugin):
 
             pushed_images.append(registry_image)
 
+        if is_flatpak_build(self.workflow):
+            for image_platform in get_platforms(self.workflow.data):
+                image = self.workflow.data.tag_conf.get_unique_images_with_platform(
+                    image_platform)[0]
+                image_path = str(self.workflow.build_dir.platform_dir(image_platform)
+                                 .exported_squashed_image)
+
+                self.log.info('fetching image %s', image)
+                self.workflow.imageutil.download_image_archive_tarball(image, image_path)
+
         self.log.info("All images were tagged and pushed")
 
         return {'pushed_images': pushed_images,
