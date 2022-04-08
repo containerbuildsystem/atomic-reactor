@@ -886,29 +886,23 @@ class RegistryClient(object):
             raise RuntimeError("Image {image_name} not found: No v2 schema 1 image, "
                                "or v2 schema 2 image or list, found".format(image_name=image))
 
-        # dictionary to convert config keys to inspect keys
-        config_2_inspect = {
-            'created': 'Created',
-            'os': 'Os',
-            'container_config': 'ContainerConfig',
-            'architecture': 'Architecture',
-            'docker_version': 'DockerVersion',
-            'config': 'Config',
-        }
-
         if not blob_config:
             raise RuntimeError("Image {image_name}: Couldn't get inspect data "
                                "from digest config".format(image_name=image))
 
-        # set Id, which isn't in config blob
-        # Won't be set for v1,as for that image has to be pulled
-        image_inspect['Id'] = config_digest
+        image_inspect = {
+            # set Id, which isn't in config blob
+            # Won't be set for v1,as for that image has to be pulled
+            'Id': config_digest,
+            'Architecture': blob_config['architecture'],
+            'Os': blob_config['os'],
+            # According to OCI spec, 'created' and 'config' are optional
+            'Created': blob_config.get('created'),
+            'Config': blob_config.get('config') or {},
+        }
         # only v2 has rootfs, not v1
         if 'rootfs' in blob_config:
             image_inspect['RootFS'] = blob_config['rootfs']
-
-        for old_key, new_key in config_2_inspect.items():
-            image_inspect[new_key] = blob_config[old_key]
 
         return image_inspect
 

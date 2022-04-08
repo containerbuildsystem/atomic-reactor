@@ -1608,9 +1608,7 @@ def test_get_inspect_for_image(insecure, found_versions, type_in_list, will_rais
     inspect_data = {
         'created': 'create_time',
         'os': 'os version',
-        'container_config': 'container config',
         'architecture': 'arch',
-        'docker_version': 'docker version',
         'config': 'conf',
         'rootfs': 'some roots'
     }
@@ -1619,9 +1617,7 @@ def test_get_inspect_for_image(insecure, found_versions, type_in_list, will_rais
     expect_inspect = {
         'Created': 'create_time',
         'Os': 'os version',
-        'ContainerConfig': 'container config',
         'Architecture': 'arch',
-        'DockerVersion': 'docker version',
         'Config': 'conf',
         'RootFS': 'some roots',
         'Id': config_digest
