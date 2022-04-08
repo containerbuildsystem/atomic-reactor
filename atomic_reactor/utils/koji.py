@@ -32,7 +32,8 @@ from atomic_reactor.constants import (DEFAULT_DOWNLOAD_BLOCK_SIZE,
                                       PLUGIN_MAVEN_URL_SOURCES_METADATA_KEY,
                                       KOJI_MAX_RETRIES,
                                       KOJI_RETRY_INTERVAL, KOJI_OFFLINE_RETRY_INTERVAL,
-                                      PLUGIN_FETCH_MAVEN_KEY, PLUGIN_FLATPAK_CREATE_OCI)
+                                      PLUGIN_FETCH_MAVEN_KEY, PLUGIN_FLATPAK_CREATE_OCI,
+                                      IMAGE_TYPE_OCI_TAR)
 from atomic_reactor.types import RpmComponent
 from atomic_reactor.util import (Output, get_image_upload_filename,
                                  get_checksums, get_manifest_media_type,
@@ -486,14 +487,9 @@ def get_output(workflow: DockerBuildWorkflow,
         if not workflow.data.dockerfile_images.base_from_scratch:
             parent_id = imageutil.base_image_inspect(platform)['Id']
 
-        if not is_flatpak_build(workflow):
-            image_metadatas = workflow.data.postbuild_results[FetchDockerArchivePlugin.key][
-                platform]
-        else:
-            flatpak_result = workflow.data.postbuild_results[PLUGIN_FLATPAK_CREATE_OCI]
-            image_metadatas = flatpak_result[platform]['metadata']
-        image_archive = image_metadatas['path']
-        image_type = image_metadatas["type"]
+        image_archive = str(workflow.build_dir.platform_dir(platform).exported_squashed_image)
+        if is_flatpak_build(workflow):
+            image_type = IMAGE_TYPE_OCI_TAR
         layer_sizes = imageutil.get_uncompressed_image_layer_sizes(image_archive)
 
     digests = get_manifest_digests(pullspec, workflow.conf.registry['uri'],
