@@ -12,9 +12,11 @@ and turns it into a Flatpak application or runtime.
 import functools
 import os.path
 import shutil
+import subprocess
 import tempfile
 from typing import Any, Dict, Optional
 
+from atomic_reactor.utils import retries
 from flatpak_module_tools.flatpak_builder import FlatpakBuilder, FLATPAK_METADATA_ANNOTATIONS
 
 from atomic_reactor.constants import (IMAGE_TYPE_OCI,
@@ -80,6 +82,15 @@ class FlatpakCreateOciPlugin(PostBuildPlugin):
 
         metadata = get_exported_image_metadata(outfile, IMAGE_TYPE_OCI)
         metadata['ref_name'] = ref_name
+
+        cmd = ['skopeo', 'copy', 'oci:{path}:{ref_name}'.format(**metadata), '--format=v2s2',
+               'docker-archive:{}'.format(str(build_dir.exported_squashed_image))]
+
+        try:
+            retries.run_cmd(cmd)
+        except subprocess.CalledProcessError as e:
+            self.log.error("skopeo copy failed with output:\n%s", e.output)
+            raise RuntimeError("skopeo copy failed with output:\n{}".format(e.output)) from e
 
         self.log.info('OCI image is available as %s', outfile)
 
