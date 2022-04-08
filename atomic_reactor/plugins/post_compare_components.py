@@ -6,9 +6,10 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 import logging
+from typing import Iterator, List
 
 from atomic_reactor.plugin import PostBuildPlugin
-from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
+from atomic_reactor.types import RpmComponent
 from atomic_reactor.util import is_scratch_build
 from atomic_reactor.constants import PLUGIN_COMPARE_COMPONENTS_KEY
 
@@ -17,7 +18,7 @@ T_RPM = "rpm"
 SUPPORTED_TYPES = (T_RPM,)
 
 
-def filter_components_by_name(name, components_list, type_=T_RPM):
+def filter_components_by_name(name, components_list, type_=T_RPM) -> Iterator[RpmComponent]:
     """Generator filters components from components_list by name"""
     for components in components_list:
         for component in components:
@@ -34,7 +35,7 @@ class CompareComponentsPlugin(PostBuildPlugin):
     key = PLUGIN_COMPARE_COMPONENTS_KEY
     is_allowed_to_fail = False
 
-    def rpm_compare(self, a, b):
+    def rpm_compare(self, a, b) -> None:
         """
         Compare rpm component version 'a' with 'b'.
         'name' is implied equal as it is the key() lookup
@@ -46,7 +47,7 @@ class CompareComponentsPlugin(PostBuildPlugin):
 
         raise ValueError("%s != %s" % (a, b))
 
-    def get_rpm_components_list(self):
+    def get_rpm_components_list(self) -> List[List[RpmComponent]]:
         """
         Get the rpm components list for each platform build and
         merge it in one list for comparison.
@@ -54,14 +55,13 @@ class CompareComponentsPlugin(PostBuildPlugin):
         :return: list of component lists
         """
         comp_list = []
-        components_per_platform = self.workflow.data.postbuild_results[PostBuildRPMqaPlugin.key]
 
-        for components in components_per_platform.values():
+        for components in self.workflow.data.image_components.values():
             comp_list.append(components)
 
         return comp_list
 
-    def log_rpm_component(self, component, loglevel=logging.WARNING):
+    def log_rpm_component(self, component, loglevel=logging.WARNING) -> None:
         assert component['type'] == T_RPM
         self.log.log(
             loglevel,
@@ -70,7 +70,7 @@ class CompareComponentsPlugin(PostBuildPlugin):
             component['release'], component['signature']
         )
 
-    def run(self):
+    def run(self) -> None:
         """
         Run the plugin.
         """
@@ -109,7 +109,7 @@ class CompareComponentsPlugin(PostBuildPlugin):
         for components in comp_list:
             for component in components:
                 t = component['type']
-                name = component['name']
+                name = str(component['name'])  # cast to str to avoid mypy ambiguity
 
                 if name in package_comparison_exceptions:
                     self.log.info("Ignoring comparison of package %s", name)

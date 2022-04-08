@@ -96,7 +96,9 @@ class FlatpakCreateOciPlugin(PostBuildPlugin):
 
         shutil.rmtree(tmp_dir)
 
-        return {'metadata': metadata, 'components': image_rpm_components}
+        self.workflow.data.image_components[build_dir.platform] = image_rpm_components
+
+        return metadata
 
     def run(self) -> Optional[Dict[str, Dict[str, Any]]]:
         if not is_flatpak_build(self.workflow):

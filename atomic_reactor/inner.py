@@ -325,9 +325,9 @@ class ImageBuildWorkflowData(ISerializer):
     # "path/to/file" -> "content"
     files: Dict[str, str] = field(default_factory=dict)
 
-    # List of RPMs that go into the final result, as per utils.rpm.parse_rpm_output
+    # Per platform List of RPMs that go into the final result
     # Each RPM inside is a mapping containing the name, version, release and other attributes.
-    image_components: Optional[List[RpmComponent]] = None
+    image_components: Dict[str, List[RpmComponent]] = field(default_factory=dict)
 
     # List of all yum repos. The provided repourls might be changed (by resolve_composes) when
     # inheritance is enabled. This property holds the updated list of repos, allowing

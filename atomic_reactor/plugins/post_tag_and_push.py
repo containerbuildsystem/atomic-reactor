@@ -172,7 +172,7 @@ class TagAndPushPlugin(PostBuildPlugin):
         else:
             for image_platform in get_platforms(self.workflow.data):
                 plugin_results = wf_data.postbuild_results[PLUGIN_FLATPAK_CREATE_OCI]
-                image = plugin_results[image_platform]['metadata']
+                image = plugin_results[image_platform]
                 registry_image = tag_conf.get_unique_images_with_platform(image_platform)[0]
                 images.append((image, registry_image))
 
