@@ -510,14 +510,12 @@ def get_output(workflow: DockerBuildWorkflow,
 
     tag_conf = workflow.data.tag_conf
     if source_build:
-        image_type = IMAGE_TYPE_DOCKER_ARCHIVE
         tags = sorted(set(image.tag for image in tag_conf.images))
     else:
-        image_metadatas = workflow.data.postbuild_results[FetchDockerArchivePlugin.key]
-        image_type = image_metadatas[platform]["type"]
         tags = sorted(image.tag for image in tag_conf.get_unique_images_with_platform(platform))
 
-    metadata, output = get_image_output(image_type, image_id, platform, pullspec)
+    # since we are storing oci image as v2s2 all images now have 'docker-archive' type
+    metadata, output = get_image_output(IMAGE_TYPE_DOCKER_ARCHIVE, image_id, platform, pullspec)
 
     metadata.update({
         'arch': platform,

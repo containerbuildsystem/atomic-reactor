@@ -18,6 +18,7 @@ from textwrap import dedent
 
 import png
 import pytest
+from atomic_reactor.utils import retries
 from flatpak_module_tools.flatpak_builder import FlatpakBuilder, FLATPAK_METADATA_ANNOTATIONS
 from flexmock import flexmock
 
@@ -484,6 +485,7 @@ def mock_extract_filesystem(config, src, dest):
                     reason="libmodulemd not available")
 @pytest.mark.parametrize('config_name, flatpak_metadata, breakage', [
     ('app', 'both', None),
+    ('app', 'both', 'run_cmd_failed'),
     ('app', 'both', 'no_runtime'),
     ('app', 'annotations', None),
     ('app', 'labels', None),
@@ -546,6 +548,15 @@ def test_flatpak_create_oci(workflow, config_name, flatpak_metadata, breakage):
         module_config['metadata'] = mmd_index.dump_to_string()
 
         expected_exception = 'Failed to identify runtime module'
+    elif breakage == 'run_cmd_failed':
+        for platform in platforms:
+            platform_dir = workflow.build_dir.platform_dir(platform)
+            skopeo_cmd = ['skopeo', 'copy', f'oci:{str(platform_dir.path)}'
+                                            f'/flatpak-oci-image:app/org.gnome.eog/x86_64/stable',
+                          '--format=v2s2', f'docker-archive:{platform_dir.exported_squashed_image}']
+            flexmock(retries).should_receive('run_cmd').with_args(skopeo_cmd).and_raise(
+                subprocess.CalledProcessError(1, ["skopeo", "..."], output=b'something went wrong'))
+        expected_exception = 'skopeo copy failed with output:'
     else:
         assert breakage is None
         expected_exception = None
@@ -565,9 +576,8 @@ def test_flatpak_create_oci(workflow, config_name, flatpak_metadata, breakage):
      .and_return(source))
 
     if expected_exception:
-        with pytest.raises(PluginFailedException) as ex:
+        with pytest.raises(PluginFailedException, match=expected_exception):
             runner.run()
-        assert expected_exception in str(ex.value)
     else:
         builder = FlatpakBuilder(source,
                                  workflow.build_dir.any_platform.path,
@@ -584,6 +594,9 @@ def test_flatpak_create_oci(workflow, config_name, flatpak_metadata, breakage):
         components = x86_64_results['components']
         assert components == expected_components
         assert dir_metadata['type'] == IMAGE_TYPE_OCI
+        for image_platform in platforms:
+            image_path = workflow.build_dir.platform_dir(image_platform).exported_squashed_image
+            assert image_path.exists()
 
         # Check that the correct labels and annotations were written
 
