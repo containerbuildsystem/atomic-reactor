@@ -1453,9 +1453,7 @@ def test_get_all_manifests(tmpdir, image, registry, insecure, creds, path, versi
 MOCK_INSPECT_DATA = {
     'created': 'create_time',
     'os': 'os version',
-    'container_config': 'container config',
     'architecture': 'arch',
-    'docker_version': 'docker version',
     'config': 'conf',
     'rootfs': {'type': 'layers', 'diff_ids': ['sha256:123456', 'sha256:abcdef']}
 }
@@ -1464,9 +1462,7 @@ MOCK_CONFIG_DIGEST = '987654321'
 MOCK_EXPECT_INSPECT = {
     'Created': 'create_time',
     'Os': 'os version',
-    'ContainerConfig': 'container config',
     'Architecture': 'arch',
-    'DockerVersion': 'docker version',
     'Config': 'conf',
     'RootFS': {'Type': 'layers', 'Layers': ['sha256:123456', 'sha256:abcdef']},
     'Id': MOCK_CONFIG_DIGEST
