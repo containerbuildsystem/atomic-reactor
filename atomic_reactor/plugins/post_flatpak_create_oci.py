@@ -74,7 +74,9 @@ class FlatpakCreateOciPlugin(PostBuildPlugin):
 
         image_rpm_components = builder.get_components(flatpak_manifest)
 
-        ref_name, outfile, _ = builder.build_container(flatpak_filesystem)
+        ref_name, outfile, outfile_tarred = builder.build_container(flatpak_filesystem)
+
+        shutil.move(outfile_tarred, str(build_dir.exported_squashed_image))
 
         metadata = get_exported_image_metadata(outfile, IMAGE_TYPE_OCI)
         metadata['ref_name'] = ref_name
