@@ -9,9 +9,8 @@ import logging
 
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
-from atomic_reactor.util import is_scratch_build
-from atomic_reactor.constants import PLUGIN_COMPARE_COMPONENTS_KEY
-
+from atomic_reactor.util import is_scratch_build, is_flatpak_build, get_platforms
+from atomic_reactor.constants import PLUGIN_COMPARE_COMPONENTS_KEY, PLUGIN_FLATPAK_CREATE_OCI
 
 T_RPM = "rpm"
 SUPPORTED_TYPES = (T_RPM,)
@@ -54,10 +53,16 @@ class CompareComponentsPlugin(PostBuildPlugin):
         :return: list of component lists
         """
         comp_list = []
-        components_per_platform = self.workflow.data.postbuild_results[PostBuildRPMqaPlugin.key]
+        for image_platform in get_platforms(self.workflow.data):
+            if not is_flatpak_build(self.workflow):
+                components_per_platform = self.workflow.data.postbuild_results[
+                    PostBuildRPMqaPlugin.key][image_platform]
+            else:
+                components_per_platform = self.workflow.data.postbuild_results[
+                    PLUGIN_FLATPAK_CREATE_OCI][image_platform]['components']
 
-        for components in components_per_platform.values():
-            comp_list.append(components)
+            for components in components_per_platform.values():
+                comp_list.append(components)
 
         return comp_list
 
