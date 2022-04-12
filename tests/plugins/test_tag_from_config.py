@@ -135,18 +135,11 @@ def test_tag_from_config_with_tags_enclosed(workflow, name, organization, expect
 
 
 @pytest.mark.parametrize(
-    "user_params, is_orchestrator, expect_suffixes",
+    "user_params, expect_suffixes",
     [
-        # default worker tags
+        # default tags
         (
             {"image_tag": TEST_IMAGE},
-            False,
-            {"unique": [TEST_VERSION], "primary": [], "floating": []},
-        ),
-        # default orchestrator tags
-        (
-            {"image_tag": TEST_IMAGE},
-            True,
             {
                 "unique": [TEST_VERSION],
                 "primary": ["{version}-{release}"],
@@ -156,7 +149,6 @@ def test_tag_from_config_with_tags_enclosed(workflow, name, organization, expect
         # scratch build
         (
             {"image_tag": TEST_IMAGE, "scratch": True},
-            True,
             {
                 "unique": [TEST_VERSION],
                 "primary": [],
@@ -166,7 +158,6 @@ def test_tag_from_config_with_tags_enclosed(workflow, name, organization, expect
         # isolated build
         (
             {"image_tag": TEST_IMAGE, "isolated": True},
-            True,
             {
                 "unique": [TEST_VERSION],
                 "primary": ["{version}-{release}"],
@@ -176,7 +167,6 @@ def test_tag_from_config_with_tags_enclosed(workflow, name, organization, expect
         # additional tags from additional-tags file
         (
             {"image_tag": TEST_IMAGE, "additional_tags": ["spam"]},
-            True,
             {
                 "unique": [TEST_VERSION],
                 "primary": ["{version}-{release}"],
@@ -186,7 +176,6 @@ def test_tag_from_config_with_tags_enclosed(workflow, name, organization, expect
         # additional tags from container.yaml
         (
             {"image_tag": TEST_IMAGE, "additional_tags": ["spam"], "tags_from_yaml": True},
-            True,
             {
                 "unique": [TEST_VERSION],
                 "primary": ["{version}-{release}"],
@@ -196,7 +185,6 @@ def test_tag_from_config_with_tags_enclosed(workflow, name, organization, expect
         # additional tags don't apply if build is scratch
         (
             {"image_tag": TEST_IMAGE, "additional_tags": ["spam"], "scratch": True},
-            True,
             {
                 "unique": [TEST_VERSION],
                 "primary": [],
@@ -206,7 +194,6 @@ def test_tag_from_config_with_tags_enclosed(workflow, name, organization, expect
         # additional tags don't apply if build is isolated
         (
             {"image_tag": TEST_IMAGE, "additional_tags": ["spam"], "isolated": True},
-            True,
             {
                 "unique": [TEST_VERSION],
                 "primary": ["{version}-{release}"],
@@ -215,10 +202,9 @@ def test_tag_from_config_with_tags_enclosed(workflow, name, organization, expect
         ),
     ],
 )
-def test_tag_suffixes_from_user_params(user_params, is_orchestrator, expect_suffixes, workflow):
+def test_tag_suffixes_from_user_params(user_params, expect_suffixes, workflow):
     workflow.user_params.update(user_params)
 
     plugin = TagFromConfigPlugin(workflow)
-    flexmock(plugin).should_receive("is_in_orchestrator").and_return(is_orchestrator)
 
     assert plugin.tag_suffixes == expect_suffixes
