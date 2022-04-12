@@ -94,14 +94,14 @@ def mock_registries(registries, config, primary_images=None, manifest_results=No
                     schema_version='v2'):
     """
     Creates MockRegistries objects and fills them in based on config, which specifies
-    which registries should be prefilled (as if by workers) with platform-specific
-    manifests, and with what tags.
+    which registries should be prefilled (as if by the per-platform build tasks) with
+    platform-specific manifests, and with what tags.
     """
     reg_map = {}
     for reg in registries:
         reg_map[reg] = MockRegistry(reg)
 
-    worker_builds = {}
+    per_platform_digests = {}
 
     for platform, regs in config.items():
         digests = []
@@ -134,7 +134,7 @@ def mock_registries(registries, config, primary_images=None, manifest_results=No
                     'version': 'v1'
                 })
 
-        worker_builds[platform] = {
+        per_platform_digests[platform] = {
             'digests': digests
         }
 
@@ -147,15 +147,12 @@ def mock_registries(registries, config, primary_images=None, manifest_results=No
                 repo["manifests"][manifest_digest.default] = manifest_results["manifest"]
                 repo["tags"][tag] = manifest_digest.default
 
-    return reg_map, {
-        'worker-builds': worker_builds,
-        'repositories': {'primary': primary_images or [], 'floating': []}
-    }
+    return reg_map, per_platform_digests
 
 
 def mock_environment(workflow,
                      primary_images=None, floating_images=None,
-                     manifest_results=None, annotations=None):
+                     manifest_results=None):
     env = MockEnv(workflow).for_plugin("postbuild", PushFloatingTagsPlugin.key)
     env.set_plugin_result("postbuild", PLUGIN_GROUP_MANIFESTS_KEY, manifest_results)
 
@@ -273,115 +270,87 @@ NOGROUP_OCI_RESULTS = {
 
 
 @pytest.mark.parametrize(('test_name',
-                          'registries', 'manifest_results', 'schema_version',
+                          'manifest_results', 'schema_version',
                           'floating_tags',
-                          'workers', 'expected_exception'), [
+                          'per_platform_images', 'expected_skip_reason'), [
     ("simple_grouped_v2",
-     [REGISTRY_V2], GROUPED_V2_RESULTS, 'v2',
+     GROUPED_V2_RESULTS, 'v2',
      ['namespace/httpd:2.4-1'],
      {
-         'ppc64le': {
-             REGISTRY_V2: ['namespace/httpd:worker-build-ppc64le-latest'],
-         },
-         'x86_64': {
-             REGISTRY_V2: ['namespace/httpd:worker-build-x86_64-latest'],
-         }
+         'ppc64le': ['namespace/httpd:unique-tag-ppc64le'],
+         'x86_64': ['namespace/httpd:unique-tag-x86_64']
      },
      None),
     ("simple_grouped_oci",
-     [REGISTRY_V2], GROUPED_OCI_RESULTS, 'oci',
+     GROUPED_OCI_RESULTS, 'oci',
      ['namespace/httpd:2.4-1'],
      {
-         'ppc64le': {
-             REGISTRY_V2: ['namespace/httpd:worker-build-ppc64le-latest'],
-         },
-         'x86_64': {
-             REGISTRY_V2: ['namespace/httpd:worker-build-x86_64-latest'],
-         }
+         'ppc64le': ['namespace/httpd:unique-tag-ppc64le'],
+         'x86_64': ['namespace/httpd:unique-tag-x86_64']
      },
      None),
     ("multi_v2",
-     [REGISTRY_V2], GROUPED_V2_RESULTS, 'v2',
+     GROUPED_V2_RESULTS, 'v2',
      ['namespace/httpd:2.4-1', 'namespace/httpd:latest'],
      {
-         'ppc64le': {
-             REGISTRY_V2: ['namespace/httpd:worker-build-ppc64le-latest'],
-         },
-         'x86_64': {
-             REGISTRY_V2: ['namespace/httpd:worker-build-x86_64-latest'],
-         }
+         'ppc64le': ['namespace/httpd:unique-tag-ppc64le'],
+         'x86_64': ['namespace/httpd:unique-tag-x86_64']
      },
      None),
     ("simple_ungrouped_v2",
-     [REGISTRY_V2], NOGROUP_V2_RESULTS, 'v2',
+     NOGROUP_V2_RESULTS, 'v2',
      ['namespace/httpd:2.4-1'],
      {
-         'ppc64le': {
-             REGISTRY_V2: ['namespace/httpd:worker-build-ppc64le-latest'],
-         }
+         'ppc64le': ['namespace/httpd:unique-tag-ppc64le'],
      },
      None),
     ("simple_ungrouped_oci",
-     [REGISTRY_V2], NOGROUP_OCI_RESULTS, 'oci',
+     NOGROUP_OCI_RESULTS, 'oci',
      ['namespace/httpd:2.4-1'],
      {
-         'ppc64le': {
-             REGISTRY_V2: ['namespace/httpd:worker-build-ppc64le-latest'],
-         }
+         'ppc64le': ['namespace/httpd:unique-tag-ppc64le'],
      },
      None),
     ("multi_ungrouped_v2",
-     [REGISTRY_V2], NOGROUP_V2_RESULTS, 'v2',
+     NOGROUP_V2_RESULTS, 'v2',
      ['namespace/httpd:2.4-1', 'namespace/httpd:latest'],
      {
-         'ppc64le': {
-             REGISTRY_V2: ['namespace/httpd:worker-build-ppc64le-latest'],
-         }
+         'ppc64le': ['namespace/httpd:unique-tag-ppc64le'],
      },
      None),
     ("multi_ungrouped_oci",
-     [REGISTRY_V2], NOGROUP_OCI_RESULTS, 'oci',
+     NOGROUP_OCI_RESULTS, 'oci',
      ['namespace/httpd:2.4-1', 'namespace/httpd:latest'],
      {
-         'ppc64le': {
-             REGISTRY_V2: ['namespace/httpd:worker-build-ppc64le-latest'],
-         }
+         'ppc64le': ['namespace/httpd:unique-tag-ppc64le'],
      },
      None),
     ("No tags",
-     [REGISTRY_V2], GROUPED_V2_RESULTS, 'v2',
+     GROUPED_V2_RESULTS, 'v2',
      None,
      {
-         'ppc64le': {
-             REGISTRY_V2: ['namespace/httpd:worker-build-ppc64le-latest'],
-         },
-         'x86_64': {
-             REGISTRY_V2: ['namespace/httpd:worker-build-x86_64-latest'],
-         }
+         'ppc64le': ['namespace/httpd:unique-tag-ppc64le'],
+         'x86_64': ['namespace/httpd:unique-tag-x86_64']
      },
      'No floating images to tag, skipping push_floating_tags'),
     ("called_from_worker",
-     [REGISTRY_V2], GROUPED_V2_RESULTS, 'v2',
+     GROUPED_V2_RESULTS, 'v2',
      ['namespace/httpd:2.4-1', 'namespace/httpd:latest'],
      {},
      'push_floating_tags cannot be used by a worker builder'),
     ("No_results",
-     [REGISTRY_V2], None, 'oci',
+     None, 'oci',
      ['namespace/httpd:2.4-1', 'namespace/httpd:latest'],
      {
-         'ppc64le': {
-             REGISTRY_V2: ['namespace/httpd:worker-build-ppc64le-latest'],
-         },
-         'x86_64': {
-             REGISTRY_V2: ['namespace/httpd:worker-build-x86_64-latest'],
-         }
+         'ppc64le': ['namespace/httpd:unique-tag-ppc64le'],
+         'x86_64': ['namespace/httpd:unique-tag-x86_64']
      },
      'No manifest digest available, skipping push_floating_tags'),
 ])
 @responses.activate  # noqa
-def test_floating_tags_push(workflow, tmpdir, test_name, registries, manifest_results,
-                            schema_version, floating_tags, workers, expected_exception,
-                            caplog):
+def test_floating_tags_push(workflow, tmpdir, test_name, manifest_results,
+                            schema_version, floating_tags, per_platform_images,
+                            expected_skip_reason, caplog):
     primary_images = ['namespace/httpd:2.4', 'namespace/httpd:primary']
 
     goarch = {
@@ -389,7 +358,7 @@ def test_floating_tags_push(workflow, tmpdir, test_name, registries, manifest_re
         'x86_64': 'amd64',
     }
 
-    all_registry_conf = {
+    registry_conf = {
         REGISTRY_V2: {'version': 'v2', 'insecure': True},
     }
 
@@ -402,41 +371,31 @@ def test_floating_tags_push(workflow, tmpdir, test_name, registries, manifest_re
         }
         dockerconfig.write(json.dumps(dockerconfig_contents))
         dockerconfig.flush()
-        all_registry_conf[REGISTRY_V2]['secret'] = temp_dir
+        registry_conf[REGISTRY_V2]['secret'] = temp_dir
 
-    registry_conf = {
-        k: v for k, v in all_registry_conf.items() if k in registries
+    registry_images_conf = {
+        platform: {REGISTRY_V2: images} for platform, images in per_platform_images.items()
     }
 
-    mocked_registries, annotations = mock_registries(registry_conf, workers,
-                                                     primary_images=primary_images,
-                                                     manifest_results=manifest_results,
-                                                     schema_version=schema_version)
+    mocked_registries, _ = mock_registries(registry_conf, registry_images_conf,
+                                           primary_images=primary_images,
+                                           manifest_results=manifest_results,
+                                           schema_version=schema_version)
     env = mock_environment(workflow,
                            primary_images=primary_images,
                            floating_images=floating_tags,
-                           manifest_results=manifest_results,
-                           annotations=annotations)
+                           manifest_results=manifest_results)
 
-    if workers:
+    if per_platform_images:
         env.make_orchestrator()
 
-    registries_list = []
-
-    for docker_uri in registry_conf:
-        reg_ver = registry_conf[docker_uri]['version']
-        reg_secret = None
-        if 'secret' in registry_conf[docker_uri]:
-            reg_secret = registry_conf[docker_uri]['secret']
-
-        new_reg = {}
-        if reg_secret:
-            new_reg['auth'] = {'cfg_path': reg_secret}
-        else:
-            new_reg['auth'] = {'cfg_path': str(temp_dir)}
-        new_reg['url'] = 'https://' + docker_uri + '/' + reg_ver
-
-        registries_list.append(new_reg)
+    registries_list = [
+        {
+            'url': f'https://{docker_uri}/{registry["version"]}',
+            'auth': {'cfg_path': registry.get('secret', str(temp_dir))},
+        }
+        for docker_uri, registry in registry_conf.items()
+    ]
 
     platform_descriptors_list = []
     for platform, arch in goarch.items():
@@ -454,7 +413,7 @@ def test_floating_tags_push(workflow, tmpdir, test_name, registries, manifest_re
     results = runner.run()
     plugin_result = results[PushFloatingTagsPlugin.key]
 
-    if expected_exception is None:
+    if expected_skip_reason is None:
         primary_name, primary_tag = primary_images[0].split(':')
         for registry in registry_conf:
             target_registry = mocked_registries[registry]
@@ -474,4 +433,4 @@ def test_floating_tags_push(workflow, tmpdir, test_name, registries, manifest_re
         assert expected_repos == actual_repos
     else:
         assert not plugin_result
-        assert expected_exception in caplog.text
+        assert expected_skip_reason in caplog.text
