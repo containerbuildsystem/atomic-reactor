@@ -160,9 +160,11 @@ class StoreMetadataPlugin(ExitPlugin):
                 parent_images_strings[SCRATCH_FROM] = SCRATCH_FROM
 
             try:
-                with open(self.workflow.df_path) as f:
-                    dockerfile_contents = f.read()
-            except AttributeError:
+                dockerfile = self.workflow.build_dir.any_platform.dockerfile_with_parent_env(
+                    self.workflow.imageutil.base_image_inspect()
+                )
+                dockerfile_contents = dockerfile.content
+            except FileNotFoundError:
                 dockerfile_contents = ""
 
         annotations = {

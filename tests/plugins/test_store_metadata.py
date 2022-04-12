@@ -7,6 +7,7 @@ of the BSD license. See the LICENSE file for details.
 """
 
 import json
+import os
 from datetime import datetime, timedelta
 from textwrap import dedent
 
@@ -17,6 +18,7 @@ from osbs.exceptions import OsbsResponseException
 from osbs.utils import ImageName
 
 from atomic_reactor.constants import PLUGIN_VERIFY_MEDIA_KEY, PLUGIN_FETCH_SOURCES_KEY
+from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
@@ -30,10 +32,12 @@ DIGEST1 = "sha256:1da9b9e1c6bf6ab40f1627d76e2ad58e9b2be14351ef4ff1ed3eb4a1561381
 DIGEST2 = "sha256:0000000000000000000000000000000000000000000000000000000000000000"
 DIGEST_NOT_USED = "not-used"
 
+MOCK_DOCKERFILE = ""
+
 pytestmark = pytest.mark.usefixtures('user_params')
 
 
-def prepare(workflow, registry=None):
+def prepare(workflow, registry=None, no_dockerfile=True):
     if not registry:
         registry = LOCALHOST_REGISTRY
 
@@ -45,6 +49,9 @@ def prepare(workflow, registry=None):
 
     flexmock(OSBS, update_annotations_on_build=update_annotations_on_build)
     flexmock(OSBS, update_labels_on_build=update_labels_on_build)
+    if no_dockerfile:
+        os.remove(os.path.join(workflow.source.path, 'Dockerfile'))
+    workflow.build_dir.init_build_dirs(["x86_64"], workflow.source)
     config_kwargs = {
         'namespace': workflow.namespace,
         'verify_ssl': True,
@@ -102,6 +109,10 @@ def prepare(workflow, registry=None):
     # pylint: enable=no-member
 
 
+def mock_dockerfile(workflow: DockerBuildWorkflow, content: str) -> None:
+    workflow.build_dir.any_platform.dockerfile_path.write_text(content, "utf-8")
+
+
 @pytest.mark.parametrize(('help_results', 'expected_help_results', 'base_from_scratch'), (
     (None, False, False),
     ({
@@ -136,14 +147,17 @@ FROM fedora
 RUN yum install -y python-django
 CMD blabla"""
 
-    df = df_parser(str(source_dir))
-    df.content = df_content
-    workflow.data.dockerfile_images = DockerfileImages(df.parent_images)
-    for parent in df.parent_images:
+    mock_dockerfile(workflow, df_content)
+    workflow.df_dir = str(source_dir)
+
+    dockerfile = workflow.build_dir.any_platform.dockerfile_with_parent_env(
+        workflow.imageutil.base_image_inspect()
+    )
+
+    workflow.data.dockerfile_images = DockerfileImages(dockerfile.parent_images)
+    for parent in dockerfile.parent_images:
         if parent != 'scratch':
             workflow.data.dockerfile_images[parent] = "sha256:spamneggs"
-    flexmock(workflow, df_path=df.dockerfile_path)
-    workflow.df_dir = str(source_dir)
 
     workflow.data.prebuild_results = {
         AddHelpPlugin.key: help_results
@@ -405,7 +419,7 @@ RUN yum install -y python-django
 CMD blabla"""
     df = df_parser(str(source_dir))
     df.content = df_content
-    flexmock(workflow, df_path=df.dockerfile_path)
+    mock_dockerfile(workflow, df_content)
     workflow.df_dir = str(source_dir)
 
     workflow.data.prebuild_results = {}
@@ -450,10 +464,9 @@ CMD blabla"""
 
 
 def test_exit_before_dockerfile_created(workflow, source_dir):
-    prepare(workflow)
+    prepare(workflow, no_dockerfile=True)
     workflow.data.exit_results = {}
     workflow.df_dir = str(source_dir)
-    workflow._df_path = None
 
     runner = ExitPluginsRunner(
         workflow,
@@ -479,9 +492,7 @@ def test_store_metadata_fail_update_annotations(workflow, source_dir, caplog):
 FROM fedora
 RUN yum install -y python-django
 CMD blabla"""
-    df = df_parser(str(source_dir))
-    df.content = df_content
-    flexmock(workflow, df_path=df.dockerfile_path)
+    mock_dockerfile(workflow, df_content)
     workflow.df_dir = str(source_dir)
 
     runner = ExitPluginsRunner(
@@ -537,9 +548,7 @@ def test_set_koji_annotations_whitelist(workflow, source_dir, koji_conf):
         RUN nothing
         CMD cowsay moo
         ''')
-    df = df_parser(str(source_dir))
-    df.content = df_content
-    flexmock(workflow, df_path=df.dockerfile_path)
+    mock_dockerfile(workflow, df_content)
     workflow.df_dir = str(source_dir)
     runner = ExitPluginsRunner(
         workflow,
