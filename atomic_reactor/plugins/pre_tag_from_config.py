@@ -34,20 +34,19 @@ class TagFromConfigPlugin(PreBuildPlugin):
         unique_tag = user_params["image_tag"].split(":")[-1]
         tag_suffixes = {"unique": [unique_tag], "primary": [], "floating": []}
 
-        if self.is_in_orchestrator():
-            additional_tags = user_params.get("additional_tags", [])
+        additional_tags = user_params.get("additional_tags", [])
 
-            if user_params.get("scratch"):
-                pass
-            elif user_params.get("isolated"):
-                tag_suffixes["primary"].extend(["{version}-{release}"])
-            elif user_params.get("tags_from_yaml"):
-                tag_suffixes["primary"].extend(["{version}-{release}"])
-                tag_suffixes["floating"].extend(additional_tags)
-            else:
-                tag_suffixes["primary"].extend(["{version}-{release}"])
-                tag_suffixes["floating"].extend(["latest", "{version}"])
-                tag_suffixes["floating"].extend(additional_tags)
+        if user_params.get("scratch"):
+            pass
+        elif user_params.get("isolated"):
+            tag_suffixes["primary"].extend(["{version}-{release}"])
+        elif user_params.get("tags_from_yaml"):
+            tag_suffixes["primary"].extend(["{version}-{release}"])
+            tag_suffixes["floating"].extend(additional_tags)
+        else:
+            tag_suffixes["primary"].extend(["{version}-{release}"])
+            tag_suffixes["floating"].extend(["latest", "{version}"])
+            tag_suffixes["floating"].extend(additional_tags)
 
         return tag_suffixes
 
