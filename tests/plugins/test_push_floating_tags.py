@@ -333,11 +333,6 @@ NOGROUP_OCI_RESULTS = {
          'x86_64': ['namespace/httpd:unique-tag-x86_64']
      },
      'No floating images to tag, skipping push_floating_tags'),
-    ("called_from_worker",
-     GROUPED_V2_RESULTS, 'v2',
-     ['namespace/httpd:2.4-1', 'namespace/httpd:latest'],
-     {},
-     'push_floating_tags cannot be used by a worker builder'),
     ("No_results",
      None, 'oci',
      ['namespace/httpd:2.4-1', 'namespace/httpd:latest'],
@@ -385,9 +380,6 @@ def test_floating_tags_push(workflow, tmpdir, test_name, manifest_results,
                            primary_images=primary_images,
                            floating_images=floating_tags,
                            manifest_results=manifest_results)
-
-    if per_platform_images:
-        env.make_orchestrator()
 
     registries_list = [
         {

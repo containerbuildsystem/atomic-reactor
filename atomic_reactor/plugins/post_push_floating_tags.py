@@ -56,11 +56,6 @@ class PushFloatingTagsPlugin(PostBuildPlugin):
             self.log.info('No floating images to tag, skipping %s', PLUGIN_PUSH_FLOATING_TAGS_KEY)
             return
 
-        #  can't run in the worker build
-        if not self.workflow.is_orchestrator_build():
-            self.log.warning('%s cannot be used by a worker builder', PLUGIN_PUSH_FLOATING_TAGS_KEY)
-            return
-
         manifest_data = self.workflow.data.postbuild_results.get(PLUGIN_GROUP_MANIFESTS_KEY)
         if not manifest_data or not manifest_data.get("manifest_digest"):
             self.log.info('No manifest digest available, skipping %s',
