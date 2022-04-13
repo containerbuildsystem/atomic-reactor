@@ -8,15 +8,10 @@ of the BSD license. See the LICENSE file for details.
 
 Query the koji build target, if any, to find the enabled architectures. Remove any excluded
 architectures, and return the resulting list.
-
-build_orchestrate_build will prefer this list of architectures over the platforms supplied by
-USER_PARAMS, which is necessary to allow autobuilds to build on the correct architectures
-when koji build tags change.
 """
 from typing import List, Optional
 from atomic_reactor.plugin import PreBuildPlugin
-from atomic_reactor.util import (is_scratch_build, is_isolated_build,
-                                 get_orchestrator_platforms, map_to_user_params)
+from atomic_reactor.util import is_scratch_build, is_isolated_build, map_to_user_params
 from atomic_reactor.constants import PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
 from atomic_reactor.config import get_koji_session
 
@@ -62,6 +57,8 @@ class CheckAndSetPlatformsPlugin(PreBuildPlugin):
         """
         run the plugin
         """
+        user_platforms: Optional[List[str]] = self.workflow.user_params.get("platforms")
+
         if self.koji_target:
             koji_session = get_koji_session(self.workflow.conf)
             self.log.info("Checking koji target for platforms")
@@ -77,7 +74,7 @@ class CheckAndSetPlatformsPlugin(PreBuildPlugin):
             self.log.info("Koji platforms are %s", sorted(platforms))
 
             if is_scratch_build(self.workflow) or is_isolated_build(self.workflow):
-                override_platforms = set(get_orchestrator_platforms(self.workflow) or [])
+                override_platforms = set(user_platforms or [])
                 if override_platforms and override_platforms != set(platforms):
                     sorted_platforms = sorted(override_platforms)
                     self.log.info("Received user specified platforms %s", sorted_platforms)
@@ -86,9 +83,11 @@ class CheckAndSetPlatformsPlugin(PreBuildPlugin):
                     # that almost certainly means they were overridden and should be used
                     return sorted_platforms
         else:
-            platforms = get_orchestrator_platforms(self.workflow)
-            user_platforms = sorted(platforms) if platforms else None
-            self.log.info("No koji platforms. User specified platforms are %s", user_platforms)
+            platforms = user_platforms
+            self.log.info(
+                "No koji platforms. User specified platforms are %s",
+                sorted(platforms) if platforms else None,
+            )
 
         if not platforms:
             raise RuntimeError("Cannot determine platforms; no koji target or platform list")

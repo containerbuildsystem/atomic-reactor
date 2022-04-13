@@ -167,7 +167,7 @@ def test_check_and_set_platforms(workflow, source_dir, caplog,
         assert "No platforms found in koji target" in caplog.text
 
 
-@pytest.mark.parametrize(('labels', 'platforms', 'orchestrator_platforms', 'platform_only',
+@pytest.mark.parametrize(('labels', 'platforms', 'user_platforms', 'platform_only',
                           'result'), [
     ({}, None,
      None, '', None),
@@ -191,13 +191,13 @@ def test_check_and_set_platforms(workflow, source_dir, caplog,
      ['x86_64', 'arm64'], 'x86_64', ['x86_64', 'arm64']),
 ])
 def test_check_isolated_or_scratch(workflow, source_dir, caplog,
-                                   labels, platforms, orchestrator_platforms, platform_only,
+                                   labels, platforms, user_platforms, platform_only,
                                    result):
     write_container_yaml(source_dir, platform_only=platform_only)
 
     env = mock_env(workflow, source_dir, labels=labels)
-    if orchestrator_platforms:
-        env.set_orchestrator_platforms(platforms=orchestrator_platforms)
+    if user_platforms:
+        env.set_user_params(platforms=user_platforms)
 
     session = mock_session(platforms)
     flexmock(koji_util).should_receive('create_koji_session').and_return(session)
@@ -211,9 +211,9 @@ def test_check_isolated_or_scratch(workflow, source_dir, caplog,
     if platforms:
         koji_msg = "Koji platforms are {0}".format(sorted(platforms.keys()))
         assert koji_msg in caplog.text
-        diffplat = orchestrator_platforms and set(platforms.keys()) != set(orchestrator_platforms)
+        diffplat = user_platforms and set(platforms.keys()) != set(user_platforms)
         if labels and diffplat:
-            sort_platforms = sorted(orchestrator_platforms)
+            sort_platforms = sorted(user_platforms)
             user_msg = "Received user specified platforms {0}".format(sort_platforms)
             assert user_msg in caplog.text
     else:
@@ -238,7 +238,7 @@ def test_check_and_set_platforms_no_koji(workflow, source_dir, caplog,
     env = mock_env(workflow, source_dir)
 
     if platforms:
-        env.set_orchestrator_platforms(platforms.keys())
+        env.set_user_params(platforms=list(platforms))
 
     env.set_reactor_config(make_reactor_config_map(platforms))
 
@@ -272,7 +272,7 @@ def test_check_and_set_platforms_no_platforms_in_limits(
     env = mock_env(workflow, source_dir)
 
     if platforms:
-        env.set_orchestrator_platforms(platforms.keys())
+        env.set_user_params(platforms=list(platforms))
 
     env.set_reactor_config(make_reactor_config_map(platforms))
 
@@ -297,7 +297,7 @@ def test_platforms_from_cluster_config(workflow, source_dir,
     env = mock_env(workflow, source_dir)
 
     if platforms:
-        env.set_orchestrator_platforms(platforms.split())
+        env.set_user_params(platforms=platforms.split())
 
     env.set_reactor_config(make_reactor_config_map(cluster_platforms))
 
@@ -372,7 +372,7 @@ def test_init_root_build_dir(workflow, source_dir):
     platforms = {"x86_64": True, "ppc64le": True}
 
     env = mock_env(workflow, source_dir)
-    env.set_orchestrator_platforms(iter(platforms.keys()))
+    env.set_user_params(platforms=list(platforms))
 
     env.set_reactor_config(make_reactor_config_map(platforms))
 
