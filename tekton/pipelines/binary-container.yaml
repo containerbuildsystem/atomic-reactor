@@ -4,10 +4,10 @@ metadata:
   name: binary-container-0-1  # dot is not allowed in the name
 spec:
   params:
-    - name: OSBS_IMAGE
+    - name: osbs-image
       description: The location of the OSBS builder image (FQDN pullspec)
       type: string
-    - name: USER_PARAMS
+    - name: user-params
       type: string
       description: User parameters in JSON format
 
@@ -43,12 +43,12 @@ spec:
         - name: ws-reactor-config-map
           workspace: ws-reactor-config-map
       params:
-        - name: OSBS_IMAGE
-          value: "$(params.OSBS_IMAGE)"
-        - name: PIPELINE_RUN_NAME
+        - name: osbs-image
+          value: "$(params.osbs-image)"
+        - name: pipeline-run-name
           value: "$(context.pipelineRun.name)"
-        - name: USER_PARAMS
-          value: "$(params.USER_PARAMS)"
+        - name: user-params
+          value: "$(params.user-params)"
 
     - name: binary-container-prebuild
       runAfter:
@@ -67,12 +67,12 @@ spec:
         - name: ws-reactor-config-map
           workspace: ws-reactor-config-map
       params:
-        - name: OSBS_IMAGE
-          value: "$(params.OSBS_IMAGE)"
-        - name: PIPELINE_RUN_NAME
+        - name: osbs-image
+          value: "$(params.osbs-image)"
+        - name: pipeline-run-name
           value: "$(context.pipelineRun.name)"
-        - name: USER_PARAMS
-          value: "$(params.USER_PARAMS)"
+        - name: user-params
+          value: "$(params.user-params)"
 
     - name: binary-container-build-x86-64
       runAfter:
@@ -93,13 +93,13 @@ spec:
         - name: ws-remote-host-auth
           workspace: ws-remote-host-auth
       params:
-        - name: OSBS_IMAGE
-          value: "$(params.OSBS_IMAGE)"
-        - name: PIPELINE_RUN_NAME
+        - name: osbs-image
+          value: "$(params.osbs-image)"
+        - name: pipeline-run-name
           value: "$(context.pipelineRun.name)"
-        - name: USER_PARAMS
-          value: "$(params.USER_PARAMS)"
-        - name: PLATFORM
+        - name: user-params
+          value: "$(params.user-params)"
+        - name: platform
           value: x86_64
 
     - name: binary-container-build-s390x
@@ -121,13 +121,13 @@ spec:
         - name: ws-remote-host-auth
           workspace: ws-remote-host-auth
       params:
-        - name: OSBS_IMAGE
-          value: "$(params.OSBS_IMAGE)"
-        - name: PIPELINE_RUN_NAME
+        - name: osbs-image
+          value: "$(params.osbs-image)"
+        - name: pipeline-run-name
           value: "$(context.pipelineRun.name)"
-        - name: USER_PARAMS
-          value: "$(params.USER_PARAMS)"
-        - name: PLATFORM
+        - name: user-params
+          value: "$(params.user-params)"
+        - name: platform
           value: s390x
 
     - name: binary-container-build-ppc64le
@@ -149,13 +149,13 @@ spec:
         - name: ws-remote-host-auth
           workspace: ws-remote-host-auth
       params:
-        - name: OSBS_IMAGE
-          value: "$(params.OSBS_IMAGE)"
-        - name: PIPELINE_RUN_NAME
+        - name: osbs-image
+          value: "$(params.osbs-image)"
+        - name: pipeline-run-name
           value: "$(context.pipelineRun.name)"
-        - name: USER_PARAMS
-          value: "$(params.USER_PARAMS)"
-        - name: PLATFORM
+        - name: user-params
+          value: "$(params.user-params)"
+        - name: platform
           value: ppc64le
 
     - name: binary-container-build-aarch64
@@ -177,13 +177,13 @@ spec:
         - name: ws-remote-host-auth
           workspace: ws-remote-host-auth
       params:
-        - name: OSBS_IMAGE
-          value: "$(params.OSBS_IMAGE)"
-        - name: PIPELINE_RUN_NAME
+        - name: osbs-image
+          value: "$(params.osbs-image)"
+        - name: pipeline-run-name
           value: "$(context.pipelineRun.name)"
-        - name: USER_PARAMS
-          value: "$(params.USER_PARAMS)"
-        - name: PLATFORM
+        - name: user-params
+          value: "$(params.user-params)"
+        - name: platform
           value: aarch64
 
     - name: binary-container-postbuild
@@ -206,12 +206,12 @@ spec:
         - name: ws-reactor-config-map
           workspace: ws-reactor-config-map
       params:
-        - name: OSBS_IMAGE
-          value: "$(params.OSBS_IMAGE)"
-        - name: PIPELINE_RUN_NAME
+        - name: osbs-image
+          value: "$(params.osbs-image)"
+        - name: pipeline-run-name
           value: "$(context.pipelineRun.name)"
-        - name: USER_PARAMS
-          value: "$(params.USER_PARAMS)"
+        - name: user-params
+          value: "$(params.user-params)"
 
     - name: binary-container-set-results
       runAfter:
@@ -222,8 +222,8 @@ spec:
         - name: ws-context-dir
           workspace: ws-context-dir
       params:
-        - name: OSBS_IMAGE
-          value: "$(params.OSBS_IMAGE)"
+        - name: osbs-image
+          value: "$(params.osbs-image)"
 
   finally:
     - name: binary-container-exit
@@ -241,9 +241,9 @@ spec:
         - name: ws-reactor-config-map
           workspace: ws-reactor-config-map
       params:
-        - name: OSBS_IMAGE
-          value: "$(params.OSBS_IMAGE)"
-        - name: PIPELINE_RUN_NAME
+        - name: osbs-image
+          value: "$(params.osbs-image)"
+        - name: pipeline-run-name
           value: "$(context.pipelineRun.name)"
-        - name: USER_PARAMS
-          value: "$(params.USER_PARAMS)"
+        - name: user-params
+          value: "$(params.user-params)"

@@ -6,7 +6,7 @@ spec:
   description: >-
     OSBS task for setting results for source container build
   params:
-    - name: OSBS_IMAGE
+    - name: osbs-image
       description: The location of the OSBS builder image (FQDN pullspec)
       type: string
 
@@ -19,7 +19,7 @@ spec:
 
   steps:
     - name: source-container-set-results
-      image: $(params.OSBS_IMAGE)
+      image: $(params.osbs-image)
       resources:
         requests:
           memory: 300Mi
