@@ -191,9 +191,8 @@ def test_running_build(workflow, caplog,
             runner.run()
     else:
         results = runner.run()
-        assert results.keys() == {'image_metadata', 'logs', 'skip_layer_squash'}
+        assert results.keys() == {'image_metadata', 'logs'}
         assert results['logs'] == ['stub stdout']
-        assert results['skip_layer_squash']
         assert results['image_metadata'] == expected_exported_image_metadata
         assert 'stub stdout' in caplog.text
         empty_srpm_msg = f"SRPMs directory '{sources_dir_path}' is empty"
