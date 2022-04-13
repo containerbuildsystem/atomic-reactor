@@ -31,20 +31,14 @@ class StoreMetadataPlugin(ExitPlugin):
         super(StoreMetadataPlugin, self).__init__(workflow)
         self.source_build = PLUGIN_FETCH_SOURCES_KEY in self.workflow.data.prebuild_results
 
-    def get_result(self, result):
-        if isinstance(result, Exception):
-            result = ''
-
-        return result
-
     def get_pre_result(self, key):
-        return self.get_result(self.workflow.data.prebuild_results.get(key, ''))
+        return self.workflow.data.prebuild_results.get(key, '')
 
     def get_post_result(self, key):
-        return self.get_result(self.workflow.data.postbuild_results.get(key, ''))
+        return self.workflow.data.postbuild_results.get(key, '')
 
     def get_exit_result(self, key):
-        return self.get_result(self.workflow.data.exit_results.get(key, ''))
+        return self.workflow.data.exit_results.get(key, '')
 
     def get_digests(self):
         """
@@ -193,8 +187,6 @@ class StoreMetadataPlugin(ExitPlugin):
         media_types = []
 
         media_results = wf_data.postbuild_results.get(PLUGIN_VERIFY_MEDIA_KEY)
-        if isinstance(media_results, Exception):
-            media_results = None
 
         if media_results:
             media_types += media_results
