@@ -6,16 +6,16 @@ spec:
   description: >-
     OSBS build task for building binary container image
   params:
-    - name: OSBS_IMAGE
+    - name: osbs-image
       description: The location of the OSBS builder image (FQDN pullspec)
       type: string
-    - name: PIPELINE_RUN_NAME
+    - name: pipeline-run-name
       type: string
       description: PipelineRun name to reference current PipelineRun
-    - name: USER_PARAMS
+    - name: user-params
       type: string
       description: User parameters in JSON format
-    - name: PLATFORM
+    - name: platform
       type: string
       description: platform on which to build container
 
@@ -29,7 +29,7 @@ spec:
 
   steps:
     - name: binary-container-build
-      image: $(params.OSBS_IMAGE)
+      image: $(params.osbs-image)
       resources:
         requests:
           memory: 300Mi
@@ -39,10 +39,10 @@ spec:
           cpu: 395m
       script: >
         atomic-reactor -v task
-        --user-params="$(params.USER_PARAMS)"
+        --user-params="$(params.user-params)"
         --build-dir=$(workspaces.ws-build-dir.path)
         --context-dir=$(workspaces.ws-context-dir.path)
         --config-file=$(workspaces.ws-reactor-config-map.path)/config.yaml
         --namespace=$(context.taskRun.namespace)
-        --pipeline-run-name="$(params.PIPELINE_RUN_NAME)"
-        binary-container-build --platform="$(params.PLATFORM)"
+        --pipeline-run-name="$(params.pipeline-run-name)"
+        binary-container-build --platform="$(params.platform)"
