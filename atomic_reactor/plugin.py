@@ -126,15 +126,6 @@ class BuildPlugin(Plugin):
         self.workflow = workflow
         super(BuildPlugin, self).__init__(*args, **kwargs)
 
-    def is_in_orchestrator(self):
-        """
-        Check if the configuration this plugin is part of is for
-        an orchestrator build or a worker build.
-
-        :return: True if orchestrator build, False if worker build
-        """
-        return self.workflow.is_orchestrator_build()
-
     @staticmethod
     def args_from_user_params(user_params: dict, /) -> dict:
         """Get keyword arguments for this plugin based on values in user params.

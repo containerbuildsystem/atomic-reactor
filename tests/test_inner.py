@@ -32,7 +32,6 @@ import signal
 from atomic_reactor.inner import (BuildResults, BuildResultsEncoder,
                                   BuildResultsJSONDecoder, DockerBuildWorkflow,
                                   FSWatcher, ImageBuildWorkflowData, TagConf)
-from atomic_reactor.constants import PLUGIN_BUILD_ORCHESTRATE_KEY
 from atomic_reactor.source import PathSource, DummySource
 from atomic_reactor.util import (
     DockerfileImages, df_parser, validate_with_schema, graceful_chain_get
@@ -1051,24 +1050,6 @@ def test_show_version(has_version, context_dir, build_dir, caplog):
         for record in caplog.records
         if record.levelno == logging.DEBUG
     ) == has_version
-
-
-@pytest.mark.parametrize('buildstep_plugins, is_orchestrator', [
-    ([], False),
-    ([{'name': 'some_name'}], False),
-    ([{'name': PLUGIN_BUILD_ORCHESTRATE_KEY}], True),
-
-    ([{'name': 'some_other_name'},
-      {'name': PLUGIN_BUILD_ORCHESTRATE_KEY}], True)
-])
-def test_workflow_is_orchestrator_build(buildstep_plugins, is_orchestrator, context_dir, build_dir):
-    workflow = DockerBuildWorkflow(context_dir,
-                                   build_dir,
-                                   namespace=NAMESPACE,
-                                   pipeline_run_name=PIPELINE_RUN_NAME,
-                                   source=None,
-                                   plugins=PluginsDef(buildstep=buildstep_plugins))
-    assert workflow.is_orchestrator_build() == is_orchestrator
 
 
 def test_parent_images_to_str(caplog, context_dir, build_dir):

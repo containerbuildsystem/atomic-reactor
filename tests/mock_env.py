@@ -5,10 +5,9 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
-from typing import Iterable, List, Union
+from typing import List, Union
 
-from atomic_reactor.constants import (PLUGIN_BUILD_ORCHESTRATE_KEY,
-                                      PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
+from atomic_reactor.constants import PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
 from atomic_reactor.plugin import (PreBuildPluginsRunner,
                                    BuildStepPluginsRunner,
                                    PostBuildPluginsRunner,
@@ -30,7 +29,6 @@ class MockEnv(object):
     >>> runner = (MockEnv(workflow)
     >>>           .for_plugin('prebuild', 'my_plugin')
     >>>           .set_scratch(True)
-    >>>           .make_orchestrator()
     >>>           .create_runner())
     >>> runner.run()
     """
@@ -111,27 +109,6 @@ class MockEnv(object):
         self.workflow.user_params.update(params)
         return self
 
-    def set_orchestrator_platforms(self, platforms: Iterable[str]):
-        """Set orchestrator platforms and make sure this is an orchestrator environment."""
-        try:
-            self._get_plugin('buildstep', PLUGIN_BUILD_ORCHESTRATE_KEY)
-        except ValueError:
-            self.make_orchestrator()
-        return self.set_user_params(platforms=list(platforms))
-
-    def make_orchestrator(self, orchestrator_args=None):
-        """
-        Make plugin think it is running in orchestrator
-
-        :param orchestrator_args: dict, optional orchestrate_build plugin arguments
-        """
-        if self.workflow.plugins.buildstep:
-            raise ValueError("Buildstep plugin already configured, cannot make orchestrator")
-        self.workflow.plugins.buildstep.append(
-            self._make_plugin_conf(PLUGIN_BUILD_ORCHESTRATE_KEY, orchestrator_args)
-        )
-        return self
-
     def set_check_platforms_result(self, result):
         """Set result of the check_and_set_platforms plugin."""
         return self.set_plugin_result("prebuild", PLUGIN_CHECK_AND_SET_PLATFORMS_KEY, result)
@@ -157,8 +134,7 @@ class MockEnv(object):
         Phase and plugin key can be specified to set args for a different plugin.
 
         If overriding phase and plugin key, the specified plugin must already be present
-        in the plugins configuration. Typically, only the current plugin and the
-        orchestrate_build plugin (after make_orchestrator()) will be present.
+        in the plugins configuration. Typically, only the current plugin will be present.
 
         :param args: dict, arguments for plugin
         :param phase: str, optional plugin phase

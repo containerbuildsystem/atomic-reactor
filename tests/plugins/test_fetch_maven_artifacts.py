@@ -329,7 +329,6 @@ def mock_env(workflow, r_c_m=None, domains_override=None):
 
     env = (MockEnv(workflow)
            .for_plugin('prebuild', FetchMavenArtifactsPlugin.key)
-           .make_orchestrator()
            .set_reactor_config(r_c_m))
 
     workflow.build_dir.init_build_dirs(["aarch64", "x86_64"], workflow.source)

@@ -33,7 +33,6 @@ from atomic_reactor.plugin import (
 )
 from atomic_reactor.constants import (
     DOCKER_STORAGE_TRANSPORT_NAME,
-    PLUGIN_BUILD_ORCHESTRATE_KEY,
     REACTOR_CONFIG_FULL_PATH,
     DOCKERFILE_FILENAME,
 )
@@ -641,33 +640,6 @@ class DockerBuildWorkflow(object):
                 logger.debug("None in: base %s has parent %s", base_str, parent_str)
 
         return results
-
-    def get_orchestrate_build_plugin(self):
-        """
-        Get the orchestrate_build plugin configuration for this workflow
-        if present (will be present for orchestrator, not for worker).
-
-        :return: orchestrate_build plugin configuration dict
-        :raises: ValueError if the orchestrate_build plugin is not present
-        """
-        for plugin in self.plugins.buildstep:
-            if plugin['name'] == PLUGIN_BUILD_ORCHESTRATE_KEY:
-                return plugin
-        # Not an orchestrator build
-        raise ValueError('Not an orchestrator build')
-
-    def is_orchestrator_build(self):
-        """
-        Check if the plugin configuration for this workflow is for
-        an orchestrator build or a worker build.
-
-        :return: True if orchestrator build, False if worker build
-        """
-        try:
-            self.get_orchestrate_build_plugin()
-            return True
-        except ValueError:
-            return False
 
     @property
     def image(self):

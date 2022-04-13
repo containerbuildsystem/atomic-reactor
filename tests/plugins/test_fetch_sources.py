@@ -168,20 +168,16 @@ def mock_reactor_config(workflow, source_dir: Path, data=None, default_si=DEFAUL
 
 
 def mock_workflow(workflow, source_dir: Path,
-                  for_orchestrator=False, config_map=None,
+                  config_map=None,
                   default_si=DEFAULT_SIGNING_INTENT):
-    if for_orchestrator:
-        workflow.buildstep_plugins_conf = [{'name': constants.PLUGIN_BUILD_ORCHESTRATE_KEY}]
-
     mock_reactor_config(workflow, source_dir, data=config_map, default_si=default_si)
     return workflow
 
 
-def mock_env(workflow, source_dir: Path, scratch=False, orchestrator=False, koji_build_id=None,
+def mock_env(workflow, source_dir: Path, scratch=False, koji_build_id=None,
              koji_build_nvr=None, config_map=None, default_si=DEFAULT_SIGNING_INTENT):
     workflow = mock_workflow(workflow,
                              source_dir,
-                             for_orchestrator=orchestrator,
                              config_map=config_map,
                              default_si=default_si)
     plugin_conf = [{'name': FetchSourcesPlugin.key}]
