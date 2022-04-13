@@ -52,7 +52,6 @@ class MyPreBuildPlugin(PreBuildPlugin):
 
 @pytest.mark.parametrize('runner_type', [  # noqa
     PreBuildPluginsRunner,
-    PrePublishPluginsRunner,
     PostBuildPluginsRunner,
     ExitPluginsRunner,
     BuildStepPluginsRunner,
