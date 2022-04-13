@@ -25,7 +25,6 @@ from atomic_reactor.utils.cachito import CachitoAPI, CFG_TYPE_B64
 from atomic_reactor.constants import (
     CACHITO_ENV_ARG_ALIAS,
     CACHITO_ENV_FILENAME,
-    PLUGIN_BUILD_ORCHESTRATE_KEY,
     REMOTE_SOURCE_DIR,
     REMOTE_SOURCE_TARBALL_FILENAME,
     REMOTE_SOURCE_JSON_FILENAME,
@@ -283,7 +282,6 @@ def workflow(workflow, source_dir):
             self.path = workdir
 
     workflow.source = MockSource(str(source_dir))
-    workflow.buildstep_plugins_conf = [{'name': PLUGIN_BUILD_ORCHESTRATE_KEY}]
     workflow.user_params = {'koji_task_id': KOJI_TASK_ID}
 
     mock_repo_config(workflow)

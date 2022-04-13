@@ -62,10 +62,7 @@ def mock_env(workflow):
     SCRATCH_FROM,
 ])
 def test_check_base_image_special(add_another_parent, special_image, workflow):
-    env = (
-        mock_env(workflow).set_user_params(image_tag=special_image)
-        .set_orchestrator_platforms(["x86_64"])
-    )
+    env = mock_env(workflow).set_user_params(image_tag=special_image)
 
     dockerfile_images = [special_image]
     if add_another_parent:
@@ -117,7 +114,7 @@ def test_check_base_image_plugin(workflow, parent_registry, df_base,
                                  workflow_callback=None, parent_images=None, organization=None,
                                  expected_digests=None, pull_registries=None,
                                  mock_get_manifest_list=True):
-    env = mock_env(workflow).set_orchestrator_platforms(["x86_64"])
+    env = mock_env(workflow)
     add_base = None
 
     if parent_images:
@@ -339,7 +336,6 @@ class TestValidateBaseImage(object):
         def workflow_callback(workflow):
             self.prepare(workflow, mock_get_manifest_list=True)
             del workflow.data.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
-            del workflow.plugins.buildstep[0]
             return workflow
 
         log_message = 'expected platforms are unknown'
@@ -601,7 +597,7 @@ class TestValidateBaseImage(object):
     def prepare(self, workflow, mock_get_manifest_list=False):
         # Setup expected platforms
         env = (
-            MockEnv(workflow).set_orchestrator_platforms(['x86_64', 'ppc64le'])
+            MockEnv(workflow)
             .set_check_platforms_result({'x86_64', 'ppc64le'})
             .set_reactor_config(
                 {'version': 1,

@@ -262,7 +262,7 @@ def test_no_appropriate_buildstep_build_plugin(caplog, workflow):  # noqa
 
 
 @pytest.mark.parametrize('pluginconf_method, expected', [  # noqa
-    ('orchestrator', 'orchestrator'),
+    ('source_container', 'source_container'),
 ])
 def test_which_buildstep_plugin_configured(workflow, pluginconf_method, expected):
     """

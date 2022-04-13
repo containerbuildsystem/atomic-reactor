@@ -550,10 +550,6 @@ def get_output(workflow: DockerBuildWorkflow,
     # Add the 'docker save' image to the output
     image = add_buildroot_id(output)
 
-    # when doing regular build, worker already uploads image,
-    # so orchestrator needs only metadata,
-    # but source contaiener build didn't upload that image yet,
-    # so we want metadata, and the image to upload
     if source_build:
         output_files.append(metadata)
         extra_output_file = output

@@ -486,13 +486,6 @@ def base_image_is_custom(base_image_name: str) -> bool:
     return bool(re.match('^koji/image-build(:.*)?$', base_image_name))
 
 
-def get_orchestrator_platforms(workflow):
-    if workflow.is_orchestrator_build():
-        return workflow.user_params.get("platforms")
-    else:
-        return None
-
-
 def get_platforms(workflow_data) -> List[str]:
     koji_platforms = workflow_data.prebuild_results.get(PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
     if koji_platforms:

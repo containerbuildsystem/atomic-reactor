@@ -185,7 +185,6 @@ def mock_env(workflow, df_content, base_layers=0, remote_sources=None,
            .for_plugin('prebuild', AddImageContentManifestPlugin.key)
            .set_reactor_config(r_c_m)
            .set_plugin_result('prebuild', PLUGIN_RESOLVE_REMOTE_SOURCE, remote_sources)
-           .make_orchestrator()
            )
     if pnc_artifacts:
         env.set_plugin_result(

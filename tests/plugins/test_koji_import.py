@@ -1330,8 +1330,8 @@ class TestKojiImport(object):
         assert build_id == "123"
 
         assert set(session.uploaded_files.keys()) == {OSBS_BUILD_LOG_FILENAME}
-        orchestrator_log = session.uploaded_files[OSBS_BUILD_LOG_FILENAME]
-        assert orchestrator_log == b"log message A\nlog message B\nlog message C\n"
+        osbs_build_log = session.uploaded_files[OSBS_BUILD_LOG_FILENAME]
+        assert osbs_build_log == b"log message A\nlog message B\nlog message C\n"
         assert workflow.data.labels['koji-build-id'] == '123'
 
     def test_koji_import_owner_submitter(self, workflow, source_dir):
@@ -2237,8 +2237,8 @@ class TestKojiImport(object):
             OSBS_BUILD_LOG_FILENAME,
             uploaded_filename,
         }
-        orchestrator_log = session.uploaded_files[OSBS_BUILD_LOG_FILENAME]
-        assert orchestrator_log == b"log message A\nlog message B\nlog message C\n"
+        osbs_build_log = session.uploaded_files[OSBS_BUILD_LOG_FILENAME]
+        assert osbs_build_log == b"log message A\nlog message B\nlog message C\n"
 
         assert workflow.data.labels['koji-build-id'] == '123'
 

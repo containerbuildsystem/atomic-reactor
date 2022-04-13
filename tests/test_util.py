@@ -57,7 +57,6 @@ from atomic_reactor.util import (LazyGit, figure_out_build_file,
                                  read_yaml, read_yaml_from_file_path, read_yaml_from_url,
                                  validate_with_schema,
                                  OSBSLogs,
-                                 get_orchestrator_platforms,
                                  dump_stacktraces, setup_introspection_signal_handler,
                                  allow_repo_dir_in_dockerignore,
                                  has_operator_appregistry_manifest,
@@ -71,7 +70,6 @@ import atomic_reactor.util
 from atomic_reactor.constants import INSPECT_CONFIG
 from osbs.utils import ImageName
 from osbs.exceptions import OsbsValidationException
-from tests.mock_env import MockEnv
 from tests.stubs import StubSource
 
 if MOCK:
@@ -939,18 +937,6 @@ def test_is_isolated_build(workflow, extra_user_params, isolated, user_params):
 def test_is_flatpak_build(workflow, extra_user_params, flatpak, user_params):
     workflow.user_params.update(extra_user_params)
     assert is_flatpak_build(workflow) == flatpak
-
-
-@pytest.mark.parametrize("is_orchestrator", [True, False])
-def test_get_orchestrator_platforms(is_orchestrator, workflow):
-    env = MockEnv(workflow).set_user_params(platforms=["x86_64", "ppc64le"])
-    if is_orchestrator:
-        env.make_orchestrator()
-
-    if is_orchestrator:
-        assert get_orchestrator_platforms(env.workflow) == ["x86_64", "ppc64le"]
-    else:
-        assert get_orchestrator_platforms(env.workflow) is None
 
 
 def test_df_parser(tmpdir):
