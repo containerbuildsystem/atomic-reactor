@@ -81,4 +81,4 @@ def binary_container_exit(task_args: dict):
     """
     params = TaskParams.from_cli_args(task_args)
     task = BinaryExitTask(params)
-    return task.execute()
+    return task.execute(init_build_dirs=True)

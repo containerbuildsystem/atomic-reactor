@@ -65,5 +65,5 @@ def test_binary_container_postbuild():
 
 
 def test_binary_container_exit():
-    mock(binary.BinaryExitTask)
+    mock(binary.BinaryExitTask, init_build_dirs=True)
     assert task.binary_container_exit(TASK_ARGS) == TASK_RESULT
