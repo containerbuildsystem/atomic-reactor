@@ -5,8 +5,8 @@ from flexmock import flexmock
 import koji
 import pytest
 import json
-from atomic_reactor.constants import DOCKERFILE_FILENAME
 
+from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.exit_sendmail import SendMailPlugin, validate_address
 from atomic_reactor.plugins.exit_store_metadata import StoreMetadataPlugin
@@ -137,6 +137,11 @@ def mock_store_metadata_results(workflow, annotations=None):
     if annotations:
         result['annotations'] = {key: json.dumps(value) for key, value in annotations.items()}
     workflow.data.exit_results[StoreMetadataPlugin.key] = result
+
+
+def mock_dockerfile(workflow: DockerBuildWorkflow) -> None:
+    workflow.build_dir.init_build_dirs(["x86_64"], workflow.source)
+    workflow.build_dir.any_platform.dockerfile_path.write_text(MOCK_DOCKERFILE, "utf-8")
 
 
 @pytest.mark.parametrize(('address', 'valid'), [
@@ -343,9 +348,7 @@ class TestSendMailPlugin(object):
         workflow.data.postbuild_results[KojiImportPlugin.key] = MOCK_KOJI_BUILD_ID
         workflow.user_params['koji_task_id'] = MOCK_KOJI_TASK_ID
 
-        dockerfile = source_dir / DOCKERFILE_FILENAME
-        dockerfile.write_text(MOCK_DOCKERFILE, "utf-8")
-        flexmock(workflow, df_path=str(dockerfile))
+        mock_dockerfile(workflow)
 
         flexmock(workflow.source, get_vcs_info=VcsInfo(vcs_type='git',
                                                        vcs_url=git_source_url,
@@ -458,9 +461,7 @@ class TestSendMailPlugin(object):
         mock_store_metadata_results(workflow)
         workflow.data.postbuild_results[KojiImportPlugin.key] = MOCK_KOJI_BUILD_ID
 
-        dockerfile = source_dir / DOCKERFILE_FILENAME
-        dockerfile.write_text(MOCK_DOCKERFILE, "utf-8")
-        flexmock(workflow, df_path=str(dockerfile))
+        mock_dockerfile(workflow)
 
         smtp_map = {
             'from_address': 'foo@bar.com',
@@ -674,10 +675,7 @@ class TestSendMailPlugin(object):
         workflow.data.plugin_failed = True
         receivers = ['foo@bar.com', 'x@y.com']
 
-        dockerfile = source_dir / DOCKERFILE_FILENAME
-        dockerfile.write_text(MOCK_DOCKERFILE, "utf-8")
-        flexmock(workflow, df_path=str(dockerfile))
-
+        mock_dockerfile(workflow)
         mock_store_metadata_results(workflow)
 
         smtp_map = {
