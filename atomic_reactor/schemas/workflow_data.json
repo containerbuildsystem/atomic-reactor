@@ -103,8 +103,8 @@
         "release": {"type": "string"},
         "arch": {"type": "string"},
         "sigmd5": {"type": "string"},
-        "signature": {"type": "string"},
-        "epoch": {"type": "integer", "minimum": 0}
+        "signature": {"type": ["string", "null"]},
+        "epoch": {"type": ["integer", "null"], "minimum": 0}
       },
       "required": ["type", "name", "version", "release", "arch", "sigmd5", "signature", "epoch"],
       "additionalProperties": false

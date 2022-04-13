@@ -5,12 +5,16 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
+import json
+import os.path
+from tempfile import TemporaryDirectory
 
 import pytest
-
-from atomic_reactor.util import validate_with_schema
 from osbs.exceptions import OsbsValidationException
+from osbs.utils import ImageName
 
+from atomic_reactor.inner import TagConf, ImageBuildWorkflowData, WorkflowDataEncoder
+from atomic_reactor.util import validate_with_schema, DockerfileImages
 
 SOURCE_CONTAINERS_USER_PARAMS_ALL_PROPERTIES = {
     "component": "osbs-test-base-container-source",
@@ -126,6 +130,85 @@ OPERATOR_CSV_MODIFICATIONS_ALL_PROPERTIES = {
         "spec": {"version": "1.0.0-01610399900-patched"},
     },
 }
+
+
+def get_workflow_data_json():
+    tag_conf = TagConf()
+    tag_conf.add_floating_image(ImageName.parse("registry/image:latest"))
+    tag_conf.add_primary_image(ImageName.parse("registry/image:1.0"))
+
+    wf_data = ImageBuildWorkflowData(
+        dockerfile_images=DockerfileImages(["scratch", "registry/f:35"]),
+        # Test object in dict values is serialized
+        buildstep_result={"image_build": {"logs": ["Build succeeds."]}},
+        postbuild_results={
+            "tag_and_push": [
+                # Such object in a list should be handled properly.
+                ImageName(registry="localhost:5000", repo='image', tag='latest'),
+            ]
+        },
+        tag_conf=tag_conf,
+        prebuild_results={
+            "plugin_a": {
+                'parent-images-koji-builds': {
+                    ImageName(repo='base', tag='latest').to_str(): {
+                        'id': 123456789,
+                        'nvr': 'base-image-1.0-99',
+                        'state': 1,
+                    },
+                },
+            },
+        },
+        koji_upload_files=[
+            {
+                "local_filename": "/path/to/build1.log",
+                "dest_filename": "x86_64-build.log",
+            },
+            {
+                "local_filename": "/path/to/dir1/remote-source.tar.gz",
+                "dest_filename": "remote-source.tar.gz",
+            },
+        ]
+    )
+
+    wf_data.image_components = {'x86_64': [{'type': 'rpm', 'name': 'python-docker-py',
+                                            'version': '1.3.1', 'release': '1.fc24',
+                                            'arch': 'noarch',
+                                            'sigmd5': '7c1f60d8cde73e97a45e0c489f4a3b26',
+                                            'signature': None, 'epoch': None},
+                                           {'type': 'rpm', 'name': 'fedora-repos-rawhide',
+                                            'version': '24', 'release': '0.1', 'arch': 'noarch',
+                                            'sigmd5': 'd41df1e059544d906363605d47477e60',
+                                            'signature': None, 'epoch': None},
+                                           {'type': 'rpm', 'name': 'gpg-pubkey-doc',
+                                            'version': '1.0', 'release': '1', 'arch': 'noarch',
+                                            'sigmd5': '00000000000000000000000000000000',
+                                            'signature': None, 'epoch': None}],
+                                'ppc64le': [{'type': 'rpm', 'name': 'python-docker-py',
+                                             'version': '1.3.1', 'release': '1.fc24',
+                                             'arch': 'noarch',
+                                             'sigmd5': '7c1f60d8cde73e97a45e0c489f4a3b26',
+                                             'signature': None, 'epoch': None},
+                                            {'type': 'rpm', 'name': 'fedora-repos-rawhide',
+                                             'version': '24', 'release': '0.1', 'arch': 'noarch',
+                                             'sigmd5': 'd41df1e059544d906363605d47477e60',
+                                             'signature': None, 'epoch': None},
+                                            {'type': 'rpm', 'name': 'gpg-pubkey-doc',
+                                             'version': '1.0', 'release': '1', 'arch': 'noarch',
+                                             'sigmd5': '00000000000000000000000000000000',
+                                             'signature': None, 'epoch': None}],
+                                }
+
+    with TemporaryDirectory() as d:
+        with open(os.path.join(d, 'workflow_data.json'), 'w') as f:
+            json.dump(wf_data.as_dict(), f, cls=WorkflowDataEncoder)
+        with open(os.path.join(d, 'workflow_data.json')) as f:
+            workflow_json = json.load(f)
+
+    return workflow_json
+
+
+RPM_COMPONENTS_WORKFLOW_DATA = get_workflow_data_json()
 
 CONTENT_MANIFEST_MINIMAL = {
     "metadata": {
@@ -273,6 +356,7 @@ CONTENT_MANIFEST_MISSING_SOURCES_PURL = {
         ({}, "schemas/content_manifest.json",
          r"validating 'required' has failed \('metadata' is a required property\)"),
         ({"metadata": {}}, "schemas/content_manifest.json", "validating 'required' has failed"),
+        (RPM_COMPONENTS_WORKFLOW_DATA, "schemas/workflow_data.json", None),
         (CONTENT_MANIFEST_MINIMAL, "schemas/content_manifest.json", None),
         (CONTENT_MANIFEST_MISSING_ICM_VERSION,
          "schemas/content_manifest.json",
