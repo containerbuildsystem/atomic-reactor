@@ -156,5 +156,4 @@ class SourceContainerPlugin(BuildStepPlugin):
         return {
             'image_metadata': image_metadata,
             'logs': [output],
-            'skip_layer_squash': True,
         }
