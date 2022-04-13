@@ -8,12 +8,14 @@ of the BSD license. See the LICENSE file for details.
 
 import subprocess
 import pytest
+import re
 from datetime import datetime as dt
 from pathlib import Path
 from textwrap import dedent
 from typing import Dict, Optional, Callable, NamedTuple, List
 
 from flexmock import flexmock
+from atomic_reactor.inner import DockerBuildWorkflow
 
 from atomic_reactor.plugin import PluginsRunner
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
@@ -162,7 +164,9 @@ def test_add_help_no_help_file(workflow, filename):
 @pytest.mark.parametrize('go_md2man_result', [
     'binary_missing', 'input_missing', 'other_os_error',
     'result_missing', 'fail', 'pass'])
-def test_add_help_md2man_error(workflow, filename, go_md2man_result):
+def test_add_help_md2man_error(
+    workflow: DockerBuildWorkflow, caplog, filename, go_md2man_result
+):
     if go_md2man_result != 'input_missing':
         help_md = HelpMdFile(filename, "markdown file content")
     else:
@@ -197,19 +201,17 @@ def test_add_help_md2man_error(workflow, filename, go_md2man_result):
     result = runner.run()
 
     if go_md2man_result == 'binary_missing':
-        assert list(result.keys()) == ['add_help']
-        assert isinstance(result['add_help'], RuntimeError)
-        assert 'Help file is available, but go-md2man is not present in a buildroot' \
-            == str(result['add_help'])
+        assert AddHelpPlugin.key not in result
+        msg = 'Help file is available, but go-md2man is not present in a buildroot'
+        assert msg in caplog.text
 
     elif go_md2man_result == 'other_os_error':
-        assert list(result.keys()) == ['add_help']
-        assert isinstance(result['add_help'], OSError)
+        assert AddHelpPlugin.key not in result
+        assert 'Other error' in caplog.text
 
     elif go_md2man_result == 'result_missing':
-        assert list(result.keys()) == ['add_help']
-        assert isinstance(result['add_help'], RuntimeError)
-        assert 'go-md2man run complete, but man file is not found' == str(result['add_help'])
+        assert AddHelpPlugin.key not in result
+        assert 'go-md2man run complete, but man file is not found' in caplog.text
 
     elif go_md2man_result == 'input_missing':
         expected_result = {
@@ -230,9 +232,8 @@ def test_add_help_md2man_error(workflow, filename, go_md2man_result):
         assert result == expected_result
 
     elif go_md2man_result == 'fail':
-        assert list(result.keys()) == ['add_help']
-        assert isinstance(result['add_help'], RuntimeError)
-        assert 'Error running' in str(result['add_help'])
+        assert AddHelpPlugin.key not in result
+        assert re.search(r"Error running .+:", caplog.text)
 
 
 @pytest.mark.parametrize('filename', ['help.md', 'other_file.md'])  # noqa

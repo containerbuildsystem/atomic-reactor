@@ -22,7 +22,7 @@ import time
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Any, Dict, Generator, TYPE_CHECKING
+from typing import Any, Dict, Generator, TYPE_CHECKING, Optional, Union
 
 from atomic_reactor.util import exception_message
 from dockerfile_parse import DockerfileParser
@@ -217,7 +217,12 @@ class PluginsRunner(object):
         plugin_instance = plugin_class(**plugin_conf)
         return plugin_instance
 
-    def on_plugin_failed(self, plugin=None, exception=None):
+    def on_plugin_failed(
+        self,
+        plugin: Optional[str] = None,
+        # Remove type str when the buildstep is removed.
+        exception: Optional[Union[Exception, str]] = None,
+    ):
         pass
 
     def save_plugin_timestamp(self, plugin, timestamp):
@@ -295,30 +300,27 @@ class PluginsRunner(object):
         """
         failed_msgs = []
         plugin_successful = False
-        plugin_response = None
         available_plugins = self.available_plugins
         for plugin in available_plugins:
             plugin_successful = False
 
-            plugin_response = None
-            skip_response = False
             try:
                 plugin_instance = self.create_instance_from_plugin(plugin.plugin_class,
                                                                    plugin.conf)
                 with self._execution_timer(plugin):
-                    plugin_response = plugin_instance.run()
+                    self.plugins_results[plugin.plugin_class.key] = plugin_instance.run()
                 plugin_successful = True
 
             except InappropriateBuildStepError:
                 logger.debug('Build step %s is not appropriate', plugin.plugin_class.key)
                 # don't put None, in results for InappropriateBuildStepError
-                skip_response = True
                 if not buildstep_phase:
                     raise
             except Exception as ex:
                 msg = "plugin '%s' raised an exception: %s" % (plugin.plugin_class.key,
                                                                exception_message(ex))
                 logger.debug(traceback.format_exc())
+
                 if not plugin.is_allowed_to_fail:
                     self.on_plugin_failed(plugin.plugin_class.key, ex)
 
@@ -330,11 +332,6 @@ class PluginsRunner(object):
                 else:
                     logger.error(msg)
                     raise PluginFailedException(msg) from ex
-
-                plugin_response = ex
-
-            if not skip_response:
-                self.plugins_results[plugin.plugin_class.key] = plugin_response
 
             if plugin_successful and buildstep_phase:
                 logger.debug('stopping further execution of plugins '
