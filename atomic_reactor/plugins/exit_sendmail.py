@@ -19,7 +19,6 @@ from atomic_reactor.plugin import ExitPlugin, PluginFailedException
 from atomic_reactor.plugins.post_koji_import import KojiImportPlugin
 from atomic_reactor.plugins.exit_store_metadata import StoreMetadataPlugin
 from atomic_reactor.utils.koji import get_koji_task_owner
-from atomic_reactor.util import df_parser
 from atomic_reactor.constants import PLUGIN_SENDMAIL_KEY
 from atomic_reactor.config import get_koji_session, get_smtp_session
 from osbs.utils import Labels, ImageName
@@ -153,7 +152,9 @@ class SendMailPlugin(ExitPlugin):
     def _get_image_name_and_repos(self):
 
         repos = []
-        dockerfile = df_parser(self.workflow.df_path, workflow=self.workflow)
+        dockerfile = self.workflow.build_dir.any_platform.dockerfile_with_parent_env(
+            self.workflow.imageutil.base_image_inspect()
+        )
         labels = Labels(dockerfile.labels)
         _, image_name = labels.get_name_and_value(Labels.LABEL_TYPE_NAME)
 
