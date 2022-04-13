@@ -72,9 +72,9 @@ function setup_osbs() {
   $RUN "${PIP_INST[@]}" --upgrade pip
 
   if [[ $OS == centos ]]; then
-    # Pip install/upgrade setuptools. Older versions of setuptools don't understand the
-    # environment markers used by docker-squash's requirements, also
-    # CentOS needs to have setuptools updates to make pytest-cov work
+    # Pip install/upgrade setuptools. Older versions of setuptools don't understand
+    # environment markers, also CentOS needs to have setuptools updates to make
+    # pytest-cov work
     $RUN "${PIP_INST[@]}" --upgrade setuptools
     # install with RPM_PY_SYS=true to avoid error caused by installing on system python
     $RUN sh -c "RPM_PY_SYS=true ${PIP_INST[*]} rpm-py-installer"
