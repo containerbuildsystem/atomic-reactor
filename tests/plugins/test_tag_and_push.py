@@ -24,8 +24,8 @@ from atomic_reactor.constants import (
     PLUGIN_SOURCE_CONTAINER_KEY,
 )
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
-from atomic_reactor.plugins.post_tag_and_push import TagAndPushPlugin
-from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
+from atomic_reactor.plugins.tag_and_push import TagAndPushPlugin
+from atomic_reactor.plugins.fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.utils import retries
 from tests.constants import (LOCALHOST_REGISTRY, TEST_IMAGE, TEST_IMAGE_NAME, MOCK,
                              DOCKER0_REGISTRY)
@@ -106,7 +106,7 @@ def test_tag_and_push_plugin(
     workflow.user_params['flatpak'] = True
     platforms = ['x86_64', 'ppc64le', 's390x', 'aarch64']
     workflow.data.tag_conf.add_unique_image(ImageName.parse(image_name))
-    workflow.data.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = platforms
+    workflow.data.plugins_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = platforms
     workflow.build_dir.init_build_dirs(platforms, workflow.source)
 
     secret_path = None
@@ -120,13 +120,13 @@ def test_tag_and_push_plugin(
     # Add a mock OCI image to 'flatpak_create_oci' results; this forces the tag_and_push
     # plugin to push with skopeo
 
-    workflow.data.postbuild_results[PLUGIN_FLATPAK_CREATE_OCI] = {}
+    workflow.data.plugins_results[PLUGIN_FLATPAK_CREATE_OCI] = {}
 
     # Since we are always mocking the push for now, we can get away with a stub image
     for current_platform in platforms:
         metadata = deepcopy(IMAGE_METADATA_OCI)
         metadata['ref_name'] = f'app/org.gnome.eog/{current_platform}/master'
-        workflow.data.postbuild_results[PLUGIN_FLATPAK_CREATE_OCI][current_platform] = metadata
+        workflow.data.plugins_results[PLUGIN_FLATPAK_CREATE_OCI][current_platform] = metadata
 
     manifest_latest_url = "https://{}/v2/{}/manifests/latest".format(LOCALHOST_REGISTRY, TEST_IMAGE)
     manifest_url = "https://{}/v2/{}/manifests/{}".format(LOCALHOST_REGISTRY, TEST_IMAGE, DIGEST_V2)
@@ -258,19 +258,20 @@ def test_tag_and_push_plugin_oci(workflow, monkeypatch, is_source_build, v2s2,
                                            sources_timestamp.strftime('%Y%m%d%H%M%S'),
                                            current_platform)
 
+    wf_data = workflow.data
     if is_source_build:
-        workflow.data.prebuild_results[PLUGIN_FETCH_SOURCES_KEY] = {'sources_for_koji_build_id':
-                                                                    sources_koji_id}
+        wf_data.plugins_results[PLUGIN_FETCH_SOURCES_KEY] = {
+            'sources_for_koji_build_id': sources_koji_id
+        }
         platforms = ['x86_64']
         workflow.build_dir.init_build_dirs(platforms, workflow.source)
         image_metadata = deepcopy(IMAGE_METADATA_DOCKER_ARCHIVE)
-        workflow.data.buildstep_result[PLUGIN_SOURCE_CONTAINER_KEY] = {'image_metadata':
-                                                                       image_metadata}
+        wf_data.plugins_results[PLUGIN_SOURCE_CONTAINER_KEY] = {'image_metadata': image_metadata}
     else:
-        workflow.data.tag_conf.add_unique_image(f'{LOCALHOST_REGISTRY}/{TEST_IMAGE}')
+        wf_data.tag_conf.add_unique_image(f'{LOCALHOST_REGISTRY}/{TEST_IMAGE}')
         workflow.user_params['flatpak'] = True
         platforms = ['x86_64', 'ppc64le', 's390x', 'aarch64']
-        workflow.data.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = platforms
+        wf_data.plugins_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = platforms
         workflow.build_dir.init_build_dirs(platforms, workflow.source)
 
     class MockedClientSession(object):
@@ -313,7 +314,7 @@ def test_tag_and_push_plugin_oci(workflow, monkeypatch, is_source_build, v2s2,
     if not is_source_build:
         # Add a mock OCI image to 'flatpak_create_oci' results; this forces the tag_and_push
         # plugin to push with skopeo
-        workflow.data.postbuild_results[PLUGIN_FLATPAK_CREATE_OCI] = {}
+        wf_data.plugins_results[PLUGIN_FLATPAK_CREATE_OCI] = {}
 
         # No need to create image archives, just need to mock its metadata
         for current_platform in platforms:
@@ -324,7 +325,7 @@ def test_tag_and_push_plugin_oci(workflow, monkeypatch, is_source_build, v2s2,
             metadata = deepcopy(IMAGE_METADATA_OCI)
             metadata['ref_name'] = ref_name.replace('x86_64', current_platform)
             metadata['type'] = image_type
-            workflow.data.postbuild_results[PLUGIN_FLATPAK_CREATE_OCI][current_platform] = metadata
+            workflow.data.plugins_results[PLUGIN_FLATPAK_CREATE_OCI][current_platform] = metadata
 
     # Mock the call to skopeo
 
@@ -428,8 +429,8 @@ def test_tag_and_push_plugin_oci(workflow, monkeypatch, is_source_build, v2s2,
         runner.run()
 
         assert workflow.conf.registry
-        repos_annotations = get_repositories_annotations(workflow.data.tag_conf)
-        assert workflow.data.annotations['repositories'] == repos_annotations
+        repos_annotations = get_repositories_annotations(wf_data.tag_conf)
+        assert wf_data.annotations['repositories'] == repos_annotations
 
 
 def test_skip_plugin(workflow, caplog):

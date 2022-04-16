@@ -9,7 +9,7 @@ of the BSD license. See the LICENSE file for details.
 import koji
 
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
-from atomic_reactor.plugins.pre_inject_parent_image import InjectParentImage
+from atomic_reactor.plugins.inject_parent_image import InjectParentImage
 from atomic_reactor.util import DockerfileImages, graceful_chain_del
 from flexmock import flexmock
 from tests.util import add_koji_map_in_workflow

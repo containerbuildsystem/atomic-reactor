@@ -13,7 +13,7 @@ import pytest
 from osbs.utils import ImageName
 
 from atomic_reactor.plugin import PluginFailedException
-from atomic_reactor.plugins.pre_change_from_in_df import ChangeFromPlugin
+from atomic_reactor.plugins.change_from_in_df import ChangeFromPlugin
 
 from tests.mock_env import MockEnv
 

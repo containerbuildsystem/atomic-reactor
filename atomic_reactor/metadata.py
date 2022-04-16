@@ -9,13 +9,13 @@ of the BSD license. See the LICENSE file for details.
 import functools
 from typing import Any, Callable, Dict, Literal, Optional, Type, TypeVar
 
-from atomic_reactor.plugin import BuildPlugin
+from atomic_reactor.plugin import Plugin
 
 
-# Generic BuildPlugin type (the type of the class itself, not of its instances)
-BPT = TypeVar('BPT', bound=Type[BuildPlugin])
-# Takes a BuildPlugin class, modifies it in place and returns it
-BuildPluginDecorator = Callable[[BPT], BPT]
+# Generic Plugin type (the type of the class itself, not of its instances)
+PluginT = TypeVar('PluginT', bound=Type[Plugin])
+# Takes a Plugin class, modifies it in place and returns it
+BuildPluginDecorator = Callable[[PluginT], PluginT]
 
 PluginResult = Any
 # Generates any number of metadata keys from a plugin result
@@ -60,14 +60,14 @@ def annotation_map(
     transform: Optional[Callable[[PluginResult], Any]] = None,
 ) -> BuildPluginDecorator:
     """
-    Annotate a `BuildPlugin` subclass. Works like `annotation`, but instead of
+    Annotate a `Plugin` subclass. Works like `annotation`, but instead of
     storing the run() result as is, applies the specified transformation to it
     first. If unspecified, the default transformation is result[key].
 
     Example:
     >>> @annotation_map('foo')
     >>> @annotation_map('bar_baz', lambda result: result['bar'] + result['baz'])
-    >>> class YourBuildPlugin(BuildPlugin):
+    >>> class YourPlugin(Plugin):
     >>>     key = 'your_build_plugin'
     >>>
     >>>     # sets annotations: {'foo': 1, 'bar_baz': 5}
@@ -84,7 +84,7 @@ def annotation_map(
 
 def label(key: str) -> BuildPluginDecorator:
     """
-    Label a `BuildPlugin` subclass. Identical to `annotation`, but will save
+    Label a `Plugin` subclass. Identical to `annotation`, but will save
     the result as a label, not an annotation.
 
     :param key: Key to label the plugin with
@@ -98,7 +98,7 @@ def label_map(
     transform: Optional[Callable[[PluginResult], Any]] = None,
 ) -> BuildPluginDecorator:
     """
-    Label a `BuildPlugin` subclass. Identical to `annotation_map`, but will
+    Label a `Plugin` subclass. Identical to `annotation_map`, but will
     save results as labels, not annotations.
 
     :param key: Key to label the plugin with
@@ -113,7 +113,7 @@ def _decorate_metadata(
     metadata_type: Literal['annotations', 'labels'], *, result_to_metadata: MetadataFn
 ) -> BuildPluginDecorator:
 
-    def metadata_decorator(cls: BPT) -> BPT:
+    def metadata_decorator(cls: PluginT) -> PluginT:
         run = cls.run
 
         @functools.wraps(run)

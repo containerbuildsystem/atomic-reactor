@@ -7,6 +7,7 @@ of the BSD license. See the LICENSE file for details.
 """
 
 from dataclasses import dataclass
+import typing
 import _hashlib
 import hashlib
 from itertools import chain
@@ -31,6 +32,9 @@ from base64 import b64decode
 from typing import Callable
 
 from urllib.parse import urlparse
+
+if typing.TYPE_CHECKING:
+    from atomic_reactor.inner import DockerBuildWorkflow, ImageBuildWorkflowData
 
 import atomic_reactor.utils.retries
 from atomic_reactor.constants import (DOCKERFILE_FILENAME, REPO_CONTAINER_CONFIG, TOOLS_USED,
@@ -484,8 +488,8 @@ def base_image_is_custom(base_image_name: str) -> bool:
     return bool(re.match('^koji/image-build(:.*)?$', base_image_name))
 
 
-def get_platforms(workflow_data) -> List[str]:
-    koji_platforms = workflow_data.prebuild_results.get(PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
+def get_platforms(workflow_data: "ImageBuildWorkflowData") -> List[str]:
+    koji_platforms = workflow_data.plugins_results.get(PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
     if koji_platforms:
         return koji_platforms
     return []
@@ -1353,10 +1357,10 @@ def get_unique_images(workflow):
     return workflow.data.tag_conf.unique_images
 
 
-def get_parent_image_koji_data(workflow):
+def get_parent_image_koji_data(workflow: "DockerBuildWorkflow"):
     """Transform koji_parent plugin results into metadata dict."""
-    koji_parent = workflow.data.prebuild_results.get(PLUGIN_KOJI_PARENT_KEY) or {}
-    image_metadata = {}
+    koji_parent = workflow.data.plugins_results.get(PLUGIN_KOJI_PARENT_KEY) or {}
+    image_metadata: Dict[str, Any] = {}
 
     parents: Dict[str, Optional[Dict[str, Any]]] = {}
     for img, build in (koji_parent.get(PARENT_IMAGES_KOJI_BUILDS) or {}).items():

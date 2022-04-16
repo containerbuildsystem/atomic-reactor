@@ -36,7 +36,7 @@ from tests.flatpak import (MODULEMD_AVAILABLE,
                            setup_flatpak_composes)
 
 if MODULEMD_AVAILABLE:
-    from atomic_reactor.plugins.post_flatpak_create_oci import FlatpakCreateOciPlugin
+    from atomic_reactor.plugins.flatpak_create_oci import FlatpakCreateOciPlugin
     from gi.repository import Modulemd
 
 ROOT = '/var/tmp/flatpak-build'

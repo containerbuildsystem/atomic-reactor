@@ -65,7 +65,7 @@ def test_running_build(workflow, caplog,
             os.mknod(maven_dir_path / 'maven-sources-1' / 'maven-sources-1.tar.gz')
 
     workflow.build_dir.init_build_dirs(["noarch"], workflow.source)
-    workflow.data.prebuild_results[PLUGIN_FETCH_SOURCES_KEY] = {
+    workflow.data.plugins_results[PLUGIN_FETCH_SOURCES_KEY] = {
         'image_sources_dir': str(sources_dir_path),
         'remote_sources_dir': str(remote_dir_path),
         'maven_sources_dir': str(maven_dir_path),
@@ -190,10 +190,11 @@ def test_running_build(workflow, caplog,
         with pytest.raises(PluginFailedException):
             runner.run()
     else:
-        results = runner.run()
-        assert results.keys() == {'image_metadata', 'logs'}
-        assert results['logs'] == ['stub stdout']
-        assert results['image_metadata'] == expected_exported_image_metadata
+        runner.run()
+        result = workflow.data.plugins_results[SourceContainerPlugin.key]
+        assert result.keys() == {'image_metadata', 'logs'}
+        assert result['logs'] == ['stub stdout']
+        assert result['image_metadata'] == expected_exported_image_metadata
         assert 'stub stdout' in caplog.text
         empty_srpm_msg = f"SRPMs directory '{sources_dir_path}' is empty"
         empty_remote_msg = f"Remote source directory '{remote_dir_path}' is empty"
@@ -245,7 +246,7 @@ def test_failed_build(workflow, source_dir, caplog, user_params):
      .and_raise(subprocess.CalledProcessError(1, 'cmd', output='stub stdout')))
     some_dir = workflow.build_dir.path / 'some_dir'
     some_dir.mkdir()
-    workflow.data.prebuild_results[PLUGIN_FETCH_SOURCES_KEY] = {
+    workflow.data.plugins_results[PLUGIN_FETCH_SOURCES_KEY] = {
         'image_sources_dir': str(some_dir),
         'remote_sources_dir': str(some_dir),
         'maven_sources_dir': str(some_dir),

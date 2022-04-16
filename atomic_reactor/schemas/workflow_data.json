@@ -6,11 +6,7 @@
     "dockerfile_images": {"$ref": "#/definitions/dockerfile_images"},
     "tag_conf": {"$ref": "#/definitions/tag_conf"},
 
-    "prebuild_results": {"type": "object"},
-    "buildstep_result": {"type": "object"},
-    "postbuild_results": {"type": "object"},
-    "prepub_results": {"type": "object"},
-    "exit_results": {"type": "object"},
+    "plugins_results": {"type": "object"},
 
     "plugins_timestamps": {"type": "object"},
     "plugins_durations": {"type": "object"},
@@ -74,7 +70,7 @@
   },
   "required": [
     "dockerfile_images", "tag_conf",
-    "prebuild_results", "buildstep_result", "postbuild_results", "prepub_results", "exit_results",
+    "plugins_results",
     "plugins_timestamps", "plugins_durations", "plugins_errors", "build_canceled", "plugin_failed",
     "reserved_build_id", "reserved_token", "koji_source_nvr", "koji_source_source_url", "koji_source_manifest",
     "buildargs", "exported_image_sequence", "files", "image_components", "all_yum_repourls",

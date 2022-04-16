@@ -11,7 +11,7 @@ from typing import Any, Dict
 
 import koji
 from atomic_reactor.inner import DockerBuildWorkflow
-from atomic_reactor.plugins.post_fetch_docker_archive import FetchDockerArchivePlugin
+from atomic_reactor.plugins.fetch_docker_archive import FetchDockerArchivePlugin
 from atomic_reactor.util import DockerfileImages, ManifestDigest, RegistryClient
 import atomic_reactor.utils.koji as koji_util
 
@@ -515,7 +515,7 @@ def test_binary_build_get_output(no_v2_digest: bool,
 
     # Assume FetchDockerArchivePlugin has run and metadata of the
     # platform-specific built image archive has been saved.
-    workflow.data.postbuild_results[FetchDockerArchivePlugin.key] = {
+    workflow.data.plugins_results[FetchDockerArchivePlugin.key] = {
         platform: {'type': IMAGE_TYPE_DOCKER_ARCHIVE}
     }
 

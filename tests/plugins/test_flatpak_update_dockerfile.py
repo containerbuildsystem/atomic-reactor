@@ -20,7 +20,7 @@ from atomic_reactor.constants import PLUGIN_RESOLVE_COMPOSES_KEY
 from atomic_reactor.utils.flatpak_util import FlatpakUtil
 
 try:
-    from atomic_reactor.plugins.pre_flatpak_update_dockerfile import FlatpakUpdateDockerfilePlugin
+    from atomic_reactor.plugins.flatpak_update_dockerfile import FlatpakUpdateDockerfilePlugin
 except ImportError:
     pass
 
@@ -250,7 +250,7 @@ def test_flatpak_update_dockerfile(workflow, build_dir, config_name, breakage):
 
         assert os.path.exists(os.path.join(workflow.build_dir.any_platform.path, 'cleanup.sh'))
 
-        resolve_comp_result = workflow.data.prebuild_results.get(PLUGIN_RESOLVE_COMPOSES_KEY)
+        resolve_comp_result = workflow.data.plugins_results.get(PLUGIN_RESOLVE_COMPOSES_KEY)
         flatpak_util = FlatpakUtil(workflow_config=workflow.conf,
                                    source_config=workflow.source.config,
                                    composes=resolve_comp_result['composes'])

@@ -5,7 +5,7 @@ from flexmock import flexmock
 from atomic_reactor.constants import EXPORTED_SQUASHED_IMAGE_NAME, IMAGE_TYPE_DOCKER_ARCHIVE
 from atomic_reactor.dirs import BuildDir
 from atomic_reactor.plugin import PostBuildPluginsRunner
-from atomic_reactor.plugins.post_fetch_docker_archive import FetchDockerArchivePlugin
+from atomic_reactor.plugins.fetch_docker_archive import FetchDockerArchivePlugin
 from atomic_reactor.utils.imageutil import ImageUtil
 
 

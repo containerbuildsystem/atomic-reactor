@@ -11,8 +11,8 @@ from typing import List
 import koji
 import os
 
-from atomic_reactor.plugins.pre_bump_release import BumpReleasePlugin
-from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
+from atomic_reactor.plugins.bump_release import BumpReleasePlugin
+from atomic_reactor.plugins.fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.constants import PROG
 from tests.util import add_koji_map_in_workflow
@@ -64,7 +64,7 @@ class TestBumpRelease(object):
         if scratch is not None:
             workflow.user_params['scratch'] = scratch
         if fetch_source:
-            workflow.data.prebuild_results[PLUGIN_FETCH_SOURCES_KEY] = {
+            workflow.data.plugins_results[PLUGIN_FETCH_SOURCES_KEY] = {
                 'sources_for_nvr': KOJI_SOURCE_NVR
             }
 

@@ -18,7 +18,7 @@ from flexmock import flexmock
 from atomic_reactor.inner import DockerBuildWorkflow
 
 from atomic_reactor.plugin import PluginsRunner
-from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
+from atomic_reactor.plugins.add_help import AddHelpPlugin
 from atomic_reactor import start_time as atomic_reactor_start_time
 
 from tests.mock_env import MockEnv

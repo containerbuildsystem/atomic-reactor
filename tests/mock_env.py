@@ -5,7 +5,7 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
-from typing import List, Union
+from typing import Any, List, Union
 
 from atomic_reactor.constants import PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
 from atomic_reactor.plugin import (PreBuildPluginsRunner,
@@ -41,14 +41,6 @@ class MockEnv(object):
         'postbuild': PostBuildPluginsRunner,
         'prepublish': PrePublishPluginsRunner,
         'exit': ExitPluginsRunner,
-    }
-
-    _results_for_phase = {
-        'prebuild': 'prebuild_results',
-        'buildstep': 'buildstep_result',
-        'postbuild': 'postbuild_results',
-        'prepublish': 'prepub_results',
-        'exit': 'exit_results',
     }
 
     def __init__(self, workflow: DockerBuildWorkflow):
@@ -111,19 +103,16 @@ class MockEnv(object):
 
     def set_check_platforms_result(self, result):
         """Set result of the check_and_set_platforms plugin."""
-        return self.set_plugin_result("prebuild", PLUGIN_CHECK_AND_SET_PLATFORMS_KEY, result)
+        return self.set_plugin_result(PLUGIN_CHECK_AND_SET_PLATFORMS_KEY, result)
 
-    def set_plugin_result(self, phase, plugin_key, result):
+    def set_plugin_result(self, plugin_key: str, result: Any):
         """
         Set result of the specified plugin (stored in workflow)
 
-        :param phase: str, plugin phase
         :param plugin_key: str, plugin key
         :param result: any, value to set as plugin result
         """
-        self._validate_phase(phase)
-        results = getattr(self.workflow.data, self._results_for_phase[phase])
-        results[plugin_key] = result
+        self.workflow.data.plugins_results[plugin_key] = result
         return self
 
     def set_plugin_args(self, args, phase=None, plugin_key=None):

@@ -15,8 +15,8 @@ import responses
 
 from atomic_reactor.constants import PLUGIN_FETCH_MAVEN_KEY
 from atomic_reactor.plugin import PluginFailedException
-from atomic_reactor.plugins.post_maven_url_sources_metadata import MavenURLSourcesMetadataPlugin
-from atomic_reactor.plugins.pre_fetch_maven_artifacts import DownloadRequest
+from atomic_reactor.plugins.maven_url_sources_metadata import MavenURLSourcesMetadataPlugin
+from atomic_reactor.plugins.fetch_maven_artifacts import DownloadRequest
 from tests.mock_env import MockEnv
 
 FILER_ROOT_DOMAIN = 'filer.com'
@@ -128,10 +128,10 @@ def mock_source_download_queue(workflow_data, remote_files=None, overrides=None)
             source_url_to_artifacts[url] = [artifact]
         else:
             source_url_to_artifacts[url].append(artifact)
-    workflow_data.prebuild_results[PLUGIN_FETCH_MAVEN_KEY] = {'source_download_queue':
-                                                              source_download_queue,
-                                                              'source_url_to_artifacts':
-                                                              source_url_to_artifacts}
+    workflow_data.plugins_results[PLUGIN_FETCH_MAVEN_KEY] = {
+        'source_download_queue': source_download_queue,
+        'source_url_to_artifacts': source_url_to_artifacts,
+    }
 
 
 @responses.activate

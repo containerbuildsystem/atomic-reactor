@@ -19,7 +19,7 @@ from atomic_reactor.dirs import BuildDir
 from atomic_reactor.utils.flatpak_util import FlatpakUtil
 
 try:
-    from atomic_reactor.plugins.pre_flatpak_create_dockerfile import FlatpakCreateDockerfilePlugin
+    from atomic_reactor.plugins.flatpak_create_dockerfile import FlatpakCreateDockerfilePlugin
 except ImportError:
     pass
 

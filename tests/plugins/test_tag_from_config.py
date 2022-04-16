@@ -11,7 +11,7 @@ from textwrap import dedent
 
 import pytest
 
-from atomic_reactor.plugins.pre_tag_from_config import TagFromConfigPlugin
+from atomic_reactor.plugins.tag_from_config import TagFromConfigPlugin
 from atomic_reactor.constants import INSPECT_CONFIG
 
 

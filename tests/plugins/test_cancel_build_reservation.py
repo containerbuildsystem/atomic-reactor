@@ -11,7 +11,7 @@ import pytest
 from flexmock import flexmock
 
 from atomic_reactor.constants import PROG
-from atomic_reactor.plugins.exit_cancel_build_reservation import CancelBuildReservation
+from atomic_reactor.plugins.cancel_build_reservation import CancelBuildReservation
 
 
 def test_build_reservation_is_not_enabled(workflow, caplog):

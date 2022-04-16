@@ -25,7 +25,7 @@ from atomic_reactor.constants import (
     PLUGIN_PIN_OPERATOR_DIGESTS_KEY,
 )
 from atomic_reactor.plugin import PluginFailedException
-from atomic_reactor.plugins.pre_pin_operator_digest import (
+from atomic_reactor.plugins.pin_operator_digest import (
     PinOperatorDigestsPlugin,
     PullspecReplacer,
 )

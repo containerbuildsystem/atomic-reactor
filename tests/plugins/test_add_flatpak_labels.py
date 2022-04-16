@@ -13,7 +13,7 @@ import pytest
 from flexmock import flexmock
 import yaml
 
-from atomic_reactor.plugins.pre_add_flatpak_labels import AddFlatpakLabelsPlugin
+from atomic_reactor.plugins.add_flatpak_labels import AddFlatpakLabelsPlugin
 
 from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.source import SourceConfig

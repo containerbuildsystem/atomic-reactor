@@ -20,9 +20,9 @@ from osbs.utils import ImageName
 from atomic_reactor.constants import PLUGIN_VERIFY_MEDIA_KEY, PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
-from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
-from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
-from atomic_reactor.plugins.exit_store_metadata import StoreMetadataPlugin
+from atomic_reactor.plugins.add_help import AddHelpPlugin
+from atomic_reactor.plugins.rpmqa import RPMqaPlugin
+from atomic_reactor.plugins.store_metadata import StoreMetadataPlugin
 from atomic_reactor.util import LazyGit, ManifestDigest, DockerfileImages, RegistryClient
 import pytest
 from tests.constants import LOCALHOST_REGISTRY, TEST_IMAGE, TEST_IMAGE_NAME
@@ -158,27 +158,27 @@ CMD blabla"""
         if parent != 'scratch':
             workflow.data.dockerfile_images[parent] = "sha256:spamneggs"
 
-    workflow.data.prebuild_results = {
+    workflow.data.plugins_results = {
         AddHelpPlugin.key: help_results
     }
 
     if help_results is not None:
         workflow.data.annotations['help_file'] = help_results['help_file']
 
-    workflow.data.postbuild_results = {
-        PostBuildRPMqaPlugin.key: "rpm1\nrpm2",
+    workflow.data.plugins_results = {
+        RPMqaPlugin.key: "rpm1\nrpm2",
     }
-    workflow.data.postbuild_results = {
+    workflow.data.plugins_results = {
         PLUGIN_VERIFY_MEDIA_KEY: verify_media_results,
     }
     workflow.fs_watcher._data = dict(fs_data=None)
 
     timestamp = (initial_timestamp + timedelta(seconds=3)).isoformat()
     workflow.data.plugins_timestamps = {
-        PostBuildRPMqaPlugin.key: timestamp,
+        RPMqaPlugin.key: timestamp,
     }
     workflow.data.plugins_durations = {
-        PostBuildRPMqaPlugin.key: 3.03,
+        RPMqaPlugin.key: 3.03,
     }
     workflow.data.plugins_errors = {}
 
@@ -288,14 +288,12 @@ def test_metadata_plugin_source(image_id, verify_media_results, expected_media_r
     sources_for_nvr = 'image_build'
     sources_for_koji_build_id = '12345'
     workflow.data.labels['sources_for_koji_build_id'] = sources_for_koji_build_id
-    workflow.data.prebuild_results = {
+    workflow.data.plugins_results = {
         PLUGIN_FETCH_SOURCES_KEY: {
             'sources_for_koji_build_id': sources_for_koji_build_id,
             'sources_for_nvr': sources_for_nvr,
             'image_sources_dir': 'source_dir',
-        }
-    }
-    workflow.data.postbuild_results = {
+        },
         PLUGIN_VERIFY_MEDIA_KEY: verify_media_results,
     }
     workflow.fs_watcher._data = dict(fs_data=None)
@@ -418,19 +416,13 @@ RUN yum install -y python-django
 CMD blabla"""
     mock_dockerfile(workflow, df_content)
 
-    workflow.data.prebuild_results = {}
-    workflow.data.postbuild_results = {
-        PostBuildRPMqaPlugin.key: RuntimeError(),
-    }
+    workflow.data.plugins_results = {}
+    workflow.data.plugins_results = {RPMqaPlugin.key: RuntimeError()}
     workflow.data.plugins_timestamps = {
-        PostBuildRPMqaPlugin.key: (initial_timestamp + timedelta(seconds=3)).isoformat(),
+        RPMqaPlugin.key: (initial_timestamp + timedelta(seconds=3)).isoformat(),
     }
-    workflow.data.plugins_durations = {
-        PostBuildRPMqaPlugin.key: 3.03,
-    }
-    workflow.data.plugins_errors = {
-        PostBuildRPMqaPlugin.key: 'foo',
-    }
+    workflow.data.plugins_durations = {RPMqaPlugin.key: 3.03}
+    workflow.data.plugins_errors = {RPMqaPlugin.key: 'foo'}
 
     runner = ExitPluginsRunner(
         workflow,
@@ -461,7 +453,7 @@ CMD blabla"""
 
 def test_exit_before_dockerfile_created(workflow, source_dir):
     prepare(workflow, no_dockerfile=True)
-    workflow.data.exit_results = {}
+    workflow.data.plugins_results = {}
 
     runner = ExitPluginsRunner(
         workflow,
@@ -482,7 +474,7 @@ def test_exit_before_dockerfile_created(workflow, source_dir):
 
 def test_store_metadata_fail_update_annotations(workflow, source_dir, caplog):
     prepare(workflow)
-    workflow.data.exit_results = {}
+    workflow.data.plugins_results = {}
     df_content = """
 FROM fedora
 RUN yum install -y python-django

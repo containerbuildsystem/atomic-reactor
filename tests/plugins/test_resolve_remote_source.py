@@ -21,6 +21,7 @@ import yaml
 
 from atomic_reactor.dirs import BuildDir
 import atomic_reactor.utils.koji as koji_util
+from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.utils.cachito import CachitoAPI, CFG_TYPE_B64
 from atomic_reactor.constants import (
     CACHITO_ENV_ARG_ALIAS,
@@ -30,7 +31,7 @@ from atomic_reactor.constants import (
     REMOTE_SOURCE_JSON_FILENAME,
 )
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
-from atomic_reactor.plugins.pre_resolve_remote_source import (
+from atomic_reactor.plugins.resolve_remote_source import (
     RemoteSource,
     ResolveRemoteSourcePlugin,
 )
@@ -270,7 +271,7 @@ def mock_repo_config(workflow, data=None):
 
 
 @pytest.fixture
-def workflow(workflow, source_dir):
+def workflow(workflow: DockerBuildWorkflow, source_dir):
     # Stash the tmpdir in workflow so it can be used later
     workflow._tmpdir = source_dir
 
@@ -502,13 +503,13 @@ def check_injected_files(expected_files: Dict[str, str]) -> Callable[[BuildDir],
 def setup_function(*args):
     # IMPORTANT: This needs to be done to ensure mocks at the module
     # level are reset between test cases.
-    sys.modules.pop('pre_resolve_remote_source', None)
+    sys.modules.pop('resolve_remote_source', None)
 
 
 def teardown_function(*args):
     # IMPORTANT: This needs to be done to ensure mocks at the module
     # level are reset between test cases.
-    sys.modules.pop('pre_resolve_remote_source', None)
+    sys.modules.pop('resolve_remote_source', None)
 
 
 def test_source_request_to_json_missing_optional_keys(workflow):

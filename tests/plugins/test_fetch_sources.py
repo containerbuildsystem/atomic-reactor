@@ -28,7 +28,7 @@ from flexmock import flexmock
 
 from atomic_reactor import constants
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
-from atomic_reactor.plugins.pre_fetch_sources import FetchSourcesPlugin
+from atomic_reactor.plugins.fetch_sources import FetchSourcesPlugin
 from atomic_reactor.util import get_checksums
 
 KOJI_HUB = 'http://koji.com/hub'

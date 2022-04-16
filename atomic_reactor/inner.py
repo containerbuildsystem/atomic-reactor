@@ -290,11 +290,7 @@ class ImageBuildWorkflowData(ISerializer):
     dockerfile_images: DockerfileImages = field(default_factory=DockerfileImages)
     tag_conf: TagConf = field(default_factory=TagConf)
 
-    prebuild_results: Dict[str, Any] = field(default_factory=dict)
-    buildstep_result: Dict[str, Any] = field(default_factory=dict)
-    postbuild_results: Dict[str, Any] = field(default_factory=dict)
-    prepub_results: Dict[str, Any] = field(default_factory=dict)
-    exit_results: Dict[str, Any] = field(default_factory=dict)
+    plugins_results: Dict[str, Any] = field(default_factory=dict)
 
     # Plugin name -> timestamp in isoformat
     plugins_timestamps: Dict[str, str] = field(default_factory=dict)

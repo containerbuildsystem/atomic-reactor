@@ -13,8 +13,10 @@ import pytest
 from flexmock import flexmock
 
 from atomic_reactor.constants import INSPECT_CONFIG
-from atomic_reactor.plugins.pre_distribution_scope import (DistributionScopePlugin,
-                                                           DisallowedDistributionScope)
+from atomic_reactor.plugins.distribution_scope import (
+    DisallowedDistributionScope,
+    DistributionScopePlugin,
+)
 from atomic_reactor.util import DockerfileImages
 
 

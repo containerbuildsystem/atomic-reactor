@@ -27,7 +27,7 @@ from atomic_reactor.constants import (
     PLUGIN_RESOLVE_REMOTE_SOURCE,
 )
 from atomic_reactor.plugin import PluginFailedException
-from atomic_reactor.plugins.pre_add_image_content_manifest import AddImageContentManifestPlugin
+from atomic_reactor.plugins.add_image_content_manifest import AddImageContentManifestPlugin
 
 pytestmark = pytest.mark.usefixtures('user_params')
 
@@ -127,13 +127,13 @@ REMOTE_SOURCES = [{
 def setup_function(*args):
     # IMPORTANT: This needs to be done to ensure mocks at the module
     # level are reset between test cases.
-    sys.modules.pop('pre_add_image_content_manifest', None)
+    sys.modules.pop('add_image_content_manifest', None)
 
 
 def teardown_function(*args):
     # IMPORTANT: This needs to be done to ensure mocks at the module
     # level are reset between test cases.
-    sys.modules.pop('pre_add_image_content_manifest', None)
+    sys.modules.pop('add_image_content_manifest', None)
 
 
 def mock_content_sets_config(source_path: str, empty=False):
@@ -184,11 +184,11 @@ def mock_env(workflow, df_content, base_layers=0, remote_sources=None,
     env = (MockEnv(workflow)
            .for_plugin('prebuild', AddImageContentManifestPlugin.key)
            .set_reactor_config(r_c_m)
-           .set_plugin_result('prebuild', PLUGIN_RESOLVE_REMOTE_SOURCE, remote_sources)
+           .set_plugin_result(PLUGIN_RESOLVE_REMOTE_SOURCE, remote_sources)
            )
     if pnc_artifacts:
         env.set_plugin_result(
-            'prebuild', PLUGIN_FETCH_MAVEN_KEY, {'pnc_artifact_ids': [PNC_ARTIFACT['id']]}
+            PLUGIN_FETCH_MAVEN_KEY, {'pnc_artifact_ids': [PNC_ARTIFACT['id']]}
         )
     flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return(inspection_data)
 

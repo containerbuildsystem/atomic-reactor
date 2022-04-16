@@ -8,7 +8,7 @@ of the BSD license. See the LICENSE file for details.
 
 import pytest
 
-from atomic_reactor.plugin import BuildPlugin
+from atomic_reactor.plugin import Plugin
 from atomic_reactor.metadata import (
     annotation,
     annotation_map,
@@ -25,14 +25,14 @@ pytestmark = pytest.mark.usefixtures('user_params')
 ])
 def test_store_metadata(metadata_decorator, metadata_attr, workflow):
     @metadata_decorator('foo')
-    class BP1(BuildPlugin):
+    class BP1(Plugin):
         key = 'bp1'
 
         def run(self):
             return 1
 
     @metadata_decorator('baz')
-    class BP2(BuildPlugin):
+    class BP2(Plugin):
         key = 'bp2'
 
         def run(self):
@@ -56,14 +56,14 @@ def test_store_metadata(metadata_decorator, metadata_attr, workflow):
 def test_store_metadata_map(metadata_map_decorator, metadata_attr, workflow):
     @metadata_map_decorator('foo')
     @metadata_map_decorator('bar_baz', lambda result: result['bar'] + result['baz'])
-    class BP1(BuildPlugin):
+    class BP1(Plugin):
         key = 'bp1'
 
         def run(self):
             return {'foo': 1, 'bar': 2, 'baz': 3}
 
     @metadata_map_decorator('spam')
-    class BP2(BuildPlugin):
+    class BP2(Plugin):
         key = 'bp2'
 
         def run(self):
@@ -88,7 +88,7 @@ def test_store_metadata_map(metadata_map_decorator, metadata_attr, workflow):
 ])
 def test_store_metadata_conflict(metadata_decorator, expected_err_msg, workflow):
     @metadata_decorator('foo')
-    class BP(BuildPlugin):
+    class BP(Plugin):
         key = 'bp'
 
         def run(self):
@@ -107,7 +107,7 @@ def test_store_metadata_combined(workflow):
     @annotation_map('bar')
     @label('spam')
     @label_map('eggs')
-    class BP(BuildPlugin):
+    class BP(Plugin):
         key = 'bp'
 
         def run(self):

@@ -14,7 +14,7 @@ from typing import Dict
 import pytest
 
 from atomic_reactor.plugin import PluginsRunner
-from atomic_reactor.plugins.pre_add_buildargs_in_df import AddBuildargsPlugin
+from atomic_reactor.plugins.add_buildargs_in_df import AddBuildargsPlugin
 
 from tests.mock_env import MockEnv
 

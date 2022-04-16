@@ -21,7 +21,7 @@ from atomic_reactor.constants import (PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
                                       SCRATCH_FROM)
 from atomic_reactor.plugin import PluginFailedException
-from atomic_reactor.plugins.pre_check_base_image import CheckBaseImagePlugin
+from atomic_reactor.plugins.check_base_image import CheckBaseImagePlugin
 from atomic_reactor.util import get_checksums
 from tests.constants import (LOCALHOST_REGISTRY)
 from tests.mock_env import MockEnv
@@ -49,7 +49,7 @@ class MockSource(object):
 
 
 def teardown_function(function):
-    sys.modules.pop('pre_check_base_image', None)
+    sys.modules.pop('check_base_image', None)
 
 
 def mock_env(workflow):
@@ -318,7 +318,7 @@ def test_check_base_parse(workflow):
 class TestValidateBaseImage(object):
 
     def teardown_method(self, method):
-        sys.modules.pop('pre_check_base_image', None)
+        sys.modules.pop('check_base_image', None)
 
     def test_manifest_list_verified(self, workflow, caplog):
 
@@ -335,7 +335,7 @@ class TestValidateBaseImage(object):
 
         def workflow_callback(workflow):
             self.prepare(workflow, mock_get_manifest_list=True)
-            del workflow.data.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
+            del workflow.data.plugins_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
             return workflow
 
         log_message = 'expected platforms are unknown'
@@ -355,7 +355,7 @@ class TestValidateBaseImage(object):
                 workflow = self.prepare(workflow, mock_get_manifest_list=True)
             else:
                 workflow = self.prepare(workflow, mock_get_manifest_list=False)
-            workflow.data.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = {'x86_64'}
+            workflow.data.plugins_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = {'x86_64'}
             if not has_manifest_list:
                 resp = {'v2': StubResponse()} if has_v2s2_manifest else {}
                 (flexmock(atomic_reactor.util.RegistryClient)
@@ -570,7 +570,7 @@ class TestValidateBaseImage(object):
 
                 # platform validation will fail if manifest is missing
                 # setting only one platform to skip platform validation and test negative case
-                workflow.data.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = {'x86_64'}
+                workflow.data.plugins_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = {'x86_64'}
 
             test_vals['workflow'] = workflow
             return workflow

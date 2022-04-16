@@ -26,7 +26,7 @@ from atomic_reactor.inner import TagConf
 from atomic_reactor.util import (registry_hostname, ManifestDigest, get_floating_images,
                                  get_primary_images, sha256sum, RegistrySession, RegistryClient)
 from atomic_reactor.utils.manifest import ManifestUtil
-from atomic_reactor.plugins.post_group_manifests import GroupManifestsPlugin, BuiltImage
+from atomic_reactor.plugins.group_manifests import GroupManifestsPlugin, BuiltImage
 from osbs.utils import ImageName
 
 

@@ -10,8 +10,8 @@ import pytest
 import os
 
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
-from atomic_reactor.plugins import pre_pyrpkg_fetch_artefacts
-from atomic_reactor.plugins.pre_pyrpkg_fetch_artefacts import DistgitFetchArtefactsPlugin
+from atomic_reactor.plugins import pyrpkg_fetch_artefacts
+from atomic_reactor.plugins.pyrpkg_fetch_artefacts import DistgitFetchArtefactsPlugin
 from osbs.utils import ImageName
 from tests.stubs import StubSource
 from flexmock import flexmock
@@ -42,7 +42,7 @@ def test_distgit_fetch_artefacts_plugin(tmpdir, workflow):  # noqa
     def assert_tmpdir(*args, **kwargs):
         assert os.getcwd() == str(tmpdir)
 
-    (flexmock(pre_pyrpkg_fetch_artefacts.subprocess)
+    (flexmock(pyrpkg_fetch_artefacts.subprocess)
         .should_receive('check_call')
         .with_args(expected_command)
         .replace_with(assert_tmpdir)
@@ -70,7 +70,7 @@ def test_distgit_fetch_artefacts_failure(tmpdir, workflow):  # noqa
     initial_dir = os.getcwd()
     assert initial_dir != str(tmpdir)
 
-    (flexmock(pre_pyrpkg_fetch_artefacts.subprocess)
+    (flexmock(pyrpkg_fetch_artefacts.subprocess)
         .should_receive('check_call')
         .with_args(expected_command)
         .and_raise(RuntimeError)
