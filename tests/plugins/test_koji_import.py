@@ -10,8 +10,8 @@ from collections import namedtuple
 import json
 from pathlib import Path
 from typing import Any, Dict
-from atomic_reactor.plugins.post_fetch_docker_archive import FetchDockerArchivePlugin
-from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
+from atomic_reactor.plugins.fetch_docker_archive import FetchDockerArchivePlugin
+from atomic_reactor.plugins.add_help import AddHelpPlugin
 
 import koji
 import koji_cli.lib
@@ -19,12 +19,11 @@ import os
 
 import requests
 
-from atomic_reactor.plugins.post_gather_builds_metadata import GatherBuildsMetadataPlugin
-from atomic_reactor.plugins.post_koji_import import (KojiImportPlugin,
-                                                     KojiImportSourceContainerPlugin)
-from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
-from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
-from atomic_reactor.plugins.pre_fetch_sources import PLUGIN_FETCH_SOURCES_KEY
+from atomic_reactor.plugins.gather_builds_metadata import GatherBuildsMetadataPlugin
+from atomic_reactor.plugins.koji_import import KojiImportPlugin, KojiImportSourceContainerPlugin
+from atomic_reactor.plugins.rpmqa import RPMqaPlugin
+from atomic_reactor.plugins.add_filesystem import AddFilesystemPlugin
+from atomic_reactor.plugins.fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.plugin import PluginFailedException, PostBuildPluginsRunner
 from atomic_reactor.inner import DockerBuildWorkflow, TagConf
 from atomic_reactor.util import (ManifestDigest, DockerfileImages,
@@ -272,8 +271,8 @@ def mock_environment(workflow: DockerBuildWorkflow, source_dir: Path,
         source = GitSource('git', 'git://hostname/path')
 
     platforms = ['x86_64']
-    workflow.data.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = platforms
-    workflow.data.prebuild_results[PLUGIN_RESOLVE_COMPOSES_KEY] = {'composes': None}
+    workflow.data.plugins_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = platforms
+    workflow.data.plugins_results[PLUGIN_RESOLVE_COMPOSES_KEY] = {'composes': None}
 
     mock_reactor_config(workflow)
     workflow.user_params['scratch'] = scratch
@@ -397,7 +396,7 @@ def mock_environment(workflow: DockerBuildWorkflow, source_dir: Path,
          .replace_with(custom_get))
 
     if not source_build:
-        workflow.data.postbuild_results[FetchDockerArchivePlugin.key] = {
+        workflow.data.plugins_results[FetchDockerArchivePlugin.key] = {
             workflow.build_dir.any_platform.platform: {"type": IMAGE_TYPE_DOCKER_ARCHIVE}
         }
 
@@ -411,18 +410,18 @@ def mock_environment(workflow: DockerBuildWorkflow, source_dir: Path,
         workflow.data.build_canceled = True
 
     workflow.prebuild_plugins_conf = {}
-    workflow.data.prebuild_results[PLUGIN_FETCH_SOURCES_KEY] = {
+    workflow.data.plugins_results[PLUGIN_FETCH_SOURCES_KEY] = {
         'sources_for_nvr': SOURCES_FOR_KOJI_NVR,
         'signing_intent': SOURCES_SIGNING_INTENT,
     }
-    workflow.data.postbuild_results[PostBuildRPMqaPlugin.key] = [
+    workflow.data.plugins_results[RPMqaPlugin.key] = [
         "name1;1.0;1;x86_64;0;2000;" + FAKE_SIGMD5.decode() + ";23000;"
         "RSA/SHA256, Tue 30 Aug 2016 00:00:00, Key ID 01234567890abc;(none)",
         "name2;2.0;1;x86_64;0;3000;" + FAKE_SIGMD5.decode() + ";24000"
         "RSA/SHA256, Tue 30 Aug 2016 00:00:00, Key ID 01234567890abd;(none)",
     ]
 
-    workflow.data.postbuild_results[GatherBuildsMetadataPlugin.key] = {
+    workflow.data.plugins_results[GatherBuildsMetadataPlugin.key] = {
         'x86_64': {
             'buildroots': [
                 {
@@ -516,7 +515,7 @@ def mock_environment(workflow: DockerBuildWorkflow, source_dir: Path,
             'type': 'log',
             'filename': OPERATOR_MANIFESTS_ARCHIVE,
             'buildroot_id': 1}
-        (workflow.data.postbuild_results[GatherBuildsMetadataPlugin.key]['x86_64']['output']
+        (workflow.data.plugins_results[GatherBuildsMetadataPlugin.key]['x86_64']['output']
          .append(manifests_entry))
 
     if has_remote_source:
@@ -536,14 +535,14 @@ def mock_environment(workflow: DockerBuildWorkflow, source_dir: Path,
                 },
             }
         ]
-        workflow.data.prebuild_results[PLUGIN_RESOLVE_REMOTE_SOURCE] = remote_source_result
+        workflow.data.plugins_results[PLUGIN_RESOLVE_REMOTE_SOURCE] = remote_source_result
     else:
-        workflow.data.prebuild_results[PLUGIN_RESOLVE_REMOTE_SOURCE] = None
+        workflow.data.plugins_results[PLUGIN_RESOLVE_REMOTE_SOURCE] = None
 
     if has_remote_source_file:
         filepath = build_dir_path / REMOTE_SOURCE_FILE_FILENAME
         filepath.write_text('dummy file', 'utf-8')
-        workflow.data.postbuild_results[PLUGIN_MAVEN_URL_SOURCES_METADATA_KEY] = {
+        workflow.data.plugins_results[PLUGIN_MAVEN_URL_SOURCES_METADATA_KEY] = {
             'remote_source_files': [
                 {
                     'file': str(filepath),
@@ -571,7 +570,7 @@ def mock_environment(workflow: DockerBuildWorkflow, source_dir: Path,
                 }
             ],
         }
-        workflow.data.prebuild_results[PLUGIN_FETCH_MAVEN_KEY] = {
+        workflow.data.plugins_results[PLUGIN_FETCH_MAVEN_KEY] = {
             'no_source': [{
                 'url': 'example.com/dummy-no-source.jar',
                 'checksum_type': 'md5',
@@ -581,7 +580,7 @@ def mock_environment(workflow: DockerBuildWorkflow, source_dir: Path,
         }
 
     if has_pnc_build_metadata:
-        workflow.data.prebuild_results[PLUGIN_FETCH_MAVEN_KEY] = {
+        workflow.data.plugins_results[PLUGIN_FETCH_MAVEN_KEY] = {
             'pnc_build_metadata': {
                 'builds': [
                     {'id': 12345},
@@ -591,7 +590,7 @@ def mock_environment(workflow: DockerBuildWorkflow, source_dir: Path,
         }
 
     if push_operator_manifests_enabled:
-        workflow.data.postbuild_results[PLUGIN_PUSH_OPERATOR_MANIFESTS_KEY] = \
+        workflow.data.plugins_results[PLUGIN_PUSH_OPERATOR_MANIFESTS_KEY] = \
             PUSH_OPERATOR_MANIFESTS_RESULTS
 
 
@@ -687,7 +686,7 @@ class TestKojiImport(object):
                          name='ns/name', version='1.0', release='1')
 
         add_koji_map_in_workflow(workflow, hub_url='')
-        workflow.data.postbuild_results[GatherBuildsMetadataPlugin.key] = metadatas
+        workflow.data.plugins_results[GatherBuildsMetadataPlugin.key] = metadatas
 
         plugin = KojiImportPlugin(workflow)
 
@@ -1064,7 +1063,7 @@ class TestKojiImport(object):
             koji_parent_result = {
                 BASE_IMAGE_KOJI_BUILD: {'id': parent_id},
             }
-        workflow.data.prebuild_results[PLUGIN_KOJI_PARENT_KEY] = koji_parent_result
+        workflow.data.plugins_results[PLUGIN_KOJI_PARENT_KEY] = koji_parent_result
 
         runner = create_runner(workflow)
         runner.run()
@@ -1105,7 +1104,7 @@ class TestKojiImport(object):
                 str(ImageName.parse('base')): dict(nvr='base-16.0-1', id=16, extra='build_info'),
             },
         }
-        workflow.data.prebuild_results[PLUGIN_KOJI_PARENT_KEY] = koji_parent_result
+        workflow.data.plugins_results[PLUGIN_KOJI_PARENT_KEY] = koji_parent_result
 
         dockerfile_images = ['base:latest', 'scratch', 'some:1.0']
         if base_from_scratch:
@@ -1140,7 +1139,7 @@ class TestKojiImport(object):
         session = MockedClientSession('')
         mock_environment(workflow, source_dir,
                          name='ns/name', version='1.0', release='1', session=session)
-        workflow.data.prebuild_results[AddFilesystemPlugin.key] = {
+        workflow.data.plugins_results[AddFilesystemPlugin.key] = {
             'base-image-id': 'abcd',
             'filesystem-koji-task-id': task_id,
         }
@@ -1170,7 +1169,7 @@ class TestKojiImport(object):
         session = MockedClientSession('')
         mock_environment(workflow, source_dir,
                          name='ns/name', version='1.0', release='1', session=session)
-        workflow.data.prebuild_results[AddFilesystemPlugin.key] = {
+        workflow.data.plugins_results[AddFilesystemPlugin.key] = {
             'base-image-id': 'abcd',
         }
         runner = create_runner(workflow)
@@ -1212,7 +1211,7 @@ class TestKojiImport(object):
                          name=name, version=version, release=release)
 
         if verify_media:
-            workflow.data.postbuild_results[PLUGIN_VERIFY_MEDIA_KEY] = verify_media
+            workflow.data.plugins_results[PLUGIN_VERIFY_MEDIA_KEY] = verify_media
         expected_media_types = verify_media or []
 
         workflow.data.image_id = expect_id
@@ -1420,7 +1419,7 @@ class TestKojiImport(object):
         session = MockedClientSession('')
         mock_environment(workflow, source_dir,
                          name='ns/name', version='1.0', release='1', session=session)
-        workflow.data.prebuild_results.update(add_help_results)
+        workflow.data.plugins_results.update(add_help_results)
 
         runner = create_runner(workflow)
         runner.run()
@@ -1487,7 +1486,7 @@ class TestKojiImport(object):
         session = MockedClientSession('')
         mock_environment(workflow, source_dir,
                          name='ns/name', version='1.0', release='1', session=session)
-        workflow.data.postbuild_results.update(build_result)
+        workflow.data.plugins_results.update(build_result)
 
         runner = create_runner(workflow)
         runner.run()
@@ -1520,7 +1519,7 @@ class TestKojiImport(object):
                 'media_type': MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
                 'manifest_digest': digest
             }
-        workflow.data.postbuild_results[PLUGIN_GROUP_MANIFESTS_KEY] = group_manifest_result
+        workflow.data.plugins_results[PLUGIN_GROUP_MANIFESTS_KEY] = group_manifest_result
 
         flexmock(koji_cli.lib).should_receive('unique_path').and_return('upload-dir')
 
@@ -1643,7 +1642,7 @@ class TestKojiImport(object):
         mock_environment(workflow, source_dir,
                          name='ns/name', version='1.0', release='1', session=session)
 
-        workflow.data.prebuild_results[PLUGIN_RESOLVE_COMPOSES_KEY] = {
+        workflow.data.plugins_results[PLUGIN_RESOLVE_COMPOSES_KEY] = {
             'composes': comp,
             'yum_repourls': {'x86_64': []},
             'include_koji_repo': False,
@@ -1686,7 +1685,7 @@ class TestKojiImport(object):
                          name='ns/name', version='1.0', release='1', session=session)
 
         if resolve_run:
-            workflow.data.prebuild_results[PLUGIN_RESOLVE_COMPOSES_KEY] = {'composes': None}
+            workflow.data.plugins_results[PLUGIN_RESOLVE_COMPOSES_KEY] = {'composes': None}
 
         runner = create_runner(workflow)
         runner.run()
@@ -1836,7 +1835,7 @@ class TestKojiImport(object):
                          session=session, has_op_bundle_manifests=has_bundle_manifests)
 
         if has_bundle_manifests:
-            workflow.data.prebuild_results[PLUGIN_PIN_OPERATOR_DIGESTS_KEY] = {
+            workflow.data.plugins_results[PLUGIN_PIN_OPERATOR_DIGESTS_KEY] = {
                 'custom_csv_modifications_applied': False,
                 'related_images': {
                     'pullspecs': [
@@ -1918,7 +1917,7 @@ class TestKojiImport(object):
                 'created_by_osbs': True,
             }
         }
-        workflow.data.prebuild_results[PLUGIN_PIN_OPERATOR_DIGESTS_KEY] = plugin_res
+        workflow.data.plugins_results[PLUGIN_PIN_OPERATOR_DIGESTS_KEY] = plugin_res
 
         runner = create_runner(workflow)
         runner.run()
@@ -2092,7 +2091,7 @@ class TestKojiImport(object):
         workflow.data.koji_source_source_url = 'git://hostname/path#123456'
 
         if verify_media:
-            workflow.data.postbuild_results[PLUGIN_VERIFY_MEDIA_KEY] = verify_media
+            workflow.data.plugins_results[PLUGIN_VERIFY_MEDIA_KEY] = verify_media
         expected_media_types = verify_media or []
 
         workflow.data.image_id = expect_id
@@ -2364,7 +2363,7 @@ class TestKojiImport(object):
         self, build_metadatas, platform, _filter, expected, workflow
     ):
         mock_reactor_config(workflow)
-        workflow.data.postbuild_results[GatherBuildsMetadataPlugin.key] = build_metadatas
+        workflow.data.plugins_results[GatherBuildsMetadataPlugin.key] = build_metadatas
 
         plugin = KojiImportPlugin(workflow)
         outputs = list(plugin._iter_build_metadata_outputs(platform, _filter=_filter))
@@ -2380,7 +2379,7 @@ class TestKojiImport(object):
     ])
     def test_property_filesystem_koji_task_id(self, fs_result, expected, log, workflow, caplog):
         mock_reactor_config(workflow)
-        workflow.data.prebuild_results[PLUGIN_ADD_FILESYSTEM_KEY] = fs_result
+        workflow.data.plugins_results[PLUGIN_ADD_FILESYSTEM_KEY] = fs_result
 
         plugin = KojiImportPlugin(workflow)
         assert expected == plugin._filesystem_koji_task_id
@@ -2401,7 +2400,7 @@ class TestKojiImport(object):
             build_dir_path = workflow.build_dir.any_platform.path
             archive_file = build_dir_path / OPERATOR_MANIFESTS_ARCHIVE
             archive_file.write_bytes(b'20220329')
-            results = workflow.data.postbuild_results
+            results = workflow.data.plugins_results
             results[PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY] = str(archive_file)
 
         runner = create_runner(workflow)

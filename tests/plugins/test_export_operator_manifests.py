@@ -17,7 +17,7 @@ from flexmock import flexmock
 
 from atomic_reactor.constants import PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY, \
     PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
-from atomic_reactor.plugins.post_export_operator_manifests import ExportOperatorManifestsPlugin
+from atomic_reactor.plugins.export_operator_manifests import ExportOperatorManifestsPlugin
 from atomic_reactor.plugin import PluginFailedException, PostBuildPluginsRunner
 
 from atomic_reactor.utils import retries
@@ -123,7 +123,7 @@ def mock_env(workflow, has_appregistry_label=False, appregistry_label=False,
            .for_plugin('postbuild', ExportOperatorManifestsPlugin.key)
            .set_scratch(scratch))
 
-    env.workflow.data.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = PLATFORMS
+    env.workflow.data.plugins_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = PLATFORMS
     env.workflow.build_dir.init_build_dirs(PLATFORMS, env.workflow.source)
     env.workflow.data.tag_conf.add_unique_image(TEST_IMAGE)
 

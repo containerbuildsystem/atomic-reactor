@@ -8,8 +8,8 @@ of the BSD license. See the LICENSE file for details.
 
 import koji
 
-from atomic_reactor.plugins.post_koji_tag_build import KojiTagBuildPlugin
-from atomic_reactor.plugins.post_koji_import import KojiImportPlugin
+from atomic_reactor.plugins.koji_tag_build import KojiTagBuildPlugin
+from atomic_reactor.plugins.koji_import import KojiImportPlugin
 from atomic_reactor.plugin import PluginFailedException, PostBuildPluginsRunner
 from tests.util import add_koji_map_in_workflow
 
@@ -74,7 +74,7 @@ def mock_environment(workflow, session=None, build_process_failed=False,
     flexmock(koji, ClientSession=lambda hub, opts: session)
 
     workflow.data.plugin_failed = build_process_failed
-    workflow.data.postbuild_results[KojiImportPlugin.key] = koji_build_id
+    workflow.data.plugins_results[KojiImportPlugin.key] = koji_build_id
 
     (flexmock(time)
         .should_receive('sleep')

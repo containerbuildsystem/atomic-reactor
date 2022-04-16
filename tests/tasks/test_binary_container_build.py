@@ -139,7 +139,7 @@ def mock_workflow_data(*, enabled_platforms: List[str]) -> inner.ImageBuildWorkf
 
     mocked_data = inner.ImageBuildWorkflowData(
         tag_conf=tag_conf,
-        prebuild_results={PLUGIN_CHECK_AND_SET_PLATFORMS_KEY: enabled_platforms},
+        plugins_results={PLUGIN_CHECK_AND_SET_PLATFORMS_KEY: enabled_platforms},
         buildargs=BUILD_ARGS,
     )
 

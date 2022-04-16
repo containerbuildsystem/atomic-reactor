@@ -10,7 +10,7 @@ import os
 import sys
 from pathlib import Path
 from typing import List, Union
-from atomic_reactor.plugins.pre_check_and_set_platforms import CheckAndSetPlatformsPlugin
+from atomic_reactor.plugins.check_and_set_platforms import CheckAndSetPlatformsPlugin
 
 import pytest
 import yaml
@@ -120,7 +120,7 @@ def mock_env(workflow, source_dir: Path, labels=None):
 
 
 def teardown_function(function):
-    sys.modules.pop('pre_check_and_set_platforms', None)
+    sys.modules.pop('check_and_set_platforms', None)
 
 
 @pytest.mark.parametrize(('platforms', 'platform_exclude', 'platform_only', 'result'), [

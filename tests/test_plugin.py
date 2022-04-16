@@ -17,8 +17,7 @@ from atomic_reactor.plugin import (BuildPluginsRunner, PreBuildPluginsRunner,
                                    PluginFailedException, PrePublishPluginsRunner,
                                    ExitPluginsRunner, BuildStepPluginsRunner,
                                    PluginsRunner, InappropriateBuildStepError,
-                                   BuildPlugin, BuildStepPlugin, PreBuildPlugin, ExitPlugin,
-                                   PreBuildSleepPlugin, PrePublishPlugin, PostBuildPlugin)
+                                   Plugin, PreBuildSleepPlugin, )
 
 from tests.constants import DOCKERFILE_GIT
 
@@ -29,21 +28,21 @@ DUMMY_BUILD_RESULT = {"image_id": "image_id"}
 pytestmark = pytest.mark.usefixtures('user_params')
 
 
-class MyBsPlugin1(BuildStepPlugin):
+class MyBsPlugin1(Plugin):
     key = 'MyBsPlugin1'
 
     def run(self):
         return DUMMY_BUILD_RESULT
 
 
-class MyBsPlugin2(BuildStepPlugin):
+class MyBsPlugin2(Plugin):
     key = 'MyBsPlugin2'
 
     def run(self):
         return DUMMY_BUILD_RESULT
 
 
-class MyPreBuildPlugin(PreBuildPlugin):
+class MyPreBuildPlugin(Plugin):
     key = 'MyPreBuildPlugin'
 
     def run(self):
@@ -105,30 +104,25 @@ def test_required_plugin_failure(workflow, runner_type, required):
         assert workflow.data.plugin_failed is required
 
 
-@pytest.mark.parametrize('runner_type, plugin_type', [  # noqa
-    (PreBuildPluginsRunner, PreBuildPlugin),
-    (PrePublishPluginsRunner, PrePublishPlugin),
-    (PostBuildPluginsRunner, PostBuildPlugin),
-    (ExitPluginsRunner, ExitPlugin),
-    (BuildStepPluginsRunner, BuildStepPlugin),
+@pytest.mark.parametrize('runner_type', [
+    PreBuildPluginsRunner,
+    PrePublishPluginsRunner,
+    PostBuildPluginsRunner,
+    ExitPluginsRunner,
+    BuildStepPluginsRunner,
 ])
-@pytest.mark.parametrize('required', [
-    True,
-    False,
-])
-def test_verify_required_plugins_before_first_run(caplog, workflow, runner_type, plugin_type,
-                                                  required):
+@pytest.mark.parametrize('required', [True, False])
+def test_verify_required_plugins_before_first_run(caplog, workflow, runner_type, required):
     """
     test plugin availability checks before running any plugins
     """
-    class MyPlugin(plugin_type):
+    class MyPlugin(Plugin):
         key = 'MyPlugin'
 
         def run(self):
             return DUMMY_BUILD_RESULT
 
-    flexmock(PluginsRunner, load_plugins=lambda x: {
-                                        MyPlugin.key: MyPlugin})
+    flexmock(PluginsRunner, load_plugins=lambda: {MyPlugin.key: MyPlugin})
     params = (workflow,
               [{"name": MyPlugin.key, "required": False},
                {"name": "no_such_plugin", "required": required}])
@@ -170,7 +164,7 @@ def test_buildstep_phase_build_plugin(caplog, workflow, success1, success2):
     and won't fail buildstep runner
     unless no plugin finished successfully
     """
-    flexmock(PluginsRunner, load_plugins=lambda x: {
+    flexmock(PluginsRunner, load_plugins=lambda: {
                                         MyBsPlugin1.key: MyBsPlugin1,
                                         MyBsPlugin2.key: MyBsPlugin2, })
     runner = BuildStepPluginsRunner(workflow,
@@ -206,7 +200,7 @@ def test_buildstep_phase_build_plugin_failing_exception(workflow, caplog, succes
     Exception exception is critical,
     and will fail buildstep runner
     """
-    flexmock(PluginsRunner, load_plugins=lambda x: {
+    flexmock(PluginsRunner, load_plugins=lambda: {
                                         MyBsPlugin1.key: MyBsPlugin1,
                                         MyBsPlugin2.key: MyBsPlugin2, })
     runner = BuildStepPluginsRunner(workflow,
@@ -236,7 +230,7 @@ def test_non_buildstep_phase_raises_InappropriateBuildStepError(caplog, workflow
     tests that exception is raised if no buildstep_phase
     but raises InappropriateBuildStepError
     """
-    flexmock(PluginsRunner, load_plugins=lambda x: {
+    flexmock(PluginsRunner, load_plugins=lambda: {
                                         MyPreBuildPlugin.key: MyPreBuildPlugin})
     runner = PreBuildPluginsRunner(workflow,
                                    [{"name": MyPreBuildPlugin.key}])
@@ -251,7 +245,7 @@ def test_no_appropriate_buildstep_build_plugin(caplog, workflow):  # noqa
     test that build fails if there isn't any
     appropriate buildstep plugin (doesn't exist)
     """
-    flexmock(PluginsRunner, load_plugins=lambda x: {})
+    flexmock(PluginsRunner, load_plugins=lambda: {})
     runner = BuildStepPluginsRunner(workflow,
                                     [{"name": MyBsPlugin1.key},
                                      {"name": MyBsPlugin2.key}])
@@ -293,7 +287,7 @@ class TestBuildPluginsRunner(object):
         workflow.source.path = 'path'
         workflow.user_params = {'shrubbery': 'yrebburhs'}
 
-        class MyPlugin(BuildPlugin):
+        class MyPlugin(Plugin):
 
             key = 'my_plugin'
 
@@ -308,7 +302,7 @@ class TestBuildPluginsRunner(object):
             def run(self):
                 pass
 
-        bpr = BuildPluginsRunner(workflow, 'PreBuildPlugin', {})
+        bpr = BuildPluginsRunner(workflow, {})
         plugin = bpr.create_instance_from_plugin(MyPlugin, params)
 
         assert plugin.spam == params['spam']
@@ -326,7 +320,7 @@ class TestBuildPluginsRunner(object):
         workflow.source.path = 'path'
         workflow.user_params = {}
 
-        class MyPlugin(BuildPlugin):
+        class MyPlugin(Plugin):
 
             key = 'my_plugin'
 
@@ -338,7 +332,7 @@ class TestBuildPluginsRunner(object):
             def run(self):
                 pass
 
-        bpr = BuildPluginsRunner(workflow, 'PreBuildPlugin', {})
+        bpr = BuildPluginsRunner(workflow, {})
         plugin = bpr.create_instance_from_plugin(MyPlugin, params)
 
         for key, value in params.items():

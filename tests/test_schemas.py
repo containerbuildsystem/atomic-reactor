@@ -140,15 +140,12 @@ def get_workflow_data_json():
     wf_data = ImageBuildWorkflowData(
         dockerfile_images=DockerfileImages(["scratch", "registry/f:35"]),
         # Test object in dict values is serialized
-        buildstep_result={"image_build": {"logs": ["Build succeeds."]}},
-        postbuild_results={
+        plugins_results={
+            "image_build": {"logs": ["Build succeeds."]},
             "tag_and_push": [
                 # Such object in a list should be handled properly.
                 ImageName(registry="localhost:5000", repo='image', tag='latest'),
-            ]
-        },
-        tag_conf=tag_conf,
-        prebuild_results={
+            ],
             "plugin_a": {
                 'parent-images-koji-builds': {
                     ImageName(repo='base', tag='latest').to_str(): {
@@ -159,6 +156,7 @@ def get_workflow_data_json():
                 },
             },
         },
+        tag_conf=tag_conf,
         koji_upload_files=[
             {
                 "local_filename": "/path/to/build1.log",

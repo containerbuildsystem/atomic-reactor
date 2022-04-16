@@ -21,7 +21,7 @@ from flexmock import flexmock
 from atomic_reactor.constants import RELATIVE_REPOS_PATH, INSPECT_CONFIG, DOCKERFILE_FILENAME, \
     PLUGIN_RESOLVE_COMPOSES_KEY, PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
 from atomic_reactor.plugin import PluginFailedException, PreBuildPluginsRunner
-from atomic_reactor.plugins.pre_inject_yum_repos import InjectYumReposPlugin
+from atomic_reactor.plugins.inject_yum_repos import InjectYumReposPlugin
 from atomic_reactor.source import VcsInfo
 from atomic_reactor.util import sha256sum, DockerfileImages
 from atomic_reactor.utils.yum import YumRepo
@@ -126,7 +126,7 @@ def prepare(workflow, build_dir, inherited_user='', dockerfile=DEFAULT_DOCKERFIL
         build_dir.joinpath("cert").write_text("cert", "utf-8")
         build_dir.joinpath("serverca").write_text("serverca", "utf-8")
     workflow.user_params['scratch'] = scratch
-    workflow.data.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = platforms
+    workflow.data.plugins_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = platforms
     workflow.source = MockSource(build_dir)
     inspect_data = {INSPECT_CONFIG: {'User': inherited_user}}
     flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return(inspect_data)
@@ -145,11 +145,11 @@ def prepare(workflow, build_dir, inherited_user='', dockerfile=DEFAULT_DOCKERFIL
         workflow.conf.conf = {'version': 1, 'yum_proxy': yum_proxy}
         add_koji_map_in_workflow(workflow, hub_url='', root_url=root_url,
                                  ssl_certs_dir=str(build_dir) if koji_ssl_certs else None)
-    workflow.data.prebuild_results[PLUGIN_RESOLVE_COMPOSES_KEY] = {'composes': [],
-                                                                   'include_koji_repo':
-                                                                   include_koji_repo,
-                                                                   'yum_repourls': yum_repourls,
-                                                                   }
+    workflow.data.plugins_results[PLUGIN_RESOLVE_COMPOSES_KEY] = {
+        'composes': [],
+        'include_koji_repo': include_koji_repo,
+        'yum_repourls': yum_repourls,
+    }
     return workflow
 
 

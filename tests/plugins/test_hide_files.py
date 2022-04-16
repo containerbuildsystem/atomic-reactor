@@ -14,7 +14,7 @@ from flexmock import flexmock
 
 from atomic_reactor.constants import INSPECT_CONFIG
 from atomic_reactor.plugin import PreBuildPluginsRunner
-from atomic_reactor.plugins.pre_hide_files import HideFilesPlugin
+from atomic_reactor.plugins.hide_files import HideFilesPlugin
 
 
 def check_df_content(expected_content, workflow):

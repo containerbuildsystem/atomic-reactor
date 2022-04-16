@@ -16,7 +16,7 @@ from atomic_reactor.constants import (
     PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
 )
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
-from atomic_reactor.plugins.pre_koji_parent import KojiParentPlugin
+from atomic_reactor.plugins.koji_parent import KojiParentPlugin
 from atomic_reactor.util import get_manifest_media_type, DockerfileImages
 from osbs.utils import ImageName
 from flexmock import flexmock
@@ -357,7 +357,7 @@ class TestKojiParent(object):
             image_str = '/'.join([registry, image_str])
         extra = {'image': {'index': {'digests': {V2_LIST: 'stubDigest'}}}}
 
-        workflow.data.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = ['x86_64']
+        workflow.data.plugins_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = ['x86_64']
 
         koji_build = dict(nvr='base-image-1.0-99',
                           id=KOJI_BUILD_ID,
@@ -564,7 +564,7 @@ class TestKojiParent(object):
         image_str = '{}/base:latest'.format(registry)
         extra = {'image': {'index': {'digests': {V2_LIST: 'stubDigest'}}}}
         parent_tag = 'notExpectedDigest'
-        workflow.data.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = requested_platforms
+        workflow.data.plugins_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = requested_platforms
 
         koji_build = dict(nvr='base-image-1.0-99',
                           id=KOJI_BUILD_ID,

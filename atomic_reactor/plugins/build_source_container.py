@@ -16,12 +16,12 @@ from atomic_reactor.constants import (
     PLUGIN_FETCH_SOURCES_KEY,
     PLUGIN_SOURCE_CONTAINER_KEY,
 )
-from atomic_reactor.plugin import BuildStepPlugin, PluginFailedException
+from atomic_reactor.plugin import Plugin, PluginFailedException
 from atomic_reactor.util import get_exported_image_metadata
 from atomic_reactor.utils import retries
 
 
-class SourceContainerPlugin(BuildStepPlugin):
+class SourceContainerPlugin(Plugin):
     """
     Build source container image using
     https://github.com/containers/BuildSourceImage
@@ -67,7 +67,7 @@ class SourceContainerPlugin(BuildStepPlugin):
             ``fail_reason`` must be included with a meaningful message.
         :rtype: Dict[str, Any]
         """
-        fetch_sources_result = self.workflow.data.prebuild_results.get(PLUGIN_FETCH_SOURCES_KEY, {})
+        fetch_sources_result = self.workflow.data.plugins_results.get(PLUGIN_FETCH_SOURCES_KEY, {})
         source_data_dir = fetch_sources_result.get('image_sources_dir')
         remote_source_data_dir = fetch_sources_result.get('remote_sources_dir')
         maven_source_data_dir = fetch_sources_result.get('maven_sources_dir')

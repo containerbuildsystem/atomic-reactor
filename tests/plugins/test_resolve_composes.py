@@ -27,8 +27,11 @@ from atomic_reactor.constants import (
     BASE_IMAGE_KOJI_BUILD, DOCKERFILE_FILENAME
 )
 from atomic_reactor.plugin import PluginFailedException
-from atomic_reactor.plugins.pre_resolve_composes import (ResolveComposesPlugin,
-                                                         ODCS_DATETIME_FORMAT, UNPUBLISHED_REPOS)
+from atomic_reactor.plugins.resolve_composes import (
+    ResolveComposesPlugin,
+    ODCS_DATETIME_FORMAT,
+    UNPUBLISHED_REPOS,
+)
 from atomic_reactor.source import SourceConfig
 from atomic_reactor.utils.odcs import ODCSClient, construct_compose_url, WaitComposeToFinishTimeout
 from tests.mock_env import MockEnv
@@ -228,14 +231,14 @@ def mock_koji_parent(mocked_env,
         parent_build_info['extra']['image'].pop('odcs')
 
     mocked_env.set_plugin_result(
-        "prebuild", PLUGIN_KOJI_PARENT_KEY, {BASE_IMAGE_KOJI_BUILD: parent_build_info}
+        PLUGIN_KOJI_PARENT_KEY, {BASE_IMAGE_KOJI_BUILD: parent_build_info}
     )
 
 
 class TestResolveComposes(object):
 
     def teardown_method(self, method):
-        sys.modules.pop('pre_resolve_composes', None)
+        sys.modules.pop('resolve_composes', None)
 
     def test_request_compose(self, mocked_env):
         mock_odcs_client_start_compose()
@@ -1051,7 +1054,7 @@ class TestResolveComposes(object):
             parent_build_info['extra']['image'] = {'odcs': {'signing_intent': parent_si}}
 
         mocked_env.set_plugin_result(
-            "prebuild", PLUGIN_KOJI_PARENT_KEY, {BASE_IMAGE_KOJI_BUILD: parent_build_info}
+            PLUGIN_KOJI_PARENT_KEY, {BASE_IMAGE_KOJI_BUILD: parent_build_info}
         )
 
         plugin_args = {}

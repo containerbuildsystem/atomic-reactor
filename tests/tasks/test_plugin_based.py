@@ -203,7 +203,7 @@ def test_ensure_workflow_data_is_saved_in_various_conditions(
     # As long as the data is loaded successfully, just check some
     # attributes to check the data.
     assert DockerfileImages() == wf_data.dockerfile_images
-    assert {} == wf_data.prebuild_results
+    assert {} == wf_data.plugins_results
 
 
 def test_workflow_data_is_restored_before_starting_to_build(build_dir, dummy_source, tmpdir):
@@ -218,7 +218,7 @@ def test_workflow_data_is_restored_before_starting_to_build(build_dir, dummy_sou
     # will be raised. So far, have no idea why it happens.
     data.dockerfile_images = DockerfileImages(["scratch"])
     data.tag_conf.add_floating_image("registry/app:latest")
-    data.prebuild_results["plugin_a"] = {"var": "value"}
+    data.plugins_results["plugin_a"] = {"var": "value"}
     data.save(ContextDir(Path(context_dir)))
 
     params = TaskParams(build_dir=str(build_dir),

@@ -12,9 +12,7 @@ import json
 
 from atomic_reactor.constants import PLUGIN_COMPARE_COMPONENTS_KEY
 from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
-from atomic_reactor.plugins.post_compare_components import (
-    filter_components_by_name
-)
+from atomic_reactor.plugins.compare_components import filter_components_by_name
 from atomic_reactor.util import DockerfileImages
 
 from tests.constants import FILES

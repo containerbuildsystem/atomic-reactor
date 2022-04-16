@@ -13,7 +13,7 @@ from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.utils.koji import get_buildroot
 from atomic_reactor.constants import PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
 from atomic_reactor.plugin import PluginFailedException, PostBuildPluginsRunner
-from atomic_reactor.plugins.post_gather_builds_metadata import GatherBuildsMetadataPlugin
+from atomic_reactor.plugins.gather_builds_metadata import GatherBuildsMetadataPlugin
 
 import pytest
 
@@ -64,7 +64,7 @@ def assert_log_file_metadata(metadata, expected_filename, expected_platform):
 @patch("koji.ClientSession", new=MockedClientSession)
 def test_gather_builds_metadata(has_s390x_build_logs, workflow: DockerBuildWorkflow, caplog):
     mock_reactor_config(workflow)
-    workflow.data.prebuild_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = ["x86_64", "s390x"]
+    workflow.data.plugins_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = ["x86_64", "s390x"]
     workflow.data.tag_conf.add_unique_image("ns/img:1.0-1")
 
     build_log_file = workflow.context_dir.get_platform_build_log("s390x")
@@ -73,7 +73,7 @@ def test_gather_builds_metadata(has_s390x_build_logs, workflow: DockerBuildWorkf
 
     plugin = GatherBuildsMetadataPlugin(workflow, koji_upload_dir="path/to/upload")
 
-    with patch("atomic_reactor.plugins.post_gather_builds_metadata.get_output",
+    with patch("atomic_reactor.plugins.gather_builds_metadata.get_output",
                return_value=([], None)):
         output = plugin.run()
 

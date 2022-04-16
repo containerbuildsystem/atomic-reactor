@@ -19,7 +19,7 @@ from atomic_reactor.constants import (REPO_FETCH_ARTIFACTS_KOJI,
                                       REPO_FETCH_ARTIFACTS_PNC,
                                       REPO_FETCH_ARTIFACTS_URL)
 from atomic_reactor.plugin import PluginFailedException
-from atomic_reactor.plugins.pre_fetch_maven_artifacts import FetchMavenArtifactsPlugin
+from atomic_reactor.plugins.fetch_maven_artifacts import FetchMavenArtifactsPlugin
 from osbs.utils import ImageName
 from textwrap import dedent
 

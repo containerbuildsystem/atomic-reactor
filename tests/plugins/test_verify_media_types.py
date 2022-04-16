@@ -13,7 +13,7 @@ from atomic_reactor.constants import (PLUGIN_GROUP_MANIFESTS_KEY,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
                                       MEDIA_TYPE_OCI_V1, MEDIA_TYPE_OCI_V1_INDEX)
-from atomic_reactor.plugins.post_verify_media_types import VerifyMediaTypesPlugin
+from atomic_reactor.plugins.verify_media_types import VerifyMediaTypesPlugin
 from atomic_reactor.inner import ImageBuildWorkflowData, TagConf
 from atomic_reactor.auth import HTTPRegistryAuth
 from atomic_reactor.config import Configuration
@@ -252,8 +252,10 @@ class TestVerifyImageTypes(object):
         digests = {'media_type': MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST}
         if not group:
             digests = {'media_type': MEDIA_TYPE_DOCKER_V2_SCHEMA2}
-        prebuild_results = {PLUGIN_CHECK_AND_SET_PLATFORMS_KEY: platforms}
-        postbuild_results = {PLUGIN_GROUP_MANIFESTS_KEY: digests}
+        plugins_results = {
+            PLUGIN_CHECK_AND_SET_PLATFORMS_KEY: platforms,
+            PLUGIN_GROUP_MANIFESTS_KEY: digests,
+        }
 
         mock_get_retry_session()
         builder = flexmock()
@@ -262,8 +264,7 @@ class TestVerifyImageTypes(object):
         flexmock(tag_conf=tag_conf)
         wf_data = ImageBuildWorkflowData()
         wf_data.tag_conf = tag_conf
-        wf_data.prebuild_results = prebuild_results
-        wf_data.postbuild_results = postbuild_results
+        wf_data.plugins_results = plugins_results
 
         return flexmock(data=wf_data,
                         builder=builder,
@@ -487,7 +488,7 @@ class TestVerifyImageTypes(object):
                                      MEDIA_TYPE_DOCKER_V2_SCHEMA1,
                                      MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                  ])
-        workflow.data.prebuild_results[PLUGIN_FETCH_SOURCES_KEY] = {}
+        workflow.data.plugins_results[PLUGIN_FETCH_SOURCES_KEY] = {}
 
         plugin = VerifyMediaTypesPlugin(workflow)
         results = plugin.run()

@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Dict, Optional, NamedTuple
 
 from atomic_reactor.plugin import PluginsRunner
-from atomic_reactor.plugins.pre_add_dockerfile import AddDockerfilePlugin
+from atomic_reactor.plugins.add_dockerfile import AddDockerfilePlugin
 
 from tests.mock_env import MockEnv
 

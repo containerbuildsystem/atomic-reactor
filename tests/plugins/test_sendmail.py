@@ -8,9 +8,9 @@ import json
 
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PluginFailedException
-from atomic_reactor.plugins.exit_sendmail import SendMailPlugin, validate_address
-from atomic_reactor.plugins.exit_store_metadata import StoreMetadataPlugin
-from atomic_reactor.plugins.post_koji_import import KojiImportPlugin
+from atomic_reactor.plugins.sendmail import SendMailPlugin, validate_address
+from atomic_reactor.plugins.store_metadata import StoreMetadataPlugin
+from atomic_reactor.plugins.koji_import import KojiImportPlugin
 from atomic_reactor.utils.koji import get_koji_task_owner
 from atomic_reactor.config import Configuration
 from tests.util import add_koji_map_in_workflow
@@ -136,7 +136,7 @@ def mock_store_metadata_results(workflow, annotations=None):
     result = {}
     if annotations:
         result['annotations'] = {key: json.dumps(value) for key, value in annotations.items()}
-    workflow.data.exit_results[StoreMetadataPlugin.key] = result
+    workflow.data.plugins_results[StoreMetadataPlugin.key] = result
 
 
 def mock_dockerfile(workflow: DockerBuildWorkflow) -> None:
@@ -208,7 +208,7 @@ class TestSendMailPlugin(object):
             'send_on': send_on,
         }
 
-        workflow.data.postbuild_results[KojiImportPlugin.key] = MOCK_KOJI_BUILD_ID
+        workflow.data.plugins_results[KojiImportPlugin.key] = MOCK_KOJI_BUILD_ID
 
         smtp_map = {
             'from_address': 'foo@bar.com',
@@ -235,7 +235,7 @@ class TestSendMailPlugin(object):
         session = MockedClientSession('', has_kerberos=has_kerberos)
         flexmock(koji, ClientSession=lambda hub, opts: session)
 
-        workflow.data.postbuild_results[KojiImportPlugin.key] = MOCK_KOJI_BUILD_ID
+        workflow.data.plugins_results[KojiImportPlugin.key] = MOCK_KOJI_BUILD_ID
 
         smtp_map = {
             'from_address': 'foo@bar.com',
@@ -286,7 +286,7 @@ class TestSendMailPlugin(object):
             'additional_addresses': additional_addresses
         }
 
-        workflow.data.postbuild_results[KojiImportPlugin.key] = MOCK_KOJI_BUILD_ID
+        workflow.data.plugins_results[KojiImportPlugin.key] = MOCK_KOJI_BUILD_ID
 
         smtp_map = {
             'from_address': 'foo@bar.com',
@@ -345,7 +345,7 @@ class TestSendMailPlugin(object):
             'to_koji_pkgowner': False
         }
 
-        workflow.data.postbuild_results[KojiImportPlugin.key] = MOCK_KOJI_BUILD_ID
+        workflow.data.plugins_results[KojiImportPlugin.key] = MOCK_KOJI_BUILD_ID
         workflow.user_params['koji_task_id'] = MOCK_KOJI_TASK_ID
 
         mock_dockerfile(workflow)
@@ -459,7 +459,7 @@ class TestSendMailPlugin(object):
         }
 
         mock_store_metadata_results(workflow)
-        workflow.data.postbuild_results[KojiImportPlugin.key] = MOCK_KOJI_BUILD_ID
+        workflow.data.plugins_results[KojiImportPlugin.key] = MOCK_KOJI_BUILD_ID
 
         mock_dockerfile(workflow)
 
@@ -515,7 +515,7 @@ class TestSendMailPlugin(object):
             kwargs['additional_addresses'] = [MOCK_ADDITIONAL_EMAIL]
             smtp_map['additional_addresses'] = [MOCK_ADDITIONAL_EMAIL]
 
-        workflow.data.postbuild_results[KojiImportPlugin.key] = MOCK_KOJI_BUILD_ID
+        workflow.data.plugins_results[KojiImportPlugin.key] = MOCK_KOJI_BUILD_ID
         workflow.user_params['koji_task_id'] = MOCK_KOJI_TASK_ID
         rcm = {'version': 1, 'smtp': smtp_map, 'openshift': {'url': 'https://something.com'}}
         workflow.conf = Configuration(raw_config=rcm)
@@ -555,7 +555,7 @@ class TestSendMailPlugin(object):
             'domain': MOCK_EMAIL_DOMAIN,
         }
 
-        workflow.data.postbuild_results[KojiImportPlugin.key] = MOCK_KOJI_BUILD_ID
+        workflow.data.plugins_results[KojiImportPlugin.key] = MOCK_KOJI_BUILD_ID
         workflow.user_params['koji_task_id'] = MOCK_KOJI_TASK_ID
         rcm = {'version': 1, 'smtp': smtp_map, 'openshift': {'url': 'https://something.com'}}
         workflow.conf = Configuration(raw_config=rcm)
@@ -618,7 +618,7 @@ class TestSendMailPlugin(object):
             kwargs['email_domain'] = MOCK_EMAIL_DOMAIN
             smtp_map['domain'] = MOCK_EMAIL_DOMAIN
 
-        workflow.data.postbuild_results[KojiImportPlugin.key] = koji_build_id
+        workflow.data.plugins_results[KojiImportPlugin.key] = koji_build_id
         if exception_location == 'empty_submitter':
             workflow.user_params['koji_task_id'] = None
         else:

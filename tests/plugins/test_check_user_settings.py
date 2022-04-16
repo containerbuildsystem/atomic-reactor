@@ -13,7 +13,7 @@ import pytest
 from flexmock import flexmock
 
 from atomic_reactor.plugin import PluginFailedException
-from atomic_reactor.plugins.pre_check_user_settings import CheckUserSettingsPlugin
+from atomic_reactor.plugins.check_user_settings import CheckUserSettingsPlugin
 from atomic_reactor.util import DockerfileImages
 from atomic_reactor.constants import (
     DOCKERFILE_FILENAME,

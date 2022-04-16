@@ -22,7 +22,7 @@ import time
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Any, Dict, Generator, TYPE_CHECKING, Optional, Union
+from typing import Any, Dict, Generator, TYPE_CHECKING, List, Optional, Union
 
 from atomic_reactor.util import exception_message
 
@@ -59,10 +59,15 @@ class Plugin(ABC):
     # by default, if plugin fails (raises exc), execution continues
     is_allowed_to_fail = True
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, workflow: "DockerBuildWorkflow", *args, **kwargs):
         """
         constructor
+
+        :param workflow: DockerBuildWorkflow instance
+        :param args: arguments from user input
+        :param kwargs: keyword arguments from user input
         """
+        self.workflow = workflow
         self.log = logging.getLogger("atomic_reactor.plugins." + self.key)
         self.args = args
         self.kwargs = kwargs
@@ -95,6 +100,7 @@ class Plugin(ABC):
     def __repr__(self):
         return "Plugin(key='%s')" % self.key
 
+    @abstractmethod
     def run(self):
         """
         each plugin has to implement this method -- it is used to run the plugin actually
@@ -105,25 +111,6 @@ class Plugin(ABC):
 
         input plugins should emit build json with this method
         """
-        raise NotImplementedError()
-
-
-class BuildPlugin(Plugin):
-    """
-    abstract plugin class: base for build plugins, it is
-    flavored with BuildWorkflow instances
-    """
-
-    def __init__(self, workflow: "DockerBuildWorkflow", *args, **kwargs):
-        """
-        constructor
-
-        :param workflow: DockerBuildWorkflow instance
-        :param args: arguments from user input
-        :param kwargs: keyword arguments from user input
-        """
-        self.workflow = workflow
-        super(BuildPlugin, self).__init__(*args, **kwargs)
 
     @staticmethod
     def args_from_user_params(user_params: dict, /) -> dict:
@@ -134,22 +121,39 @@ class BuildPlugin(Plugin):
         return {}
 
 
+# Built-in plugins
+class PreBuildSleepPlugin(Plugin):
+    """
+    Sleep for a specified number of seconds.
+
+    This plugin is only intended to be used for debugging.
+    """
+
+    key = 'pre_sleep'
+
+    def __init__(self, workflow, seconds=60):
+        self.seconds = seconds
+
+    def run(self):
+        time.sleep(self.seconds)
+
+
 class PluginsRunner(object):
 
-    def __init__(self, plugin_class_name, plugins_conf, *args, **kwargs):
-        """
-        constructor
+    def __init__(self, plugins_conf: List[Dict[str, Any]], *args, **kwargs) -> None:
+        """constructor
 
-        :param plugin_class_name: str, name of plugin class to filter (e.g. 'PreBuildPlugin')
-        :param plugins_conf: list of dicts, configuration for plugins
+        :param plugins_conf: list of dicts, configuration for plugins,
+            e.g. [{'name': 'plugin_a', 'required': True}, ...]
+        :type plugins_conf: list[dict[str, any]]
         """
         self.plugins_results = getattr(self, "plugins_results", {})
         self.plugins_conf = plugins_conf or []
         self.plugin_files = kwargs.get("plugin_files", [])
-        self.plugin_classes = self.load_plugins(plugin_class_name)
+        self.plugin_classes = self.load_plugins()
         self.available_plugins = self.get_available_plugins()
 
-    def load_plugins(self, plugin_class_name):
+    def load_plugins(self):
         """
         load all available plugins
 
@@ -165,7 +169,6 @@ class PluginsRunner(object):
         if self.plugin_files:
             logger.debug("loading additional plugins from files '%s'", self.plugin_files)
             files += self.plugin_files
-        plugin_class = globals()[plugin_class_name]
         plugin_classes = {}
         for f in files:
             module_name = os.path.basename(f).rsplit('.', 1)[0]
@@ -181,17 +184,17 @@ class PluginsRunner(object):
             for name in dir(f_module):
                 binding = getattr(f_module, name, None)
                 try:
-                    # if you try to compare binding and PostBuildPlugin, python won't match them
+                    # if you try to compare binding and Plugin, python won't match them
                     # if you call this script directly b/c:
                     # ! <class 'plugins.plugin_rpmqa.PostBuildRPMqaPlugin'> <= <class
-                    # '__main__.PostBuildPlugin'>
+                    # '__main__.Plugin'>
                     # but
                     # <class 'plugins.plugin_rpmqa.PostBuildRPMqaPlugin'> <= <class
-                    # 'atomic_reactor.plugin.PostBuildPlugin'>
-                    is_sub = issubclass(binding, plugin_class)
+                    # 'atomic_reactor.plugin.Plugin'>
+                    is_sub = issubclass(binding, Plugin)
                 except TypeError:
                     is_sub = False
-                if binding and is_sub and plugin_class.__name__ != binding.__name__:
+                if binding and is_sub and Plugin.__name__ != binding.__name__:
                     plugin_classes[binding.key] = binding
         return plugin_classes
 
@@ -344,7 +347,9 @@ class PluginsRunner(object):
 
 
 class BuildPluginsRunner(PluginsRunner):
-    def __init__(self, workflow, plugin_class_name, plugins_conf, *args, **kwargs):
+    def __init__(
+        self, workflow: "DockerBuildWorkflow", plugins_conf: List[Dict[str, Any]], *args, **kwargs
+    ):
         """
         constructor
 
@@ -353,7 +358,7 @@ class BuildPluginsRunner(PluginsRunner):
         :param plugins_conf: list of dicts, configuration for plugins
         """
         self.workflow = workflow
-        super(BuildPluginsRunner, self).__init__(plugin_class_name, plugins_conf, *args, **kwargs)
+        super(BuildPluginsRunner, self).__init__(plugins_conf, *args, **kwargs)
 
     def on_plugin_failed(self, plugin=None, exception=None):
         self.workflow.data.plugin_failed = True
@@ -422,28 +427,19 @@ class BuildPluginsRunner(PluginsRunner):
         return plugin_instance
 
 
-class PreBuildPlugin(BuildPlugin):
-    pass
-
-
 class PreBuildPluginsRunner(BuildPluginsRunner):
 
     def __init__(self, workflow, plugins_conf, *args, **kwargs):
         logger.info("initializing runner of pre-build plugins")
-        self.plugins_results = workflow.data.prebuild_results
-        super(PreBuildPluginsRunner, self).__init__(workflow, 'PreBuildPlugin', plugins_conf,
-                                                    *args, **kwargs)
-
-
-class BuildStepPlugin(BuildPlugin):
-    pass
+        self.plugins_results = workflow.data.plugins_results
+        super().__init__(workflow, plugins_conf, *args, **kwargs)
 
 
 class BuildStepPluginsRunner(BuildPluginsRunner):
 
     def __init__(self, workflow, plugin_conf, *args, **kwargs):
         logger.info("initializing runner of build-step plugin")
-        self.plugins_results = workflow.data.buildstep_result
+        self.plugins_results = workflow.data.plugins_results
 
         if plugin_conf:
             # any non existing buildstep plugin must be skipped without error
@@ -451,8 +447,7 @@ class BuildStepPluginsRunner(BuildPluginsRunner):
                 plugin['required'] = False
                 plugin['is_allowed_to_fail'] = False
 
-        super(BuildStepPluginsRunner, self).__init__(
-            workflow, 'BuildStepPlugin', plugin_conf, *args, **kwargs)
+        super().__init__(workflow, plugin_conf, *args, **kwargs)
 
     def run(self, keep_going=False, buildstep_phase=True):
         logger.info('building image %r inside current environment',
@@ -465,30 +460,20 @@ class BuildStepPluginsRunner(BuildPluginsRunner):
             return list(plugins_results.values())[0]
 
 
-class PrePublishPlugin(BuildPlugin):
-    pass
-
-
 class PrePublishPluginsRunner(BuildPluginsRunner):
 
     def __init__(self, workflow, plugins_conf, *args, **kwargs):
         logger.info("initializing runner of pre-publish plugins")
-        self.plugins_results = workflow.data.prepub_results
-        super(PrePublishPluginsRunner, self).__init__(workflow, 'PrePublishPlugin',
-                                                      plugins_conf, *args, **kwargs)
-
-
-class PostBuildPlugin(BuildPlugin):
-    pass
+        self.plugins_results = workflow.data.plugins_results
+        super().__init__(workflow, plugins_conf, *args, **kwargs)
 
 
 class PostBuildPluginsRunner(BuildPluginsRunner):
 
     def __init__(self, workflow, plugins_conf, *args, **kwargs):
         logger.info("initializing runner of post-build plugins")
-        self.plugins_results = workflow.data.postbuild_results
-        super(PostBuildPluginsRunner, self).__init__(workflow, 'PostBuildPlugin',
-                                                     plugins_conf, *args, **kwargs)
+        self.plugins_results = workflow.data.plugins_results
+        super().__init__(workflow, plugins_conf, *args, **kwargs)
 
     def create_instance_from_plugin(self, plugin_class, plugin_conf):
         instance = super(PostBuildPluginsRunner, self).create_instance_from_plugin(plugin_class,
@@ -497,33 +482,8 @@ class PostBuildPluginsRunner(BuildPluginsRunner):
         return instance
 
 
-class ExitPlugin(PostBuildPlugin):
-    """
-    Plugin base class for plugins which should be run just before
-    exit. It is flavored with DockerBuildWorkflow instances.
-    """
-
-
 class ExitPluginsRunner(BuildPluginsRunner):
     def __init__(self, workflow, plugins_conf, *args, **kwargs):
         logger.info("initializing runner of exit plugins")
-        self.plugins_results = workflow.data.exit_results
-        super(ExitPluginsRunner, self).__init__(workflow, 'ExitPlugin',
-                                                plugins_conf, *args, **kwargs)
-
-
-# Built-in plugins
-class PreBuildSleepPlugin(PreBuildPlugin):
-    """
-    Sleep for a specified number of seconds.
-
-    This plugin is only intended to be used for debugging.
-    """
-
-    key = 'pre_sleep'
-
-    def __init__(self, workflow, seconds=60):
-        self.seconds = seconds
-
-    def run(self):
-        time.sleep(self.seconds)
+        self.plugins_results = workflow.data.plugins_results
+        super().__init__(workflow, plugins_conf, *args, **kwargs)

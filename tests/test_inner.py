@@ -19,9 +19,7 @@ from textwrap import dedent
 
 import osbs.exceptions
 from atomic_reactor.dirs import ContextDir
-from atomic_reactor.plugin import (PreBuildPlugin, PrePublishPlugin, PostBuildPlugin, ExitPlugin,
-                                   PluginFailedException,
-                                   BuildStepPlugin, InappropriateBuildStepError)
+from atomic_reactor.plugin import Plugin, PluginFailedException, InappropriateBuildStepError
 from flexmock import flexmock
 import pytest
 from tests.util import is_string_type
@@ -93,7 +91,7 @@ class RaisesMixIn(object):
         raise RuntimeError
 
 
-class PreRaises(RaisesMixIn, PreBuildPlugin):
+class PreRaises(RaisesMixIn, Plugin):
     """
     This plugin must run and cause the build to abort.
     """
@@ -101,7 +99,7 @@ class PreRaises(RaisesMixIn, PreBuildPlugin):
     key = 'pre_raises'
 
 
-class BuildStepRaises(RaisesMixIn, BuildStepPlugin):
+class BuildStepRaises(RaisesMixIn, Plugin):
     """
     This plugin must run and cause the build to abort.
     """
@@ -109,7 +107,7 @@ class BuildStepRaises(RaisesMixIn, BuildStepPlugin):
     key = 'buildstep_raises'
 
 
-class PostRaises(RaisesMixIn, PostBuildPlugin):
+class PostRaisesPlugin(RaisesMixIn, Plugin):
     """
     This plugin must run and cause the build to abort.
     """
@@ -117,7 +115,7 @@ class PostRaises(RaisesMixIn, PostBuildPlugin):
     key = 'post_raises'
 
 
-class PrePubRaises(RaisesMixIn, PrePublishPlugin):
+class PrePubRaisesPlugin(RaisesMixIn, Plugin):
     """
     This plugin must run and cause the build to abort.
     """
@@ -152,7 +150,7 @@ class WatchedBuildStep(object):
         return DUMMY_BUILD_RESULT
 
 
-class PreWatched(WatchedMixIn, PreBuildPlugin):
+class PreWatched(WatchedMixIn, Plugin):
     """
     A PreBuild plugin we can watch.
     """
@@ -160,7 +158,7 @@ class PreWatched(WatchedMixIn, PreBuildPlugin):
     key = 'pre_watched'
 
 
-class PrePubWatched(WatchedMixIn, PrePublishPlugin):
+class PrePubWatched(WatchedMixIn, Plugin):
     """
     A PrePublish plugin we can watch.
     """
@@ -168,7 +166,7 @@ class PrePubWatched(WatchedMixIn, PrePublishPlugin):
     key = 'prepub_watched'
 
 
-class BuildStepWatched(WatchedBuildStep, BuildStepPlugin):
+class BuildStepWatched(WatchedBuildStep, Plugin):
     """
     A BuildStep plugin we can watch.
     """
@@ -176,7 +174,7 @@ class BuildStepWatched(WatchedBuildStep, BuildStepPlugin):
     key = 'buildstep_watched'
 
 
-class PostWatched(WatchedMixIn, PostBuildPlugin):
+class PostWatched(WatchedMixIn, Plugin):
     """
     A PostBuild plugin we can watch.
     """
@@ -184,7 +182,7 @@ class PostWatched(WatchedMixIn, PostBuildPlugin):
     key = 'post_watched'
 
 
-class ExitWatched(WatchedMixIn, ExitPlugin):
+class ExitWatched(WatchedMixIn, Plugin):
     """
     An Exit plugin we can watch.
     """
@@ -192,7 +190,7 @@ class ExitWatched(WatchedMixIn, ExitPlugin):
     key = 'exit_watched'
 
 
-class ExitRaises(RaisesMixIn, ExitPlugin):
+class ExitRaises(RaisesMixIn, Plugin):
     """
     An Exit plugin that should raise an exception.
     """
@@ -200,7 +198,7 @@ class ExitRaises(RaisesMixIn, ExitPlugin):
     key = 'exit_raises'
 
 
-class ExitRaisesAllowed(RaisesMixIn, ExitPlugin):
+class ExitRaisesAllowed(RaisesMixIn, Plugin):
     """
     An Exit plugin that should raise an exception.
     """
@@ -210,7 +208,7 @@ class ExitRaisesAllowed(RaisesMixIn, ExitPlugin):
     key = 'exit_raises_allowed'
 
 
-class ExitCompat(WatchedMixIn, ExitPlugin):
+class ExitCompat(WatchedMixIn, Plugin):
     """
     An Exit plugin called as a Post-build plugin.
     """
@@ -312,7 +310,7 @@ def test_workflow_compat(context_dir, build_dir, caplog):
         assert record.levelno != logging.ERROR
 
 
-class Pre(PreBuildPlugin):
+class Pre(Plugin):
     """
     This plugin does nothing. It's only used for configuration testing.
     """
@@ -320,7 +318,7 @@ class Pre(PreBuildPlugin):
     key = 'pre'
 
 
-class BuildStep(BuildStepPlugin):
+class BuildStep(Plugin):
     """
     This plugin does nothing. It's only used for configuration testing.
     """
@@ -331,7 +329,7 @@ class BuildStep(BuildStepPlugin):
         raise InappropriateBuildStepError
 
 
-class Post(PostBuildPlugin):
+class Post(Plugin):
     """
     This plugin does nothing. It's only used for configuration testing.
     """
@@ -339,7 +337,7 @@ class Post(PostBuildPlugin):
     key = 'post'
 
 
-class PrePub(PrePublishPlugin):
+class PrePub(Plugin):
     """
     This plugin does nothing. It's only used for configuration testing.
     """
@@ -347,7 +345,7 @@ class PrePub(PrePublishPlugin):
     key = 'prepub'
 
 
-class Exit(ExitPlugin):
+class Exit(Plugin):
     """
     This plugin does nothing. It's only used for configuration testing.
     """
@@ -551,7 +549,7 @@ def test_workflow_plugin_error(fail_at, context_dir, build_dir):
 
     # Insert a failing plugin into one of the build phases
     if fail_at == 'pre_raises':
-        plugins.prepublish.insert(0, {'name': fail_at, 'args': {}})
+        plugins.prebuild.insert(0, {'name': fail_at, 'args': {}})
     elif fail_at == 'buildstep_raises':
         plugins.buildstep.insert(0, {'name': fail_at, 'args': {}})
     elif fail_at == 'prepub_raises':
@@ -783,7 +781,7 @@ class ValueRemoteBuildStep(object):
         return DUMMY_REMOTE_BUILD_RESULT
 
 
-class PreBuildResult(ValueMixIn, PreBuildPlugin):
+class PreBuildResult(ValueMixIn, Plugin):
     """
     Pre build plugin that returns a result when run.
     """
@@ -791,7 +789,7 @@ class PreBuildResult(ValueMixIn, PreBuildPlugin):
     key = 'pre_build_value'
 
 
-class BuildStepResult(ValueBuildStep, BuildStepPlugin):
+class BuildStepResult(ValueBuildStep, Plugin):
     """
     Build step plugin that returns a result when run.
     """
@@ -799,7 +797,7 @@ class BuildStepResult(ValueBuildStep, BuildStepPlugin):
     key = 'buildstep_value'
 
 
-class New_BuildStepResult(ValueBuildStep, BuildStepPlugin):
+class New_BuildStepResult(ValueBuildStep, Plugin):
     """
     New Build step plugin that returns a result when run.
     """
@@ -807,7 +805,7 @@ class New_BuildStepResult(ValueBuildStep, BuildStepPlugin):
     key = 'imagebuilder'
 
 
-class Old_BuildStepResult(ValueBuildStep, BuildStepPlugin):
+class Old_BuildStepResult(ValueBuildStep, Plugin):
     """
     Old Build step plugin that returns a result when run.
     """
@@ -815,7 +813,7 @@ class Old_BuildStepResult(ValueBuildStep, BuildStepPlugin):
     key = 'docker_api'
 
 
-class BuildStepFailedResult(ValueFailedBuildStep, BuildStepPlugin):
+class BuildStepFailedResult(ValueFailedBuildStep, Plugin):
     """
     Build step plugin that returns a failed result when run.
     """
@@ -823,7 +821,7 @@ class BuildStepFailedResult(ValueFailedBuildStep, BuildStepPlugin):
     key = 'buildstep_failed_value'
 
 
-class BuildStepRemoteResult(ValueRemoteBuildStep, BuildStepPlugin):
+class BuildStepRemoteResult(ValueRemoteBuildStep, Plugin):
     """
     Build step plugin that returns a failed result when run.
     """
@@ -831,14 +829,14 @@ class BuildStepRemoteResult(ValueRemoteBuildStep, BuildStepPlugin):
     key = 'buildstep_remote_value'
 
 
-class FailedBuildStepPlugin(BuildStepPlugin):
+class FailedBuildStepPlugin(Plugin):
     key = "failed_buildstep"
 
     def run(self):
         raise PluginFailedException("something is wrong")
 
 
-class PostBuildResult(ValueMixIn, PostBuildPlugin):
+class PostBuildResult(ValueMixIn, Plugin):
     """
     Post build plugin that returns a result when run.
     """
@@ -846,7 +844,7 @@ class PostBuildResult(ValueMixIn, PostBuildPlugin):
     key = 'post_build_value'
 
 
-class PrePublishResult(ValueMixIn, PrePublishPlugin):
+class PrePublishResult(ValueMixIn, Plugin):
     """
     Pre publish plugin that returns a result when run.
     """
@@ -854,7 +852,7 @@ class PrePublishResult(ValueMixIn, PrePublishPlugin):
     key = 'pre_publish_value'
 
 
-class ExitResult(ValueMixIn, ExitPlugin):
+class ExitResult(ValueMixIn, Plugin):
     """
     Exit plugin that returns a result when run.
     """
@@ -905,19 +903,17 @@ def test_workflow_plugin_results(
     else:
         workflow.build_docker_image()
 
-    assert workflow.data.prebuild_results == {'pre_build_value': 'pre_build_value_result'}
-
-    if not buildstep_raises:
-        assert workflow.data.buildstep_result[buildstep_plugin] == expected_buildstep_result
+    assert workflow.data.plugins_results['pre_build_value'] == 'pre_build_value_result'
 
     if buildstep_raises:
-        assert workflow.data.postbuild_results == {}
-        assert workflow.data.prepub_results == {}
+        assert 'post_build_value' not in workflow.data.plugins_results
+        assert 'pre_publish_value' not in workflow.data.plugins_results
     else:
-        assert workflow.data.postbuild_results == {'post_build_value': 'post_build_value_result'}
-        assert workflow.data.prepub_results == {'pre_publish_value': 'pre_publish_value_result'}
+        assert workflow.data.plugins_results[buildstep_plugin] == expected_buildstep_result
+        assert workflow.data.plugins_results['post_build_value'] == 'post_build_value_result'
+        assert workflow.data.plugins_results['pre_publish_value'] == 'pre_publish_value_result'
 
-    assert workflow.data.exit_results == {'exit_value': 'exit_value_result'}
+    assert workflow.data.plugins_results['exit_value'] == 'exit_value_result'
 
 
 def test_parse_dockerfile_again_after_data_is_loaded(context_dir, build_dir, tmpdir):
@@ -1248,7 +1244,7 @@ class TestWorkflowData:
         data = ImageBuildWorkflowData()
         assert data.dockerfile_images.is_empty
         assert data.tag_conf.is_empty
-        assert {} == data.prebuild_results
+        assert {} == data.plugins_results
 
     def test_load_from_empty_dump(self):
         wf_data = ImageBuildWorkflowData.load({})
@@ -1266,7 +1262,7 @@ class TestWorkflowData:
                 "source_registry": None,
                 "organization": None,
             },
-            "prebuild_results": {"plugin_1": "result"},
+            "plugins_results": {"plugin_1": "result"},
             "tag_conf": {
                 "floating_images": [
                     ImageName.parse("registry/httpd:2.4").to_str(),
@@ -1277,7 +1273,7 @@ class TestWorkflowData:
 
         expected_df_images = DockerfileImages.load(input_data["dockerfile_images"])
         assert expected_df_images == wf_data.dockerfile_images
-        assert input_data["prebuild_results"] == wf_data.prebuild_results
+        assert input_data["plugins_results"] == wf_data.plugins_results
         assert TagConf.load(input_data["tag_conf"]) == wf_data.tag_conf
 
     def test_load_from_empty_directory(self, tmpdir):
@@ -1286,7 +1282,7 @@ class TestWorkflowData:
         wf_data = ImageBuildWorkflowData.load_from_dir(ContextDir(context_dir))
         assert wf_data.dockerfile_images.is_empty
         assert wf_data.tag_conf.is_empty
-        assert {} == wf_data.prebuild_results
+        assert {} == wf_data.plugins_results
 
     @pytest.mark.parametrize("data_path,prop_name,wrong_value", [
         # digests should map to an object rather than a string
@@ -1300,7 +1296,7 @@ class TestWorkflowData:
 
         data = ImageBuildWorkflowData(dockerfile_images=DockerfileImages(["scratch"]))
         data.tag_conf.add_floating_image("registry/httpd:2.4")
-        data.prebuild_results["plugin_1"] = "result"
+        data.plugins_results["plugin_1"] = "result"
         data.save(context_dir)
 
         saved_data = json.loads(context_dir.workflow_json.read_bytes())
@@ -1320,15 +1316,8 @@ class TestWorkflowData:
         wf_data = ImageBuildWorkflowData(
             dockerfile_images=DockerfileImages(["scratch", "registry/f:35"]),
             # Test object in dict values is serialized
-            buildstep_result={"image_build": {"logs": ["Build succeeds."]}},
-            postbuild_results={
-                "tag_and_push": [
-                    # Such object in a list should be handled properly.
-                    ImageName(registry="localhost:5000", repo='image', tag='latest'),
-                ]
-            },
             tag_conf=tag_conf,
-            prebuild_results={
+            plugins_results={
                 "plugin_a": {
                     'parent-images-koji-builds': {
                         ImageName(repo='base', tag='latest').to_str(): {
@@ -1338,6 +1327,11 @@ class TestWorkflowData:
                         },
                     },
                 },
+                "tag_and_push": [
+                    # Such object in a list should be handled properly.
+                    ImageName(registry="localhost:5000", repo='image', tag='latest'),
+                ],
+                "image_build": {"logs": ["Build succeeds."]},
             },
             koji_upload_files=[
                 {
@@ -1368,6 +1362,4 @@ class TestWorkflowData:
 
         assert wf_data.dockerfile_images == loaded_wf_data.dockerfile_images
         assert wf_data.tag_conf == loaded_wf_data.tag_conf
-        assert wf_data.buildstep_result == loaded_wf_data.buildstep_result
-        assert wf_data.postbuild_results == loaded_wf_data.postbuild_results
-        assert wf_data.prebuild_results == loaded_wf_data.prebuild_results
+        assert wf_data.plugins_results == loaded_wf_data.plugins_results

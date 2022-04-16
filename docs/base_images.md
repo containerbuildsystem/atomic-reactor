@@ -50,4 +50,4 @@ parameter to `True`, will alter the format of the tarball produced by Koji which
 the `add_filesystem` plugin does not support.
 
 [koji docs]: https://docs.pagure.org/koji/image_build/#building-disk-images
-[source]: ../atomic_reactor/plugins/pre_add_filesystem.py
+[source]: ../atomic_reactor/plugins/add_filesystem.py

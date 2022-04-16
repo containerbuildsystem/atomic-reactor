@@ -469,7 +469,6 @@ This class defines a workflow for building images
 - builder
 - built_image_inspect
 - exit_plugins_conf
-- exit_results
 - exported_image_sequence
 - files
 - image
@@ -480,10 +479,7 @@ This class defines a workflow for building images
 - plugins_errors
 - plugins_timestamps
 - postbuild_plugins_conf
-- postbuild_results
 - prebuild_plugins_conf
-- prebuild_results
-- prepub_results
 - prepublish_plugins_conf
 - pulled_base_images
 - source

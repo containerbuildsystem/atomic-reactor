@@ -22,7 +22,7 @@ from atomic_reactor import start_time as atomic_reactor_start_time
 from atomic_reactor.constants import INSPECT_CONFIG
 from atomic_reactor.dirs import BuildDir
 from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
-from atomic_reactor.plugins.pre_add_labels_in_df import AddLabelsPlugin
+from atomic_reactor.plugins.add_labels_in_df import AddLabelsPlugin
 from atomic_reactor.source import VcsInfo
 from atomic_reactor.types import ImageInspectionData
 
