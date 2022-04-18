@@ -10,19 +10,13 @@ import copy
 import os
 import json
 
-from atomic_reactor.constants import PLUGIN_COMPARE_COMPONENTS_KEY
-from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
-from atomic_reactor.plugins.compare_components import filter_components_by_name
-from atomic_reactor.util import DockerfileImages
-
-from tests.constants import FILES
-
 import pytest
 
-
-def mock_workflow(workflow):
-    setattr(workflow, 'postbuild_result', {})
-    workflow.data.dockerfile_images = DockerfileImages(['fedora:25'])
+from atomic_reactor.plugin import PluginFailedException
+from atomic_reactor.plugins.compare_components import filter_components_by_name
+from atomic_reactor.plugins.compare_components import CompareComponentsPlugin
+from tests.constants import FILES
+from tests.mock_env import MockEnv
 
 
 def mock_components():
@@ -68,27 +62,24 @@ def test_filter_components_by_name():
     (True, True, False),
 ))
 def test_compare_components_plugin(workflow, caplog, base_from_scratch, mismatch, exception, fail):
-    mock_workflow(workflow)
     components_per_arch = mock_components()
-
     # example data has 2 log items before component item hence output[2]
     component = components_per_arch['ppc64le'][0]
     if mismatch:
         component['version'] = 'bacon'
+
+    env = (MockEnv(workflow)
+           .for_plugin(CompareComponentsPlugin.key)
+           .set_dockerfile_images(['scratch'] if base_from_scratch else ['fedora:25']))
+
     if exception:
-        workflow.conf.conf = {'version': 1, 'package_comparison_exceptions': [component['name']]}
+        env.set_reactor_config(
+            {'version': 1, 'package_comparison_exceptions': [component['name']]}
+        )
 
     workflow.data.image_components = components_per_arch
-    if base_from_scratch:
-        workflow.data.dockerfile_images = DockerfileImages(['scratch'])
 
-    runner = PostBuildPluginsRunner(
-        workflow,
-        [{
-            'name': PLUGIN_COMPARE_COMPONENTS_KEY,
-            "args": {}
-        }]
-    )
+    runner = env.create_runner()
 
     if fail and not base_from_scratch:
         with pytest.raises(PluginFailedException):
@@ -101,7 +92,6 @@ def test_compare_components_plugin(workflow, caplog, base_from_scratch, mismatch
 
 
 def test_no_components(workflow):
-    mock_workflow(workflow)
     components_per_arch = mock_components()
 
     # example data has 2 log items before component item hence output[2]
@@ -110,34 +100,26 @@ def test_no_components(workflow):
 
     workflow.data.image_components = components_per_arch
 
-    runner = PostBuildPluginsRunner(
-        workflow,
-        [{
-            'name': PLUGIN_COMPARE_COMPONENTS_KEY,
-            "args": {}
-        }]
-    )
+    runner = (MockEnv(workflow)
+              .for_plugin(CompareComponentsPlugin.key)
+              .set_dockerfile_images(['fedora:36'])
+              .create_runner())
 
     with pytest.raises(PluginFailedException):
         runner.run()
 
 
 def test_bad_component_type(workflow):
-    mock_workflow(workflow)
     components_per_arch = mock_components()
-
     # example data has 2 log items before component item hence output[2]
     components_per_arch['x86_64'][0]['type'] = "foo"
 
     workflow.data.image_components = components_per_arch
 
-    runner = PostBuildPluginsRunner(
-        workflow,
-        [{
-            'name': PLUGIN_COMPARE_COMPONENTS_KEY,
-            "args": {}
-        }]
-    )
+    runner = (MockEnv(workflow)
+              .for_plugin(CompareComponentsPlugin.key)
+              .set_dockerfile_images(['fedora:36'])
+              .create_runner())
 
     with pytest.raises(PluginFailedException):
         runner.run()
@@ -146,7 +128,6 @@ def test_bad_component_type(workflow):
 @pytest.mark.parametrize('mismatch', (True, False))
 def test_mismatch_reporting(workflow, caplog, mismatch):
     """Test if expected log entries are reported when components mismatch"""
-    mock_workflow(workflow)
     components_per_arch = mock_components()
 
     component_name = "openssl"
@@ -166,13 +147,10 @@ def test_mismatch_reporting(workflow, caplog, mismatch):
 
     workflow.data.image_components = components_per_arch
 
-    runner = PostBuildPluginsRunner(
-        workflow,
-        [{
-            'name': PLUGIN_COMPARE_COMPONENTS_KEY,
-            "args": {}
-        }]
-    )
+    runner = (MockEnv(workflow)
+              .for_plugin(CompareComponentsPlugin.key)
+              .set_dockerfile_images(['fedora:36'])
+              .create_runner())
 
     log_entries = (
         'Comparison mismatch for component openssl:',
@@ -201,17 +179,11 @@ def test_mismatch_reporting(workflow, caplog, mismatch):
 
 
 def test_skip_plugin(workflow, caplog):
-    mock_workflow(workflow)
     workflow.user_params['scratch'] = True
-
-    runner = PostBuildPluginsRunner(
-        workflow,
-        [{
-            'name': PLUGIN_COMPARE_COMPONENTS_KEY,
-            "args": {}
-        }]
-    )
-
-    runner.run()
-
+    (MockEnv(workflow)
+     .for_plugin(CompareComponentsPlugin.key)
+     .set_dockerfile_images(['fedora:36'])
+     .set_scratch(True)
+     .create_runner()
+     .run())
     assert 'scratch build, skipping plugin' in caplog.text

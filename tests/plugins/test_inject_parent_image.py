@@ -8,10 +8,12 @@ of the BSD license. See the LICENSE file for details.
 
 import koji
 
-from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
+from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.inject_parent_image import InjectParentImage
 from atomic_reactor.util import DockerfileImages, graceful_chain_del
 from flexmock import flexmock
+
+from tests.mock_env import MockEnv
 from tests.util import add_koji_map_in_workflow
 from tests.stubs import StubSource
 
@@ -225,12 +227,12 @@ class TestKojiParent(object):
                                  root_url='',
                                  ssl_certs_dir=plugin_args.get('koji_ssl_certs_dir'))
 
-        runner = PreBuildPluginsRunner(
-            workflow,
-            [{'name': InjectParentImage.key, 'args': plugin_args}]
-        )
+        result = (MockEnv(workflow)
+                  .for_plugin(InjectParentImage.key)
+                  .set_plugin_args(plugin_args)
+                  .create_runner()
+                  .run())
 
-        result = runner.run()
         if not koji_parent_build:
             return
         if base_from_scratch or custom_base_image:

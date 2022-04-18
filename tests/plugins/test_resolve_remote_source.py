@@ -30,12 +30,13 @@ from atomic_reactor.constants import (
     REMOTE_SOURCE_TARBALL_FILENAME,
     REMOTE_SOURCE_JSON_FILENAME,
 )
-from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
+from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.resolve_remote_source import (
     RemoteSource,
     ResolveRemoteSourcePlugin,
 )
 from atomic_reactor.source import SourceConfig
+from tests.mock_env import MockEnv
 
 from tests.stubs import StubSource
 
@@ -898,15 +899,10 @@ def test_multiple_remote_sources_non_unique_names(workflow):
 
 def run_plugin_with_args(workflow, dependency_replacements=None, expect_error=None,
                          expect_result=True, expected_plugin_results=None):
-    runner = PreBuildPluginsRunner(
-        workflow,
-        [
-            {
-                "name": ResolveRemoteSourcePlugin.key,
-                "args": {"dependency_replacements": dependency_replacements},
-            },
-        ],
-    )
+    runner = (MockEnv(workflow)
+              .for_plugin(ResolveRemoteSourcePlugin.key)
+              .set_plugin_args({"dependency_replacements": dependency_replacements})
+              .create_runner())
 
     if expect_error:
         with pytest.raises(PluginFailedException, match=expect_error):

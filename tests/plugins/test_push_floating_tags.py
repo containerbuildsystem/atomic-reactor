@@ -153,7 +153,7 @@ def mock_registries(registries, config, primary_images=None, manifest_results=No
 def mock_environment(workflow,
                      primary_images=None, floating_images=None,
                      manifest_results=None):
-    env = MockEnv(workflow).for_plugin("postbuild", PushFloatingTagsPlugin.key)
+    env = MockEnv(workflow).for_plugin(PushFloatingTagsPlugin.key)
     env.set_plugin_result(PLUGIN_GROUP_MANIFESTS_KEY, manifest_results)
 
     wf_data = env.workflow.data

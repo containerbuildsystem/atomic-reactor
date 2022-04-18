@@ -17,13 +17,14 @@ from typing import List
 
 from atomic_reactor.dirs import BuildDir
 from atomic_reactor.utils.flatpak_util import FlatpakUtil
+from tests.mock_env import MockEnv
 
 try:
     from atomic_reactor.plugins.flatpak_create_dockerfile import FlatpakCreateDockerfilePlugin
 except ImportError:
     pass
 
-from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
+from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.source import VcsInfo, SourceConfig
 from atomic_reactor.util import DockerfileImages
 from osbs.utils import ImageName
@@ -124,16 +125,16 @@ def test_flatpak_create_dockerfile(workflow, source_dir, config_name, override_b
 
     base_image = "registry.fedoraproject.org/fedora:latest"
 
-    workflow.conf.conf = {'version': 1, 'flatpak': {'base_image': base_image},
-                          'source_registry': {'url': 'source_registry'}}
+    reactor_config = {
+        'version': 1,
+        'flatpak': {'base_image': base_image},
+        'source_registry': {'url': 'source_registry'},
+    }
 
-    runner = PreBuildPluginsRunner(
-        workflow,
-        [{
-            'name': FlatpakCreateDockerfilePlugin.key,
-            'args': {}
-        }]
-    )
+    runner = (MockEnv(workflow)
+              .for_plugin(FlatpakCreateDockerfilePlugin.key)
+              .set_reactor_config(reactor_config)
+              .create_runner())
 
     if expected_exception:
         with pytest.raises(PluginFailedException) as ex:
@@ -161,23 +162,11 @@ def test_flatpak_create_dockerfile(workflow, source_dir, config_name, override_b
 
 def test_skip_plugin(workflow, source_dir, caplog):
     mock_workflow(workflow, source_dir, "", ["x86_64"], user_params={})
-
     base_image = "registry.fedoraproject.org/fedora:latest"
-
-    args = {
-        'base_image': base_image,
-    }
-
-    workflow.conf.conf = {'version': 1, 'flatpak': {'base_image': base_image}}
-
-    runner = PreBuildPluginsRunner(
-        workflow,
-        [{
-            'name': FlatpakCreateDockerfilePlugin.key,
-            'args': args
-        }]
-    )
-
-    runner.run()
-
+    (MockEnv(workflow)
+     .for_plugin(FlatpakCreateDockerfilePlugin.key)
+     .set_plugin_args({'base_image': base_image})
+     .set_reactor_config({'flatpak': {'base_image': base_image}})
+     .create_runner()
+     .run())
     assert 'not flatpak build, skipping plugin' in caplog.text

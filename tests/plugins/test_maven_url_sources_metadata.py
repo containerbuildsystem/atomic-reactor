@@ -81,7 +81,7 @@ def mock_env(workflow):
              'koji': {}}
 
     env = (MockEnv(workflow)
-           .for_plugin('postbuild', MavenURLSourcesMetadataPlugin.key)
+           .for_plugin(MavenURLSourcesMetadataPlugin.key)
            .set_reactor_config(r_c_m))
 
     workflow.build_dir.init_build_dirs(["aarch64", "x86_64"], workflow.source)

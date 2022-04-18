@@ -7,17 +7,14 @@ of the BSD license. See the LICENSE file for details.
 """
 
 import logging
-from typing import Optional
+from typing import Optional, ClassVar, List, Dict, Any
 
-from atomic_reactor import inner
-from atomic_reactor.tasks import PluginsDef
+from atomic_reactor import inner, util
 from atomic_reactor.tasks.common import Task, ParamsT
 from atomic_reactor.util import get_platforms
 
 
-# PluginsDef can be considered as part of this module, but is defined elsewhere to avoid cyclic
-#   imports between the `inner` module and this module
-__all__ = ["PluginsDef", "PluginBasedTask"]
+__all__ = ["PluginBasedTask"]
 
 logger = logging.getLogger(__name__)
 
@@ -25,8 +22,15 @@ logger = logging.getLogger(__name__)
 class PluginBasedTask(Task[ParamsT]):
     """Task that executes a predefined list of plugins."""
 
-    # Override this in subclasses
-    plugins_def: PluginsDef = NotImplemented
+    # Indicate whether to keep running next plugin if error is raised from
+    # previous one. Defaults to False.
+    keep_plugins_running: ClassVar[bool] = False
+
+    # Specify the plugin configuration used by PluginsRunner to find out and
+    # run the specific plugins. Example:
+    #   {"name": "add_filesystem", "args": {...}}
+    # Refer to plugins.json schema for the details.
+    plugins_conf: ClassVar[List[Dict[str, Any]]] = []
 
     def prepare_workflow(self) -> inner.DockerBuildWorkflow:
         """Fully initialize the workflow instance to be used for running the list of plugins."""
@@ -37,9 +41,11 @@ class PluginBasedTask(Task[ParamsT]):
             namespace=self._params.namespace,
             pipeline_run_name=self._params.pipeline_run_name,
             source=self._params.source,
-            plugins=self.plugins_def,
             user_params=self._params.user_params,
             reactor_config_path=self._params.config_file,
+            # Set what plugins to run and how
+            plugins_conf=self.plugins_conf,
+            keep_plugins_running=self.keep_plugins_running,
         )
         return workflow
 
@@ -49,6 +55,10 @@ class PluginBasedTask(Task[ParamsT]):
         :param init_build_dirs: bool, whether to initialize build dirs
         :return: None
         """
+        util.validate_with_schema(
+            {"plugins_conf": self.plugins_conf}, "schemas/plugins.json"
+        )
+
         workflow = self.prepare_workflow()
 
         if init_build_dirs:

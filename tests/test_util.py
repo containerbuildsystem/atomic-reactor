@@ -1094,7 +1094,7 @@ def test_read_yaml_from_url_different_content_types(content_type):
     "data, schema, valid",
     [
         (yaml.safe_load(REACTOR_CONFIG_MAP), "schemas/config.json", True),
-        ({"exit_plugins": [{"name": None}]}, "schemas/plugins.json", False),
+        ([{"name": None}], "schemas/plugins.json", False),
     ],
 )
 def test_validate_with_schema(data, schema, valid):

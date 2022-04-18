@@ -103,7 +103,7 @@ def mock_env(workflow, source_dir: Path, labels=None, flatpak=False, dockerfile_
         dockerfile_f(source_dir, labels)
 
     env = MockEnv(workflow).for_plugin(
-        'prebuild', CheckUserSettingsPlugin.key, {'flatpak': flatpak}
+        CheckUserSettingsPlugin.key, {'flatpak': flatpak}
     )
     env.workflow.source = FakeSource(source_dir)
     env.workflow.build_dir.init_build_dirs(["aarch64", "x86_64"], env.workflow.source)

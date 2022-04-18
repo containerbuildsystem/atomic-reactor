@@ -82,7 +82,7 @@ DEFAULT_SIGNING_INTENT = 'release'
 def mocked_env(workflow, source_dir):
     env = (
         MockEnv(workflow)
-        .for_plugin("prebuild", ResolveComposesPlugin.key)
+        .for_plugin(ResolveComposesPlugin.key)
         .set_dockerfile_images(["Fedora:22"])
         .set_check_platforms_result(set(ODCS_COMPOSE_DEFAULT_ARCH_LIST))
         .set_reactor_config(make_reactor_config(source_dir))

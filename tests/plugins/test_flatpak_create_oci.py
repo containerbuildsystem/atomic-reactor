@@ -26,7 +26,7 @@ from atomic_reactor.constants import (
     DOCKERFILE_FILENAME,
     IMAGE_TYPE_OCI,
 )
-from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
+from atomic_reactor.plugin import PluginsRunner, PluginFailedException
 from atomic_reactor.utils.flatpak_util import FlatpakUtil
 from atomic_reactor.utils.imageutil import ImageUtil
 from atomic_reactor.utils.rpm import parse_rpm_output
@@ -34,6 +34,7 @@ from tests.flatpak import (MODULEMD_AVAILABLE,
                            build_flatpak_test_configs,
                            setup_flatpak_source_info,
                            setup_flatpak_composes)
+from tests.mock_env import MockEnv
 
 if MODULEMD_AVAILABLE:
     from atomic_reactor.plugins.flatpak_create_oci import FlatpakCreateOciPlugin
@@ -516,11 +517,16 @@ def test_flatpak_create_oci(workflow, config_name, flatpak_metadata, breakage):
 
     config = CONFIGS[config_name]
 
-    platforms = ['x86_64', 'aarch64', 's390x', 'ppc64le']
+    runner = (MockEnv(workflow)
+              .for_plugin(FlatpakCreateOciPlugin.key)
+              .set_reactor_config({'flatpak': {'metadata': flatpak_metadata}})
+              .create_runner())
 
+    platforms = ['x86_64', 'aarch64', 's390x', 'ppc64le']
     workflow.user_params['flatpak'] = True
     write_docker_file(config, workflow.source.path)
     workflow.build_dir.init_build_dirs(platforms, workflow.source)
+
     mock_extract_filesystem_call = functools.partial(mock_extract_filesystem, config)
     (flexmock(ImageUtil)
      .should_receive('extract_filesystem_layer')
@@ -529,8 +535,6 @@ def test_flatpak_create_oci(workflow, config_name, flatpak_metadata, breakage):
     for image_platform in platforms:
         image_path = workflow.build_dir.platform_dir(image_platform).exported_squashed_image
         os.mknod(image_path)
-
-    make_and_store_reactor_config_map(workflow, flatpak_metadata)
 
     if breakage == 'no_runtime':
         # Copy the parts of the config we are going to change
@@ -560,14 +564,6 @@ def test_flatpak_create_oci(workflow, config_name, flatpak_metadata, breakage):
     else:
         assert breakage is None
         expected_exception = None
-
-    runner = PostBuildPluginsRunner(
-        workflow,
-        [{
-            'name': FlatpakCreateOciPlugin.key,
-            'args': {}
-        }]
-    )
 
     setup_flatpak_composes(workflow)
     source = setup_flatpak_source_info(config)
@@ -674,7 +670,7 @@ def test_flatpak_create_oci_no_source(workflow):
     (flexmock(FlatpakUtil)
      .should_receive('get_flatpak_source_info')
      .and_return(None))
-    runner = PostBuildPluginsRunner(
+    runner = PluginsRunner(
         workflow,
         [{
             'name': FlatpakCreateOciPlugin.key,
@@ -692,7 +688,7 @@ def test_flatpak_create_oci_no_source(workflow):
                     reason="libmodulemd not available")
 def test_skip_plugin(workflow, caplog):
     setup_flatpak_composes(workflow)
-    runner = PostBuildPluginsRunner(
+    runner = PluginsRunner(
         workflow,
         [{
             'name': FlatpakCreateOciPlugin.key,

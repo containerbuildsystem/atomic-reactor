@@ -15,11 +15,13 @@ import json
 import tarfile
 import re
 
-from atomic_reactor.constants import IMAGE_TYPE_DOCKER_ARCHIVE, PLUGIN_FETCH_SOURCES_KEY
-from atomic_reactor.plugin import BuildStepPluginsRunner, PluginFailedException
+from atomic_reactor.constants import IMAGE_TYPE_DOCKER_ARCHIVE
+from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.build_source_container import SourceContainerPlugin
+from atomic_reactor.plugins.fetch_sources import FetchSourcesPlugin
 from atomic_reactor.util import get_exported_image_metadata
 from atomic_reactor.utils import retries
+from tests.mock_env import MockEnv
 
 
 @pytest.mark.parametrize('sources_dir, sources_dir_exists, sources_dir_empty', [
@@ -65,19 +67,16 @@ def test_running_build(workflow, caplog,
             os.mknod(maven_dir_path / 'maven-sources-1' / 'maven-sources-1.tar.gz')
 
     workflow.build_dir.init_build_dirs(["noarch"], workflow.source)
-    workflow.data.plugins_results[PLUGIN_FETCH_SOURCES_KEY] = {
+
+    fetch_sources_result = {
         'image_sources_dir': str(sources_dir_path),
         'remote_sources_dir': str(remote_dir_path),
         'maven_sources_dir': str(maven_dir_path),
     }
-
-    runner = BuildStepPluginsRunner(
-        workflow,
-        [{
-            'name': SourceContainerPlugin.key,
-            'args': {},
-        }]
-    )
+    runner = (MockEnv(workflow)
+              .for_plugin(SourceContainerPlugin.key)
+              .set_plugin_result(FetchSourcesPlugin.key, fetch_sources_result)
+              .create_runner())
 
     temp_image_output_dir = workflow.build_dir.source_container_output_dir
     exported_image_file = workflow.build_dir.any_platform.exported_squashed_image
@@ -246,18 +245,16 @@ def test_failed_build(workflow, source_dir, caplog, user_params):
      .and_raise(subprocess.CalledProcessError(1, 'cmd', output='stub stdout')))
     some_dir = workflow.build_dir.path / 'some_dir'
     some_dir.mkdir()
-    workflow.data.plugins_results[PLUGIN_FETCH_SOURCES_KEY] = {
+
+    fetch_sources_result = {
         'image_sources_dir': str(some_dir),
         'remote_sources_dir': str(some_dir),
         'maven_sources_dir': str(some_dir),
     }
-    runner = BuildStepPluginsRunner(
-        workflow,
-        [{
-            'name': SourceContainerPlugin.key,
-            'args': {},
-        }]
-    )
+    runner = (MockEnv(workflow)
+              .for_plugin(SourceContainerPlugin.key)
+              .set_plugin_result(FetchSourcesPlugin.key, fetch_sources_result)
+              .create_runner())
 
     with pytest.raises(PluginFailedException, match="BSI utility failed"):
         runner.run()

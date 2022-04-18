@@ -6,26 +6,23 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
-import logging
+import inspect
 import json
+import logging
 import os
-from collections import defaultdict
+import signal
+import time
 from dataclasses import fields, Field
 from pathlib import Path
-
-import time
-from dockerfile_parse import DockerfileParser
 from textwrap import dedent
+from typing import Any, Dict, List
+
+import pytest
+from flexmock import flexmock
 
 import osbs.exceptions
-from atomic_reactor.dirs import ContextDir
-from atomic_reactor.plugin import Plugin, PluginFailedException, InappropriateBuildStepError
-from flexmock import flexmock
-import pytest
-from tests.util import is_string_type
-from tests.constants import DOCKERFILE_MULTISTAGE_CUSTOM_BAD_PATH
-import inspect
-import signal
+from dockerfile_parse import DockerfileParser
+from osbs.utils import ImageName
 
 from atomic_reactor.inner import (BuildResults, BuildResultsEncoder,
                                   BuildResultsJSONDecoder, DockerBuildWorkflow,
@@ -34,8 +31,10 @@ from atomic_reactor.source import PathSource, DummySource
 from atomic_reactor.util import (
     DockerfileImages, validate_with_schema, graceful_chain_get
 )
-from atomic_reactor.tasks.plugin_based import PluginsDef
-from osbs.utils import ImageName
+from atomic_reactor.dirs import ContextDir
+from atomic_reactor.plugin import Plugin, PluginFailedException
+from tests.util import is_string_type
+from tests.constants import DOCKERFILE_MULTISTAGE_CUSTOM_BAD_PATH
 
 
 BUILD_RESULTS_ATTRS = ['build_logs',
@@ -44,176 +43,11 @@ BUILD_RESULTS_ATTRS = ['build_logs',
                        'base_img_info',
                        'base_plugins_output',
                        'built_img_plugins_output']
-DUMMY_BUILD_RESULT = {'image_id': 'image_id'}
-DUMMY_FAILED_BUILD_RESULT = {'fail_reason': 'it happens'}
-DUMMY_REMOTE_BUILD_RESULT = {'image_id': 'remote_image'}
 
 NAMESPACE = 'test-namespace'
 PIPELINE_RUN_NAME = 'test-pipeline-run'
 
 pytestmark = pytest.mark.usefixtures('user_params')
-
-
-def test_build_results_encoder():
-    results = BuildResults()
-    expected_data = {}
-    for attr in BUILD_RESULTS_ATTRS:
-        setattr(results, attr, attr)
-        expected_data[attr] = attr
-
-    data = json.loads(json.dumps(results, cls=BuildResultsEncoder))
-    assert data == expected_data
-
-
-def test_build_results_decoder():
-    data = {}
-    expected_results = BuildResults()
-    for attr in BUILD_RESULTS_ATTRS:
-        setattr(expected_results, attr, attr)
-        data[attr] = attr
-
-    results = json.loads(json.dumps(data), cls=BuildResultsJSONDecoder)
-    for attr in set(BUILD_RESULTS_ATTRS) - {'build_logs'}:
-        assert getattr(results, attr) == getattr(expected_results, attr)
-
-
-class RaisesMixIn(object):
-    """
-    Mix-in class for plugins that should raise exceptions.
-    """
-
-    is_allowed_to_fail = False
-
-    def __init__(self, workflow, *args, **kwargs):
-        super(RaisesMixIn, self).__init__(workflow, *args, **kwargs)
-
-    def run(self):
-        raise RuntimeError
-
-
-class PreRaises(RaisesMixIn, Plugin):
-    """
-    This plugin must run and cause the build to abort.
-    """
-
-    key = 'pre_raises'
-
-
-class BuildStepRaises(RaisesMixIn, Plugin):
-    """
-    This plugin must run and cause the build to abort.
-    """
-
-    key = 'buildstep_raises'
-
-
-class PostRaisesPlugin(RaisesMixIn, Plugin):
-    """
-    This plugin must run and cause the build to abort.
-    """
-
-    key = 'post_raises'
-
-
-class PrePubRaisesPlugin(RaisesMixIn, Plugin):
-    """
-    This plugin must run and cause the build to abort.
-    """
-
-    key = 'prepub_raises'
-
-
-class WatchedMixIn(object):
-    """
-    Mix-in class for plugins we want to watch.
-    """
-
-    def __init__(self, workflow, watcher, *args, **kwargs):
-        super(WatchedMixIn, self).__init__(workflow, *args, **kwargs)
-        self.watcher = watcher
-
-    def run(self):
-        self.watcher.call()
-
-
-class WatchedBuildStep(object):
-    """
-    class for buildstep plugins we want to watch.
-    """
-
-    def __init__(self, workflow, watcher, *args, **kwargs):
-        super(WatchedBuildStep, self).__init__(workflow, *args, **kwargs)
-        self.watcher = watcher
-
-    def run(self):
-        self.watcher.call()
-        return DUMMY_BUILD_RESULT
-
-
-class PreWatched(WatchedMixIn, Plugin):
-    """
-    A PreBuild plugin we can watch.
-    """
-
-    key = 'pre_watched'
-
-
-class PrePubWatched(WatchedMixIn, Plugin):
-    """
-    A PrePublish plugin we can watch.
-    """
-
-    key = 'prepub_watched'
-
-
-class BuildStepWatched(WatchedBuildStep, Plugin):
-    """
-    A BuildStep plugin we can watch.
-    """
-
-    key = 'buildstep_watched'
-
-
-class PostWatched(WatchedMixIn, Plugin):
-    """
-    A PostBuild plugin we can watch.
-    """
-
-    key = 'post_watched'
-
-
-class ExitWatched(WatchedMixIn, Plugin):
-    """
-    An Exit plugin we can watch.
-    """
-
-    key = 'exit_watched'
-
-
-class ExitRaises(RaisesMixIn, Plugin):
-    """
-    An Exit plugin that should raise an exception.
-    """
-
-    key = 'exit_raises'
-
-
-class ExitRaisesAllowed(RaisesMixIn, Plugin):
-    """
-    An Exit plugin that should raise an exception.
-    """
-
-    is_allowed_to_fail = True
-
-    key = 'exit_raises_allowed'
-
-
-class ExitCompat(WatchedMixIn, Plugin):
-    """
-    An Exit plugin called as a Post-build plugin.
-    """
-
-    key = 'store_logs_to_file'
 
 
 class Watcher(object):
@@ -241,679 +75,189 @@ class WatcherWithSignal(Watcher):
             os.kill(os.getpid(), self.signal)
 
 
-def test_workflow_base_images(context_dir, build_dir):
+class UpdateMaintainerPlugin(Plugin):
+    key = "update_maintainer"
+    def run(self): pass
+
+
+class PushImagePlugin(Plugin):
+    key = "push_image"
+    def run(self): pass
+
+
+class CleanupPlugin(Plugin):
+    key = "cleanup"
+    def run(self): pass
+
+
+class WatchedMixIn(object):
+    """
+    Mix-in class for plugins we want to watch.
+    """
+
+    def __init__(self, workflow, watcher, *args, **kwargs):
+        super(WatchedMixIn, self).__init__(workflow, *args, **kwargs)
+        self.watcher = watcher
+
+    def run(self):
+        self.watcher.call()
+
+
+class UpdateMaintainerPluginWatched(WatchedMixIn, Plugin):
+    key = 'update_maintainer_watched'
+
+    def run(self):
+        super().run()
+        return True
+
+
+class PushImagePluginWatched(WatchedMixIn, Plugin):
+    key = 'push_image_watched'
+
+    def run(self):
+        super().run()
+        return "pushed image"
+
+
+class CleanupPluginWatched(WatchedMixIn, Plugin):
+    key = 'cleanup_watched'
+
+
+def test_build_results_encoder():
+    results = BuildResults()
+    expected_data = {}
+    for attr in BUILD_RESULTS_ATTRS:
+        setattr(results, attr, attr)
+        expected_data[attr] = attr
+
+    data = json.loads(json.dumps(results, cls=BuildResultsEncoder))
+    assert data == expected_data
+
+
+def test_build_results_decoder():
+    data = {}
+    expected_results = BuildResults()
+    for attr in BUILD_RESULTS_ATTRS:
+        setattr(expected_results, attr, attr)
+        data[attr] = attr
+
+    results = json.loads(json.dumps(data), cls=BuildResultsJSONDecoder)
+    for attr in set(BUILD_RESULTS_ATTRS) - {'build_logs'}:
+        assert getattr(results, attr) == getattr(expected_results, attr)
+
+
+@pytest.mark.parametrize("terminate_build", [True, False])
+def test_workflow_build_image(terminate_build: bool, workflow: DockerBuildWorkflow, caplog):
     """
     Test workflow for base images
     """
-
     flexmock(DockerfileParser, content='df_content')
-    this_file = inspect.getfile(PreWatched)
-    watch_pre = Watcher()
-    watch_prepub = Watcher()
-    watch_buildstep = Watcher()
-    watch_post = Watcher()
-    watch_exit = Watcher()
-    workflow = DockerBuildWorkflow(
-        context_dir,
-        build_dir,
-        namespace=NAMESPACE,
-        pipeline_run_name=PIPELINE_RUN_NAME,
-        source=None,
-        plugins=PluginsDef(
-            prebuild=[{'name': 'pre_watched', 'args': {'watcher': watch_pre}}],
-            buildstep=[{'name': 'buildstep_watched', 'args': {'watcher': watch_buildstep}}],
-            prepublish=[{'name': 'prepub_watched', 'args': {'watcher': watch_prepub}}],
-            postbuild=[{'name': 'post_watched', 'args': {'watcher': watch_post}}],
-            exit=[{'name': 'exit_watched', 'args': {'watcher': watch_exit}}],
-        ),
-        plugin_files=[this_file],
-    )
+    this_file = inspect.getfile(UpdateMaintainerPlugin)
+    watch_update_maintainer = Watcher()
+    watch_push_image = Watcher()
+    watch_cleanup = Watcher()
 
-    workflow.build_docker_image()
+    workflow.plugins_conf = [
+        {
+            'name': UpdateMaintainerPluginWatched.key,
+            'args': {'watcher': watch_update_maintainer},
+        },
+        {
+            'name': PushImagePluginWatched.key,
+            'args': {'watcher': watch_push_image}
+        },
+        {
+            'name': CleanupPluginWatched.key,
+            'args': {'watcher': watch_cleanup}
+        },
+    ]
+    workflow.plugin_files = [this_file]
 
-    assert watch_pre.was_called()
-    assert watch_prepub.was_called()
-    assert watch_buildstep.was_called()
-    assert watch_post.was_called()
-    assert watch_exit.was_called()
+    # This test does not require a separate FSWatcher thread.
+    fs_watcher = flexmock(workflow.fs_watcher)
+    fs_watcher.should_receive('start')
+    fs_watcher.should_receive('finish')
 
+    if terminate_build:
+        workflow.plugins_conf[1]['args']['watcher'] = WatcherWithSignal(signal=signal.SIGTERM)
+        workflow.build_docker_image()
+        assert "Build was canceled" in caplog.text
+        assert workflow.data.build_canceled
+    else:
+        workflow.build_docker_image()
 
-def test_workflow_compat(context_dir, build_dir, caplog):
-    """
-    Some of our plugins have changed from being run post-build to
-    being run at exit. Let's test what happens when we try running an
-    exit plugin as a post-build plugin.
-    """
-    flexmock(DockerfileParser, content='df_content')
-    this_file = inspect.getfile(PreWatched)
-    watch_exit = Watcher()
-    watch_buildstep = Watcher()
+        assert watch_update_maintainer.was_called()
+        assert watch_push_image.was_called()
+        assert watch_cleanup.was_called()
 
-    caplog.clear()
-
-    workflow = DockerBuildWorkflow(
-        context_dir,
-        build_dir,
-        namespace=NAMESPACE,
-        pipeline_run_name=PIPELINE_RUN_NAME,
-        source=None,
-        plugins=PluginsDef(
-            postbuild=[{'name': 'store_logs_to_file', 'args': {'watcher': watch_exit}}],
-            buildstep=[{'name': 'buildstep_watched', 'args': {'watcher': watch_buildstep}}],
-        ),
-        plugin_files=[this_file],
-    )
-
-    workflow.build_docker_image()
-    assert watch_exit.was_called()
-    for record in caplog.records:
-        assert record.levelno != logging.ERROR
+        results = workflow.data.plugins_results
+        assert results[UpdateMaintainerPluginWatched.key]
+        assert "pushed image" == results[PushImagePluginWatched.key]
+        assert results[CleanupPluginWatched.key] is None
 
 
-class Pre(Plugin):
-    """
-    This plugin does nothing. It's only used for configuration testing.
-    """
-
-    key = 'pre'
-
-
-class BuildStep(Plugin):
-    """
-    This plugin does nothing. It's only used for configuration testing.
-    """
-
-    key = 'buildstep'
-
-    def run(self):
-        raise InappropriateBuildStepError
-
-
-class Post(Plugin):
-    """
-    This plugin does nothing. It's only used for configuration testing.
-    """
-
-    key = 'post'
-
-
-class PrePub(Plugin):
-    """
-    This plugin does nothing. It's only used for configuration testing.
-    """
-
-    key = 'prepub'
-
-
-class Exit(Plugin):
-    """
-    This plugin does nothing. It's only used for configuration testing.
-    """
-
-    key = 'exit'
-
-
-@pytest.mark.parametrize(('plugins', 'should_fail', 'should_log'), [
-    # No 'args' key, prebuild
-    ({'prebuild': [{'name': 'pre'}, {'name': 'pre_watched', 'args': {'watcher': Watcher()}}],
-      'buildstep': [{'name': 'buildstep_watched', 'args': {'watcher': Watcher()}}]},
-     False,  # not fatal
-     False,  # no error logged
-     ),
-
-    # No 'args' key, buildstep
-    ({'buildstep': [
-        {'name': 'buildstep'}, {'name': 'buildstep_watched', 'args': {'watcher': Watcher()}}
-    ]},
-     False,  # not fatal
-     False,  # no error logged
-     ),
-
-    # No 'args' key, postbuild
-    ({'postbuild': [{'name': 'post'}, {'name': 'post_watched', 'args': {'watcher': Watcher()}}],
-      'buildstep': [{'name': 'buildstep_watched', 'args': {'watcher': Watcher()}}]},
-     False,  # not fatal,
-     False,  # no error logged
-     ),
-
-    # No 'args' key, prepub
-    ({'prepublish': [
-        {'name': 'prepub'}, {'name': 'prepub_watched', 'args': {'watcher': Watcher()}}],
-      'buildstep': [{'name': 'buildstep_watched', 'args': {'watcher': Watcher()}}]},
-     False,  # not fatal,
-     False,  # no error logged
-     ),
-
-    # No 'args' key, exit
-    ({'exit': [{'name': 'exit'}, {'name': 'exit_watched', 'args': {'watcher': Watcher()}}],
-      'buildstep': [{'name': 'buildstep_watched', 'args': {'watcher': Watcher()}}]},
-     False,  # not fatal
-     False,  # no error logged
-     ),
-
-    # No such plugin, prebuild
-    ({'prebuild': [
+@pytest.mark.parametrize('plugins_conf', [
+    # No such plugin but it is required, subsequent plugin should not run.
+    [
         {'name': 'no plugin', 'args': {}},
-        {'name': 'pre_watched', 'args': {'watcher': Watcher()}}]},
-     True,  # is fatal
-     True,  # logs error
-     ),
-
-    # No such plugin, buildstep
-    ({'buildstep': [
-        {'name': 'no plugin', 'args': {}},
-        {'name': 'buildstep_watched', 'args': {'watcher': Watcher()}}]},
-     False,  # is fatal
-     False,  # logs error
-     ),
-
-    # No such plugin, postbuild
-    ({'postbuild': [
-        {'name': 'no plugin', 'args': {}},
-        {'name': 'post_watched', 'args': {'watcher': Watcher()}}]},
-     True,  # is fatal
-     True,  # logs error
-     ),
-
-    # No such plugin, prepub
-    ({'prepublish': [
-        {'name': 'no plugin', 'args': {}},
-        {'name': 'prepub_watched', 'args': {'watcher': Watcher()}}]},
-     True,  # is fatal
-     True,  # logs error
-     ),
-
-    # No such plugin, exit
-    ({'exit': [
-        {'name': 'no plugin', 'args': {}},
-        {'name': 'exit_watched', 'args': {'watcher': Watcher()}}]},
-     True,  # is fatal
-     True,   # logs error
-     ),
-
-    # No such plugin, prebuild, not required
-    ({'prebuild': [
-        {'name': 'no plugin', 'args': {}, 'required': False},
-        {'name': 'pre_watched', 'args': {'watcher': Watcher()}}],
-      'buildstep': [{'name': 'buildstep_watched', 'args': {'watcher': Watcher()}}]},
-     False,  # not fatal
-     False,  # does not log error
-     ),
-
-    # No such plugin, buildstep, not required
-    ({'buildstep': [
-        {'name': 'no plugin', 'args': {}, 'required': False},
-        {'name': 'buildstep_watched', 'args': {'watcher': Watcher()}}]},
-     False,  # not fatal
-     False,  # does not log error
-     ),
-
-    # No such plugin, postbuild, not required
-    ({'postbuild': [
-        {'name': 'no plugin', 'args': {}, 'required': False},
-        {'name': 'post_watched', 'args': {'watcher': Watcher()}}],
-      'buildstep': [{'name': 'buildstep_watched', 'args': {'watcher': Watcher()}}]},
-     False,  # not fatal
-     False,  # does not log error
-     ),
-
-    # No such plugin, prepub, not required
-    ({'prepublish': [
-        {'name': 'no plugin', 'args': {}, 'required': False},
-        {'name': 'prepub_watched', 'args': {'watcher': Watcher()}}],
-      'buildstep': [{'name': 'buildstep_watched', 'args': {'watcher': Watcher()}}]},
-     False,  # not fatal
-     False,  # does not log error
-     ),
-
-    # No such plugin, exit, not required
-    ({'exit': [
-        {'name': 'no plugin', 'args': {}, 'required': False},
-        {'name': 'exit_watched', 'args': {'watcher': Watcher()}}],
-      'buildstep': [{'name': 'buildstep_watched', 'args': {'watcher': Watcher()}}]},
-     False,  # not fatal
-     False,  # does not log error
-     ),
+        {'name': UpdateMaintainerPluginWatched.key, 'args': {'watcher': Watcher()}}
+    ],
 ])
-def test_plugin_errors(plugins, should_fail, should_log, context_dir, build_dir, caplog):
-    """
-    Try bad plugin configuration.
-    """
+def test_bad_plugins_conf(plugins_conf: List[Dict[str, Any]], workflow, caplog):
     flexmock(DockerfileParser, content='df_content')
-    this_file = inspect.getfile(PreRaises)
+    this_file = inspect.getfile(UpdateMaintainerPlugin)
 
     caplog.clear()
-    workflow = DockerBuildWorkflow(context_dir,
-                                   build_dir,
-                                   namespace=NAMESPACE,
-                                   pipeline_run_name=PIPELINE_RUN_NAME,
-                                   source=None,
-                                   plugin_files=[this_file],
-                                   plugins=PluginsDef(**plugins))
+
+    workflow.plugins_conf = plugins_conf
+    workflow.plugin_files = [this_file]
 
     # Find the 'watcher' parameter
-    watchers = [conf.get('args', {}).get('watcher')
-                for plugin in plugins.values()
-                for conf in plugin]
+    watchers = [conf.get('args', {}).get('watcher') for conf in plugins_conf]
     watcher = [x for x in watchers if x][0]
 
-    if should_fail:
-        with pytest.raises(PluginFailedException):
-            workflow.build_docker_image()
-
-        assert not watcher.was_called()
-        assert workflow.data.plugins_errors
-        assert all([is_string_type(plugin)
-                    for plugin in workflow.data.plugins_errors])
-        assert all([is_string_type(reason)
-                    for reason in workflow.data.plugins_errors.values()])
-    else:
+    with pytest.raises(PluginFailedException):
         workflow.build_docker_image()
-        assert watcher.was_called()
-        assert not workflow.data.plugins_errors
 
-    if should_log:
-        assert any(record.levelno == logging.ERROR for record in caplog.records)
-    else:
-        assert all(record.levelno != logging.ERROR for record in caplog.records)
+    assert not watcher.was_called()
+    assert workflow.data.plugins_errors
+    assert all([is_string_type(plugin)
+                for plugin in workflow.data.plugins_errors])
+    assert all([is_string_type(reason)
+                for reason in workflow.data.plugins_errors.values()])
+
+    assert any(record.levelno == logging.ERROR for record in caplog.records)
 
 
-@pytest.mark.parametrize('fail_at', ['pre_raises',
-                                     'buildstep_raises',
-                                     'prepub_raises',
-                                     'post_raises',
-                                     'exit_raises',
-                                     'exit_raises_allowed'])
-def test_workflow_plugin_error(fail_at, context_dir, build_dir):
-    """
-    This is a test for what happens when plugins fail.
-
-    When a prebuild or postbuild plugin fails, and doesn't have
-    is_allowed_to_fail=True set, the whole build should fail.
-    However, all the exit plugins should run.
-    """
+@pytest.mark.parametrize('plugins_conf', [
+    # No 'args' key
+    [
+        {'name': UpdateMaintainerPlugin.key},
+        {'name': UpdateMaintainerPluginWatched.key, 'args': {'watcher': Watcher()}},
+    ],
+    # No such plugin, not required, subsequent plugins should run.
+    [
+        {'name': 'no plugin', 'args': {}, 'required': False},
+        {'name': UpdateMaintainerPluginWatched.key, 'args': {'watcher': Watcher()}}
+    ],
+])
+def test_good_plugins_conf(plugins_conf: List[Dict[str, Any]], workflow, caplog):
     flexmock(DockerfileParser, content='df_content')
-    this_file = inspect.getfile(PreRaises)
-    watch_pre = Watcher()
-    watch_prepub = Watcher()
-    watch_buildstep = Watcher()
-    watch_post = Watcher()
-    watch_exit = Watcher()
-    plugins = PluginsDef(
-        prebuild=[{'name': 'pre_watched', 'args': {'watcher': watch_pre}}],
-        buildstep=[{'name': 'buildstep_watched', 'args': {'watcher': watch_buildstep}}],
-        prepublish=[{'name': 'prepub_watched', 'args': {'watcher': watch_prepub}}],
-        postbuild=[{'name': 'post_watched', 'args': {'watcher': watch_post}}],
-        exit=[{'name': 'exit_watched', 'args': {'watcher': watch_exit}}],
-    )
+    this_file = inspect.getfile(UpdateMaintainerPlugin)
 
-    # Insert a failing plugin into one of the build phases
-    if fail_at == 'pre_raises':
-        plugins.prebuild.insert(0, {'name': fail_at, 'args': {}})
-    elif fail_at == 'buildstep_raises':
-        plugins.buildstep.insert(0, {'name': fail_at, 'args': {}})
-    elif fail_at == 'prepub_raises':
-        plugins.prepublish.insert(0, {'name': fail_at, 'args': {}})
-    elif fail_at == 'post_raises':
-        plugins.postbuild.insert(0, {'name': fail_at, 'args': {}})
-    elif fail_at == 'exit_raises' or fail_at == 'exit_raises_allowed':
-        plugins.exit.insert(0, {'name': fail_at, 'args': {}})
-    else:
-        # Typo in the parameter list?
-        assert False
+    caplog.clear()
 
-    workflow = DockerBuildWorkflow(
-        context_dir,
-        build_dir,
-        namespace=NAMESPACE,
-        pipeline_run_name=PIPELINE_RUN_NAME,
-        source=None,
-        plugins=plugins,
-        plugin_files=[this_file]
-    )
+    workflow.plugins_conf = plugins_conf
+    workflow.plugin_files = [this_file]
 
-    # Most failures cause the build process to abort. Unless, it's
-    # an exit plugin that's explicitly allowed to fail.
-    if fail_at == 'exit_raises_allowed':
-        workflow.build_docker_image()
-        assert not workflow.data.plugins_errors
-    else:
-        with pytest.raises(PluginFailedException):
-            workflow.build_docker_image()
-
-        assert fail_at in workflow.data.plugins_errors
-
-    # The pre-build phase should only complete if there were no
-    # earlier plugin failures.
-    assert watch_pre.was_called() == (fail_at != 'pre_raises')
-
-    # The buildstep phase should only complete if there were no
-    # earlier plugin failures.
-    assert watch_buildstep.was_called() == (fail_at not in ('pre_raises',
-                                                            'buildstep_raises'))
-
-    # The prepublish phase should only complete if there were no
-    # earlier plugin failures.
-    assert watch_prepub.was_called() == (fail_at not in ('pre_raises',
-                                                         'prepub_raises',
-                                                         'buildstep_raises'))
-
-    # The post-build phase should only complete if there were no
-    # earlier plugin failures.
-    assert watch_post.was_called() == (fail_at not in ('pre_raises',
-                                                       'prepub_raises',
-                                                       'buildstep_raises',
-                                                       'post_raises'))
-
-    # But all exit plugins should run, even if one of them also raises
-    # an exception.
-    assert watch_exit.was_called()
-
-
-def test_workflow_docker_build_error(context_dir, build_dir):
-    """
-    This is a test for what happens when the docker build fails.
-    """
-    flexmock(DockerfileParser, content='df_content')
-    this_file = inspect.getfile(PreRaises)
-    watch_pre = Watcher()
-    watch_buildstep = Watcher(raise_exc=Exception())
-    watch_prepub = Watcher()
-    watch_post = Watcher()
-    watch_exit = Watcher()
-
-    workflow = DockerBuildWorkflow(
-        context_dir,
-        build_dir,
-        namespace=NAMESPACE,
-        pipeline_run_name=PIPELINE_RUN_NAME,
-        source=None,
-        plugins=PluginsDef(
-            prebuild=[{'name': 'pre_watched', 'args': {'watcher': watch_pre}}],
-            buildstep=[{'name': 'buildstep_watched', 'args': {'watcher': watch_buildstep}}],
-            prepublish=[{'name': 'prepub_watched', 'args': {'watcher': watch_prepub}}],
-            postbuild=[{'name': 'post_watched', 'args': {'watcher': watch_post}}],
-            exit=[{'name': 'exit_watched', 'args': {'watcher': watch_exit}}],
-        ),
-        plugin_files=[this_file],
-    )
-
-    with pytest.raises(Exception):
-        workflow.build_docker_image()
-    # No subsequent build phases should have run except 'exit'
-    assert watch_pre.was_called()
-    assert watch_buildstep.was_called()
-    assert not watch_prepub.was_called()
-    assert not watch_post.was_called()
-    assert watch_exit.was_called()
-
-
-@pytest.mark.parametrize('steps_to_fail,step_reported', (
-    # single failures
-    ({'pre'}, 'pre'),
-    ({'buildstep'}, 'buildstep'),
-    ({'prepub'}, 'prepub'),
-    ({'post'}, 'post'),
-    ({'exit'}, 'exit'),
-    # non-exit + exit failure
-    ({'pre', 'exit'}, 'pre'),
-    ({'buildstep', 'exit'}, 'buildstep'),
-    ({'prepub', 'exit'}, 'prepub'),
-    ({'post', 'exit'}, 'post'),
-    # 2 non-exit failures
-    ({'pre', 'buildstep'}, 'pre'),
-    ({'pre', 'prepub'}, 'pre'),
-    ({'pre', 'post'}, 'pre'),
-    ({'buildstep', 'prepub'}, 'buildstep'),
-    ({'buildstep', 'post'}, 'buildstep'),
-    ({'prepub', 'post'}, 'prepub'),
-))
-def test_workflow_docker_build_error_reports(steps_to_fail, step_reported, context_dir, build_dir):
-    """
-    Test if first error is reported properly. (i.e. exit plugins are not
-    hiding the original root cause)
-    """
-    def exc_string(step):
-        return 'test_workflow_docker_build_error_reports.{}'.format(step)
-
-    def construct_watcher(step):
-        watcher = Watcher(raise_exc=Exception(exc_string(step)) if step in steps_to_fail else None)
-        return watcher
-
-    flexmock(DockerfileParser, content='df_content')
-    this_file = inspect.getfile(PreRaises)
-    watch_pre = construct_watcher('pre')
-    watch_buildstep = construct_watcher('buildstep')
-    watch_prepub = construct_watcher('prepub')
-    watch_post = construct_watcher('post')
-    watch_exit = construct_watcher('exit')
-
-    workflow = DockerBuildWorkflow(
-        context_dir,
-        build_dir,
-        namespace=NAMESPACE,
-        pipeline_run_name=PIPELINE_RUN_NAME,
-        source=None,
-        plugins=PluginsDef(
-            prebuild=[{'name': 'pre_watched',
-                       'is_allowed_to_fail': False,
-                       'args': {'watcher': watch_pre}}],
-            buildstep=[{'name': 'buildstep_watched',
-                        'is_allowed_to_fail': False,
-                        'args': {'watcher': watch_buildstep}}],
-            prepublish=[{'name': 'prepub_watched',
-                         'is_allowed_to_fail': False,
-                         'args': {'watcher': watch_prepub}}],
-            postbuild=[{'name': 'post_watched',
-                        'is_allowed_to_fail': False,
-                        'args': {'watcher': watch_post}}],
-            exit=[{'name': 'exit_watched',
-                   'is_allowed_to_fail': False,
-                   'args': {'watcher': watch_exit}}],
-        ),
-        plugin_files=[this_file],
-    )
-
-    with pytest.raises(Exception) as exc:
-        workflow.build_docker_image()
-    assert exc_string(step_reported) in str(exc.value)
-
-
-class ExitUsesSource(ExitWatched):
-    key = 'uses_source'
-
-    def run(self):
-        assert os.path.exists(self.workflow.source.get_build_file_path()[0])
-        WatchedMixIn.run(self)
-
-
-def test_source_not_removed_for_exit_plugins(context_dir, build_dir):
-    flexmock(DockerfileParser, content='df_content')
-    this_file = inspect.getfile(PreRaises)
-    watch_exit = Watcher()
-    watch_buildstep = Watcher()
-    workflow = DockerBuildWorkflow(
-        context_dir,
-        build_dir,
-        namespace=NAMESPACE,
-        pipeline_run_name=PIPELINE_RUN_NAME,
-        source=None,
-        plugins=PluginsDef(
-            exit=[{'name': 'uses_source', 'args': {'watcher': watch_exit}}],
-            buildstep=[{'name': 'buildstep_watched', 'args': {'watcher': watch_buildstep}}],
-        ),
-        plugin_files=[this_file],
-    )
+    # Find the 'watcher' parameter
+    watchers = [conf.get('args', {}).get('watcher') for conf in plugins_conf]
+    watcher = [x for x in watchers if x][0]
 
     workflow.build_docker_image()
-
-    # Make sure that the plugin was actually run
-    assert watch_exit.was_called()
-
-
-class ValueMixIn(object):
-
-    def __init__(self, workflow, *args, **kwargs):
-        super(ValueMixIn, self).__init__(workflow, *args, **kwargs)
-
-    def run(self):
-        return '%s_result' % self.key
-
-
-class ValueBuildStep(object):
-
-    def __init__(self, workflow, *args, **kwargs):
-        super(ValueBuildStep, self).__init__(workflow, *args, **kwargs)
-
-    def run(self):
-        return DUMMY_BUILD_RESULT
-
-
-class ValueFailedBuildStep(object):
-
-    def run(self):
-        return DUMMY_FAILED_BUILD_RESULT
-
-
-class ValueRemoteBuildStep(object):
-
-    def run(self):
-        return DUMMY_REMOTE_BUILD_RESULT
-
-
-class PreBuildResult(ValueMixIn, Plugin):
-    """
-    Pre build plugin that returns a result when run.
-    """
-
-    key = 'pre_build_value'
-
-
-class BuildStepResult(ValueBuildStep, Plugin):
-    """
-    Build step plugin that returns a result when run.
-    """
-
-    key = 'buildstep_value'
-
-
-class New_BuildStepResult(ValueBuildStep, Plugin):
-    """
-    New Build step plugin that returns a result when run.
-    """
-
-    key = 'imagebuilder'
-
-
-class Old_BuildStepResult(ValueBuildStep, Plugin):
-    """
-    Old Build step plugin that returns a result when run.
-    """
-
-    key = 'docker_api'
-
-
-class BuildStepFailedResult(ValueFailedBuildStep, Plugin):
-    """
-    Build step plugin that returns a failed result when run.
-    """
-
-    key = 'buildstep_failed_value'
-
-
-class BuildStepRemoteResult(ValueRemoteBuildStep, Plugin):
-    """
-    Build step plugin that returns a failed result when run.
-    """
-
-    key = 'buildstep_remote_value'
-
-
-class FailedBuildStepPlugin(Plugin):
-    key = "failed_buildstep"
-
-    def run(self):
-        raise PluginFailedException("something is wrong")
-
-
-class PostBuildResult(ValueMixIn, Plugin):
-    """
-    Post build plugin that returns a result when run.
-    """
-
-    key = 'post_build_value'
-
-
-class PrePublishResult(ValueMixIn, Plugin):
-    """
-    Pre publish plugin that returns a result when run.
-    """
-
-    key = 'pre_publish_value'
-
-
-class ExitResult(ValueMixIn, Plugin):
-    """
-    Exit plugin that returns a result when run.
-    """
-
-    key = 'exit_value'
-
-
-@pytest.mark.parametrize(
-    ['buildstep_plugin', 'expected_buildstep_result', 'buildstep_raises'],
-    [
-        ['buildstep_value', DUMMY_BUILD_RESULT, False],
-        ['buildstep_remote_value', DUMMY_REMOTE_BUILD_RESULT, False],
-        ['failed_buildstep', None, True],
-    ],
-)
-def test_workflow_plugin_results(
-    buildstep_plugin, expected_buildstep_result, buildstep_raises, context_dir, build_dir
-):
-    """
-    Verifies the results of plugins in different phases are stored properly.
-    It also verifies the error raised from failed buildstep plugin is handled properly.
-    """
-
-    flexmock(DockerfileParser, content='df_content')
-    this_file = inspect.getfile(PreRaises)
-
-    plugins = PluginsDef(
-        prebuild=[{'name': 'pre_build_value'}],
-        buildstep=[{'name': buildstep_plugin}],
-        postbuild=[{'name': 'post_build_value'}],
-        prepublish=[{'name': 'pre_publish_value'}],
-        exit=[{'name': 'exit_value'}],
-    )
-
-    workflow = DockerBuildWorkflow(
-        context_dir,
-        build_dir,
-        namespace=NAMESPACE,
-        pipeline_run_name=PIPELINE_RUN_NAME,
-        source=None,
-        plugins=plugins,
-        plugin_files=[this_file]
-    )
-
-    if buildstep_raises:
-        with pytest.raises(PluginFailedException, match="something is wrong"):
-            workflow.build_docker_image()
-    else:
-        workflow.build_docker_image()
-
-    assert workflow.data.plugins_results['pre_build_value'] == 'pre_build_value_result'
-
-    if buildstep_raises:
-        assert 'post_build_value' not in workflow.data.plugins_results
-        assert 'pre_publish_value' not in workflow.data.plugins_results
-    else:
-        assert workflow.data.plugins_results[buildstep_plugin] == expected_buildstep_result
-        assert workflow.data.plugins_results['post_build_value'] == 'post_build_value_result'
-        assert workflow.data.plugins_results['pre_publish_value'] == 'pre_publish_value_result'
-
-    assert workflow.data.plugins_results['exit_value'] == 'exit_value_result'
+    assert watcher.was_called()
+    assert not workflow.data.plugins_errors
+    assert all(record.levelno != logging.ERROR for record in caplog.records)
 
 
 def test_parse_dockerfile_again_after_data_is_loaded(context_dir, build_dir, tmpdir):
@@ -940,23 +284,22 @@ def test_parse_dockerfile_again_after_data_is_loaded(context_dir, build_dir, tmp
         "The dockerfile_images should not be changed."
 
 
-@pytest.mark.parametrize('fail_at', ['pre', 'prepub', 'buildstep', 'post', 'exit'])
-def test_cancel_build(fail_at, context_dir, build_dir, caplog):
+@pytest.mark.parametrize('has_version', [True, False])
+def test_show_version(has_version, context_dir, build_dir, workflow: DockerBuildWorkflow, caplog):
     """
-    Verifies that exit plugins are executed when the build is canceled
+    Test atomic-reactor print version of osbs-client used to build the build json
+    if available
     """
-    # Make the phase we're testing send us SIGTERM
-    phase_signal = defaultdict(lambda: None)
-    phase_signal[fail_at] = signal.SIGTERM
+    version = "1.0"
     flexmock(DockerfileParser, content='df_content')
-    this_file = inspect.getfile(PreRaises)
-    watch_pre = WatcherWithSignal(phase_signal['pre'])
-    watch_prepub = WatcherWithSignal(phase_signal['prepub'])
-    watch_buildstep = WatcherWithSignal(phase_signal['buildstep'])
-    watch_post = WatcherWithSignal(phase_signal['post'])
-    watch_exit = WatcherWithSignal(phase_signal['exit'])
+    this_file = inspect.getfile(UpdateMaintainerPlugin)
+    plugin_watcher = Watcher()
 
     caplog.clear()
+
+    kwargs = {}
+    if has_version:
+        kwargs['client_version'] = version
 
     workflow = DockerBuildWorkflow(
         context_dir,
@@ -964,83 +307,15 @@ def test_cancel_build(fail_at, context_dir, build_dir, caplog):
         namespace=NAMESPACE,
         pipeline_run_name=PIPELINE_RUN_NAME,
         source=None,
-        plugins=PluginsDef(
-            prebuild=[{'name': 'pre_watched', 'args': {'watcher': watch_pre}}],
-            prepublish=[{'name': 'prepub_watched', 'args': {'watcher': watch_prepub}}],
-            buildstep=[{'name': 'buildstep_watched', 'args': {'watcher': watch_buildstep}}],
-            postbuild=[{'name': 'post_watched', 'args': {'watcher': watch_post}}],
-            exit=[{'name': 'exit_watched', 'args': {'watcher': watch_exit}}],
-        ),
+        plugins_conf=[
+            {'name': UpdateMaintainerPlugin.key, 'args': {'watcher': plugin_watcher}}
+        ],
         plugin_files=[this_file],
+        **kwargs,
     )
-    # BaseException repr does not include trailing comma in Python >= 3.7
-    # we look for a partial match in log strings for Python < 3.7 compatibility
-    expected_entry = (
-        "plugin '{}_watched' raised an exception: BuildCanceledException: Build was canceled"
-    )
-    if fail_at == 'buildstep':
-        with pytest.raises(PluginFailedException):
-            workflow.build_docker_image()
-        assert workflow.data.build_canceled
-        assert any(
-            expected_entry.format(fail_at) in record.message
-            for record in caplog.records
-            if record.levelno == logging.ERROR
-        )
-    else:
-        workflow.build_docker_image()
 
-        if fail_at != 'exit':
-            assert workflow.data.build_canceled
-            assert any(
-                expected_entry.format(fail_at) in record.message
-                for record in caplog.records
-                if record.levelno == logging.WARNING
-            )
-        else:
-            assert not workflow.data.build_canceled
-
-    assert watch_exit.was_called()
-    assert watch_pre.was_called()
-
-    if fail_at not in ['pre', 'buildstep']:
-        assert watch_prepub.was_called()
-
-    if fail_at not in ['pre', 'prepub', 'buildstep']:
-        assert watch_post.was_called()
-
-
-@pytest.mark.parametrize('has_version', [True, False])
-def test_show_version(has_version, context_dir, build_dir, caplog):
-    """
-    Test atomic-reactor print version of osbs-client used to build the build json
-    if available
-    """
-    VERSION = "1.0"
-    flexmock(DockerfileParser, content='df_content')
-    this_file = inspect.getfile(PreRaises)
-    watch_buildstep = Watcher()
-
-    caplog.clear()
-
-    plugins = PluginsDef(
-        buildstep=[{'name': 'buildstep_watched', 'args': {'watcher': watch_buildstep}}],
-    )
-    params = {
-        'plugins': plugins,
-        'plugin_files': [this_file],
-    }
-    if has_version:
-        params['client_version'] = VERSION
-
-    workflow = DockerBuildWorkflow(context_dir,
-                                   build_dir,
-                                   namespace=NAMESPACE,
-                                   pipeline_run_name=PIPELINE_RUN_NAME,
-                                   source=None,
-                                   **params)
     workflow.build_docker_image()
-    expected_log_message = "build json was built by osbs-client {}".format(VERSION)
+    expected_log_message = f"build json was built by osbs-client {version}"
     assert any(
         expected_log_message in record.message
         for record in caplog.records
@@ -1048,12 +323,7 @@ def test_show_version(has_version, context_dir, build_dir, caplog):
     ) == has_version
 
 
-def test_parent_images_to_str(caplog, context_dir, build_dir):
-    workflow = DockerBuildWorkflow(context_dir,
-                                   build_dir,
-                                   namespace=NAMESPACE,
-                                   pipeline_run_name=PIPELINE_RUN_NAME,
-                                   source=None)
+def test_parent_images_to_str(workflow, caplog):
     workflow.data.dockerfile_images = DockerfileImages(['fedora:latest', 'bacon'])
     workflow.data.dockerfile_images['fedora:latest'] = "spam"
     expected_results = {

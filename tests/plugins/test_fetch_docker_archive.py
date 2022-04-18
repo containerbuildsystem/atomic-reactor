@@ -4,9 +4,9 @@ from flexmock import flexmock
 
 from atomic_reactor.constants import EXPORTED_SQUASHED_IMAGE_NAME, IMAGE_TYPE_DOCKER_ARCHIVE
 from atomic_reactor.dirs import BuildDir
-from atomic_reactor.plugin import PostBuildPluginsRunner
 from atomic_reactor.plugins.fetch_docker_archive import FetchDockerArchivePlugin
 from atomic_reactor.utils.imageutil import ImageUtil
+from tests.mock_env import MockEnv
 
 
 class TestFetchDockerArchive(object):
@@ -25,16 +25,10 @@ class TestFetchDockerArchive(object):
         workflow.build_dir.for_each_platform(self.create_image)
         flexmock(ImageUtil).should_receive('download_image_archive_tarball').times(4)
 
-        runner = PostBuildPluginsRunner(
-            workflow,
-            [{
-                'name': FetchDockerArchivePlugin.key,
-                'args': {
-                },
-            }]
-        )
-
-        results = runner.run()
+        results = (MockEnv(workflow)
+                   .for_plugin(FetchDockerArchivePlugin.key)
+                   .create_runner()
+                   .run())
 
         for platform, metadata in results[FetchDockerArchivePlugin.key].items():
             image_path = workflow.build_dir.path / platform

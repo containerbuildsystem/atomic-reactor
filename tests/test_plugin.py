@@ -5,22 +5,29 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
-import sys
+import os.path
 import time
 import inspect
+import sys
+from typing import Any, Dict, List, Final
 
 from flexmock import flexmock
 import pytest
 
-from atomic_reactor.plugin import (BuildPluginsRunner, PreBuildPluginsRunner,
-                                   PostBuildPluginsRunner,
-                                   PluginFailedException, PrePublishPluginsRunner,
-                                   ExitPluginsRunner, BuildStepPluginsRunner,
-                                   PluginsRunner, InappropriateBuildStepError,
-                                   Plugin, PreBuildSleepPlugin, )
+from atomic_reactor.inner import DockerBuildWorkflow
+from atomic_reactor.plugin import (
+    Plugin,
+    PluginExecutionInfo,
+    PluginFailedException,
+    PluginsRunner,
+    PreBuildSleepPlugin,
+)
+from atomic_reactor.plugins.add_filesystem import AddFilesystemPlugin
+from atomic_reactor.plugins.tag_and_push import TagAndPushPlugin
 
 from tests.constants import DOCKERFILE_GIT
 
+THIS_FILE: Final[str] = os.path.abspath(__file__)
 TEST_IMAGE = "fedora:latest"
 SOURCE = {"provider": "git", "uri": DOCKERFILE_GIT}
 DUMMY_BUILD_RESULT = {"image_id": "image_id"}
@@ -28,315 +35,194 @@ DUMMY_BUILD_RESULT = {"image_id": "image_id"}
 pytestmark = pytest.mark.usefixtures('user_params')
 
 
-class MyBsPlugin1(Plugin):
-    key = 'MyBsPlugin1'
+class PushImagePlugin(Plugin):
+    key = 'push_image'
 
     def run(self):
-        return DUMMY_BUILD_RESULT
+        return "pushed"
 
 
-class MyBsPlugin2(Plugin):
-    key = 'MyBsPlugin2'
+class CleanupPlugin(Plugin):
+    key = 'clean_up'
+
+    def run(self): pass
+
+
+class StoreArtifactsPlugin(Plugin):
+    is_allowed_to_fail = False
+    key = 'store_artifacts'
 
     def run(self):
-        return DUMMY_BUILD_RESULT
+        raise IOError("no permission")
 
 
-class MyPreBuildPlugin(Plugin):
-    key = 'MyPreBuildPlugin'
+class WriteRemoteLogsPlugin(Plugin):
+    key = "write_logs"
 
     def run(self):
-        raise InappropriateBuildStepError
+        raise IOError("remote host is unavailable.")
 
 
-@pytest.mark.parametrize('runner_type', [  # noqa
-    PreBuildPluginsRunner,
-    PostBuildPluginsRunner,
-    ExitPluginsRunner,
-    BuildStepPluginsRunner,
-])
-def test_load_plugins(runner_type, workflow):
+def teardown_function(function):
+    module_name, _, _ = os.path.basename(__file__).partition(".")
+    if module_name in sys.modules:
+        del sys.modules[module_name]
+
+
+@pytest.mark.parametrize("use_plugin_file", [True, False])
+def test_load_plugins(use_plugin_file, workflow):
     """
     test loading plugins
     """
-    runner = runner_type(workflow, None)
+    plugins_files = [inspect.getfile(PushImagePlugin)] if use_plugin_file else []
+    runner = PluginsRunner(workflow, [], plugin_files=plugins_files)
+
     assert runner.plugin_classes is not None
     assert len(runner.plugin_classes) > 0
 
+    # Randomly verify the plugin existence
+    assert AddFilesystemPlugin.key in runner.plugin_classes
+    assert TagAndPushPlugin.key in runner.plugin_classes
 
-class X(object):
-    pass
+    if use_plugin_file:
+        assert PushImagePlugin.key in runner.plugin_classes
+        assert CleanupPlugin.key in runner.plugin_classes
 
 
-@pytest.mark.skip(reason="Currently no plugin is required, will be reworked")
-@pytest.mark.parametrize('runner_type', [  # noqa
-    PreBuildPluginsRunner,
-    PrePublishPluginsRunner,
-    PostBuildPluginsRunner,
-    ExitPluginsRunner,
-    BuildStepPluginsRunner,
+@pytest.mark.parametrize("plugins_conf,expected", [
+    [[{"name": "cool_plugin", "required": False}], []],
+    [
+        [{"name": "cool_plugin"}],
+        pytest.raises(PluginFailedException, match="no such plugin"),
+    ],
+    [
+        [{"name": "cool_plugin", "required": True}],
+        pytest.raises(PluginFailedException, match="no such plugin"),
+    ],
+    [
+        [
+            {"name": PushImagePlugin.key},
+            {"name": AddFilesystemPlugin.key, "args": {"arg1": "value"}},
+        ],
+        [
+            PluginExecutionInfo(plugin_name=PushImagePlugin.key,
+                                plugin_class=PushImagePlugin,
+                                conf={},
+                                is_allowed_to_fail=True),
+            PluginExecutionInfo(plugin_name=AddFilesystemPlugin.key,
+                                plugin_class=AddFilesystemPlugin,
+                                conf={"arg1": "value"},
+                                is_allowed_to_fail=False),
+        ],
+    ],
 ])
-@pytest.mark.parametrize('required', [
-    True,
-    False,
-])
-def test_required_plugin_failure(workflow, runner_type, required):
-    """
-    test required option for plugins
-    and check if it fails when is required
-    and also check plugin_failed value
-    """
-    assert workflow.data.plugin_failed is False
-    params = (workflow,
-              [{"name": "no_such_plugin",
-               "required": required}])
+def test_get_available_plugins(plugins_conf: List[Dict[str, Any]],
+                               expected,
+                               workflow: DockerBuildWorkflow):
+    if isinstance(expected, list):
+        runner = PluginsRunner(
+            workflow, plugins_conf,
+            plugin_files=[inspect.getfile(PushImagePlugin)],
+        )
+        expected_exec_info: PluginExecutionInfo
+        for got_exec_info, expected_exec_info in zip(runner.available_plugins, expected):
+            assert got_exec_info.plugin_name == expected_exec_info.plugin_name
+            assert got_exec_info.conf == expected_exec_info.conf
+            assert got_exec_info.is_allowed_to_fail == expected_exec_info.is_allowed_to_fail
 
-    if required or runner_type == BuildStepPluginsRunner:
-        with pytest.raises(PluginFailedException):
-            runner = runner_type(*params)
-            runner.run()
+            # For easy comparison. Otherwise, the different path within class
+            # repr has to be handled. For example:
+            # tests.test_plugin.MyPlugin1 and test_plugin.MyPlugin1
+            left = got_exec_info.plugin_class.__name__.split(".")[-1]
+            right = expected_exec_info.plugin_class.__name__.split(".")[-1]
+            assert left == right
     else:
-        runner = runner_type(*params)
-        runner.run()
-    if runner_type == BuildStepPluginsRunner:
-        assert workflow.data.plugin_failed is True
-    else:
-        assert workflow.data.plugin_failed is required
-
-
-@pytest.mark.parametrize('runner_type', [
-    PreBuildPluginsRunner,
-    PrePublishPluginsRunner,
-    PostBuildPluginsRunner,
-    ExitPluginsRunner,
-    BuildStepPluginsRunner,
-])
-@pytest.mark.parametrize('required', [True, False])
-def test_verify_required_plugins_before_first_run(caplog, workflow, runner_type, required):
-    """
-    test plugin availability checks before running any plugins
-    """
-    class MyPlugin(Plugin):
-        key = 'MyPlugin'
-
-        def run(self):
-            return DUMMY_BUILD_RESULT
-
-    flexmock(PluginsRunner, load_plugins=lambda: {MyPlugin.key: MyPlugin})
-    params = (workflow,
-              [{"name": MyPlugin.key, "required": False},
-               {"name": "no_such_plugin", "required": required}])
-    expected_log_message = "running plugin '%s'" % MyPlugin.key
-
-    # build step plugins set "required" to False
-    if required and (runner_type != BuildStepPluginsRunner):
-        with pytest.raises(PluginFailedException):
-            runner = runner_type(*params)
-            runner.run()
-        assert all(expected_log_message not in log.getMessage() for log in caplog.records)
-    else:
-        runner = runner_type(*params)
-        runner.run()
-        assert any(expected_log_message in log.getMessage() for log in caplog.records)
+        with expected:
+            PluginsRunner(workflow, plugins_conf)
+        err_msg = workflow.data.plugins_errors["cool_plugin"]
+        assert "no such plugin" in err_msg
 
 
 def test_check_no_reload(workflow):
     """
     test if plugins are not reloaded
     """
-    this_file = inspect.getfile(MyBsPlugin1)
-    BuildStepPluginsRunner(workflow,
-                           [{"name": "MyBsPlugin1"}],
-                           plugin_files=[this_file])
+    PluginsRunner(workflow,
+                  [{"name": PushImagePlugin.key}],
+                  plugin_files=[THIS_FILE])
     module_id_first = id(sys.modules['test_plugin'])
-    BuildStepPluginsRunner(workflow,
-                           [{"name": "MyBsPlugin1"}],
-                           plugin_files=[this_file])
+    PluginsRunner(workflow,
+                  [{"name": PushImagePlugin.key}],
+                  plugin_files=[THIS_FILE])
     module_id_second = id(sys.modules['test_plugin'])
     assert module_id_first == module_id_second
 
-@pytest.mark.parametrize('success1', [True, False])  # noqa
-@pytest.mark.parametrize('success2', [True, False])
-def test_buildstep_phase_build_plugin(caplog, workflow, success1, success2):
-    """
-    plugin runner should stop after first successful plugin
-    InappropriateBuildStepError exception isn't critical,
-    and won't fail buildstep runner
-    unless no plugin finished successfully
-    """
-    flexmock(PluginsRunner, load_plugins=lambda: {
-                                        MyBsPlugin1.key: MyBsPlugin1,
-                                        MyBsPlugin2.key: MyBsPlugin2, })
-    runner = BuildStepPluginsRunner(workflow,
-                                    [{"name": MyBsPlugin1.key},
-                                     {"name": MyBsPlugin2.key}])
 
-    will_fail = False
-    if success1:
-        flexmock(MyBsPlugin1).should_call('run').once()
-        flexmock(MyBsPlugin2).should_call('run').never()
-    else:
-        flexmock(MyBsPlugin1).should_receive('run').and_raise(InappropriateBuildStepError).once()
-        if success2:
-            flexmock(MyBsPlugin2).should_call('run').once()
-        else:
-            flexmock(MyBsPlugin2).should_receive('run').and_raise(InappropriateBuildStepError
-                                                                  ).once()
-            will_fail = True
-
-    if will_fail:
-        with pytest.raises(PluginFailedException, match="No appropriate build step"):
-            runner.run()
-    else:
-        runner.run()
-        expected_log_message = "stopping further execution of plugins after first successful plugin"
-        assert expected_log_message in [log.getMessage() for log in caplog.records]
-
-
-@pytest.mark.parametrize('success1', [True, False])  # noqa
-def test_buildstep_phase_build_plugin_failing_exception(workflow, caplog, success1):
-    """
-    plugin runner should stop after first successful plugin
-    Exception exception is critical,
-    and will fail buildstep runner
-    """
-    flexmock(PluginsRunner, load_plugins=lambda: {
-                                        MyBsPlugin1.key: MyBsPlugin1,
-                                        MyBsPlugin2.key: MyBsPlugin2, })
-    runner = BuildStepPluginsRunner(workflow,
-                                    [{"name": MyBsPlugin1.key},
-                                     {"name": MyBsPlugin2.key}])
-
-    will_fail = False
-    if success1:
-        flexmock(MyBsPlugin1).should_call('run').once()
-        flexmock(MyBsPlugin2).should_call('run').never()
-    else:
-        flexmock(MyBsPlugin1).should_receive('run').and_raise(Exception).once()
-        will_fail = True
-        flexmock(MyBsPlugin2).should_call('run').never()
-
-    if will_fail:
-        with pytest.raises(Exception):
-            runner.run()
-    else:
-        runner.run()
-        expected_log_message = "stopping further execution of plugins after first successful plugin"
-        assert expected_log_message in [log.getMessage() for log in caplog.records]
-
-
-def test_non_buildstep_phase_raises_InappropriateBuildStepError(caplog, workflow):  # noqa
-    """
-    tests that exception is raised if no buildstep_phase
-    but raises InappropriateBuildStepError
-    """
-    flexmock(PluginsRunner, load_plugins=lambda: {
-                                        MyPreBuildPlugin.key: MyPreBuildPlugin})
-    runner = PreBuildPluginsRunner(workflow,
-                                   [{"name": MyPreBuildPlugin.key}])
-
-    with pytest.raises(Exception):
-        runner.run()
-
-
-@pytest.mark.skip(reason="Currently no plugin is required, will be reworked")
-def test_no_appropriate_buildstep_build_plugin(caplog, workflow):  # noqa
-    """
-    test that build fails if there isn't any
-    appropriate buildstep plugin (doesn't exist)
-    """
-    flexmock(PluginsRunner, load_plugins=lambda: {})
-    runner = BuildStepPluginsRunner(workflow,
-                                    [{"name": MyBsPlugin1.key},
-                                     {"name": MyBsPlugin2.key}])
-
-    with pytest.raises(Exception):
-        runner.run()
-
-
-@pytest.mark.parametrize('pluginconf_method, expected', [  # noqa
-    ('source_container', 'source_container'),
+@pytest.mark.parametrize('params', [
+    {'spam': 'maps'},
+    {'spam': 'maps', 'eggs': 'sgge'},
 ])
-def test_which_buildstep_plugin_configured(workflow, pluginconf_method, expected):
-    """
-    test buildstep plugin adjustments.
-    if no/empty build_step specified,
-    build plugin from source or default will run
-    """
-    expected = [{'name': expected, 'is_allowed_to_fail': False}]
-    plugins_conf = pluginconf_method
-    if pluginconf_method:
-        plugins_conf = [{'name': pluginconf_method, 'is_allowed_to_fail': False}]
-        expected[0]['required'] = False
+def test_runner_create_instance_from_plugin(tmpdir, params):
+    workflow = flexmock(data=flexmock())
+    workflow.data.image_id = 'image-id'
+    workflow.source = flexmock()
+    workflow.source.dockerfile_path = 'dockerfile-path'
+    workflow.source.path = 'path'
+    workflow.user_params = {'shrubbery': 'yrebburhs'}
 
-    runner = BuildStepPluginsRunner(workflow, plugins_conf)
-    assert runner.plugins_conf == expected
+    class MyPlugin(Plugin):
+
+        key = 'my_plugin'
+
+        @staticmethod
+        def args_from_user_params(user_params):
+            return {'shrubbery': user_params['shrubbery']}
+
+        def __init__(self, workflow, spam=None, shrubbery=None):
+            super().__init__(workflow)
+            self.spam = spam
+            self.shrubbery = shrubbery
+
+        def run(self):
+            pass
+
+    bpr = PluginsRunner(workflow, [])
+    plugin = bpr.create_instance_from_plugin(MyPlugin, params)
+
+    assert plugin.spam == params['spam']
+    assert plugin.shrubbery == 'yrebburhs'
 
 
-class TestBuildPluginsRunner(object):
+@pytest.mark.parametrize('params', [
+    {'spam': 'maps'},
+    {'spam': 'maps', 'eggs': 'sgge'},
+])
+def test_runner_create_instance_from_plugin_with_kwargs(tmpdir, params):
+    workflow = flexmock(data=flexmock())
+    workflow.data.image_id = 'image-id'
+    workflow.source = flexmock()
+    workflow.source.dockerfile_path = 'dockerfile-path'
+    workflow.source.path = 'path'
+    workflow.user_params = {}
 
-    @pytest.mark.parametrize(('params'), [
-        {'spam': 'maps'},
-        {'spam': 'maps', 'eggs': 'sgge'},
-    ])
-    def test_create_instance_from_plugin(self, tmpdir, params):
-        workflow = flexmock(data=flexmock())
-        workflow.data.image_id = 'image-id'
-        workflow.source = flexmock()
-        workflow.source.dockerfile_path = 'dockerfile-path'
-        workflow.source.path = 'path'
-        workflow.user_params = {'shrubbery': 'yrebburhs'}
+    class MyPlugin(Plugin):
 
-        class MyPlugin(Plugin):
+        key = 'my_plugin'
 
-            key = 'my_plugin'
+        def __init__(self, workflow, spam=None, **kwargs):
+            super().__init__(workflow)
+            self.spam = spam
+            for key, value in kwargs.items():
+                setattr(self, key, value)
 
-            @staticmethod
-            def args_from_user_params(user_params):
-                return {'shrubbery': user_params['shrubbery']}
+        def run(self):
+            pass
 
-            def __init__(self, workflow, spam=None, shrubbery=None):
-                self.spam = spam
-                self.shrubbery = shrubbery
+    bpr = PluginsRunner(workflow, [])
+    plugin = bpr.create_instance_from_plugin(MyPlugin, params)
 
-            def run(self):
-                pass
-
-        bpr = BuildPluginsRunner(workflow, {})
-        plugin = bpr.create_instance_from_plugin(MyPlugin, params)
-
-        assert plugin.spam == params['spam']
-        assert plugin.shrubbery == 'yrebburhs'
-
-    @pytest.mark.parametrize(('params'), [
-        {'spam': 'maps'},
-        {'spam': 'maps', 'eggs': 'sgge'},
-    ])
-    def test_create_instance_from_plugin_with_kwargs(self, tmpdir, params):
-        workflow = flexmock(data=flexmock())
-        workflow.data.image_id = 'image-id'
-        workflow.source = flexmock()
-        workflow.source.dockerfile_path = 'dockerfile-path'
-        workflow.source.path = 'path'
-        workflow.user_params = {}
-
-        class MyPlugin(Plugin):
-
-            key = 'my_plugin'
-
-            def __init__(self, workflow, spam=None, **kwargs):
-                self.spam = spam
-                for key, value in kwargs.items():
-                    setattr(self, key, value)
-
-            def run(self):
-                pass
-
-        bpr = BuildPluginsRunner(workflow, {})
-        plugin = bpr.create_instance_from_plugin(MyPlugin, params)
-
-        for key, value in params.items():
-            assert getattr(plugin, key) == value
+    for key, value in params.items():
+        assert getattr(plugin, key) == value
 
 
 class TestPreBuildSleepPlugin(object):
@@ -355,3 +241,47 @@ class TestPreBuildSleepPlugin(object):
 
         plugin = PreBuildSleepPlugin(**kwargs)
         plugin.run()
+
+
+def test_store_plugin_result(workflow: DockerBuildWorkflow):
+    runner = PluginsRunner(
+        workflow,
+        [{"name": CleanupPlugin.key}, {"name": PushImagePlugin.key}],
+        plugin_files=[THIS_FILE],
+    )
+    runner.run()
+
+    assert runner.plugins_results[CleanupPlugin.key] is None
+    assert "pushed" == runner.plugins_results[PushImagePlugin.key]
+
+
+@pytest.mark.parametrize("allow_plugin_fail", [True, False])
+def test_run_plugins_in_keep_going_mode(
+        allow_plugin_fail: bool, workflow: DockerBuildWorkflow, caplog
+):
+    plugins_conf = [{"name": CleanupPlugin.key}]
+    if allow_plugin_fail:
+        plugins_conf.append({"name": WriteRemoteLogsPlugin.key})
+    else:
+        plugins_conf.append({"name": StoreArtifactsPlugin.key})
+
+    # Let the failure happens firstly
+    plugins_conf.reverse()
+
+    runner = PluginsRunner(
+        workflow, plugins_conf, plugin_files=[THIS_FILE], keep_going=True
+    )
+
+    if allow_plugin_fail:
+        runner.run()
+        # The error should just be logged
+        assert "remote host is unavailable" in caplog.text
+    else:
+        with pytest.raises(PluginFailedException, match="no permission"):
+            runner.run()
+        # The error must be recorded
+        assert "no permission" in workflow.data.plugins_errors[StoreArtifactsPlugin.key]
+
+    # The subsequent plug should get a chance to run after previous error.
+    assert "continuing..." in caplog.text
+    assert runner.plugins_results[CleanupPlugin.key] is None
