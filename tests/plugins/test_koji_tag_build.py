@@ -10,7 +10,8 @@ import koji
 
 from atomic_reactor.plugins.koji_tag_build import KojiTagBuildPlugin
 from atomic_reactor.plugins.koji_import import KojiImportPlugin
-from atomic_reactor.plugin import PluginFailedException, PostBuildPluginsRunner
+from atomic_reactor.plugin import PluginFailedException
+from tests.mock_env import MockEnv
 from tests.util import add_koji_map_in_workflow
 
 from flexmock import flexmock
@@ -84,30 +85,21 @@ def mock_environment(workflow, session=None, build_process_failed=False,
 def create_runner(workflow, ssl_certs=False, principal=None,
                   keytab=None, poll_interval=0.01, proxy_user=None,
                   use_args=True, koji_target='koji-target'):
-    args = {
-        'target': koji_target,
-    }
-
-    if poll_interval is not None:
-        args['poll_interval'] = poll_interval
-
     add_koji_map_in_workflow(workflow, hub_url='',
                              ssl_certs_dir='/' if ssl_certs else None,
                              krb_keytab=keytab,
                              krb_principal=principal,
                              proxyuser=proxy_user)
 
-    plugin_conf = {
-        'name': KojiTagBuildPlugin.key
-    }
-    if use_args:
-        plugin_conf['args'] = args
-    else:
-        plugin_conf['args'] = {'target': koji_target}
+    args = {'target': koji_target}
+    if poll_interval is not None:
+        args['poll_interval'] = poll_interval
+    if not use_args:
+        args = {'target': koji_target}
 
-    runner = PostBuildPluginsRunner(workflow, [plugin_conf])
-
-    return runner
+    return (MockEnv(workflow)
+            .for_plugin(KojiTagBuildPlugin.key, args=args)
+            .create_runner())
 
 
 @pytest.mark.usefixtures('user_params')

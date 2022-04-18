@@ -16,13 +16,13 @@ import os
 import sys
 import traceback
 import imp  # pylint: disable=deprecated-module
-import datetime
 import inspect
 import time
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Any, Dict, Generator, TYPE_CHECKING, List, Optional, Union
+from datetime import datetime
+from typing import Any, Dict, Generator, TYPE_CHECKING, List, Optional
 
 from atomic_reactor.util import exception_message
 
@@ -47,10 +47,6 @@ class PluginFailedException(Exception):
 
 class BuildCanceledException(Exception):
     """Build was canceled"""
-
-
-class InappropriateBuildStepError(Exception):
-    """Requested build step is not appropriate"""
 
 
 class Plugin(ABC):
@@ -140,24 +136,36 @@ class PreBuildSleepPlugin(Plugin):
 
 class PluginsRunner(object):
 
-    def __init__(self, plugins_conf: List[Dict[str, Any]], *args, **kwargs) -> None:
+    def __init__(
+            self,
+            workflow: "DockerBuildWorkflow",
+            plugins_conf: List[Dict[str, Any]],
+            plugin_files: Optional[List[str]] = None,
+            keep_going: bool = False,
+            plugins_results: Optional[Dict[str, Any]] = None,
+    ) -> None:
         """constructor
 
         :param plugins_conf: list of dicts, configuration for plugins,
             e.g. [{'name': 'plugin_a', 'required': True}, ...]
         :type plugins_conf: list[dict[str, any]]
+        :param plugin_files: optional file paths from where to load plugins.
+        :type plugin_files: list[str]
+        :param bool keep_going: keep running next plugin even if error is
+            raised from previous plugin.
         """
-        self.plugins_results = getattr(self, "plugins_results", {})
+        self.workflow = workflow
+        self.plugins_results = {} if plugins_results is None else plugins_results
         self.plugins_conf = plugins_conf or []
-        self.plugin_files = kwargs.get("plugin_files", [])
+        self.plugin_files = plugin_files or []
         self.plugin_classes = self.load_plugins()
         self.available_plugins = self.get_available_plugins()
+        self.keep_going = keep_going
 
-    def load_plugins(self):
+    def load_plugins(self) -> Dict[str, Plugin]:
         """
         load all available plugins
 
-        :param plugin_class_name: str, name of plugin class (e.g. 'PreBuildPlugin')
         :return: dict, bindings for plugins of the plugin_class_name class
         """
         # imp.findmodule('atomic_reactor') doesn't work
@@ -182,7 +190,7 @@ class PluginsRunner(object):
                     logger.warning("can't load module '%s': %s", f, ex)
                     continue
             for name in dir(f_module):
-                binding = getattr(f_module, name, None)
+                binding = getattr(f_module, name)
                 try:
                     # if you try to compare binding and Plugin, python won't match them
                     # if you call this script directly b/c:
@@ -198,37 +206,13 @@ class PluginsRunner(object):
                     plugin_classes[binding.key] = binding
         return plugin_classes
 
-    def create_instance_from_plugin(self, plugin_class, plugin_conf):
-        """
-        create instance from plugin using the plugin class and configuration passed to for it
-
-        :param plugin_class: plugin class
-        :param plugin_conf: dict, configuration for plugin
-        :return:
-        """
-        plugin_instance = plugin_class(**plugin_conf)
-        return plugin_instance
-
-    def on_plugin_failed(
-        self,
-        plugin: Optional[str] = None,
-        # Remove type str when the buildstep is removed.
-        exception: Optional[Union[Exception, str]] = None,
-    ):
-        pass
-
-    def save_plugin_timestamp(self, plugin, timestamp):
-        pass
-
-    def save_plugin_duration(self, plugin, duration):
-        pass
-
     def get_available_plugins(self):
         """
         check requested plugins availability
         and handle missing plugins
 
-        :return: list of namedtuples, runnable plugins data
+        :return: list of plugin execution info
+        :rtype: list[PluginExecutionInfo]
         """
         available_plugins = []
         for plugin_request in self.plugins_conf:
@@ -262,114 +246,20 @@ class PluginsRunner(object):
             )
         return available_plugins
 
-    @contextmanager
-    def _execution_timer(self, exec_info: PluginExecutionInfo) -> Generator:
-        logger.debug("running plugin '%s'", exec_info.plugin_name)
-        start_time = datetime.datetime.now()
-        plugin_key = exec_info.plugin_class.key
-        self.save_plugin_timestamp(plugin_key, start_time)
-        try:
-            yield
-        finally:
-            try:
-                finish_time = datetime.datetime.now()
-                duration = finish_time - start_time
-                seconds = duration.total_seconds()
-                logger.debug("plugin '%s' finished in %ds", exec_info.plugin_name, seconds)
-                self.save_plugin_duration(plugin_key, seconds)
-            except Exception:
-                logger.exception("failed to save plugin duration")
-
-    def run(self, keep_going=False, buildstep_phase=False):
-        """
-        run all requested plugins
-
-        :param keep_going: bool, whether to keep going after unexpected
-                                 failure (only used for exit plugins)
-        :param buildstep_phase: bool, when True remaining plugins will
-                                not be executed after a plugin completes
-                                (only used for build-step plugins)
-        """
-        failed_msgs = []
-        plugin_successful = False
-        available_plugins = self.available_plugins
-        for plugin in available_plugins:
-            plugin_successful = False
-
-            try:
-                plugin_instance = self.create_instance_from_plugin(plugin.plugin_class,
-                                                                   plugin.conf)
-                with self._execution_timer(plugin):
-                    self.plugins_results[plugin.plugin_class.key] = plugin_instance.run()
-                plugin_successful = True
-
-            except InappropriateBuildStepError:
-                logger.debug('Build step %s is not appropriate', plugin.plugin_class.key)
-                # don't put None, in results for InappropriateBuildStepError
-                if not buildstep_phase:
-                    raise
-            except Exception as ex:
-                msg = "plugin '%s' raised an exception: %s" % (plugin.plugin_class.key,
-                                                               exception_message(ex))
-                logger.debug(traceback.format_exc())
-
-                if not plugin.is_allowed_to_fail:
-                    self.on_plugin_failed(plugin.plugin_class.key, ex)
-
-                if plugin.is_allowed_to_fail or keep_going:
-                    logger.warning(msg)
-                    logger.info("error is not fatal, continuing...")
-                    if not plugin.is_allowed_to_fail:
-                        failed_msgs.append(msg)
-                else:
-                    logger.error(msg)
-                    raise PluginFailedException(msg) from ex
-
-            if plugin_successful and buildstep_phase:
-                logger.debug('stopping further execution of plugins '
-                             'after first successful plugin')
-                break
-
-        if len(failed_msgs) == 1:
-            raise PluginFailedException(failed_msgs[0])
-        elif len(failed_msgs) > 1:
-            raise PluginFailedException("Multiple plugins raised an exception: " +
-                                        str(failed_msgs))
-
-        # When a buildstep plugin raises InappropriateBuildStepError, next
-        # buildstep plugin will run. This ensures to fail the build process
-        # if all buildstep plugins are tried and no one succeeds.
-        if not plugin_successful and buildstep_phase and available_plugins:
-            self.on_plugin_failed("BuildStepPlugin", "No appropriate build step")
-            raise PluginFailedException("No appropriate build step")
-
-        return self.plugins_results
-
-
-class BuildPluginsRunner(PluginsRunner):
-    def __init__(
-        self, workflow: "DockerBuildWorkflow", plugins_conf: List[Dict[str, Any]], *args, **kwargs
+    def on_plugin_failed(
+            self,
+            plugin: Optional[str] = None,
+            exception: Optional[Exception] = None,
     ):
-        """
-        constructor
-
-        :param workflow: DockerBuildWorkflow instance
-        :param plugin_class_name: str, name of plugin class to filter (e.g. 'PreBuildPlugin')
-        :param plugins_conf: list of dicts, configuration for plugins
-        """
-        self.workflow = workflow
-        super(BuildPluginsRunner, self).__init__(plugins_conf, *args, **kwargs)
-
-    def on_plugin_failed(self, plugin=None, exception=None):
         self.workflow.data.plugin_failed = True
         if plugin and exception:
             self.workflow.data.plugins_errors[plugin] = str(exception)
 
-    def save_plugin_timestamp(self, plugin, timestamp):
-        self.workflow.data.plugins_timestamps[plugin] = timestamp.isoformat()
+    def save_plugin_timestamp(self, name: str, timestamp: datetime) -> None:
+        self.workflow.data.plugins_timestamps[name] = timestamp.isoformat()
 
-    def save_plugin_duration(self, plugin, duration):
-        self.workflow.data.plugins_durations[plugin] = duration
+    def save_plugin_duration(self, name: str, duration: float) -> None:
+        self.workflow.data.plugins_durations[name] = duration
 
     def _translate_special_values(self, obj_to_translate):
         """
@@ -418,7 +308,7 @@ class BuildPluginsRunner(PluginsRunner):
 
         return known_plugin_conf
 
-    def create_instance_from_plugin(self, plugin_class, plugin_conf):
+    def create_instance_from_plugin(self, plugin_class, plugin_conf: Dict[str, Any]):
         plugin_conf = self._remove_unknown_args(plugin_class, plugin_conf)
         plugin_conf.update(plugin_class.args_from_user_params(self.workflow.user_params))
         plugin_conf = self._translate_special_values(plugin_conf)
@@ -426,64 +316,57 @@ class BuildPluginsRunner(PluginsRunner):
         plugin_instance = plugin_class(self.workflow, **plugin_conf)
         return plugin_instance
 
+    @contextmanager
+    def _execution_timer(self, exec_info: PluginExecutionInfo) -> Generator:
+        logger.debug("running plugin '%s'", exec_info.plugin_name)
+        start_time = datetime.now()
+        plugin_key = exec_info.plugin_class.key
+        self.save_plugin_timestamp(plugin_key, start_time)
+        try:
+            yield
+        finally:
+            try:
+                finish_time = datetime.now()
+                duration = finish_time - start_time
+                seconds = duration.total_seconds()
+                logger.debug("plugin '%s' finished in %ds", exec_info.plugin_name, seconds)
+                self.save_plugin_duration(plugin_key, seconds)
+            except Exception:
+                logger.exception("failed to save plugin duration")
 
-class PreBuildPluginsRunner(BuildPluginsRunner):
+    def run(self):
+        """Run all requested plugins."""
+        failed_msgs: List[str] = []
+        available_plugins = self.available_plugins
+        for plugin in available_plugins:
+            plugin_key = plugin.plugin_class.key
+            try:
+                plugin_instance = self.create_instance_from_plugin(
+                    plugin.plugin_class, plugin.conf
+                )
+                with self._execution_timer(plugin):
+                    self.plugins_results[plugin_key] = plugin_instance.run()
+            except Exception as ex:
+                logger.debug(traceback.format_exc())
 
-    def __init__(self, workflow, plugins_conf, *args, **kwargs):
-        logger.info("initializing runner of pre-build plugins")
-        self.plugins_results = workflow.data.plugins_results
-        super().__init__(workflow, plugins_conf, *args, **kwargs)
+                if not plugin.is_allowed_to_fail:
+                    self.on_plugin_failed(plugin.plugin_class.key, ex)
 
+                msg = f"plugin '{plugin_key}' raised an exception: {exception_message(ex)}"
+                if plugin.is_allowed_to_fail or self.keep_going:
+                    logger.warning(msg)
+                    logger.info("error is not fatal, continuing...")
+                    if not plugin.is_allowed_to_fail:
+                        failed_msgs.append(msg)
+                else:
+                    logger.error(msg)
+                    raise PluginFailedException(msg) from ex
 
-class BuildStepPluginsRunner(BuildPluginsRunner):
+        if len(failed_msgs) == 1:
+            raise PluginFailedException(failed_msgs[0])
+        elif len(failed_msgs) > 1:
+            raise PluginFailedException(
+                f"Multiple plugins raised an exception: {str(failed_msgs)}"
+            )
 
-    def __init__(self, workflow, plugin_conf, *args, **kwargs):
-        logger.info("initializing runner of build-step plugin")
-        self.plugins_results = workflow.data.plugins_results
-
-        if plugin_conf:
-            # any non existing buildstep plugin must be skipped without error
-            for plugin in plugin_conf:
-                plugin['required'] = False
-                plugin['is_allowed_to_fail'] = False
-
-        super().__init__(workflow, plugin_conf, *args, **kwargs)
-
-    def run(self, keep_going=False, buildstep_phase=True):
-        logger.info('building image %r inside current environment',
-                    self.workflow.image)
-
-        plugins_results = super(BuildStepPluginsRunner, self).run(
-            keep_going=keep_going, buildstep_phase=buildstep_phase
-        )
-        if plugins_results:
-            return list(plugins_results.values())[0]
-
-
-class PrePublishPluginsRunner(BuildPluginsRunner):
-
-    def __init__(self, workflow, plugins_conf, *args, **kwargs):
-        logger.info("initializing runner of pre-publish plugins")
-        self.plugins_results = workflow.data.plugins_results
-        super().__init__(workflow, plugins_conf, *args, **kwargs)
-
-
-class PostBuildPluginsRunner(BuildPluginsRunner):
-
-    def __init__(self, workflow, plugins_conf, *args, **kwargs):
-        logger.info("initializing runner of post-build plugins")
-        self.plugins_results = workflow.data.plugins_results
-        super().__init__(workflow, plugins_conf, *args, **kwargs)
-
-    def create_instance_from_plugin(self, plugin_class, plugin_conf):
-        instance = super(PostBuildPluginsRunner, self).create_instance_from_plugin(plugin_class,
-                                                                                   plugin_conf)
-
-        return instance
-
-
-class ExitPluginsRunner(BuildPluginsRunner):
-    def __init__(self, workflow, plugins_conf, *args, **kwargs):
-        logger.info("initializing runner of exit plugins")
-        self.plugins_results = workflow.data.plugins_results
-        super().__init__(workflow, plugins_conf, *args, **kwargs)
+        return self.plugins_results

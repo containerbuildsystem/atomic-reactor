@@ -328,7 +328,7 @@ def mock_env(workflow, r_c_m=None, domains_override=None):
         r_c_m.setdefault('artifacts_allowed_domains', domains_override)
 
     env = (MockEnv(workflow)
-           .for_plugin('prebuild', FetchMavenArtifactsPlugin.key)
+           .for_plugin(FetchMavenArtifactsPlugin.key)
            .set_reactor_config(r_c_m))
 
     workflow.build_dir.init_build_dirs(["aarch64", "x86_64"], workflow.source)

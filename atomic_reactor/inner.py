@@ -24,26 +24,17 @@ from typing import Any, Callable, Dict, Final, List, Optional, Union
 from dockerfile_parse import DockerfileParser
 
 from atomic_reactor.dirs import ContextDir, RootBuildDir
-from atomic_reactor.plugin import (
-    BuildCanceledException,
-    BuildStepPluginsRunner,
-    ExitPluginsRunner,
-    PluginFailedException,
-    PostBuildPluginsRunner,
-    PreBuildPluginsRunner,
-    PrePublishPluginsRunner,
-)
+from atomic_reactor.plugin import BuildCanceledException, PluginsRunner
 from atomic_reactor.constants import (
     DOCKER_STORAGE_TRANSPORT_NAME,
     REACTOR_CONFIG_FULL_PATH,
     DOCKERFILE_FILENAME,
 )
 from atomic_reactor.types import ISerializer, RpmComponent
-from atomic_reactor.util import (exception_message, DockerfileImages,
+from atomic_reactor.util import (DockerfileImages,
                                  base_image_is_custom, print_version_of_tools, validate_with_schema)
 from atomic_reactor.config import Configuration
 from atomic_reactor.source import Source, DummySource
-from atomic_reactor.tasks import PluginsDef
 from atomic_reactor.utils import imageutil
 # from atomic_reactor import get_logging_encoding
 from osbs.utils import ImageName
@@ -481,11 +472,12 @@ class DockerBuildWorkflow(object):
         pipeline_run_name: str,
         data: Optional[ImageBuildWorkflowData] = None,
         source: Source = None,
-        plugins: PluginsDef = None,
         user_params: dict = None,
         reactor_config_path: str = REACTOR_CONFIG_FULL_PATH,
-        plugin_files: List[str] = None,
         client_version: str = None,
+        plugins_conf: Optional[List[Dict[str, Any]]] = None,
+        plugin_files: Optional[List[str]] = None,
+        keep_plugins_running: bool = False,
     ):
         """
         :param context_dir: the directory passed to task --context-dir argument.
@@ -497,11 +489,14 @@ class DockerBuildWorkflow(object):
         :param source: where/how to get source code to put in image
         :param namespace: OpenShift namespace of the task
         :param pipeline_run_name: PipelineRun name to reference PipelineRun
-        :param plugins: the plugins to be executed in this workflow
+        :param plugins_conf: the plugins to be executed in this workflow
+        :type plugins_conf: list[dict[str, any]] or None
         :param user_params: user (and other) params that control various aspects of the build
         :param reactor_config_path: path to atomic-reactor configuration file
         :param plugin_files: load plugins also from these files
         :param client_version: osbs-client version used to render build json
+        :param bool keep_plugins_running: keep plugins running even if error is
+            raised from previous one. This is passed to ``PluginsRunner`` directly.
         """
         self.context_dir = context_dir
         self.build_dir = build_dir
@@ -509,10 +504,11 @@ class DockerBuildWorkflow(object):
         self.namespace = namespace
         self.pipeline_run_name = pipeline_run_name
         self.source = source or DummySource(None, None)
-        self.plugins = plugins or PluginsDef()
         self.user_params = user_params or self._default_user_params.copy()
 
+        self.keep_plugins_running = keep_plugins_running
         self.plugin_files = plugin_files
+        self.plugins_conf = plugins_conf or []
         self.fs_watcher = FSWatcher()
 
         self.storage_transport = DOCKER_STORAGE_TRANSPORT_NAME
@@ -643,77 +639,27 @@ class DockerBuildWorkflow(object):
         raise BuildCanceledException("Build was canceled")
 
     def build_docker_image(self) -> None:
-        """
-        build docker image
+        """Start the container build.
+
+        In general, all plugins run in order and the execution can be
+        terminated by sending SIGTERM signal to atomic-reactor.
+
+        When argument ``keep_plugins_running`` is set, the specified plugins
+        are all ensured to be executed and the SIGTERM signal is ignored.
         """
         print_version_of_tools()
-
-        exception_being_handled = False
-        # Make sure exit_runner is defined for finally block
-        exit_runner = None
         try:
             self.fs_watcher.start()
-            signal.signal(signal.SIGTERM, self.throw_canceled_build_exception)
-            prebuild_runner = PreBuildPluginsRunner(self, self.plugins.prebuild,
-                                                    plugin_files=self.plugin_files)
-            prepublish_runner = PrePublishPluginsRunner(self, self.plugins.prepublish,
-                                                        plugin_files=self.plugin_files)
-            postbuild_runner = PostBuildPluginsRunner(self, self.plugins.postbuild,
-                                                      plugin_files=self.plugin_files)
-            # time to run pre-build plugins, so they can access cloned repo
-            logger.info("running pre-build plugins")
-            try:
-                prebuild_runner.run()
-            except PluginFailedException as ex:
-                logger.error("one or more prebuild plugins failed: %s", ex)
-                raise
-
-            # we are delaying initialization, because prebuild plugin reactor_config
-            # might change build method
-            buildstep_runner = BuildStepPluginsRunner(self, self.plugins.buildstep,
-                                                      plugin_files=self.plugin_files)
-
-            logger.info("running buildstep plugins")
-            try:
-                buildstep_runner.run()
-            except PluginFailedException as ex:
-                logger.error('buildstep plugin failed: %s', ex)
-                raise
-
-            # run prepublish plugins
-            try:
-                prepublish_runner.run()
-            except PluginFailedException as ex:
-                logger.error("one or more prepublish plugins failed: %s", ex)
-                raise
-
-            try:
-                postbuild_runner.run()
-            except PluginFailedException as ex:
-                logger.error("one or more postbuild plugins failed: %s", ex)
-                raise
-        except Exception as ex:
-            logger.debug("caught exception (%s) so running exit plugins", exception_message(ex))
-            exception_being_handled = True
-            raise
+            if self.keep_plugins_running:
+                signal.signal(signal.SIGTERM, signal.SIG_IGN)
+            else:
+                signal.signal(signal.SIGTERM, self.throw_canceled_build_exception)
+            runner = PluginsRunner(self,
+                                   self.plugins_conf,
+                                   self.plugin_files,
+                                   self.keep_plugins_running,
+                                   plugins_results=self.data.plugins_results)
+            runner.run()
         finally:
-            # We need to make sure all exit plugins are executed
-            signal.signal(signal.SIGTERM, lambda *args: None)
-
-            exit_runner = ExitPluginsRunner(self, self.plugins.exit,
-                                            keep_going=True,
-                                            plugin_files=self.plugin_files)
-            try:
-                exit_runner.run(keep_going=True)
-            except PluginFailedException as ex:
-                logger.error("one or more exit plugins failed: %s", ex)
-
-                # raise exception only in case that there is no previous exception being already
-                # handled to prevent replacing original exceptions (root cause) with exceptions
-                # from exit plugins
-                if not exception_being_handled:
-                    raise ex
-            finally:
-                self.fs_watcher.finish()
-
             signal.signal(signal.SIGTERM, signal.SIG_DFL)
+            self.fs_watcher.finish()

@@ -24,7 +24,7 @@ from atomic_reactor.plugins.koji_import import KojiImportPlugin, KojiImportSourc
 from atomic_reactor.plugins.rpmqa import RPMqaPlugin
 from atomic_reactor.plugins.add_filesystem import AddFilesystemPlugin
 from atomic_reactor.plugins.fetch_sources import PLUGIN_FETCH_SOURCES_KEY
-from atomic_reactor.plugin import PluginFailedException, PostBuildPluginsRunner
+from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.inner import DockerBuildWorkflow, TagConf
 from atomic_reactor.util import (ManifestDigest, DockerfileImages,
                                  get_manifest_media_version,
@@ -59,6 +59,7 @@ from atomic_reactor.utils.flatpak_util import FlatpakUtil
 from tests.flatpak import (MODULEMD_AVAILABLE,
                            setup_flatpak_composes,
                            setup_flatpak_compose_info)
+from tests.mock_env import MockEnv
 from tests.util import add_koji_map_in_workflow
 from tests.constants import OSBS_BUILD_LOG_FILENAME
 
@@ -623,18 +624,14 @@ def create_runner(workflow, ssl_certs=False, principal=None,
     if userdata:
         args['userdata'] = userdata
 
-    plugins_conf = [
-        {'name': upload_plugin_name, 'args': args},
-    ]
-
     add_koji_map_in_workflow(workflow, hub_url='',
                              ssl_certs_dir='/' if ssl_certs else None,
                              krb_principal=principal,
                              krb_keytab=keytab)
 
-    workflow.post_plugins_conf = plugins_conf
-    runner = PostBuildPluginsRunner(workflow, plugins_conf)
-    return runner
+    return (MockEnv(workflow)
+            .for_plugin(upload_plugin_name, args=args)
+            .create_runner())
 
 
 @pytest.mark.usefixtures('user_params')

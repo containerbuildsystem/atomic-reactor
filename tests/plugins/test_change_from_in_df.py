@@ -36,7 +36,7 @@ def mock_workflow(workflow, df_content, override_df_images=None):
 
 
 def run_plugin(workflow):
-    result = MockEnv(workflow).for_plugin("prebuild", ChangeFromPlugin.key).create_runner().run()
+    result = MockEnv(workflow).for_plugin(ChangeFromPlugin.key).create_runner().run()
     return result[ChangeFromPlugin.key]
 
 

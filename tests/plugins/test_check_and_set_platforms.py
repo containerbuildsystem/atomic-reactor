@@ -111,7 +111,7 @@ def mock_env(workflow, source_dir: Path, labels=None):
     labels = labels or {}
     env = (
         MockEnv(workflow)
-        .for_plugin('prebuild', PLUGIN_CHECK_AND_SET_PLATFORMS_KEY)
+        .for_plugin(CheckAndSetPlatformsPlugin.key)
         .set_scratch(labels.get('scratch', False))
         .set_isolated(labels.get('isolated', False))
     )

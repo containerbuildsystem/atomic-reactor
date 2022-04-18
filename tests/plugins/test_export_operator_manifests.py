@@ -15,10 +15,10 @@ import zipfile
 
 from flexmock import flexmock
 
-from atomic_reactor.constants import PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY, \
-    PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
+from atomic_reactor.constants import PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY
+from atomic_reactor.plugins.check_and_set_platforms import CheckAndSetPlatformsPlugin
 from atomic_reactor.plugins.export_operator_manifests import ExportOperatorManifestsPlugin
-from atomic_reactor.plugin import PluginFailedException, PostBuildPluginsRunner
+from atomic_reactor.plugin import PluginFailedException, PluginsRunner
 
 from atomic_reactor.utils import retries
 from tests.constants import TEST_IMAGE
@@ -112,7 +112,7 @@ def extract_manifests_dir(cmd, empty=False, has_archive=True, change_csv_content
 def mock_env(workflow, has_appregistry_label=False, appregistry_label=False,
              has_bundle_label=True, bundle_label=True, has_archive=True, scratch=False,
              empty_archive=False, change_csv_content=False,
-             multiple_csv=False) -> PostBuildPluginsRunner:
+             multiple_csv=False) -> PluginsRunner:
     mock_source_contents(
         Path(workflow.source.path),
         has_appregistry_label=has_appregistry_label, appregistry_label=appregistry_label,
@@ -120,10 +120,10 @@ def mock_env(workflow, has_appregistry_label=False, appregistry_label=False,
     )
 
     env = (MockEnv(workflow)
-           .for_plugin('postbuild', ExportOperatorManifestsPlugin.key)
-           .set_scratch(scratch))
+           .for_plugin(ExportOperatorManifestsPlugin.key)
+           .set_scratch(scratch)
+           .set_plugin_result(CheckAndSetPlatformsPlugin.key, PLATFORMS))
 
-    env.workflow.data.plugins_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = PLATFORMS
     env.workflow.build_dir.init_build_dirs(PLATFORMS, env.workflow.source)
     env.workflow.data.tag_conf.add_unique_image(TEST_IMAGE)
 

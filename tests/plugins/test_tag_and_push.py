@@ -11,24 +11,24 @@ import random
 import time
 from copy import deepcopy
 from datetime import datetime
+from typing import Dict, Any
 
 import koji as koji
 import osbs
 import pytest
 from osbs.utils import ImageName
 
-from atomic_reactor.constants import (
-    IMAGE_TYPE_OCI,
-    PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
-    PLUGIN_FLATPAK_CREATE_OCI,
-    PLUGIN_SOURCE_CONTAINER_KEY,
-)
-from atomic_reactor.plugin import PostBuildPluginsRunner, PluginFailedException
+from atomic_reactor.constants import IMAGE_TYPE_OCI
+from atomic_reactor.plugin import PluginFailedException
+from atomic_reactor.plugins.build_source_container import SourceContainerPlugin
+from atomic_reactor.plugins.check_and_set_platforms import CheckAndSetPlatformsPlugin
+from atomic_reactor.plugins.flatpak_create_oci import FlatpakCreateOciPlugin
 from atomic_reactor.plugins.tag_and_push import TagAndPushPlugin
-from atomic_reactor.plugins.fetch_sources import PLUGIN_FETCH_SOURCES_KEY
+from atomic_reactor.plugins.fetch_sources import FetchSourcesPlugin
 from atomic_reactor.utils import retries
 from tests.constants import (LOCALHOST_REGISTRY, TEST_IMAGE, TEST_IMAGE_NAME, MOCK,
                              DOCKER0_REGISTRY)
+from tests.mock_env import MockEnv
 from tests.util import add_koji_map_in_workflow
 
 import json
@@ -106,7 +106,6 @@ def test_tag_and_push_plugin(
     workflow.user_params['flatpak'] = True
     platforms = ['x86_64', 'ppc64le', 's390x', 'aarch64']
     workflow.data.tag_conf.add_unique_image(ImageName.parse(image_name))
-    workflow.data.plugins_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = platforms
     workflow.build_dir.init_build_dirs(platforms, workflow.source)
 
     secret_path = None
@@ -119,14 +118,12 @@ def test_tag_and_push_plugin(
 
     # Add a mock OCI image to 'flatpak_create_oci' results; this forces the tag_and_push
     # plugin to push with skopeo
-
-    workflow.data.plugins_results[PLUGIN_FLATPAK_CREATE_OCI] = {}
-
+    flatpak_create_oci_result: Dict[str, Any] = {}
     # Since we are always mocking the push for now, we can get away with a stub image
     for current_platform in platforms:
         metadata = deepcopy(IMAGE_METADATA_OCI)
         metadata['ref_name'] = f'app/org.gnome.eog/{current_platform}/master'
-        workflow.data.plugins_results[PLUGIN_FLATPAK_CREATE_OCI][current_platform] = metadata
+        flatpak_create_oci_result[current_platform] = metadata
 
     manifest_latest_url = "https://{}/v2/{}/manifests/latest".format(LOCALHOST_REGISTRY, TEST_IMAGE)
     manifest_url = "https://{}/v2/{}/manifests/{}".format(LOCALHOST_REGISTRY, TEST_IMAGE, DIGEST_V2)
@@ -198,20 +195,22 @@ def test_tag_and_push_plugin(
         .should_receive('sleep')
         .and_return(None))
 
-    rcm = {'version': 1,
-           'registries': [{'url': LOCALHOST_REGISTRY,
-                           'insecure': True,
-                           'auth': {'cfg_path': secret_path}}]}
-    workflow.conf.conf = rcm
+    reactor_config = {
+        'registries': [
+            {
+                'url': LOCALHOST_REGISTRY,
+                'insecure': True,
+                'auth': {'cfg_path': secret_path},
+            }
+        ]
+    }
+    runner = (MockEnv(workflow)
+              .for_plugin(TagAndPushPlugin.key)
+              .set_reactor_config(reactor_config)
+              .set_plugin_result(CheckAndSetPlatformsPlugin.key, platforms)
+              .set_plugin_result(FlatpakCreateOciPlugin.key, flatpak_create_oci_result)
+              .create_runner())
     add_koji_map_in_workflow(workflow, hub_url='', root_url='')
-
-    runner = PostBuildPluginsRunner(
-        workflow,
-        [{
-            'name': TagAndPushPlugin.key,
-            'args': {},
-        }]
-    )
 
     if should_raise:
         with pytest.raises(PluginFailedException):
@@ -258,21 +257,52 @@ def test_tag_and_push_plugin_oci(workflow, monkeypatch, is_source_build, v2s2,
                                            sources_timestamp.strftime('%Y%m%d%H%M%S'),
                                            current_platform)
 
+    secret_path = None
+    if use_secret:
+        temp_dir = mkdtemp()
+        with open(os.path.join(temp_dir, ".dockercfg"), "w+") as dockerconfig:
+            dockerconfig_contents = {
+                LOCALHOST_REGISTRY: {
+                    "username": "user", "email": "test@example.com", "password": "mypassword"}}
+            dockerconfig.write(json.dumps(dockerconfig_contents))
+            dockerconfig.flush()
+            secret_path = temp_dir
+
+    reactor_config = {
+        'registries': [
+            {
+                'url': LOCALHOST_REGISTRY,
+                'insecure': True,
+                'auth': {'cfg_path': secret_path},
+            },
+        ],
+    }
+    env = (MockEnv(workflow)
+           .for_plugin(TagAndPushPlugin.key)
+           .set_plugin_args({'koji_target': sources_koji_target})
+           .set_reactor_config(reactor_config))
+
+    add_koji_map_in_workflow(workflow, hub_url='', root_url='')
+
     wf_data = workflow.data
     if is_source_build:
-        wf_data.plugins_results[PLUGIN_FETCH_SOURCES_KEY] = {
-            'sources_for_koji_build_id': sources_koji_id
-        }
         platforms = ['x86_64']
         workflow.build_dir.init_build_dirs(platforms, workflow.source)
-        image_metadata = deepcopy(IMAGE_METADATA_DOCKER_ARCHIVE)
-        wf_data.plugins_results[PLUGIN_SOURCE_CONTAINER_KEY] = {'image_metadata': image_metadata}
+
+        env.set_plugin_result(
+            FetchSourcesPlugin.key,
+            {'sources_for_koji_build_id': sources_koji_id},
+        )
+        env.set_plugin_result(
+            SourceContainerPlugin.key,
+            {'image_metadata': deepcopy(IMAGE_METADATA_DOCKER_ARCHIVE)},
+        )
     else:
+        platforms = ['x86_64', 'ppc64le', 's390x', 'aarch64']
         wf_data.tag_conf.add_unique_image(f'{LOCALHOST_REGISTRY}/{TEST_IMAGE}')
         workflow.user_params['flatpak'] = True
-        platforms = ['x86_64', 'ppc64le', 's390x', 'aarch64']
-        wf_data.plugins_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = platforms
         workflow.build_dir.init_build_dirs(platforms, workflow.source)
+        env.set_plugin_result(CheckAndSetPlatformsPlugin.key, platforms)
 
     class MockedClientSession(object):
         def __init__(self, hub, opts=None):
@@ -294,17 +324,6 @@ def test_tag_and_push_plugin_oci(workflow, monkeypatch, is_source_build, v2s2,
     flexmock(random).should_receive('randrange').and_return(sources_random_number)
     flexmock(osbs.utils).should_receive('utcnow').and_return(sources_timestamp)
 
-    secret_path = None
-    if use_secret:
-        temp_dir = mkdtemp()
-        with open(os.path.join(temp_dir, ".dockercfg"), "w+") as dockerconfig:
-            dockerconfig_contents = {
-                LOCALHOST_REGISTRY: {
-                    "username": "user", "email": "test@example.com", "password": "mypassword"}}
-            dockerconfig.write(json.dumps(dockerconfig_contents))
-            dockerconfig.flush()
-            secret_path = temp_dir
-
     if is_source_build:
         media_type = 'application/vnd.docker.distribution.manifest.v2+json'
     else:
@@ -314,8 +333,7 @@ def test_tag_and_push_plugin_oci(workflow, monkeypatch, is_source_build, v2s2,
     if not is_source_build:
         # Add a mock OCI image to 'flatpak_create_oci' results; this forces the tag_and_push
         # plugin to push with skopeo
-        wf_data.plugins_results[PLUGIN_FLATPAK_CREATE_OCI] = {}
-
+        flatpak_create_oci_result: Dict[str, Any] = {}
         # No need to create image archives, just need to mock its metadata
         for current_platform in platforms:
             if unsupported_image_type:
@@ -325,7 +343,8 @@ def test_tag_and_push_plugin_oci(workflow, monkeypatch, is_source_build, v2s2,
             metadata = deepcopy(IMAGE_METADATA_OCI)
             metadata['ref_name'] = ref_name.replace('x86_64', current_platform)
             metadata['type'] = image_type
-            workflow.data.plugins_results[PLUGIN_FLATPAK_CREATE_OCI][current_platform] = metadata
+            flatpak_create_oci_result[current_platform] = metadata
+        env.set_plugin_result(FlatpakCreateOciPlugin.key, flatpak_create_oci_result)
 
     # Mock the call to skopeo
 
@@ -398,26 +417,9 @@ def test_tag_and_push_plugin_oci(workflow, monkeypatch, is_source_build, v2s2,
         .should_receive('request')
         .replace_with(custom_get))
 
-    rcm = {'version': 1,
-           'registries': [{'url': LOCALHOST_REGISTRY,
-                           'insecure': True,
-                           'auth': {'cfg_path': secret_path}}]}
-    workflow.conf.conf = rcm
-    add_koji_map_in_workflow(workflow, hub_url='', root_url='')
-
-    runner = PostBuildPluginsRunner(
-        workflow,
-        [{
-            'name': TagAndPushPlugin.key,
-            'args': {
-                'koji_target': sources_koji_target
-            },
-        }]
-    )
-
     if fail_push or unsupported_image_type or (is_source_build and not v2s2):
         with pytest.raises(PluginFailedException):
-            runner.run()
+            env.create_runner().run()
 
         if not fail_push and is_source_build and not v2s2:
             assert "Unable to fetch v2 schema 2 digest for" in caplog.text
@@ -426,7 +428,7 @@ def test_tag_and_push_plugin_oci(workflow, monkeypatch, is_source_build, v2s2,
             assert ('Attempt to push unsupported image type unsupported_type with skopeo' in
                     caplog.text)
     else:
-        runner.run()
+        env.create_runner().run()
 
         assert workflow.conf.registry
         repos_annotations = get_repositories_annotations(wf_data.tag_conf)
@@ -434,18 +436,20 @@ def test_tag_and_push_plugin_oci(workflow, monkeypatch, is_source_build, v2s2,
 
 
 def test_skip_plugin(workflow, caplog):
-    rcm = {'version': 1,
-           'registries': [{'url': LOCALHOST_REGISTRY,
-                           'insecure': True,
-                           'auth': {}}]}
-    workflow.conf.conf = rcm
-    runner = PostBuildPluginsRunner(
-        workflow,
-        [{
-            'name': TagAndPushPlugin.key,
-            'args': {},
-        }]
-    )
+    reactor_config = {
+        'registries': [
+            {
+                'url': LOCALHOST_REGISTRY,
+                'insecure': True,
+                'auth': {},
+            },
+        ],
+    }
+    runner = (MockEnv(workflow)
+              .for_plugin(TagAndPushPlugin.key)
+              .set_reactor_config(reactor_config)
+              .create_runner())
+
     results = runner.run()[TagAndPushPlugin.key]
     assert 'not a flatpak or source build, skipping plugin' in caplog.text
     assert 'pushed_images' in results

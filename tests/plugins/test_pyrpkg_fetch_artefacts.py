@@ -9,10 +9,12 @@ of the BSD license. See the LICENSE file for details.
 import pytest
 import os
 
-from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
+from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins import pyrpkg_fetch_artefacts
 from atomic_reactor.plugins.pyrpkg_fetch_artefacts import DistgitFetchArtefactsPlugin
 from osbs.utils import ImageName
+
+from tests.mock_env import MockEnv
 from tests.stubs import StubSource
 from flexmock import flexmock
 from tests.constants import INPUT_IMAGE
@@ -49,13 +51,10 @@ def test_distgit_fetch_artefacts_plugin(tmpdir, workflow):  # noqa
         .once())
     workflow.conf.conf['sources_command'] = command
 
-    runner = PreBuildPluginsRunner(
-        workflow,
-        [{
-            'name': DistgitFetchArtefactsPlugin.key,
-        }]
-    )
-    runner.run()
+    (MockEnv(workflow)
+     .for_plugin(DistgitFetchArtefactsPlugin.key)
+     .create_runner()
+     .run())
 
     assert os.getcwd() == initial_dir
 
@@ -77,12 +76,10 @@ def test_distgit_fetch_artefacts_failure(tmpdir, workflow):  # noqa
         .once())
     workflow.conf.conf['sources_command'] = command
 
-    runner = PreBuildPluginsRunner(
-        workflow,
-        [{
-            'name': DistgitFetchArtefactsPlugin.key,
-        }]
-    )
+    runner = (MockEnv(workflow)
+              .for_plugin(DistgitFetchArtefactsPlugin.key)
+              .create_runner())
+
     with pytest.raises(PluginFailedException):
         runner.run()
 
@@ -93,13 +90,10 @@ def test_distgit_fetch_artefacts_skip(tmpdir, workflow, caplog):  # noqa
     workflow.source = StubSource()
     workflow.source.path = str(tmpdir)
 
-    runner = PreBuildPluginsRunner(
-        workflow,
-        [{
-            'name': DistgitFetchArtefactsPlugin.key,
-        }]
-    )
-    runner.run()
+    (MockEnv(workflow)
+     .for_plugin(DistgitFetchArtefactsPlugin.key)
+     .create_runner()
+     .run())
 
     log_msg = 'no sources command configuration, skipping plugin'
     assert log_msg in caplog.text

@@ -182,7 +182,7 @@ def mock_env(workflow, df_content, base_layers=0, remote_sources=None,
         r_c_m = r_c_m_override
 
     env = (MockEnv(workflow)
-           .for_plugin('prebuild', AddImageContentManifestPlugin.key)
+           .for_plugin(AddImageContentManifestPlugin.key)
            .set_reactor_config(r_c_m)
            .set_plugin_result(PLUGIN_RESOLVE_REMOTE_SOURCE, remote_sources)
            )

@@ -9,13 +9,15 @@ of the BSD license. See the LICENSE file for details.
 import re
 from unittest.mock import patch
 from atomic_reactor.inner import DockerBuildWorkflow
+from atomic_reactor.plugin import PluginFailedException
 
 from atomic_reactor.utils.koji import get_buildroot
 from atomic_reactor.constants import PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
-from atomic_reactor.plugin import PluginFailedException, PostBuildPluginsRunner
 from atomic_reactor.plugins.gather_builds_metadata import GatherBuildsMetadataPlugin
 
 import pytest
+
+from tests.mock_env import MockEnv
 
 
 def mock_reactor_config(workflow):
@@ -37,15 +39,10 @@ class MockedClientSession:
 
 
 def test_fail_if_no_platform_is_set(workflow):
-    runner = PostBuildPluginsRunner(
-        workflow,
-        [{
-            'name': GatherBuildsMetadataPlugin.key,
-            'args': {
-                "koji_upload_dir": "path/to/upload",
-            }
-        }],
-    )
+    runner = (MockEnv(workflow)
+              .for_plugin(GatherBuildsMetadataPlugin.key)
+              .set_plugin_args({"koji_upload_dir": "path/to/upload"})
+              .create_runner())
     with pytest.raises(PluginFailedException, match="No enabled platforms"):
         runner.run()
 

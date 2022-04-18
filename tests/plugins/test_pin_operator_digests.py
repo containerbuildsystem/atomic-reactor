@@ -118,7 +118,6 @@ def mock_env(workflow, repo_dir, user_config=None, site_config=None,
     env = (
         MockEnv(workflow)
         .for_plugin(
-            'prebuild',
             PinOperatorDigestsPlugin.key,
             {
                 'replacement_pullspecs': replacement_pullspecs,

@@ -53,7 +53,7 @@ def teardown_function(function):
 
 
 def mock_env(workflow):
-    return MockEnv(workflow).for_plugin("prebuild", CheckBaseImagePlugin.key)
+    return MockEnv(workflow).for_plugin(CheckBaseImagePlugin.key)
 
 
 @pytest.mark.parametrize('add_another_parent', [True, False])

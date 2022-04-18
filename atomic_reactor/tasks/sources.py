@@ -45,29 +45,22 @@ class SourceBuildBaseTask(plugin_based.PluginBasedTask[SourceBuildTaskParams]):
 class SourceBuildTask(SourceBuildBaseTask):
     """Source container build phases task."""
 
-    plugins_def = plugin_based.PluginsDef(
-        prebuild=[
-            {"name": "fetch_sources"},
-            {"name": "bump_release"},
-        ],
-        buildstep=[
-            {"name": "source_container"},
-        ],
-        postbuild=[
-            {"name": "tag_and_push"},
-            {"name": "verify_media", "required": False},
-            {"name": "koji_import_source_container"},
-            {"name": "koji_tag_build"},
-        ],
-    )
+    plugins_conf = [
+        {"name": "fetch_sources"},
+        {"name": "bump_release"},
+        {"name": "source_container"},
+        {"name": "tag_and_push"},
+        {"name": "verify_media", "required": False},
+        {"name": "koji_import_source_container"},
+        {"name": "koji_tag_build"},
+    ]
 
 
 class SourceExitTask(SourceBuildBaseTask):
     """Source container exit task."""
 
-    plugins_def = plugin_based.PluginsDef(
-        exit=[
-            {"name": "cancel_build_reservation"},
-            {"name": "store_metadata"},
-        ],
-    )
+    keep_plugins_running = True
+    plugins_conf = [
+        {"name": "cancel_build_reservation"},
+        {"name": "store_metadata"},
+    ]

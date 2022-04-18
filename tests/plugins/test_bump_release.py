@@ -13,7 +13,7 @@ import os
 
 from atomic_reactor.plugins.bump_release import BumpReleasePlugin
 from atomic_reactor.plugins.fetch_sources import PLUGIN_FETCH_SOURCES_KEY
-from atomic_reactor.plugin import PreBuildPluginsRunner
+from atomic_reactor.plugin import PluginsRunner
 from atomic_reactor.constants import PROG
 from tests.util import add_koji_map_in_workflow
 from flexmock import flexmock
@@ -609,7 +609,7 @@ def test_append_from_user_params(workflow, flatpak, isolated, append):
     session = MockedClientSessionGeneral('')
     flexmock(koji, ClientSession=session)
 
-    runner = PreBuildPluginsRunner(workflow, [])
+    runner = PluginsRunner(workflow, [])
     plugin = runner.create_instance_from_plugin(BumpReleasePlugin, {})
 
     assert plugin.append == append

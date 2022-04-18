@@ -17,15 +17,17 @@ import osbs.conf
 from osbs.exceptions import OsbsResponseException
 from osbs.utils import ImageName
 
-from atomic_reactor.constants import PLUGIN_VERIFY_MEDIA_KEY, PLUGIN_FETCH_SOURCES_KEY
+from atomic_reactor.constants import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.inner import DockerBuildWorkflow
-from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
+from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.add_help import AddHelpPlugin
 from atomic_reactor.plugins.rpmqa import RPMqaPlugin
 from atomic_reactor.plugins.store_metadata import StoreMetadataPlugin
+from atomic_reactor.plugins.verify_media_types import VerifyMediaTypesPlugin
 from atomic_reactor.util import LazyGit, ManifestDigest, DockerfileImages, RegistryClient
 import pytest
 from tests.constants import LOCALHOST_REGISTRY, TEST_IMAGE, TEST_IMAGE_NAME
+from tests.mock_env import MockEnv
 from tests.util import add_koji_map_in_workflow, is_string_type
 
 DIGEST1 = "sha256:1da9b9e1c6bf6ab40f1627d76e2ad58e9b2be14351ef4ff1ed3eb4a156138189"
@@ -132,47 +134,47 @@ def mock_dockerfile(workflow: DockerBuildWorkflow, content: str) -> None:
 def test_metadata_plugin(workflow, source_dir,
                          help_results, expected_help_results, base_from_scratch,
                          verify_media_results, expected_media_results):
-    initial_timestamp = datetime.now()
-    prepare(workflow)
     if base_from_scratch:
-        df_content = """
-FROM fedora
-RUN yum install -y python-django
-CMD blabla
-FROM scratch
-RUN yum install -y python"""
+        df_content = dedent("""\
+            FROM fedora
+            RUN yum install -y python-django
+            CMD blabla
+            FROM scratch
+            RUN yum install -y python
+            """)
     else:
-        df_content = """
-FROM fedora
-RUN yum install -y python-django
-CMD blabla"""
+        df_content = dedent("""\
+            FROM fedora
+            RUN yum install -y python-django
+            CMD blabla
+            """)
 
+    prepare(workflow)
     mock_dockerfile(workflow, df_content)
 
     dockerfile = workflow.build_dir.any_platform.dockerfile_with_parent_env(
         workflow.imageutil.base_image_inspect()
     )
 
-    workflow.data.dockerfile_images = DockerfileImages(dockerfile.parent_images)
+    df_images = DockerfileImages(dockerfile.parent_images)
     for parent in dockerfile.parent_images:
         if parent != 'scratch':
-            workflow.data.dockerfile_images[parent] = "sha256:spamneggs"
+            df_images[parent] = "sha256:spamneggs"
 
-    workflow.data.plugins_results = {
-        AddHelpPlugin.key: help_results
-    }
+    env = (MockEnv(workflow)
+           .for_plugin(StoreMetadataPlugin.key)
+           .set_plugin_args({"url": "http://example.com/"})
+           .set_dockerfile_images(df_images)
+           .set_plugin_result(RPMqaPlugin.key, "rpm1\nrpm2")
+           .set_plugin_result(VerifyMediaTypesPlugin.key, verify_media_results)
+           .set_plugin_result(AddHelpPlugin.key, help_results))
 
     if help_results is not None:
         workflow.data.annotations['help_file'] = help_results['help_file']
 
-    workflow.data.plugins_results = {
-        RPMqaPlugin.key: "rpm1\nrpm2",
-    }
-    workflow.data.plugins_results = {
-        PLUGIN_VERIFY_MEDIA_KEY: verify_media_results,
-    }
     workflow.fs_watcher._data = dict(fs_data=None)
 
+    initial_timestamp = datetime.now()
     timestamp = (initial_timestamp + timedelta(seconds=3)).isoformat()
     workflow.data.plugins_timestamps = {
         RPMqaPlugin.key: timestamp,
@@ -182,16 +184,8 @@ CMD blabla"""
     }
     workflow.data.plugins_errors = {}
 
-    runner = ExitPluginsRunner(
-        workflow,
-        [{
-            'name': StoreMetadataPlugin.key,
-            "args": {
-                "url": "http://example.com/"
-            }
-        }]
-    )
-    output = runner.run()
+    output = env.create_runner().run()
+
     assert StoreMetadataPlugin.key in output
     annotations = output[StoreMetadataPlugin.key]["annotations"]
     assert "dockerfile" in annotations
@@ -279,25 +273,28 @@ CMD blabla"""
      ["application/vnd.docker.distribution.manifest.v1+json"]),
 ))
 def test_metadata_plugin_source(image_id, verify_media_results, expected_media_results, workflow):
-    initial_timestamp = datetime.now()
-    prepare(workflow)
+    sources_for_nvr = 'image_build'
+    sources_for_koji_build_id = '12345'
 
+    fetch_sources_result = {
+        'sources_for_koji_build_id': sources_for_koji_build_id,
+        'sources_for_nvr': sources_for_nvr,
+        'image_sources_dir': 'source_dir',
+    }
+
+    env = (MockEnv(workflow)
+           .for_plugin(StoreMetadataPlugin.key)
+           .set_plugin_args({"url": "http://example.com/"})
+           .set_plugin_result(PLUGIN_FETCH_SOURCES_KEY, fetch_sources_result)
+           .set_plugin_result(VerifyMediaTypesPlugin.key, verify_media_results))
+    prepare(workflow)
+    workflow.data.labels['sources_for_koji_build_id'] = sources_for_koji_build_id
     if image_id:
         workflow.data.koji_source_manifest = {'config': {'digest': image_id}}
 
-    sources_for_nvr = 'image_build'
-    sources_for_koji_build_id = '12345'
-    workflow.data.labels['sources_for_koji_build_id'] = sources_for_koji_build_id
-    workflow.data.plugins_results = {
-        PLUGIN_FETCH_SOURCES_KEY: {
-            'sources_for_koji_build_id': sources_for_koji_build_id,
-            'sources_for_nvr': sources_for_nvr,
-            'image_sources_dir': 'source_dir',
-        },
-        PLUGIN_VERIFY_MEDIA_KEY: verify_media_results,
-    }
     workflow.fs_watcher._data = dict(fs_data=None)
 
+    initial_timestamp = datetime.now()
     timestamp = (initial_timestamp + timedelta(seconds=3)).isoformat()
     workflow.data.plugins_timestamps = {
         PLUGIN_FETCH_SOURCES_KEY: timestamp,
@@ -307,16 +304,8 @@ def test_metadata_plugin_source(image_id, verify_media_results, expected_media_r
     }
     workflow.data.plugins_errors = {}
 
-    runner = ExitPluginsRunner(
-        workflow,
-        [{
-            'name': StoreMetadataPlugin.key,
-            "args": {
-                "url": "http://example.com/"
-            }
-        }]
-    )
-    output = runner.run()
+    output = env.create_runner().run()
+
     assert StoreMetadataPlugin.key in output
     labels = output[StoreMetadataPlugin.key]["labels"]
     annotations = output[StoreMetadataPlugin.key]["annotations"]
@@ -385,19 +374,13 @@ def test_metadata_plugin_source(image_id, verify_media_results, expected_media_r
     {}
 ))
 def test_koji_filesystem_label(res, workflow):
+    env = (MockEnv(workflow)
+           .for_plugin(StoreMetadataPlugin.key)
+           .set_plugin_args({"url": "http://example.com/"}))
     prepare(workflow)
     if 'filesystem-koji-task-id' in res:
         workflow.data.labels['filesystem-koji-task-id'] = res['filesystem-koji-task-id']
-    runner = ExitPluginsRunner(
-        workflow,
-        [{
-            'name': StoreMetadataPlugin.key,
-            "args": {
-                "url": "http://example.com/"
-            }
-        }]
-    )
-    output = runner.run()
+    output = env.create_runner().run()
     labels = output[StoreMetadataPlugin.key]["labels"]
 
     if 'filesystem-koji-task-id' in res:
@@ -407,64 +390,14 @@ def test_koji_filesystem_label(res, workflow):
         assert 'filesystem-koji-task-id' not in labels
 
 
-def test_metadata_plugin_rpmqa_failure(workflow):
-    initial_timestamp = datetime.now()
-    prepare(workflow)
-    df_content = """
-FROM fedora
-RUN yum install -y python-django
-CMD blabla"""
-    mock_dockerfile(workflow, df_content)
-
-    workflow.data.plugins_results = {}
-    workflow.data.plugins_results = {RPMqaPlugin.key: RuntimeError()}
-    workflow.data.plugins_timestamps = {
-        RPMqaPlugin.key: (initial_timestamp + timedelta(seconds=3)).isoformat(),
-    }
-    workflow.data.plugins_durations = {RPMqaPlugin.key: 3.03}
-    workflow.data.plugins_errors = {RPMqaPlugin.key: 'foo'}
-
-    runner = ExitPluginsRunner(
-        workflow,
-        [{
-            'name': StoreMetadataPlugin.key,
-            "args": {
-                "url": "http://example.com/"
-            }
-        }]
-    )
-    output = runner.run()
-    assert StoreMetadataPlugin.key in output
-    annotations = output[StoreMetadataPlugin.key]["annotations"]
-    assert "dockerfile" in annotations
-    assert "commit_id" in annotations
-    assert "base-image-id" in annotations
-    assert "base-image-name" in annotations
-    assert "image-id" in annotations
-    assert "plugins-metadata" in annotations
-    assert "errors" in annotations["plugins-metadata"]
-    assert "durations" in annotations["plugins-metadata"]
-    assert "timestamps" in annotations["plugins-metadata"]
-
-    plugins_metadata = json.loads(annotations["plugins-metadata"])
-    assert "all_rpm_packages" in plugins_metadata["errors"]
-    assert "all_rpm_packages" in plugins_metadata["durations"]
-
-
 def test_exit_before_dockerfile_created(workflow, source_dir):
+    env = (MockEnv(workflow)
+           .for_plugin(StoreMetadataPlugin.key)
+           .set_plugin_args({"url": "http://example.com/"}))
     prepare(workflow, no_dockerfile=True)
     workflow.data.plugins_results = {}
 
-    runner = ExitPluginsRunner(
-        workflow,
-        [{
-            'name': StoreMetadataPlugin.key,
-            "args": {
-                "url": "http://example.com/"
-            }
-        }]
-    )
-    output = runner.run()
+    output = env.create_runner().run()
     assert StoreMetadataPlugin.key in output
     annotations = output[StoreMetadataPlugin.key]["annotations"]
     assert annotations["base-image-name"] == ""
@@ -473,49 +406,37 @@ def test_exit_before_dockerfile_created(workflow, source_dir):
 
 
 def test_store_metadata_fail_update_annotations(workflow, source_dir, caplog):
+    env = (MockEnv(workflow)
+           .for_plugin(StoreMetadataPlugin.key)
+           .set_plugin_args({"url": "http://example.com/"}))
     prepare(workflow)
-    workflow.data.plugins_results = {}
-    df_content = """
-FROM fedora
-RUN yum install -y python-django
-CMD blabla"""
+    df_content = dedent("""\
+        FROM fedora
+        RUN yum install -y python-django
+        CMD blabla
+        """)
     mock_dockerfile(workflow, df_content)
 
-    runner = ExitPluginsRunner(
-        workflow,
-        [{
-            'name': StoreMetadataPlugin.key,
-            "args": {
-                "url": "http://example.com/"
-            }
-        }]
-    )
     (flexmock(OSBS)
         .should_receive('update_annotations_on_build')
         .and_raise(OsbsResponseException('/', 'failed', 0)))
     with pytest.raises(PluginFailedException):
-        runner.run()
+        env.create_runner().run()
     assert 'annotations:' in caplog.text
 
 
 def test_store_metadata_fail_update_labels(workflow, caplog):
+    env = (MockEnv(workflow)
+           .for_plugin(StoreMetadataPlugin.key)
+           .set_plugin_args({"url": "http://example.com/"}))
     prepare(workflow)
     workflow.data.labels = {'some-label': 'some-value'}
 
-    runner = ExitPluginsRunner(
-        workflow,
-        [{
-            'name': StoreMetadataPlugin.key,
-            "args": {
-                "url": "http://example.com/"
-            }
-        }]
-    )
     (flexmock(OSBS)
         .should_receive('update_labels_on_build')
         .and_raise(OsbsResponseException('/', 'failed', 0)))
     with pytest.raises(PluginFailedException):
-        runner.run()
+        env.create_runner().run()
     assert 'labels:' in caplog.text
 
 
@@ -525,6 +446,9 @@ def test_store_metadata_fail_update_labels(workflow, caplog):
     {'task_annotations_whitelist': ['foo']},
     ))
 def test_set_koji_annotations_whitelist(workflow, source_dir, koji_conf):
+    env = (MockEnv(workflow)
+           .for_plugin(StoreMetadataPlugin.key)
+           .set_plugin_args({"url": "http://example.com/"}))
     prepare(workflow)
     if koji_conf is not None:
         workflow.conf.conf['koji'] = koji_conf
@@ -535,16 +459,7 @@ def test_set_koji_annotations_whitelist(workflow, source_dir, koji_conf):
         CMD cowsay moo
         ''')
     mock_dockerfile(workflow, df_content)
-    runner = ExitPluginsRunner(
-        workflow,
-        [{
-            'name': StoreMetadataPlugin.key,
-            "args": {
-                "url": "http://example.com/"
-            }
-        }]
-    )
-    output = runner.run()
+    output = env.create_runner().run()
     assert StoreMetadataPlugin.key in output
     annotations = output[StoreMetadataPlugin.key]["annotations"]
     whitelist = None
@@ -561,20 +476,13 @@ def test_set_koji_annotations_whitelist(workflow, source_dir, koji_conf):
 
 
 def test_plugin_annotations(workflow):
+    env = (MockEnv(workflow)
+           .for_plugin(StoreMetadataPlugin.key)
+           .set_plugin_args({"url": "http://example.com/"}))
     prepare(workflow)
     workflow.data.annotations = {'foo': {'bar': 'baz'}, 'spam': ['eggs']}
 
-    runner = ExitPluginsRunner(
-        workflow,
-        [{
-            'name': StoreMetadataPlugin.key,
-            "args": {
-                "url": "http://example.com/"
-            }
-        }]
-    )
-
-    output = runner.run()
+    output = env.create_runner().run()
     annotations = output[StoreMetadataPlugin.key]["annotations"]
 
     assert annotations['foo'] == '{"bar": "baz"}'
@@ -582,20 +490,13 @@ def test_plugin_annotations(workflow):
 
 
 def test_plugin_labels(workflow):
+    env = (MockEnv(workflow)
+           .for_plugin(StoreMetadataPlugin.key)
+           .set_plugin_args({"url": "http://example.com/"}))
     prepare(workflow)
     workflow.data.labels = {'foo': 1, 'bar': 'two'}
 
-    runner = ExitPluginsRunner(
-        workflow,
-        [{
-            'name': StoreMetadataPlugin.key,
-            "args": {
-                "url": "http://example.com/"
-            }
-        }]
-    )
-
-    output = runner.run()
+    output = env.create_runner().run()
     labels = output[StoreMetadataPlugin.key]["labels"]
 
     assert labels['foo'] == '1'

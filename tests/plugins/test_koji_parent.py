@@ -15,11 +15,13 @@ from atomic_reactor.constants import (
     DOCKERFILE_FILENAME, INSPECT_CONFIG, BASE_IMAGE_KOJI_BUILD, PARENT_IMAGES_KOJI_BUILDS,
     PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
 )
-from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
+from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.koji_parent import KojiParentPlugin
 from atomic_reactor.util import get_manifest_media_type, DockerfileImages
 from osbs.utils import ImageName
 from flexmock import flexmock
+
+from tests.mock_env import MockEnv
 from tests.util import add_koji_map_in_workflow
 from copy import deepcopy
 
@@ -484,10 +486,9 @@ class TestKojiParent(object):
         add_koji_map_in_workflow(workflow, hub_url=KOJI_HUB, root_url='',
                                  ssl_certs_dir=plugin_args.get('koji_ssl_certs_dir'))
 
-        runner = PreBuildPluginsRunner(
-            workflow,
-            [{'name': KojiParentPlugin.key, 'args': plugin_args}]
-        )
+        runner = (MockEnv(workflow)
+                  .for_plugin(KojiParentPlugin.key, args=plugin_args)
+                  .create_runner())
 
         result = runner.run()
         if user_params:

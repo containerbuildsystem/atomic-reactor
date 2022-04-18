@@ -18,13 +18,14 @@ import re
 
 from atomic_reactor.constants import PLUGIN_RESOLVE_COMPOSES_KEY
 from atomic_reactor.utils.flatpak_util import FlatpakUtil
+from tests.mock_env import MockEnv
 
 try:
     from atomic_reactor.plugins.flatpak_update_dockerfile import FlatpakUpdateDockerfilePlugin
 except ImportError:
     pass
 
-from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
+from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.source import VcsInfo, SourceConfig
 from osbs.utils import ImageName
 
@@ -211,14 +212,11 @@ def test_flatpak_update_dockerfile(workflow, build_dir, config_name, breakage):
                     'default_signing_intent': 'unsigned'},
            'koji': {'auth': {},
                     'hub_url': 'https://koji.example.com/hub'}}
-    workflow.conf.conf = rcm
 
-    runner = PreBuildPluginsRunner(
-        workflow,
-        [{
-            'name': FlatpakUpdateDockerfilePlugin.key,
-        }]
-    )
+    runner = (MockEnv(workflow)
+              .for_plugin(FlatpakUpdateDockerfilePlugin.key)
+              .set_reactor_config(rcm)
+              .create_runner())
 
     if expected_exception:
         with pytest.raises(PluginFailedException) as ex:
@@ -277,15 +275,8 @@ def test_flatpak_update_dockerfile(workflow, build_dir, config_name, breakage):
                     reason='libmodulemd not available')
 def test_skip_plugin(workflow, build_dir, caplog):
     workflow = mock_workflow(workflow, build_dir, "", user_params={})
-
-    runner = PreBuildPluginsRunner(
-        workflow,
-        [{
-            'name': FlatpakUpdateDockerfilePlugin.key,
-            'args': {}
-        }]
-    )
-
-    runner.run()
-
+    (MockEnv(workflow)
+     .for_plugin(FlatpakUpdateDockerfilePlugin.key)
+     .create_runner()
+     .run())
     assert 'not flatpak build, skipping plugin' in caplog.text

@@ -426,7 +426,7 @@ def test_group_manifests(workflow, source_dir, schema_version, test_name, group,
 
     runner = (
         MockEnv(workflow)
-        .for_plugin('postbuild', GroupManifestsPlugin.key)
+        .for_plugin(GroupManifestsPlugin.key)
         .set_check_platforms_result(list(per_platform_images.keys()))
         .set_reactor_config(
             {

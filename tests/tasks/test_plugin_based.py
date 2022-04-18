@@ -18,27 +18,10 @@ from atomic_reactor.inner import ImageBuildWorkflowData
 from atomic_reactor.plugin import BuildCanceledException, PluginFailedException
 from atomic_reactor.tasks.common import TaskParams
 from atomic_reactor.util import DockerfileImages
-from osbs.exceptions import OsbsValidationException
 
 from atomic_reactor import inner, dirs
 from atomic_reactor.dirs import RootBuildDir, ContextDir
 from atomic_reactor.tasks import plugin_based
-
-
-class TestPluginsDef:
-    """Tests for the PluginsDef class."""
-
-    def test_create_valid(self):
-        plugins = plugin_based.PluginsDef(buildstep=[{"name": "some_plugin"}])
-        assert plugins.prebuild == []
-        assert plugins.buildstep == [{"name": "some_plugin"}]
-        assert plugins.prepublish == []
-        assert plugins.postbuild == []
-        assert plugins.exit == []
-
-    def test_create_invalid(self):
-        with pytest.raises(OsbsValidationException, match="1 is not of type 'boolean'"):
-            plugin_based.PluginsDef(prebuild=[{"name": "some_plugin", "required": 1}])
 
 
 class TestPluginBasedTask:
@@ -63,8 +46,8 @@ class TestPluginBasedTask:
          .should_receive("source")
          .and_return(expect_source))
 
-        expect_plugins = flexmock()
-        monkeypatch.setattr(plugin_based.PluginBasedTask, "plugins_def", expect_plugins)
+        expect_plugins = []
+        monkeypatch.setattr(plugin_based.PluginBasedTask, "plugins_conf", expect_plugins)
 
         root_build_dir = RootBuildDir(build_dir)
 
@@ -92,9 +75,10 @@ class TestPluginBasedTask:
                 namespace="test-namespace",
                 pipeline_run_name='test-pipeline-run',
                 source=expect_source,
-                plugins=expect_plugins,
+                plugins_conf=expect_plugins,
                 user_params={"a": "b"},
                 reactor_config_path="config.yaml",
+                keep_plugins_running=False,
             )
         )
         mocked_workflow.should_receive("build_docker_image").and_raise(

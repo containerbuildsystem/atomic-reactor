@@ -14,11 +14,10 @@ from flexmock import flexmock
 import yaml
 
 from atomic_reactor.plugins.add_flatpak_labels import AddFlatpakLabelsPlugin
-
-from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.source import SourceConfig
 from osbs.utils import ImageName
 
+from tests.mock_env import MockEnv
 
 DF_CONTENT = """FROM fedora:latest
 CMD sleep 1000
@@ -79,14 +78,9 @@ def test_add_flatpak_labels(workflow, source_dir, labels, expected):
 
     mock_workflow(workflow, source_dir, container_yaml)
 
-    runner = PreBuildPluginsRunner(
-        workflow,
-        [{
-            'name': AddFlatpakLabelsPlugin.key,
-            'args': {}
-        }]
-    )
-
+    runner = (MockEnv(workflow)
+              .for_plugin(AddFlatpakLabelsPlugin.key)
+              .create_runner())
     runner.run()
 
     def check_last_line_in_df(build_dir):
@@ -102,14 +96,9 @@ def test_add_flatpak_labels(workflow, source_dir, labels, expected):
 def test_skip_plugin(workflow, source_dir, caplog, user_params):
     mock_workflow(workflow, source_dir, '', user_params={})
 
-    runner = PreBuildPluginsRunner(
-        workflow,
-        [{
-            'name': AddFlatpakLabelsPlugin.key,
-            'args': {}
-        }]
-    )
-
-    runner.run()
+    (MockEnv(workflow)
+     .for_plugin(AddFlatpakLabelsPlugin.key)
+     .create_runner()
+     .run())
 
     assert 'not flatpak build, skipping plugin' in caplog.text

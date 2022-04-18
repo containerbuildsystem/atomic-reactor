@@ -27,7 +27,7 @@ from atomic_reactor.constants import (PNC_SYSTEM_USER, REMOTE_SOURCE_TARBALL_FIL
 from flexmock import flexmock
 
 from atomic_reactor import constants
-from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
+from atomic_reactor.plugin import PluginsRunner, PluginFailedException
 from atomic_reactor.plugins.fetch_sources import FetchSourcesPlugin
 from atomic_reactor.util import get_checksums
 
@@ -180,15 +180,18 @@ def mock_env(workflow, source_dir: Path, scratch=False, koji_build_id=None,
                              source_dir,
                              config_map=config_map,
                              default_si=default_si)
-    plugin_conf = [{'name': FetchSourcesPlugin.key}]
-    plugin_conf[0]['args'] = {
-        'koji_build_id': koji_build_id,
-        'koji_build_nvr': koji_build_nvr
-    }
+    plugin_conf = [
+        {
+            'name': FetchSourcesPlugin.key,
+            'args': {
+                'koji_build_id': koji_build_id,
+                'koji_build_nvr': koji_build_nvr,
+            },
+        }
+    ]
 
     flexmock(atomic_reactor.source.GitSource, get=str(source_dir))
-    runner = PreBuildPluginsRunner(workflow, plugin_conf)
-    return runner
+    return PluginsRunner(workflow, plugin_conf)
 
 
 @pytest.fixture()

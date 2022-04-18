@@ -20,7 +20,7 @@ from tests.mock_env import MockEnv
 
 
 def mock_env(workflow, df_content: str, buildargs: Dict[str, str]) -> PluginsRunner:
-    env = MockEnv(workflow).for_plugin("prebuild", AddBuildargsPlugin.key)
+    env = MockEnv(workflow).for_plugin(AddBuildargsPlugin.key)
     (Path(workflow.source.path) / "Dockerfile").write_text(df_content)
     workflow.build_dir.init_build_dirs(["aarch64", "x86_64"], workflow.source)
     workflow.data.buildargs = buildargs

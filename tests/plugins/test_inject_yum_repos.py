@@ -20,12 +20,13 @@ from flexmock import flexmock
 
 from atomic_reactor.constants import RELATIVE_REPOS_PATH, INSPECT_CONFIG, DOCKERFILE_FILENAME, \
     PLUGIN_RESOLVE_COMPOSES_KEY, PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
-from atomic_reactor.plugin import PluginFailedException, PreBuildPluginsRunner
+from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.inject_yum_repos import InjectYumReposPlugin
 from atomic_reactor.source import VcsInfo
 from atomic_reactor.util import sha256sum, DockerfileImages
 from atomic_reactor.utils.yum import YumRepo
 from tests.constants import DOCKERFILE_GIT, DOCKERFILE_SHA1
+from tests.mock_env import MockEnv
 from tests.util import add_koji_map_in_workflow
 
 BUILDER_CA_BUNDLE = '/path/to/tls-ca-bundle.pem'
@@ -209,12 +210,10 @@ def test_no_base_image_in_dockerfile(workflow, build_dir, configure_ca_bundle, r
     for repofile_url, repofile_content, _ in repos:
         responses.add(responses.GET, repofile_url, body=repofile_content)
 
-    runner = PreBuildPluginsRunner(workflow, [{
-        'name': InjectYumReposPlugin.key,
-        'args': {'target': KOJI_TARGET},
-    }])
-
-    runner.run()
+    (MockEnv(workflow)
+     .for_plugin(InjectYumReposPlugin.key, args={'target': KOJI_TARGET})
+     .create_runner()
+     .run())
 
     log_msg = "Skipping plugin, from scratch stage(s) can't add repos"
     assert log_msg in caplog.text
@@ -773,12 +772,10 @@ def test_inject_repos(configure_ca_bundle, inherited_user, include_koji_repo, re
     for repofile_url, repofile_content, _ in repos:
         responses.add(responses.GET, repofile_url, body=repofile_content)
 
-    PreBuildPluginsRunner(workflow, [
-        {
-            'name': InjectYumReposPlugin.key,
-            'args': {'target': KOJI_TARGET},
-        },
-    ]).run()
+    (MockEnv(workflow)
+     .for_plugin(InjectYumReposPlugin.key, args={'target': KOJI_TARGET})
+     .create_runner()
+     .run())
 
     # Ensure Dockerfile is update correctly
     hashes = [sha256sum(repofile_url, abbrev_len=5) for repofile_url, _, _ in repos]
@@ -841,12 +838,9 @@ def test_include_koji(workflow, build_dir, caplog, parent_images, base_from_scra
         dockerfile_images.append('scratch')
     workflow.data.dockerfile_images = DockerfileImages(dockerfile_images)
 
-    args = {'target': target}
-
-    runner = PreBuildPluginsRunner(workflow, [{
-        'name': InjectYumReposPlugin.key,
-        'args': args,
-    }])
+    runner = (MockEnv(workflow)
+              .for_plugin(InjectYumReposPlugin.key, args={'target': target})
+              .create_runner())
 
     if target == KOJI_TARGET_NO_INFO and parent_images:
         with pytest.raises(PluginFailedException) as exc:
@@ -901,16 +895,13 @@ def test_include_koji(workflow, build_dir, caplog, parent_images, base_from_scra
 ])
 def test_include_koji_without_target(workflow, build_dir, caplog, target, include_repo):
     prepare(workflow, build_dir, include_koji_repo=include_repo)
-    args = {'target': target}
 
     add_koji_map_in_workflow(workflow, hub_url='', root_url='http://example.com')
 
-    runner = PreBuildPluginsRunner(workflow, [{
-        'name': InjectYumReposPlugin.key,
-        'args': args,
-    }])
-
-    runner.run()
+    (MockEnv(workflow)
+     .for_plugin(InjectYumReposPlugin.key, args={'target': target})
+     .create_runner()
+     .run())
 
     if not include_repo or not target:
         if not include_repo:
@@ -926,10 +917,10 @@ def test_include_koji_without_target(workflow, build_dir, caplog, target, includ
 @pytest.mark.parametrize('inject_proxy', [None, 'http://proxy.example.com'])
 def test_no_repourls(inject_proxy, workflow, build_dir):
     workflow = prepare(workflow, build_dir, yum_repourls={'x86_64': []})
-    runner = PreBuildPluginsRunner(workflow, [{
-        'name': InjectYumReposPlugin.key,
-        'args': {'inject_proxy': inject_proxy}}])
-    runner.run()
+    (MockEnv(workflow)
+     .for_plugin(InjectYumReposPlugin.key, args={'inject_proxy': inject_proxy})
+     .create_runner()
+     .run())
     assert InjectYumReposPlugin.key is not None
     assert not (workflow.build_dir.any_platform.path / RELATIVE_REPOS_PATH).exists()
 
@@ -944,10 +935,11 @@ def test_single_repourl(workflow, build_dir, inject_proxy, repourl, repo_filenam
     workflow = prepare(workflow, build_dir, yum_repourls={'x86_64': [repourl]})
     repo_content = '''[repo]\n'''
     responses.add(responses.GET, repourl, body=repo_content)
-    runner = PreBuildPluginsRunner(workflow, [{
-        'name': InjectYumReposPlugin.key,
-        'args': {'inject_proxy': inject_proxy}}])
-    runner.run()
+
+    (MockEnv(workflow)
+     .for_plugin(InjectYumReposPlugin.key, args={'inject_proxy': inject_proxy})
+     .create_runner()
+     .run())
 
     repos_path = workflow.build_dir.any_platform.path / RELATIVE_REPOS_PATH
     files = os.listdir(repos_path)
@@ -985,10 +977,11 @@ def test_multiple_repourls(workflow, build_dir, caplog, base_from_scratch, paren
 
     for repofile_url in repos:
         responses.add(responses.GET, repofile_url, body=repo_content)
-    runner = PreBuildPluginsRunner(workflow, [{
-        'name': InjectYumReposPlugin.key,
-        'args': {'inject_proxy': inject_proxy}}])
-    runner.run()
+
+    (MockEnv(workflow)
+     .for_plugin(InjectYumReposPlugin.key, args={'inject_proxy': inject_proxy})
+     .create_runner()
+     .run())
 
     repos_path = workflow.build_dir.any_platform.path / RELATIVE_REPOS_PATH
 
@@ -1015,10 +1008,11 @@ def test_single_repourl_no_suffix(inject_proxy, workflow, build_dir):
     repo_content = '''[repo]\n'''
 
     responses.add(responses.GET, repofile_url, body=repo_content)
-    runner = PreBuildPluginsRunner(workflow, [{
-        'name': InjectYumReposPlugin.key,
-        'args': {'inject_proxy': inject_proxy}}])
-    runner.run()
+
+    (MockEnv(workflow)
+     .for_plugin(InjectYumReposPlugin.key, args={'inject_proxy': inject_proxy})
+     .create_runner()
+     .run())
 
     repo_filename = 'example repo-?????.repo'
     repos_path = workflow.build_dir.any_platform.path / RELATIVE_REPOS_PATH
@@ -1055,10 +1049,11 @@ def test_multiple_repourls_no_suffix(workflow, build_dir, inject_proxy, repos, p
 
     for repofile_url in repos:
         responses.add(responses.GET, repofile_url, body=repo_content)
-    runner = PreBuildPluginsRunner(workflow, [{
-        'name': InjectYumReposPlugin.key,
-        'args': {'inject_proxy': inject_proxy}}])
-    runner.run()
+
+    (MockEnv(workflow)
+     .for_plugin(InjectYumReposPlugin.key, args={'inject_proxy': inject_proxy})
+     .create_runner()
+     .run())
 
     repos_path = workflow.build_dir.any_platform.path / RELATIVE_REPOS_PATH
     files = os.listdir(repos_path)
@@ -1081,9 +1076,10 @@ def test_invalid_repourl(workflow, build_dir):
     """
     wrong_repo_url = "http://example.com/nope/repo"
     workflow = prepare(workflow, build_dir, yum_repourls={'x86_64': [wrong_repo_url]})
-    runner = PreBuildPluginsRunner(workflow, [{
-        'name': InjectYumReposPlugin.key,
-        'args': {'inject_proxy': None}}])
+
+    runner = (MockEnv(workflow)
+              .for_plugin(InjectYumReposPlugin.key, args={'inject_proxy': None})
+              .create_runner())
 
     (flexmock(YumRepo)
         .should_receive('fetch')
@@ -1129,9 +1125,9 @@ def test_allowed_domains(build_dir, allowed_domains, repo_urls, will_raise, scra
     for repofile_url in repo_urls:
         responses.add(responses.GET, repofile_url)
 
-    runner = PreBuildPluginsRunner(workflow, [{
-        'name': InjectYumReposPlugin.key,
-        'args': {'inject_proxy': None}}])
+    runner = (MockEnv(workflow)
+              .for_plugin(InjectYumReposPlugin.key, args={'inject_proxy': None})
+              .create_runner())
 
     if will_raise and not scratch:
         with pytest.raises(PluginFailedException) as exc:

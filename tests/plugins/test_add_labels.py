@@ -21,7 +21,7 @@ from flexmock import flexmock
 from atomic_reactor import start_time as atomic_reactor_start_time
 from atomic_reactor.constants import INSPECT_CONFIG
 from atomic_reactor.dirs import BuildDir
-from atomic_reactor.plugin import PreBuildPluginsRunner, PluginFailedException
+from atomic_reactor.plugin import PluginsRunner, PluginFailedException
 from atomic_reactor.plugins.add_labels_in_df import AddLabelsPlugin
 from atomic_reactor.source import VcsInfo
 from atomic_reactor.types import ImageInspectionData
@@ -136,7 +136,7 @@ def mock_env(
     auto_labels: Optional[List[str]] = None,
 ) -> MockEnv:
 
-    env = MockEnv(workflow).for_plugin("prebuild", AddLabelsPlugin.key)
+    env = MockEnv(workflow).for_plugin(AddLabelsPlugin.key)
 
     args = {
         'labels': labels_plugin_arg,
@@ -729,7 +729,7 @@ def test_release_label(workflow, caplog, base_new, df_new, plugin_new,
 def test_labels_from_user_params(workflow):
     workflow.user_params["release"] = "42"
 
-    runner = PreBuildPluginsRunner(workflow, [])
+    runner = PluginsRunner(workflow, [])
     plugin = runner.create_instance_from_plugin(AddLabelsPlugin, {})
 
     assert plugin.labels == {"release": "42"}

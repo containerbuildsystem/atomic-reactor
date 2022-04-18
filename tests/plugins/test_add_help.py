@@ -84,7 +84,7 @@ def mock_env(
     mock_md2man: Callable[..., MockedPopen] = mock_md2man_success("man file content"),
 ) -> PluginsRunner:
 
-    env = MockEnv(workflow).for_plugin("prebuild", AddHelpPlugin.key, plugin_args)
+    env = MockEnv(workflow).for_plugin(AddHelpPlugin.key, plugin_args)
     source_dir = Path(workflow.source.path)
 
     (source_dir / "Dockerfile").write_text(df_content)

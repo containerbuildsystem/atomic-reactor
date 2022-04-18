@@ -5,16 +5,12 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
-from typing import Any, List, Union
+from typing import Any, List, Union, Dict, Optional
 
 from atomic_reactor.constants import PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
-from atomic_reactor.plugin import (PreBuildPluginsRunner,
-                                   BuildStepPluginsRunner,
-                                   PostBuildPluginsRunner,
-                                   PrePublishPluginsRunner,
-                                   ExitPluginsRunner)
+from atomic_reactor.plugin import PluginsRunner
 from atomic_reactor.inner import DockerBuildWorkflow
-from atomic_reactor.config import Configuration
+from atomic_reactor.config import Configuration, ReactorConfigKeys
 from atomic_reactor.util import DockerfileImages
 
 
@@ -27,61 +23,45 @@ class MockEnv(object):
 
     Example usage:
     >>> runner = (MockEnv(workflow)
-    >>>           .for_plugin('prebuild', 'my_plugin')
+    >>>           .for_plugin('my_plugin')
     >>>           .set_scratch(True)
     >>>           .create_runner())
     >>> runner.run()
     """
 
-    _plugin_phases = ('prebuild', 'buildstep', 'postbuild', 'prepublish', 'exit')
-
-    _runner_for_phase = {
-        'prebuild': PreBuildPluginsRunner,
-        'buildstep': BuildStepPluginsRunner,
-        'postbuild': PostBuildPluginsRunner,
-        'prepublish': PrePublishPluginsRunner,
-        'exit': ExitPluginsRunner,
-    }
-
     def __init__(self, workflow: DockerBuildWorkflow):
         self.workflow = workflow
-        self._phase = None
         self._plugin_key = None
         self._reactor_config_map = None
 
-    def create_runner(self):
+    def create_runner(self) -> PluginsRunner:
         """
         Create runner for current plugin (configured using for_plugin())
 
         :return: PluginsRunner instance (instance of appropriate subclass based on plugin phase)
         """
-        if self._phase is None:
-            raise ValueError('No plugin configured (use for_plugin() to configure one)')
-        runner_cls = self._runner_for_phase[self._phase]
-        plugins_conf = getattr(self.workflow.plugins, self._phase)
-        return runner_cls(self.workflow, plugins_conf)
+        return PluginsRunner(
+            self.workflow,
+            self.workflow.plugins_conf,
+            plugins_results=self.workflow.data.plugins_results,
+        )
 
-    def for_plugin(self, phase, plugin_key, args=None):
+    def for_plugin(self, plugin_key, args=None):
         """
         Set up environment for the specified plugin
 
-        :param phase: str, plugin phase (prebuild, buildstep, postbuild, prepublish, exit)
         :param plugin_key: str, plugin key
         :param args: dict, optional plugin arguments
         """
-        if self._phase is not None:
-            msg = 'Plugin already configured: {} ({} phase)'.format(self._plugin_key, self._phase)
-            raise ValueError(msg)
-
-        self._validate_phase(phase)
-        self._phase = phase
         self._plugin_key = plugin_key
+        plugins_conf = self.workflow.plugins_conf
 
-        plugins = getattr(self.workflow.plugins, phase)
-        if plugins:
-            raise ValueError(f"This environment already has {phase} plugins: {plugins}")
-        plugins.append(self._make_plugin_conf(plugin_key, args))
+        for conf in plugins_conf:
+            if conf["name"] == plugin_key:
+                raise ValueError(f"This environment already has plugin: {plugin_key}")
 
+        plugins_args = {} if args is None else args
+        plugins_conf.append({"name": plugin_key, "args": plugins_args})
         return self
 
     def set_scratch(self, scratch):
@@ -115,7 +95,7 @@ class MockEnv(object):
         self.workflow.data.plugins_results[plugin_key] = result
         return self
 
-    def set_plugin_args(self, args, phase=None, plugin_key=None):
+    def set_plugin_args(self, args: Dict[str, Any], plugin_key: Optional[str] = None):
         """
         Set plugin arguments (stored in plugins configuration in workflow).
 
@@ -129,20 +109,27 @@ class MockEnv(object):
         :param phase: str, optional plugin phase
         :param plugin_key: str, optional plugin key
         """
-        phase = phase or self._phase
         plugin_key = plugin_key or self._plugin_key
-        plugin = self._get_plugin(phase, plugin_key)
+        plugin = self._get_plugin_conf(plugin_key)
         plugin['args'] = args
         return self
 
-    def set_reactor_config(self, config):
+    def set_reactor_config(self, config: Union[Configuration, Dict[str, Any]]):
         """
         Set reactor config map in the workflow
 
-        :param config: dict or Configuration, if dict, will be converted to Configuration
+        :param config: If raw config is passed, it will be converted to
+            Configuration and the version key is added automatically if omitted.
+        :type config: dict[str, any] or Configuration
         """
-        if not isinstance(config, Configuration):
+        if isinstance(config, dict):
+            if ReactorConfigKeys.VERSION_KEY not in config:
+                config[ReactorConfigKeys.VERSION_KEY] = 1
             config = Configuration(raw_config=config)
+        elif isinstance(config, Configuration):
+            pass  # Do nothing, use it directly
+        else:
+            raise TypeError(f"Type {type(config)} of config argument is not supported.")
         self._reactor_config_map = config
         self.workflow.conf = config
         return self
@@ -172,21 +159,8 @@ class MockEnv(object):
         self.workflow.data.dockerfile_images = images
         return self
 
-    def _validate_phase(self, phase):
-        if phase not in self._plugin_phases:
-            phases = ', '.join(self._plugin_phases)
-            raise ValueError('Invalid plugin phase: {} (valid: {})'.format(phase, phases))
-
-    def _make_plugin_conf(self, name, args):
-        plugin = {'name': name}
-        if args:
-            plugin['args'] = args
-        return plugin
-
-    def _get_plugin(self, phase, plugin_key):
-        self._validate_phase(phase)
-        plugins = getattr(self.workflow.plugins, phase)
-        for plugin in plugins:
-            if plugin['name'] == plugin_key:
-                return plugin
-        raise ValueError('No such plugin: {} (for {} phase)'.format(plugin_key, phase))
+    def _get_plugin_conf(self, plugin_key: str) -> Dict[str, Any]:
+        for plugin_conf in self.workflow.plugins_conf:
+            if plugin_conf['name'] == plugin_key:
+                return plugin_conf
+        raise ValueError(f'No such plugin: {plugin_key}')

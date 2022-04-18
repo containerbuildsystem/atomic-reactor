@@ -13,8 +13,8 @@ import pytest
 from flexmock import flexmock
 
 from atomic_reactor.constants import INSPECT_CONFIG
-from atomic_reactor.plugin import PreBuildPluginsRunner
 from atomic_reactor.plugins.hide_files import HideFilesPlugin
+from tests.mock_env import MockEnv
 
 
 def check_df_content(expected_content, workflow):
@@ -36,10 +36,10 @@ class TestHideFilesPlugin(object):
 
         self.prepare(workflow, df_content)
 
-        runner = PreBuildPluginsRunner(workflow, [
-            {'name': HideFilesPlugin.key, 'args': {}},
-        ])
-        runner_results = runner.run()
+        runner_results = (MockEnv(workflow)
+                          .for_plugin(HideFilesPlugin.key)
+                          .create_runner()
+                          .run())
 
         assert runner_results[HideFilesPlugin.key] is None
         # Verify Dockerfile contents have not changed
@@ -161,10 +161,10 @@ class TestHideFilesPlugin(object):
                      parent_images=parent_images,
                      inherited_user=inherited_user)
 
-        runner = PreBuildPluginsRunner(workflow, [
-            {'name': HideFilesPlugin.key, 'args': {}},
-        ])
-        runner.run()
+        (MockEnv(workflow)
+         .for_plugin(HideFilesPlugin.key)
+         .create_runner()
+         .run())
 
         check_df_content(expected_df, workflow)
 
@@ -196,10 +196,10 @@ class TestHideFilesPlugin(object):
                      parent_images=parent_images,
                      inherited_user="inherited_user")
 
-        runner = PreBuildPluginsRunner(workflow, [
-            {'name': HideFilesPlugin.key, 'args': {}},
-        ])
-        runner.run()
+        (MockEnv(workflow)
+         .for_plugin(HideFilesPlugin.key)
+         .create_runner()
+         .run())
 
         expected_df_content = dedent("""\
             FROM sha256:123456 as builder

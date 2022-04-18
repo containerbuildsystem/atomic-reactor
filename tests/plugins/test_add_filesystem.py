@@ -18,16 +18,17 @@ import responses
 import logging
 from dockerfile_parse import DockerfileParser
 
-from atomic_reactor.plugin import (
-    PreBuildPluginsRunner, PluginFailedException, BuildCanceledException)
-from atomic_reactor.util import DockerfileImages
+from atomic_reactor.plugin import PluginFailedException, BuildCanceledException
 from atomic_reactor.plugins.add_filesystem import AddFilesystemPlugin
+from atomic_reactor.util import DockerfileImages
 from atomic_reactor.source import VcsInfo
-from atomic_reactor.constants import (DOCKERFILE_FILENAME, PLUGIN_ADD_FILESYSTEM_KEY,
+from atomic_reactor.constants import (DOCKERFILE_FILENAME,
                                       PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
                                       PLUGIN_RESOLVE_COMPOSES_KEY)
 import atomic_reactor.utils.koji as koji_util
 from tests.constants import (DOCKERFILE_GIT, DOCKERFILE_SHA1, MOCK)
+from tests.mock_env import MockEnv
+
 if MOCK:
     from tests.retry_mock import mock_get_retry_session
 
@@ -278,20 +279,16 @@ def test_add_filesystem_plugin_generated(workflow, build_dir, scratch, dockerfil
 
     make_and_store_reactor_config_map(workflow, {'root_url': '', 'auth': {}})
 
-    runner = PreBuildPluginsRunner(
-        workflow,
-        [{
-            'name': PLUGIN_ADD_FILESYSTEM_KEY,
-            'args': {}
-        }]
-    )
+    runner = (MockEnv(workflow)
+              .for_plugin(AddFilesystemPlugin.key)
+              .create_runner())
 
     expected_results = {
         'filesystem-koji-task-id': FILESYSTEM_TASK_ID,
     }
 
     results = runner.run()
-    plugin_result = results[PLUGIN_ADD_FILESYSTEM_KEY]
+    plugin_result = results[AddFilesystemPlugin.key]
     assert 'filesystem-koji-task-id' in plugin_result
     assert plugin_result == expected_results
     assert workflow.data.labels['filesystem-koji-task-id'] == FILESYSTEM_TASK_ID
@@ -315,16 +312,12 @@ def test_add_filesystem_plugin_legacy(workflow, build_dir, scratch, caplog):
 
     make_and_store_reactor_config_map(workflow, {'root_url': '', 'auth': {}})
 
-    runner = PreBuildPluginsRunner(
-        workflow,
-        [{
-            'name': PLUGIN_ADD_FILESYSTEM_KEY,
-            'args': {}
-        }]
-    )
+    runner = (MockEnv(workflow)
+              .for_plugin(AddFilesystemPlugin.key)
+              .create_runner())
 
     results = runner.run()
-    plugin_result = results[PLUGIN_ADD_FILESYSTEM_KEY]
+    plugin_result = results[AddFilesystemPlugin.key]
     assert 'filesystem-koji-task-id' in plugin_result
     assert workflow.data.labels['filesystem-koji-task-id'] == FILESYSTEM_TASK_ID
     msg = f'added "{image_name}" as image filesystem'
@@ -411,13 +404,9 @@ def test_image_task_failure(workflow, build_dir, build_cancel, error_during_canc
 
     workflow.data.plugins_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = ['x86_64']
 
-    runner = PreBuildPluginsRunner(
-        workflow,
-        [{
-            'name': PLUGIN_ADD_FILESYSTEM_KEY,
-            'args': {}
-        }]
-    )
+    runner = (MockEnv(workflow)
+              .for_plugin(AddFilesystemPlugin.key)
+              .create_runner())
 
     with caplog.at_level(logging.INFO,
                          logger='atomic_reactor'), pytest.raises(PluginFailedException) as exc:
@@ -730,16 +719,12 @@ def test_image_download(workflow, build_dir, parents, skip_plugin,
 
     make_and_store_reactor_config_map(workflow, {'root_url': '', 'auth': {}})
 
-    runner = PreBuildPluginsRunner(
-        workflow,
-        [{
-            'name': PLUGIN_ADD_FILESYSTEM_KEY,
-            'args': {}
-        }]
-    )
+    runner = (MockEnv(workflow)
+              .for_plugin(AddFilesystemPlugin.key)
+              .create_runner())
 
     results = runner.run()
-    plugin_result = results[PLUGIN_ADD_FILESYSTEM_KEY]
+    plugin_result = results[AddFilesystemPlugin.key]
 
     if skip_plugin:
         message = 'Nothing to do for non-custom base images'
