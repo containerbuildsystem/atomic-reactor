@@ -5,7 +5,7 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
-
+import sys
 import time
 import inspect
 
@@ -146,21 +146,20 @@ def test_verify_required_plugins_before_first_run(caplog, workflow, runner_type,
         assert any(expected_log_message in log.getMessage() for log in caplog.records)
 
 
-def test_check_no_reload(caplog, workflow):
+def test_check_no_reload(workflow):
     """
     test if plugins are not reloaded
     """
     this_file = inspect.getfile(MyBsPlugin1)
-    expected_log_message = "load file '%s'" % this_file
     BuildStepPluginsRunner(workflow,
                            [{"name": "MyBsPlugin1"}],
                            plugin_files=[this_file])
-    assert any(expected_log_message in log.getMessage() for log in caplog.records)
-    log_len = len(caplog.records)
+    module_id_first = id(sys.modules['test_plugin'])
     BuildStepPluginsRunner(workflow,
                            [{"name": "MyBsPlugin1"}],
                            plugin_files=[this_file])
-    assert all(expected_log_message not in log.getMessage() for log in caplog.records[log_len:])
+    module_id_second = id(sys.modules['test_plugin'])
+    assert module_id_first == module_id_second
 
 @pytest.mark.parametrize('success1', [True, False])  # noqa
 @pytest.mark.parametrize('success2', [True, False])

@@ -175,7 +175,6 @@ class PluginsRunner(object):
                 f_module = sys.modules[module_name]
             else:
                 try:
-                    logger.debug("load file '%s'", f)
                     f_module = imp.load_source(module_name, f)
                 except (IOError, OSError, ImportError, SyntaxError) as ex:
                     logger.warning("can't load module '%s': %s", f, ex)
