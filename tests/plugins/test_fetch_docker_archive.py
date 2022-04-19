@@ -44,18 +44,3 @@ class TestFetchDockerArchive(object):
             assert metadata['type'] == IMAGE_TYPE_DOCKER_ARCHIVE
             assert f'image for platform:{platform} available at ' \
                    f"{image_path / 'image.tar'}" in caplog.text
-
-    def test_skip_plugin(self, caplog, workflow):
-        workflow.user_params['scratch'] = True
-
-        runner = PostBuildPluginsRunner(
-            workflow,
-            [{
-                'name': FetchDockerArchivePlugin.key,
-                'args': {
-                },
-            }]
-        )
-
-        runner.run()
-        assert 'scratch build, skipping plugin' in caplog.text
