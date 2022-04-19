@@ -5,6 +5,7 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
+import subprocess
 
 import pytest
 import tarfile
@@ -18,6 +19,8 @@ from osbs.utils import ImageName
 from atomic_reactor import config
 from atomic_reactor import util
 from atomic_reactor.utils import imageutil, retries
+from atomic_reactor.utils.imageutil import NothingExtractedError, NonEmptyDestinationError, \
+    ExtractionError
 
 
 @pytest.fixture
@@ -176,8 +179,10 @@ class TestImageUtil:
         file = dst_path / 'somefile.txt'
         file.touch()
 
-        with pytest.raises(ValueError, match=f'the destination directory {dst_path} must be empty'):
-            image_util.extract_file_from_image(image=image, src_path=src_path, dst_path=dst_path)
+        with pytest.raises(NonEmptyDestinationError,
+                           match=f'the destination directory {dst_path} must be empty'):
+            image_util.extract_file_from_image(image=image, src_path=src_path,
+                                               dst_path=str(dst_path))
 
     def test_extract_file_from_image_no_file_extracted(self, tmpdir):
         image_util = imageutil.ImageUtil(util.DockerfileImages([]), self.config)
@@ -193,11 +198,34 @@ class TestImageUtil:
             .once()
         )
         with pytest.raises(
-                ValueError,
+                NothingExtractedError,
                 match=f"Extraction failed, files at path {src_path} not found in the image",
         ):
             image_util.extract_file_from_image(
-                image=image, src_path=src_path, dst_path=dst_path
+                image=image, src_path=src_path, dst_path=str(dst_path)
+            )
+
+    def test_extract_file_from_image_failed(self, tmpdir):
+        image_util = imageutil.ImageUtil(util.DockerfileImages([]), self.config)
+        image = 'registry.com/fedora:35'
+        src_path = '/path/to/file'
+        dst_path = Path(tmpdir) / 'dst_dir'
+        dst_path.mkdir()
+
+        (
+            flexmock(retries)
+            .should_receive("run_cmd")
+            .with_args(['oc', 'image', 'extract', image, '--path', f'{src_path}:{dst_path}'])
+            .and_raise(
+                subprocess.CalledProcessError(1, ["oc", "..."], output=b'something went wrong')
+            )
+        )
+        with pytest.raises(
+                ExtractionError,
+                match="Image file extraction failed",
+        ):
+            image_util.extract_file_from_image(
+                image=image, src_path=src_path, dst_path=str(dst_path)
             )
 
     def test_extract_file_from_image(self, tmpdir):

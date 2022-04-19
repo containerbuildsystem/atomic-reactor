@@ -13,6 +13,7 @@ from typing import List
 from atomic_reactor.dirs import BuildDir
 from atomic_reactor.plugin import PostBuildPlugin
 from atomic_reactor.types import RpmComponent
+from atomic_reactor.utils.imageutil import NothingExtractedError
 from atomic_reactor.utils.rpm import parse_rpm_output
 from atomic_reactor.utils.rpm import rpm_qf_args
 
@@ -50,12 +51,11 @@ class PostBuildRPMqaPlugin(PostBuildPlugin):
         with tempfile.TemporaryDirectory(dir=build_dir.path) as rpmdb_dir:
             try:
                 self.workflow.imageutil.extract_file_from_image(image, RPMDB_PATH, rpmdb_dir)
-            except ValueError as e:
+            except NothingExtractedError:
                 if self.workflow.data.dockerfile_images.base_from_scratch:
                     self.log.info("scratch image doesn't contain or has empty rpmdb %s", RPMDB_PATH)
                     return []
-                raise RuntimeError(f"rpmdb directory {RPMDB_PATH} in the image, is empty or "
-                                   "doesn't exist") from e
+                raise
 
             rpmdb_path = os.path.join(rpmdb_dir, RPMDB_DIR_NAME)
 

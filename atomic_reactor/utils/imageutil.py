@@ -25,6 +25,18 @@ from atomic_reactor.utils import retries
 logger = logging.getLogger(__name__)
 
 
+class ExtractionError(Exception):
+    """The image extraction failed."""
+
+
+class NothingExtractedError(ExtractionError):
+    """Error of extracting nothing from the image"""
+
+
+class NonEmptyDestinationError(ExtractionError):
+    """Error of extracting into non-empty destination"""
+
+
 def image_is_inspectable(image: Union[str, ImageName]) -> bool:
     """Check if we should expect the image to be inspectable."""
     im = str(image)
@@ -124,20 +136,20 @@ class ImageUtil:
         :param dst_path: str, path where to export file/dir
         """
         if any(Path(dst_path).iterdir()):
-            raise ValueError(f'the destination directory {dst_path} must be empty')
+            raise NonEmptyDestinationError(f'the destination directory {dst_path} must be empty')
 
         cmd = ['oc', 'image', 'extract', f'{image}', '--path', f'{src_path}:{dst_path}']
 
         try:
             retries.run_cmd(cmd)
         except subprocess.CalledProcessError as e:
-            logger.error("Image file extraction failed\n%s", e.output)
-            raise
+            raise ExtractionError(f"Image file extraction failed\n{e.output}") from e
 
         # check if something was extracted, as the extraction can fail
         # silently when extracting nonexisting files
         if not any(Path(dst_path).iterdir()):
-            raise ValueError(f'Extraction failed, files at path {src_path} not found in the image')
+            raise NothingExtractedError(f'Extraction failed, files at path {src_path}'
+                                        ' not found in the image')
 
     def download_image_archive_tarball(self, image: Union[str, ImageName], path: str) -> None:
         """Downloads image archive tarball to path.
