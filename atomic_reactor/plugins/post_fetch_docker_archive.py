@@ -8,7 +8,7 @@ of the BSD license. See the LICENSE file for details.
 from atomic_reactor.constants import IMAGE_TYPE_DOCKER_ARCHIVE
 from atomic_reactor.dirs import BuildDir
 from atomic_reactor.plugin import PostBuildPlugin
-from atomic_reactor.util import get_exported_image_metadata, is_scratch_build
+from atomic_reactor.util import get_exported_image_metadata
 
 
 class FetchDockerArchivePlugin(PostBuildPlugin):
@@ -36,9 +36,4 @@ class FetchDockerArchivePlugin(PostBuildPlugin):
         return metadata
 
     def run(self):
-        if is_scratch_build(self.workflow):
-            # required only to make an archive for Koji
-            self.log.info('scratch build, skipping plugin')
-            return
-
         return self.workflow.build_dir.for_each_platform(self.download_image)
