@@ -81,6 +81,7 @@ class CheckAndSetPlatformsPlugin(PreBuildPlugin):
                     self.log.info("Using them instead of koji platforms")
                     # platforms from user params do not match platforms from koji target
                     # that almost certainly means they were overridden and should be used
+                    self.workflow.build_dir.init_build_dirs(sorted_platforms, self.workflow.source)
                     return sorted_platforms
         else:
             platforms = user_platforms
