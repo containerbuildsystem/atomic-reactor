@@ -29,10 +29,11 @@ elif [[ $($ENGINE ps -q -f name="$CONTAINER_NAME" | wc -l) -eq 0 ]]; then
   $ENGINE container start "$CONTAINER_NAME"
 fi
 
+ENVS='-e PIP_PREFIX=/usr'
+RUN="$ENGINE exec -i ${ENVS} $CONTAINER_NAME"
+
 function setup_osbs() {
   # PIP_PREFIX: osbs-client provides input templates that must be copied into /usr/share/...
-  ENVS='-e PIP_PREFIX=/usr'
-  RUN="$ENGINE exec -i ${ENVS} $CONTAINER_NAME"
   PYTHON="python$PYTHON_VERSION"
   # If the version is e.g. "3.8", the package name is python38
   # DISCLAIMER: Does not work with fedora, stick with python "3"
@@ -104,6 +105,8 @@ case ${ACTION} in
   ;;
 "bandit")
   setup_osbs
+  $RUN git config --global --add safe.directory "$PWD"
+  $RUN git status
   $RUN "${PIP_INST[@]}" bandit
   TEST_CMD="bandit-baseline -r atomic_reactor -ll -ii"
   ;;
