@@ -35,7 +35,7 @@ spec:
           cpu: 1300m
       script: >
         atomic-reactor -v task
-        --user-params="$(params.user-params)"
+        --user-params='$(params.user-params)'
         --build-dir=$(workspaces.ws-build-dir.path)
         --context-dir=$(workspaces.ws-context-dir.path)
         --config-file=$(workspaces.ws-reactor-config-map.path)/config.yaml

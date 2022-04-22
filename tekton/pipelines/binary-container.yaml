@@ -48,7 +48,7 @@ spec:
         - name: pipeline-run-name
           value: "$(context.pipelineRun.name)"
         - name: user-params
-          value: "$(params.user-params)"
+          value: '$(params.user-params)'
 
     - name: binary-container-prebuild
       runAfter:
@@ -72,7 +72,7 @@ spec:
         - name: pipeline-run-name
           value: "$(context.pipelineRun.name)"
         - name: user-params
-          value: "$(params.user-params)"
+          value: '$(params.user-params)'
 
     - name: binary-container-build-x86-64
       runAfter:
@@ -98,7 +98,7 @@ spec:
         - name: pipeline-run-name
           value: "$(context.pipelineRun.name)"
         - name: user-params
-          value: "$(params.user-params)"
+          value: '$(params.user-params)'
         - name: platform
           value: x86_64
 
@@ -126,7 +126,7 @@ spec:
         - name: pipeline-run-name
           value: "$(context.pipelineRun.name)"
         - name: user-params
-          value: "$(params.user-params)"
+          value: '$(params.user-params)'
         - name: platform
           value: s390x
 
@@ -154,7 +154,7 @@ spec:
         - name: pipeline-run-name
           value: "$(context.pipelineRun.name)"
         - name: user-params
-          value: "$(params.user-params)"
+          value: '$(params.user-params)'
         - name: platform
           value: ppc64le
 
@@ -182,7 +182,7 @@ spec:
         - name: pipeline-run-name
           value: "$(context.pipelineRun.name)"
         - name: user-params
-          value: "$(params.user-params)"
+          value: '$(params.user-params)'
         - name: platform
           value: aarch64
 
@@ -211,7 +211,7 @@ spec:
         - name: pipeline-run-name
           value: "$(context.pipelineRun.name)"
         - name: user-params
-          value: "$(params.user-params)"
+          value: '$(params.user-params)'
 
     - name: binary-container-set-results
       runAfter:
@@ -246,4 +246,4 @@ spec:
         - name: pipeline-run-name
           value: "$(context.pipelineRun.name)"
         - name: user-params
-          value: "$(params.user-params)"
+          value: '$(params.user-params)'
