@@ -730,11 +730,11 @@ odcs:
         'required_secrets', 'worker_token_secrets', 'clusters', 'hide_files',
         'skip_koji_check_for_base_image', 'deep_manifest_list_inspection'
     ])
-    def test_get_methods(self, parse_from, method, tmpdir, caplog):
+    def test_get_methods(self, parse_from, method, tmpdir, caplog, monkeypatch):
         if parse_from == 'raw':
             conf = Configuration(raw_config=yaml.safe_load(REACTOR_CONFIG_MAP))
         elif parse_from == 'env':
-            os.environ[REACTOR_CONFIG_ENV_NAME] = dedent(REACTOR_CONFIG_MAP)
+            monkeypatch.setenv(REACTOR_CONFIG_ENV_NAME, dedent(REACTOR_CONFIG_MAP))
             conf = Configuration(env_name=REACTOR_CONFIG_ENV_NAME)
         elif parse_from == 'file':
             filename = str(tmpdir.join('config.yaml'))

@@ -6,5 +6,6 @@ pypng
 pytest>=5.0
 pytest-cov
 pytest-html
+pytest-xdist
 flake8
 requests-mock
