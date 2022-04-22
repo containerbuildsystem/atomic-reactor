@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from atomic_reactor.inner import DockerBuildWorkflow
 
 MANIFESTS_DIR_NAME = 'manifests'
-IMG_MANIFESTS_PATH = os.path.join('/', MANIFESTS_DIR_NAME)
+IMG_MANIFESTS_PATH = f'/{MANIFESTS_DIR_NAME}/'
 
 
 class ExportOperatorManifestsPlugin(Plugin):
@@ -65,8 +65,9 @@ class ExportOperatorManifestsPlugin(Plugin):
             platforms[0])[0]
         tmp_dir = tempfile.mkdtemp(dir=self.workflow.build_dir.any_platform.path)
         manifests_dir = os.path.join(tmp_dir, MANIFESTS_DIR_NAME)
+        os.mkdir(manifests_dir)
 
-        self.workflow.imageutil.extract_file_from_image(image, IMG_MANIFESTS_PATH, tmp_dir)
+        self.workflow.imageutil.extract_file_from_image(image, IMG_MANIFESTS_PATH, manifests_dir)
 
         if has_operator_bundle_manifest(self.workflow):
             self._verify_csv(manifests_dir)

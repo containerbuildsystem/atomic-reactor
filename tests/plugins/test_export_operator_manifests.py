@@ -76,8 +76,7 @@ def extract_manifests_dir(cmd, empty=False, has_archive=True, change_csv_content
         content for the specific test.
     :param bool multiple_csv: whether to add extra CSV file.
     """
-    manifests_dir = Path(cmd[-1].split(':')[-1]) / 'manifests'
-    manifests_dir.mkdir()
+    manifests_dir = Path(cmd[-1].split(':')[-1])
     another_dir = manifests_dir / 'another_dir'
     another_dir.mkdir()
 
