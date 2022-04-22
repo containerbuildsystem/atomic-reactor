@@ -45,7 +45,7 @@ spec:
         - name: pipeline-run-name
           value: "$(context.pipelineRun.name)"
         - name: user-params
-          value: "$(params.user-params)"
+          value: '$(params.user-params)'
 
     - name: source-container-set-results
       runAfter:
@@ -80,4 +80,4 @@ spec:
         - name: pipeline-run-name
           value: "$(context.pipelineRun.name)"
         - name: user-params
-          value: "$(params.user-params)"
+          value: '$(params.user-params)'
