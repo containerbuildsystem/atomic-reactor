@@ -34,7 +34,7 @@ from atomic_reactor.inner import (BuildResults, BuildResultsEncoder,
                                   FSWatcher, ImageBuildWorkflowData, TagConf)
 from atomic_reactor.source import PathSource, DummySource
 from atomic_reactor.util import (
-    DockerfileImages, df_parser, validate_with_schema, graceful_chain_get
+    DockerfileImages, validate_with_schema, graceful_chain_get
 )
 from atomic_reactor.tasks.plugin_based import PluginsDef
 from osbs.utils import ImageName
@@ -932,7 +932,7 @@ def test_parse_dockerfile_again_after_data_is_loaded(context_dir, build_dir, tmp
     wf_data.save(context_dir)
 
     another_source = DummySource("git", "https://git.host/")
-    dfp = df_parser(another_source.source_path)
+    dfp = DockerfileParser(another_source.source_path)
     dfp.content = 'FROM fedora:35\nCMD ["bash", "--version"]'
 
     wf_data = ImageBuildWorkflowData.load_from_dir(context_dir)
@@ -1069,7 +1069,7 @@ def test_parent_images_to_str(caplog, context_dir, build_dir):
 
 def test_no_base_image(context_dir, build_dir):
     source = DummySource("git", "https://git.host/")
-    dfp = df_parser(source.source_path)
+    dfp = DockerfileParser(source.source_path)
     dfp.content = "# no FROM\nADD spam /eggs"
     with pytest.raises(RuntimeError, match="no base image specified"):
         DockerBuildWorkflow(context_dir,
@@ -1097,7 +1097,7 @@ def test_copy_from_unkown_stage(context_dir, build_dir, source_dir):
     """test when user has specified COPY --from=image (instead of builder)"""
     source = PathSource("path", f"file://{source_dir}", workdir=str(source_dir))
 
-    dfp = df_parser(str(source_dir))
+    dfp = DockerfileParser(str(source_dir))
     dfp.content = dedent("""\
         FROM monty as vikings
         FROM python
@@ -1116,7 +1116,7 @@ def test_copy_from_unkown_stage(context_dir, build_dir, source_dir):
 def test_copy_from_invalid_index(context_dir, build_dir, source_dir):
     source = PathSource("path", f"file://{source_dir}", workdir=str(source_dir))
 
-    dfp = df_parser(str(source_dir))
+    dfp = DockerfileParser(str(source_dir))
     dfp.content = dedent("""\
         FROM monty as vikings
         # using an index we haven't seen should break:

@@ -16,11 +16,12 @@ import koji
 import pytest
 import responses
 import logging
+from dockerfile_parse import DockerfileParser
 
 from atomic_reactor.plugin import (
     PreBuildPluginsRunner, PluginFailedException, BuildCanceledException)
 from atomic_reactor.plugins.pre_add_filesystem import AddFilesystemPlugin
-from atomic_reactor.util import df_parser, DockerfileImages
+from atomic_reactor.util import DockerfileImages
 from atomic_reactor.source import VcsInfo
 from atomic_reactor.constants import (DOCKERFILE_FILENAME, PLUGIN_ADD_FILESYSTEM_KEY,
                                       PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
@@ -179,7 +180,7 @@ def mock_workflow(workflow, build_dir: Path, dockerfile=DEFAULT_DOCKERFILE,
     with open(workflow.source.dockerfile_path, 'w') as f:
         f.write(dockerfile)
     workflow.build_dir.init_build_dirs(platforms, workflow.source)
-    df = df_parser(str(build_dir))
+    df = DockerfileParser(str(build_dir))
     workflow.data.dockerfile_images = DockerfileImages(df.parent_images)
     mock_get_retry_session()
 

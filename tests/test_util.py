@@ -44,7 +44,7 @@ from atomic_reactor.util import (LazyGit, figure_out_build_file,
                                  get_manifest_list, get_all_manifests,
                                  get_inspect_for_image, get_manifest,
                                  is_scratch_build, is_isolated_build, is_flatpak_build,
-                                 df_parser, base_image_is_custom,
+                                 base_image_is_custom,
                                  are_plugins_in_order, LabelFormatter,
                                  label_to_string,
                                  guess_manifest_media_type,
@@ -67,10 +67,8 @@ from atomic_reactor.util import (LazyGit, figure_out_build_file,
                                  )
 from tests.constants import MOCK, REACTOR_CONFIG_MAP
 import atomic_reactor.util
-from atomic_reactor.constants import INSPECT_CONFIG
 from osbs.utils import ImageName
 from osbs.exceptions import OsbsValidationException
-from tests.stubs import StubSource
 
 if MOCK:
     from tests.retry_mock import mock_get_retry_session
@@ -937,63 +935,6 @@ def test_is_isolated_build(workflow, extra_user_params, isolated, user_params):
 def test_is_flatpak_build(workflow, extra_user_params, flatpak, user_params):
     workflow.user_params.update(extra_user_params)
     assert is_flatpak_build(workflow) == flatpak
-
-
-def test_df_parser(tmpdir):
-    tmpdir_path = str(tmpdir.realpath())
-    df = df_parser(tmpdir_path)
-    df.lines = [
-        "FROM fedora\n",
-        "ENV foo=\"bar\"\n",
-        "LABEL label=\"foobar barfoo\"\n"
-    ]
-
-    assert len(df.envs) == 1
-    assert df.envs.get('foo') == 'bar'
-    assert len(df.labels) == 1
-    assert df.labels.get('label') == 'foobar barfoo'
-
-
-def test_df_parser_parent_env_arg(tmpdir):
-    p_env = {
-        "test_env": "first"
-    }
-    df_content = dedent("""\
-        FROM fedora
-        ENV foo=bar
-        LABEL label="foobar $test_env"
-        """)
-    df = df_parser(str(tmpdir), parent_env=p_env)
-    df.content = df_content
-    assert df.labels.get('label') == 'foobar first'
-
-
-@pytest.mark.parametrize('env_arg', [
-    {"test_env": "first"},
-    ['test_env=first'],
-    ['test_env='],
-    ['test_env=--option=first --option=second'],
-    ['test_env_first'],
-])
-def test_df_parser_parent_env_wf(tmpdir, workflow, caplog, env_arg):
-    df_content = dedent("""\
-        FROM fedora
-        ENV foo=bar
-        LABEL label="foobar $test_env"
-        """)
-    env_conf = {INSPECT_CONFIG: {"Env": env_arg}}
-    workflow.source = StubSource()
-    flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return(env_conf)
-    df = df_parser(str(tmpdir), workflow=workflow)
-    df.content = df_content
-
-    if isinstance(env_arg, list) and ('=' not in env_arg[0]):
-        expected_log_message = "Unable to parse all of Parent Config ENV"
-        assert expected_log_message in [log.getMessage() for log in caplog.records]
-    elif isinstance(env_arg, dict):
-        assert df.labels.get('label') == ('foobar ' + env_arg['test_env'])
-    else:
-        assert df.labels.get('label') == 'foobar ' + env_arg[0].split('=', 1)[1]
 
 
 @pytest.mark.parametrize(('available', 'requested', 'result'), (
