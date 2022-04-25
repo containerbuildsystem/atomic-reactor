@@ -34,7 +34,6 @@ from urllib.parse import urlparse
 
 import atomic_reactor.utils.retries
 from atomic_reactor.constants import (DOCKERFILE_FILENAME, REPO_CONTAINER_CONFIG, TOOLS_USED,
-                                      INSPECT_CONFIG,
                                       IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA1, MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST, MEDIA_TYPE_OCI_V1,
@@ -51,8 +50,6 @@ from atomic_reactor.constants import (DOCKERFILE_FILENAME, REPO_CONTAINER_CONFIG
                                       USER_CONFIG_FILES, REPO_FETCH_ARTIFACTS_KOJI)
 from atomic_reactor.auth import HTTPRegistryAuth
 from atomic_reactor.types import ISerializer, ImageInspectionData
-
-from dockerfile_parse import DockerfileParser
 
 from importlib import import_module
 from requests.utils import guess_json_utf
@@ -1242,75 +1239,6 @@ def get_config_from_registry(
                                                      dockercfg_path=dockercfg_path,
                                                      version=version)
     return blob_config
-
-
-def df_parser(df_path, workflow=None, cache_content=False, env_replace=True, parent_env=None):
-    """
-    Wrapper for dockerfile_parse's DockerfileParser that takes into account
-    parent_env inheritance.
-
-    :param df_path: string, path to Dockerfile (normally in DockerBuildWorkflow instance)
-    :param workflow: DockerBuildWorkflow object instance, used to find parent image information
-    :param cache_content: bool, tells DockerfileParser to cache Dockerfile content
-    :param env_replace: bool, replace ENV declarations as part of DockerfileParser evaluation
-    :param parent_env: dict, parent ENV key:value pairs to be inherited
-
-    :return: DockerfileParser object instance
-    """
-
-    p_env = {}
-
-    if parent_env:
-        # If parent_env passed in, just use that
-        p_env = parent_env
-
-    elif workflow:
-
-        # If parent_env is not provided, but workflow is then attempt to inspect
-        # the workflow for the parent_env
-
-        try:
-            # OSBS2 TBD: this entire function should eventually be removed and all of its uses
-            #   replaced with BuildDir.dockerfile_with_parent_env()
-            parent_config = workflow.imageutil.base_image_inspect()[INSPECT_CONFIG]
-        except (AttributeError, TypeError, KeyError):
-            logger.debug("base image unable to be inspected")
-        else:
-            try:
-                tmp_env = parent_config["Env"]
-                logger.debug("Parent Config ENV: %s", tmp_env)
-
-                if isinstance(tmp_env, dict):
-                    p_env = tmp_env
-                elif isinstance(tmp_env, list):
-                    try:
-                        for key_val in tmp_env:
-                            key, val = key_val.split("=", 1)
-                            p_env[key] = val
-
-                    except ValueError:
-                        logger.debug("Unable to parse all of Parent Config ENV")
-
-            except KeyError:
-                logger.debug("Parent Environment not found, not applied to Dockerfile")
-
-    try:
-        dfparser = DockerfileParser(
-            df_path,
-            cache_content=cache_content,
-            env_replace=env_replace,
-            parent_env=p_env
-        )
-    except TypeError:
-        logger.debug("Old version of dockerfile-parse detected, unable to set inherited parent "
-                     "ENVs")
-        dfparser = DockerfileParser(
-            df_path,
-            cache_content=cache_content,
-            env_replace=env_replace,
-        )
-
-    return dfparser
 
 
 def are_plugins_in_order(plugins_conf, *plugins_names):

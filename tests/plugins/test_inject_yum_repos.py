@@ -15,6 +15,7 @@ from textwrap import dedent
 import koji
 import pytest
 import responses
+from dockerfile_parse import DockerfileParser
 from flexmock import flexmock
 
 from atomic_reactor.constants import RELATIVE_REPOS_PATH, INSPECT_CONFIG, DOCKERFILE_FILENAME, \
@@ -22,7 +23,7 @@ from atomic_reactor.constants import RELATIVE_REPOS_PATH, INSPECT_CONFIG, DOCKER
 from atomic_reactor.plugin import PluginFailedException, PreBuildPluginsRunner
 from atomic_reactor.plugins.pre_inject_yum_repos import InjectYumReposPlugin
 from atomic_reactor.source import VcsInfo
-from atomic_reactor.util import df_parser, sha256sum, DockerfileImages
+from atomic_reactor.util import sha256sum, DockerfileImages
 from atomic_reactor.utils.yum import YumRepo
 from tests.constants import DOCKERFILE_GIT, DOCKERFILE_SHA1
 from tests.util import add_koji_map_in_workflow
@@ -132,8 +133,7 @@ def prepare(workflow, build_dir, inherited_user='', dockerfile=DEFAULT_DOCKERFIL
     with open(workflow.source.dockerfile_path, 'w') as f:
         f.write(dockerfile)
     workflow.build_dir.init_build_dirs(platforms, workflow.source)
-    df = df_parser(str(build_dir))
-    df.content = dockerfile
+    df = DockerfileParser(str(build_dir))
     workflow.data.dockerfile_images = DockerfileImages(df.parent_images)
     if include_koji_repo:
         session = MockedClientSession(hub='', opts=None)

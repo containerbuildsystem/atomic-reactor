@@ -23,7 +23,7 @@ from atomic_reactor.plugin import ExitPluginsRunner, PluginFailedException
 from atomic_reactor.plugins.pre_add_help import AddHelpPlugin
 from atomic_reactor.plugins.post_rpmqa import PostBuildRPMqaPlugin
 from atomic_reactor.plugins.exit_store_metadata import StoreMetadataPlugin
-from atomic_reactor.util import LazyGit, ManifestDigest, df_parser, DockerfileImages, RegistryClient
+from atomic_reactor.util import LazyGit, ManifestDigest, DockerfileImages, RegistryClient
 import pytest
 from tests.constants import LOCALHOST_REGISTRY, TEST_IMAGE, TEST_IMAGE_NAME
 from tests.util import add_koji_map_in_workflow, is_string_type
@@ -409,15 +409,13 @@ def test_koji_filesystem_label(res, workflow):
         assert 'filesystem-koji-task-id' not in labels
 
 
-def test_metadata_plugin_rpmqa_failure(workflow, source_dir):
+def test_metadata_plugin_rpmqa_failure(workflow):
     initial_timestamp = datetime.now()
     prepare(workflow)
     df_content = """
 FROM fedora
 RUN yum install -y python-django
 CMD blabla"""
-    df = df_parser(str(source_dir))
-    df.content = df_content
     mock_dockerfile(workflow, df_content)
 
     workflow.data.prebuild_results = {}

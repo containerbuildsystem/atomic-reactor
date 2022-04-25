@@ -21,6 +21,8 @@ from dataclasses import dataclass, field, fields
 from textwrap import dedent
 from typing import Any, Callable, Dict, Final, List, Optional, Union
 
+from dockerfile_parse import DockerfileParser
+
 from atomic_reactor.dirs import ContextDir, RootBuildDir
 from atomic_reactor.plugin import (
     BuildCanceledException,
@@ -37,7 +39,7 @@ from atomic_reactor.constants import (
     DOCKERFILE_FILENAME,
 )
 from atomic_reactor.types import ISerializer, RpmComponent
-from atomic_reactor.util import (exception_message, DockerfileImages, df_parser,
+from atomic_reactor.util import (exception_message, DockerfileImages,
                                  base_image_is_custom, print_version_of_tools, validate_with_schema)
 from atomic_reactor.config import Configuration
 from atomic_reactor.source import Source, DummySource
@@ -561,7 +563,7 @@ class DockerBuildWorkflow(object):
         self.imageutil.set_dockerfile_images(df_images)
 
     def _parse_dockerfile_images(self, path: str) -> DockerfileImages:
-        dfp = df_parser(path)
+        dfp = DockerfileParser(path)
         if dfp.baseimage is None:
             raise RuntimeError("no base image specified in Dockerfile")
 
