@@ -26,7 +26,6 @@ setup(
     packages=find_packages(exclude=["*.tests", "*.tests.*", "tests.*", "tests"]),
     install_requires=[
         'backoff',
-        'docker < 4.3.0',
         'dockerfile-parse>=0.0.13',
         'flatpak-module-tools >= 0.11,!=0.13,<=0.13.1;python_version<"3.9"',
         'flatpak-module-tools >= 0.11;python_version>="3.9"',
