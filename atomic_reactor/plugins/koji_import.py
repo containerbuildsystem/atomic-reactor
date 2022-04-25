@@ -69,7 +69,7 @@ from atomic_reactor.util import (get_primary_images,
                                  has_operator_appregistry_manifest,
                                  )
 from atomic_reactor.utils.koji import (KojiUploadLogger, get_koji_task_owner)
-from atomic_reactor.metadata import label
+from atomic_reactor.metadata import annotation
 from osbs.utils import Labels, ImageName
 
 ArtifactOutputInfo = Tuple[
@@ -83,7 +83,7 @@ ArtifactOutputInfo = Tuple[
 ]
 
 
-@label('koji-build-id')
+@annotation('koji-build-id')
 class KojiImportBase(Plugin):
     """
     Import this build to Koji

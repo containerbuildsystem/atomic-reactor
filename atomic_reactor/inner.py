@@ -323,10 +323,9 @@ class ImageBuildWorkflowData(ISerializer):
     # post-build plugins (such as koji_import) to record them.
     all_yum_repourls: List[str] = field(default_factory=list)
 
-    # Plugins can store info here using the @annotation, @annotation_map,
-    # @label and @label_map decorators from atomic_reactor.metadata
+    # Plugins can store info here using @annotation and @annotation_map decorators
+    # from atomic_reactor.metadata
     annotations: Dict[str, Any] = field(default_factory=dict)
-    labels: Dict[str, Any] = field(default_factory=dict)
 
     # OSBS2 TBD
     image_id: Optional[str] = None

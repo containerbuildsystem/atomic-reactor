@@ -46,11 +46,7 @@ def prepare(workflow, registry=None, no_dockerfile=True):
     def update_annotations_on_build(build_id, annotations):
         pass
 
-    def update_labels_on_build(build_id, labels):
-        pass
-
     flexmock(OSBS, update_annotations_on_build=update_annotations_on_build)
-    flexmock(OSBS, update_labels_on_build=update_labels_on_build)
     if no_dockerfile:
         os.remove(os.path.join(workflow.source.path, 'Dockerfile'))
     workflow.build_dir.init_build_dirs(["x86_64"], workflow.source)
@@ -288,7 +284,6 @@ def test_metadata_plugin_source(image_id, verify_media_results, expected_media_r
            .set_plugin_result(PLUGIN_FETCH_SOURCES_KEY, fetch_sources_result)
            .set_plugin_result(VerifyMediaTypesPlugin.key, verify_media_results))
     prepare(workflow)
-    workflow.data.labels['sources_for_koji_build_id'] = sources_for_koji_build_id
     if image_id:
         workflow.data.koji_source_manifest = {'config': {'digest': image_id}}
 
@@ -307,7 +302,6 @@ def test_metadata_plugin_source(image_id, verify_media_results, expected_media_r
     output = env.create_runner().run()
 
     assert StoreMetadataPlugin.key in output
-    labels = output[StoreMetadataPlugin.key]["labels"]
     annotations = output[StoreMetadataPlugin.key]["annotations"]
     assert "filesystem" in annotations
     assert "fs_data" in annotations['filesystem']
@@ -353,41 +347,11 @@ def test_metadata_plugin_source(image_id, verify_media_results, expected_media_r
     plugins_metadata = json.loads(annotations["plugins-metadata"])
     assert PLUGIN_FETCH_SOURCES_KEY in plugins_metadata["durations"]
 
-    assert 'sources_for_koji_build_id' in labels
-    assert labels['sources_for_koji_build_id'] == sources_for_koji_build_id
-
     if expected_media_results:
         media_types = expected_media_results
         assert sorted(json.loads(annotations['media-types'])) == sorted(list(set(media_types)))
     else:
         assert 'media-types' not in annotations
-
-
-@pytest.mark.parametrize(('res'), (
-    {
-        'filesystem-koji-task-id': 'example-fs-taskid',
-        'base-image-id': 'foobar',
-    },
-    {
-        'base-image-id': 'foobar'
-    },
-    {}
-))
-def test_koji_filesystem_label(res, workflow):
-    env = (MockEnv(workflow)
-           .for_plugin(StoreMetadataPlugin.key)
-           .set_plugin_args({"url": "http://example.com/"}))
-    prepare(workflow)
-    if 'filesystem-koji-task-id' in res:
-        workflow.data.labels['filesystem-koji-task-id'] = res['filesystem-koji-task-id']
-    output = env.create_runner().run()
-    labels = output[StoreMetadataPlugin.key]["labels"]
-
-    if 'filesystem-koji-task-id' in res:
-        assert 'filesystem-koji-task-id' in labels
-        assert labels['filesystem-koji-task-id'] == 'example-fs-taskid'
-    if 'filesystem-koji-task-id' not in res:
-        assert 'filesystem-koji-task-id' not in labels
 
 
 def test_exit_before_dockerfile_created(workflow, source_dir):
@@ -423,21 +387,6 @@ def test_store_metadata_fail_update_annotations(workflow, source_dir, caplog):
     with pytest.raises(PluginFailedException):
         env.create_runner().run()
     assert 'annotations:' in caplog.text
-
-
-def test_store_metadata_fail_update_labels(workflow, caplog):
-    env = (MockEnv(workflow)
-           .for_plugin(StoreMetadataPlugin.key)
-           .set_plugin_args({"url": "http://example.com/"}))
-    prepare(workflow)
-    workflow.data.labels = {'some-label': 'some-value'}
-
-    (flexmock(OSBS)
-        .should_receive('update_labels_on_build')
-        .and_raise(OsbsResponseException('/', 'failed', 0)))
-    with pytest.raises(PluginFailedException):
-        env.create_runner().run()
-    assert 'labels:' in caplog.text
 
 
 @pytest.mark.parametrize('koji_conf', (
@@ -487,17 +436,3 @@ def test_plugin_annotations(workflow):
 
     assert annotations['foo'] == '{"bar": "baz"}'
     assert annotations['spam'] == '["eggs"]'
-
-
-def test_plugin_labels(workflow):
-    env = (MockEnv(workflow)
-           .for_plugin(StoreMetadataPlugin.key)
-           .set_plugin_args({"url": "http://example.com/"}))
-    prepare(workflow)
-    workflow.data.labels = {'foo': 1, 'bar': 'two'}
-
-    output = env.create_runner().run()
-    labels = output[StoreMetadataPlugin.key]["labels"]
-
-    assert labels['foo'] == '1'
-    assert labels['bar'] == 'two'
