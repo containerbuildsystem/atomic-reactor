@@ -17,7 +17,6 @@ import platform
 from atomic_reactor.inner import DockerBuildWorkflow, ImageBuildWorkflowData
 
 import koji
-import koji_cli.lib
 
 from atomic_reactor import __version__ as atomic_reactor_version
 from atomic_reactor.constants import (DEFAULT_DOWNLOAD_BLOCK_SIZE,
@@ -493,15 +492,6 @@ def get_output(workflow: DockerBuildWorkflow,
         output_files.append(image)
 
     return output_files, extra_output_file
-
-
-def generate_koji_upload_dir():
-    """
-    Create a path name for uploading files to
-
-    :return: str, path name expected to be unique
-    """
-    return koji_cli.lib.unique_path('koji-upload')
 
 
 def get_output_metadata(path, filename):
