@@ -31,4 +31,4 @@ spec:
       script: |
         jq -c '.annotations.repositories' $(workspaces.ws-context-dir.path)/workflow.json >$(results.repositories.path)
         jq -c '.annotations.remote_sources' $(workspaces.ws-context-dir.path)/workflow.json >$(results.remote_sources.path)
-        jq -c '.labels["koji-build-id"]' $(workspaces.ws-context-dir.path)/workflow.json >$(results.koji-build-id.path)
+        jq -c '.annotations["koji-build-id"]' $(workspaces.ws-context-dir.path)/workflow.json >$(results.koji-build-id.path)

@@ -21,11 +21,9 @@ from atomic_reactor.plugin import Plugin
 from atomic_reactor.source import GitSource
 from atomic_reactor.util import get_retrying_requests_session, map_to_user_params
 from atomic_reactor.download import download_url
-from atomic_reactor.metadata import label_map
 from atomic_reactor.utils.pnc import PNCUtil
 
 
-@label_map('sources_for_koji_build_id')
 class FetchSourcesPlugin(Plugin):
     """Download sources that may be used in further steps to compose Source Containers"""
     key = PLUGIN_FETCH_SOURCES_KEY

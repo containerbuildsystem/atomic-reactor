@@ -82,35 +82,8 @@ def annotation_map(
     return _decorate_metadata('annotations', result_to_metadata=_as_key(key, transform))
 
 
-def label(key: str) -> BuildPluginDecorator:
-    """
-    Label a `Plugin` subclass. Identical to `annotation`, but will save
-    the result as a label, not an annotation.
-
-    :param key: Key to label the plugin with
-    :return: Decorator that will turn the plugin into a labeled one
-    """
-    return _decorate_metadata('labels', result_to_metadata=_as_key(key, _identity))
-
-
-def label_map(
-    key: str,
-    transform: Optional[Callable[[PluginResult], Any]] = None,
-) -> BuildPluginDecorator:
-    """
-    Label a `Plugin` subclass. Identical to `annotation_map`, but will
-    save results as labels, not annotations.
-
-    :param key: Key to label the plugin with
-    :param transform: Function to apply to the plugin result before saving the label
-    :return: Decorator that will turn the plugin into a labeled one
-    """
-    transform = transform or (lambda result: result[key])
-    return _decorate_metadata('labels', result_to_metadata=_as_key(key, transform))
-
-
 def _decorate_metadata(
-    metadata_type: Literal['annotations', 'labels'], *, result_to_metadata: MetadataFn
+    metadata_type: Literal['annotations'], *, result_to_metadata: MetadataFn
 ) -> BuildPluginDecorator:
 
     def metadata_decorator(cls: PluginT) -> PluginT:

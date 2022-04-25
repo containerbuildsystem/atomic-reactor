@@ -291,7 +291,6 @@ def test_add_filesystem_plugin_generated(workflow, build_dir, scratch, dockerfil
     plugin_result = results[AddFilesystemPlugin.key]
     assert 'filesystem-koji-task-id' in plugin_result
     assert plugin_result == expected_results
-    assert workflow.data.labels['filesystem-koji-task-id'] == FILESYSTEM_TASK_ID
     msg = f'added "{image_name}" as image filesystem'
     assert msg in caplog.text
     assert workflow.build_dir.any_platform.dockerfile.content == expected_dockerfile
@@ -319,7 +318,6 @@ def test_add_filesystem_plugin_legacy(workflow, build_dir, scratch, caplog):
     results = runner.run()
     plugin_result = results[AddFilesystemPlugin.key]
     assert 'filesystem-koji-task-id' in plugin_result
-    assert workflow.data.labels['filesystem-koji-task-id'] == FILESYSTEM_TASK_ID
     msg = f'added "{image_name}" as image filesystem'
     assert msg in caplog.text
     assert workflow.build_dir.any_platform.dockerfile.content == expected_dockerfile_content

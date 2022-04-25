@@ -86,20 +86,6 @@ class StoreMetadataPlugin(Plugin):
 
         return data
 
-    def _update_labels(self, labels, updates):
-        if updates:
-            updates = {key: str(value) for key, value in updates.items()}
-            labels.update(updates)
-
-    def make_labels(self):
-        labels = {}
-        self._update_labels(labels, self.workflow.data.labels)
-
-        if 'sources_for_koji_build_id' in labels:
-            labels['sources_for_koji_build_id'] = str(labels['sources_for_koji_build_id'])
-
-        return labels
-
     def set_koji_task_annotations_whitelist(self, annotations):
         """Whitelist annotations to be included in koji task output
 
@@ -214,12 +200,4 @@ class StoreMetadataPlugin(Plugin):
             self.log.debug("annotations: %r", annotations)
             raise
 
-        labels = self.make_labels()
-        if labels:
-            try:
-                osbs.update_labels_on_build(pipeline_run_name, labels)
-            except OsbsResponseException:
-                self.log.debug("labels: %r", labels)
-                raise
-
-        return {"annotations": annotations, "labels": labels}
+        return {"annotations": annotations}

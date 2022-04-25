@@ -23,12 +23,10 @@ from atomic_reactor.plugin import Plugin, BuildCanceledException
 from atomic_reactor.utils.koji import TaskWatcher, stream_task_output
 from atomic_reactor.utils.yum import YumRepo
 from atomic_reactor.util import get_platforms, base_image_is_custom, map_to_user_params
-from atomic_reactor.metadata import label_map
 from atomic_reactor import util
 from osbs.utils import Labels
 
 
-@label_map('filesystem-koji-task-id')
 class AddFilesystemPlugin(Plugin):
     """
     Creates a base image by using a filesystem generated through Koji
