@@ -79,7 +79,6 @@ def mock_workflow(
     with open(mock_source.container_yaml_path, "w") as f:
         f.write(container_yaml)
     workflow.source.config = SourceConfig(str(source_dir))
-    workflow.df_dir = str(source_dir)
     workflow.build_dir.init_build_dirs(platforms, workflow.source)
 
     return workflow

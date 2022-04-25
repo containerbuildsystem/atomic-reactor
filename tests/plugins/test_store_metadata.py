@@ -148,7 +148,6 @@ RUN yum install -y python-django
 CMD blabla"""
 
     mock_dockerfile(workflow, df_content)
-    workflow.df_dir = str(source_dir)
 
     dockerfile = workflow.build_dir.any_platform.dockerfile_with_parent_env(
         workflow.imageutil.base_image_inspect()
@@ -420,7 +419,6 @@ CMD blabla"""
     df = df_parser(str(source_dir))
     df.content = df_content
     mock_dockerfile(workflow, df_content)
-    workflow.df_dir = str(source_dir)
 
     workflow.data.prebuild_results = {}
     workflow.data.postbuild_results = {
@@ -466,7 +464,6 @@ CMD blabla"""
 def test_exit_before_dockerfile_created(workflow, source_dir):
     prepare(workflow, no_dockerfile=True)
     workflow.data.exit_results = {}
-    workflow.df_dir = str(source_dir)
 
     runner = ExitPluginsRunner(
         workflow,
@@ -493,7 +490,6 @@ FROM fedora
 RUN yum install -y python-django
 CMD blabla"""
     mock_dockerfile(workflow, df_content)
-    workflow.df_dir = str(source_dir)
 
     runner = ExitPluginsRunner(
         workflow,
@@ -549,7 +545,6 @@ def test_set_koji_annotations_whitelist(workflow, source_dir, koji_conf):
         CMD cowsay moo
         ''')
     mock_dockerfile(workflow, df_content)
-    workflow.df_dir = str(source_dir)
     runner = ExitPluginsRunner(
         workflow,
         [{
