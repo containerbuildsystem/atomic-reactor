@@ -523,9 +523,7 @@ class DockerBuildWorkflow(object):
             logger.debug("build json was built by osbs-client %s", client_version)
 
         # get info about base image from dockerfile
-        build_file_path, build_file_dir = self.source.get_build_file_path()
-
-        self.df_dir = build_file_dir
+        build_file_path, _ = self.source.get_build_file_path()
 
         self.conf = Configuration(config_path=reactor_config_path)
 
