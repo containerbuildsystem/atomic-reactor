@@ -27,8 +27,6 @@ cryptography==3.4.8
     #   requests-kerberos
 decorator==5.1.0
     # via gssapi
-docker==4.2.2
-    # via -r requirements.in
 dockerfile-parse==1.2.0
     # via
     #   -r requirements.in
@@ -76,7 +74,6 @@ pyyaml==6.0
 requests==2.26.0
     # via
     #   -r requirements.in
-    #   docker
     #   koji
     #   osbs-client
     #   requests-gssapi
@@ -92,7 +89,6 @@ ruamel-yaml-clib==0.2.6
 six==1.16.0
     # via
     #   bcrypt
-    #   docker
     #   dockerfile-parse
     #   koji
     #   osbs-client
@@ -100,5 +96,3 @@ six==1.16.0
     #   python-dateutil
 urllib3==1.26.7
     # via requests
-websocket-client==1.2.1
-    # via docker
