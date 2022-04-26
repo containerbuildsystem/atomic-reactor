@@ -20,7 +20,7 @@ from atomic_reactor.plugin import (
     PluginExecutionInfo,
     PluginFailedException,
     PluginsRunner,
-    PreBuildSleepPlugin,
+    SleepPlugin,
 )
 from atomic_reactor.plugins.add_filesystem import AddFilesystemPlugin
 from atomic_reactor.plugins.tag_and_push import TagAndPushPlugin
@@ -225,7 +225,7 @@ def test_runner_create_instance_from_plugin_with_kwargs(tmpdir, params):
         assert getattr(plugin, key) == value
 
 
-class TestPreBuildSleepPlugin(object):
+class TestSleepPlugin(object):
     @pytest.mark.parametrize(('seconds', 'exp'), [(None, 60), (1, 1)])
     def test_sleep_plugin(self, seconds, exp):
         (flexmock(time)
@@ -239,7 +239,7 @@ class TestPreBuildSleepPlugin(object):
         if seconds is not None:
             kwargs['seconds'] = seconds
 
-        plugin = PreBuildSleepPlugin(**kwargs)
+        plugin = SleepPlugin(**kwargs)
         plugin.run()
 
 

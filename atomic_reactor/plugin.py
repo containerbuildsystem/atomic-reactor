@@ -118,14 +118,14 @@ class Plugin(ABC):
 
 
 # Built-in plugins
-class PreBuildSleepPlugin(Plugin):
+class SleepPlugin(Plugin):
     """
     Sleep for a specified number of seconds.
 
     This plugin is only intended to be used for debugging.
     """
 
-    key = 'pre_sleep'
+    key = 'sleep'
 
     def __init__(self, workflow, seconds=60):
         self.seconds = seconds
