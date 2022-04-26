@@ -98,7 +98,7 @@ function setup_osbs() {
 case ${ACTION} in
 "test")
   setup_osbs
-  TEST_CMD="coverage run --source=atomic_reactor -m pytest tests"
+  TEST_CMD="tox -e test"
   ;;
 "pylint")
   setup_osbs
