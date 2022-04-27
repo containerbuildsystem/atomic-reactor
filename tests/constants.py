@@ -146,9 +146,6 @@ required_secrets:
 - odcssecret
 - v2-registry-dockercfg
 
-worker_token_secrets:
-- x86-64-worker-1
-- x86-64-worker-2
 
 prefer_schema1_digest: True
 
@@ -165,9 +162,4 @@ skip_koji_check_for_base_image: False
 deep_manifest_list_inspection: True
 
 fail_on_digest_mismatch: True
-
-clusters:
-  foo:
-   - name: blah
-     max_concurrent_builds: 1
 """)

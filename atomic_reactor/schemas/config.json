@@ -9,37 +9,6 @@
       "type": "integer"
     },
 
-    "clusters": {
-      "description": "Clusters grouped by platform name",
-      "type": "object",
-      "patternProperties": {
-        "^[a-zA-Z0-9_]*$": {
-          "description": "List of clusters for this platform",
-          "type": "array",
-          "items": {
-            "properties": {
-              "name": {
-                "description": "osbs-client instance name for this cluster",
-                "type": "string"
-              },
-              "max_concurrent_builds": {
-                "description": "Maximum number of active builds",
-                "type": "integer",
-                "minimum": 0
-              },
-              "enabled": {
-                "description": "Whether this cluster should be used",
-                "type": "boolean",
-                "default": true
-              }
-            },
-            "additionalProperties": false,
-            "required": ["name", "max_concurrent_builds"]
-          }
-        }
-      },
-      "additionalProperties": false
-    },
     "koji": {
         "description": "Koji instance",
         "type": "object",
@@ -575,13 +544,6 @@
     },
     "required_secrets": {
         "description": "List of OpenShift secrets required by this configuration",
-        "type": "array",
-        "items": {
-            "type": "string"
-        }
-    },
-    "worker_token_secrets": {
-        "description": "List of OpenShift secrets for worker clusters authentication",
         "type": "array",
         "items": {
             "type": "string"

@@ -1045,19 +1045,6 @@ def test_get_primary_and_floating_images(workflow, tag_conf, expected_primary,
         - url: registry
       source_registry:
         url: source_registry
-      clusters:
-        ignored:
-        - name: foo
-          max_concurrent_builds: 2
-        platform:
-        - name: one
-          max_concurrent_builds: 4
-        - name: two
-          max_concurrent_builds: 8
-          enabled: true
-        - name: three
-          max_concurrent_builds: 16
-          enabled: false
     """),
     REACTOR_CONFIG_MAP,
 ])
