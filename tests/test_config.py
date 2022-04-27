@@ -11,7 +11,6 @@ import os
 import pkg_resources
 import pytest
 from textwrap import dedent
-import re
 import yaml
 import smtplib
 
@@ -436,107 +435,6 @@ pull_registries:
         captured_errs = [x.message for x in caplog.records]
         assert any("cannot validate" in x for x in captured_errs)
 
-    @pytest.mark.parametrize(('config', 'errors'), [
-        ("""\
-clusters:
-  foo:
-  bar: 1
-  plat/form:
-  - name: foo
-    max_concurrent_builds: 1
-        """, [
-            "validation error: .clusters.foo: "
-            "validating 'type' has failed "
-            "(None is not of type %r)" % u'array',
-
-            "validation error: .clusters.bar: "
-            "validating 'type' has failed "
-            "(1 is not of type %r)" % u'array',
-
-            re.compile(
-                "validation error: .clusters: "
-                "validating 'additionalProperties' has failed"
-            ),
-        ]),
-
-        ("""\
-clusters:
-  foo:
-  - name: 1
-    max_concurrent_builds: 1
-  - name: blah
-    max_concurrent_builds: one
-  - name: "2"  # quoting prevents error
-    max_concurrent_builds: 2
-  - name: negative
-    max_concurrent_builds: -1
-        """, [
-            "validation error: .clusters.foo[0].name: "
-            "validating 'type' has failed "
-            "(1 is not of type %r)" % u'string',
-
-            "validation error: .clusters.foo[1].max_concurrent_builds: "
-            "validating 'type' has failed "
-            "('one' is not of type %r)" % u'integer',
-
-            re.compile(r"validation error: \.clusters\.foo\[3\]\.max_concurrent_builds: "
-                       r"validating 'minimum' has failed "
-                       r"\(-1(\.0)? is less than the minimum of 0\)"),
-        ]),
-
-        ("""\
-clusters:
-  foo:
-  - name: blah
-    max_concurrent_builds: 1
-    enabled: never
-        """, [
-            "validation error: .clusters.foo[0].enabled: "
-            "validating 'type' has failed "
-            "('never' is not of type %r)" % u'boolean',
-        ]),
-
-        ("""\
-clusters:
-  foo:
-  # missing name
-  - nam: bar
-    max_concurrent_builds: 1
-  # missing max_concurrent_builds
-  - name: baz
-    max_concurrrent_builds: 2
-  - name: bar
-    max_concurrent_builds: 4
-    extra: false
-        """, [
-            "validation error: .clusters.foo[0]: validating 'required' has failed "
-            "(%r is a required property)" % u'name',
-
-            "validation error: .clusters.foo[1]: validating 'required' has failed "
-            "(%r is a required property)" % u'max_concurrent_builds',
-
-            "validation error: .clusters.foo[2]: validating 'additionalProperties' has failed "
-            "(Additional properties are not allowed ('extra' was unexpected))",
-        ])
-    ])
-    def test_bad_cluster_config(self, tmpdir, caplog, config, errors):
-        config += "\n" + REQUIRED_CONFIG
-        filename = os.path.join(str(tmpdir), 'config.yaml')
-        with open(filename, 'w') as fp:
-            fp.write(dedent(config))
-
-        with caplog.at_level(logging.DEBUG, logger='osbs'), pytest.raises(OsbsValidationException):
-            Configuration(config_path=filename)
-
-        captured_errs = [x.message for x in caplog.records]
-        for error in errors:
-            try:
-                # Match regexp
-                assert any(filter(error.match, captured_errs))
-            except AttributeError:
-                # String comparison
-                assert error in captured_errs
-
     def test_bad_version(self, tmpdir):
         filename = os.path.join(str(tmpdir), 'config.yaml')
         with open(filename, 'w') as fp:
@@ -556,49 +454,6 @@ clusters:
 
         with pytest.raises(ValueError):
             Configuration(config_path=filename)
-
-    @pytest.mark.parametrize(('config', 'clusters', 'defined_platforms'), [
-        # Default config
-        ("", [], []),
-
-        # Unknown key
-        ("""\
-special: foo
-        """, [], []),
-
-        ("""\
-clusters:
-  all_disabled:
-  - name: foo
-    max_concurrent_builds: 2
-    enabled: false
-  platform:
-  - name: one
-    max_concurrent_builds: 4
-  - name: two
-    max_concurrent_builds: 8
-    enabled: true
-  - name: three
-    max_concurrent_builds: 16
-    enabled: false
-        """, [
-            ('one', 4),
-            ('two', 8),
-        ], ['all_disabled', 'platform']),
-    ])
-    def test_good_cluster_config(self, tmpdir, config, clusters, defined_platforms):
-        config += "\n" + REQUIRED_CONFIG
-
-        filename = os.path.join(str(tmpdir), 'config.yaml')
-        with open(filename, 'w') as fp:
-            fp.write(dedent(config))
-        conf = Configuration(config_path=filename)
-
-        enabled = conf.get_enabled_clusters_for_platform('platform')
-        assert {(x.name, x.max_concurrent_builds) for x in enabled} == set(clusters)
-
-        for platform in defined_platforms:
-            assert conf.cluster_defined_for_platform(platform)
 
     @pytest.mark.parametrize('default', (
         'release',
@@ -727,8 +582,8 @@ odcs:
         'image_label_info_url_format', 'image_equal_labels', 'fail_on_digest_mismatch',
         'openshift', 'group_manifests', 'platform_descriptors', 'prefer_schema1_digest',
         'content_versions', 'registry', 'yum_proxy', 'source_registry', 'sources_command',
-        'required_secrets', 'worker_token_secrets', 'clusters', 'hide_files',
-        'skip_koji_check_for_base_image', 'deep_manifest_list_inspection'
+        'required_secrets', 'hide_files', 'skip_koji_check_for_base_image',
+        'deep_manifest_list_inspection'
     ])
     def test_get_methods(self, parse_from, method, tmpdir, caplog, monkeypatch):
         if parse_from == 'raw':

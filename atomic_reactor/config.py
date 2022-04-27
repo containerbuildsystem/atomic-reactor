@@ -141,7 +141,6 @@ class ReactorConfigKeys(object):
     rather than the key seeming not to be present in the config file.
     """
     VERSION_KEY = 'version'
-    CLUSTERS_KEY = 'clusters'
     ODCS_KEY = 'odcs'
     KOJI_KEY = 'koji'
     PNC_KEY = 'pnc'
@@ -167,7 +166,6 @@ class ReactorConfigKeys(object):
     SOURCES_COMMAND_KEY = 'sources_command'
     LIST_RPMS_FROM_SCRATCH_KEY = 'list_rpms_from_scratch'
     REQUIRED_SECRETS_KEY = 'required_secrets'
-    WORKER_TOKEN_SECRETS_KEY = 'worker_token_secrets'
     BUILD_IMAGE_OVERRIDE_KEY = 'build_image_override'
     FLATPAK_KEY = 'flatpak'
     PACKAGE_COMPARISON_EXCEPTIONS_KEY = 'package_comparison_exceptions'
@@ -277,24 +275,6 @@ class Configuration(object):
             source_registry_docker_uri = self.source_registry['uri'].docker_uri
             organization = self.registries_organization
             dockerfile_images.set_source_registry(source_registry_docker_uri, organization)
-
-    def _get_cluster_configuration(self):
-        all_cluster_configs = {}
-        for platform, clusters in self.clusters.items():
-            cluster_configs = [ClusterConfig(priority=priority, **cluster)
-                               for priority, cluster in enumerate(clusters)]
-            all_cluster_configs[platform] = cluster_configs
-        return all_cluster_configs
-
-    def get_enabled_clusters_for_platform(self, platform):
-        cluster_configs = self._get_cluster_configuration()
-        if platform not in cluster_configs:
-            return []
-        return [conf for conf in cluster_configs[platform] if conf.enabled]
-
-    def cluster_defined_for_platform(self, platform):
-        cluster_configs = self._get_cluster_configuration()
-        return platform in cluster_configs
 
     @property
     def odcs_config(self):
@@ -474,14 +454,6 @@ class Configuration(object):
     @property
     def required_secrets(self):
         return self._get_value(ReactorConfigKeys.REQUIRED_SECRETS_KEY, fallback=[])
-
-    @property
-    def worker_token_secrets(self):
-        return self._get_value(ReactorConfigKeys.WORKER_TOKEN_SECRETS_KEY, fallback=[])
-
-    @property
-    def clusters(self):
-        return self._get_value(ReactorConfigKeys.CLUSTERS_KEY, fallback={})
 
     @property
     def platform_descriptors(self):
