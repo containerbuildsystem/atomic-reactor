@@ -9,6 +9,7 @@ of the BSD license. See the LICENSE file for details.
 import fnmatch
 import logging
 import os
+from copy import deepcopy
 from typing import Optional, List, Any, Dict
 
 import time
@@ -361,7 +362,7 @@ def get_image_components(
     required for the metadata.
     """
     components: List[RpmComponent]
-    components = workflow_data.image_components[image_platform]
+    components = deepcopy(workflow_data.image_components[image_platform])
     return components or []
 
 
