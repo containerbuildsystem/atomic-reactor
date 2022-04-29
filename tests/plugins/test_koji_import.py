@@ -511,13 +511,13 @@ def mock_environment(workflow: DockerBuildWorkflow, source_dir: Path,
             ]
         }
     }
+
     if has_op_appregistry_manifests or has_op_bundle_manifests:
-        manifests_entry = {
-            'type': 'log',
-            'filename': OPERATOR_MANIFESTS_ARCHIVE,
-            'buildroot_id': 1}
-        (workflow.data.plugins_results[GatherBuildsMetadataPlugin.key]['x86_64']['output']
-         .append(manifests_entry))
+        build_dir_path = workflow.build_dir.any_platform.path
+        archive_file = build_dir_path / OPERATOR_MANIFESTS_ARCHIVE
+        archive_file.write_bytes(b'20220329')
+        results = workflow.data.plugins_results
+        results[PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY] = str(archive_file)
 
     if has_remote_source:
         source_path = build_dir_path / REMOTE_SOURCE_TARBALL_FILENAME
@@ -2384,24 +2384,51 @@ class TestKojiImport(object):
         if log is not None:
             assert log in caplog.text
 
-    @pytest.mark.parametrize('has_exported_operator_manifests', [True, False])
+    @pytest.mark.parametrize('has_op_appregistry_manifests', [True, False])
+    @pytest.mark.parametrize('has_op_bundle_manifests', [True, False])
     def test_binary_build_metadata_includes_exported_operator_manifests(
-            self, has_exported_operator_manifests, workflow, source_dir
+            self, has_op_appregistry_manifests, has_op_bundle_manifests, workflow, source_dir
     ):
         session = MockedClientSession('')
         mock_environment(workflow, source_dir,
+                         has_op_appregistry_manifests=has_op_appregistry_manifests,
+                         has_op_bundle_manifests=has_op_bundle_manifests,
                          name='ns/name', version='1.0', release='1',
                          session=session)
 
-        if has_exported_operator_manifests:
-            build_dir_path = workflow.build_dir.any_platform.path
-            archive_file = build_dir_path / OPERATOR_MANIFESTS_ARCHIVE
-            archive_file.write_bytes(b'20220329')
-            results = workflow.data.plugins_results
-            results[PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY] = str(archive_file)
-
         runner = create_runner(workflow)
         runner.run()
+
+        data = session.metadata
+        assert 'build' in data
+        build = data['build']
+        assert isinstance(build, dict)
+        assert 'extra' in build
+        extra = build['extra']
+
+        assert isinstance(extra, dict)
+        assert 'osbs_build' in extra
+        osbs_build = extra['osbs_build']
+        if has_op_appregistry_manifests or has_op_bundle_manifests:
+            assert 'operator_manifests_archive' in extra
+            operator_manifests = extra['operator_manifests_archive']
+            assert isinstance(operator_manifests, str)
+            assert operator_manifests == OPERATOR_MANIFESTS_ARCHIVE
+            assert 'typeinfo' in extra
+            assert 'operator-manifests' in extra['typeinfo']
+            operator_typeinfo = extra['typeinfo']['operator-manifests']
+            assert isinstance(operator_typeinfo, dict)
+            assert operator_typeinfo['archive'] == OPERATOR_MANIFESTS_ARCHIVE
+        else:
+            assert 'operator_manifests_archive' not in extra
+            assert 'typeinfo' not in extra
+
+        assert osbs_build['subtypes'] == [
+            stype for yes, stype in [
+                (has_op_appregistry_manifests, KOJI_SUBTYPE_OP_APPREGISTRY),
+                (has_op_bundle_manifests, KOJI_SUBTYPE_OP_BUNDLE)
+            ] if yes
+        ]
 
         # Find the operator manifests output
         output = None
@@ -2410,7 +2437,7 @@ class TestKojiImport(object):
                 output = item
                 break
 
-        if not has_exported_operator_manifests:
+        if not has_op_bundle_manifests and not has_op_appregistry_manifests:
             assert output is None, \
                 'Metadata output should not have exported operator manifests.'
             return

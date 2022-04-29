@@ -262,10 +262,11 @@ class KojiImportBase(Plugin):
                 }
             })
 
-        outputs = self._iter_build_metadata_outputs(
-            _filter={'filename': OPERATOR_MANIFESTS_ARCHIVE}
+        operator_manifests_path = wf_data.plugins_results.get(
+            PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY
         )
-        for _, _ in outputs:
+
+        if operator_manifests_path:
             extra['operator_manifests_archive'] = OPERATOR_MANIFESTS_ARCHIVE
             operators_typeinfo = {
                 KOJI_BTYPE_OPERATOR_MANIFESTS: {
@@ -273,8 +274,6 @@ class KojiImportBase(Plugin):
                 },
             }
             extra.setdefault('typeinfo', {}).update(operators_typeinfo)
-
-            return  # only one worker can process operator manifests
 
     def set_pnc_build_metadata(self, extra):
         plugin_results = self.workflow.data.plugins_results.get(
