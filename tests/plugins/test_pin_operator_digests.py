@@ -305,6 +305,15 @@ class TestPinOperatorDigest(object):
         msg = "operator_manifests configuration missing in container.yaml"
         assert msg in str(exc_info.value)
 
+    def test_manifests_dir_point_outside_of_repo(self, workflow, repo_dir):
+        site_config = get_site_config()
+        user_config = get_user_config(manifests_dir='../manifests_dir')
+        runner = mock_env(workflow, repo_dir, site_config=site_config, user_config=user_config)
+
+        with pytest.raises(PluginFailedException,
+                           match='manifests_dir points outside of cloned repository'):
+            runner.run()
+
     @pytest.mark.parametrize('filepaths', [
         ['csv1.yaml'],
         ['csv2.yaml'],
