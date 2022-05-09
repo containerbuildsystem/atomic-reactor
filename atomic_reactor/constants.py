@@ -65,7 +65,6 @@ MANPAGE_SECTION = 1
 # debug print of tools reactor uses
 
 TOOLS_USED = (
-    {"pkg_name": "docker", "display_name": "docker-py"},
     {"pkg_name": "atomic_reactor"},
     {"pkg_name": "osbs", "display_name": "osbs-client"},
 )
