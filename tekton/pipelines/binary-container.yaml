@@ -12,8 +12,7 @@ spec:
       description: User parameters in JSON format
 
   workspaces:
-    - name: ws-build-dir
-    - name: ws-context-dir
+    - name: ws-container
     - name: ws-registries-secret
     - name: ws-koji-secret
     - name: ws-reactor-config-map
@@ -33,9 +32,11 @@ spec:
         name: clone-0-1
       workspaces:
         - name: ws-build-dir
-          workspace: ws-build-dir
+          workspace: ws-container
+          subPath: build-dir
         - name: ws-context-dir
-          workspace: ws-context-dir
+          workspace: ws-container
+          subPath: context-dir
         - name: ws-registries-secret
           workspace: ws-registries-secret
         - name: ws-koji-secret
@@ -57,9 +58,11 @@ spec:
         name: binary-container-prebuild-0-1
       workspaces:
         - name: ws-build-dir
-          workspace: ws-build-dir
+          workspace: ws-container
+          subPath: build-dir
         - name: ws-context-dir
-          workspace: ws-context-dir
+          workspace: ws-container
+          subPath: context-dir
         - name: ws-registries-secret
           workspace: ws-registries-secret
         - name: ws-koji-secret
@@ -81,9 +84,11 @@ spec:
         name: binary-container-build-0-1
       workspaces:
         - name: ws-build-dir
-          workspace: ws-build-dir
+          workspace: ws-container
+          subPath: build-dir
         - name: ws-context-dir
-          workspace: ws-context-dir
+          workspace: ws-container
+          subPath: context-dir
         - name: ws-registries-secret
           workspace: ws-registries-secret
         - name: ws-koji-secret
@@ -109,9 +114,11 @@ spec:
         name: binary-container-build-0-1
       workspaces:
         - name: ws-build-dir
-          workspace: ws-build-dir
+          workspace: ws-container
+          subPath: build-dir
         - name: ws-context-dir
-          workspace: ws-context-dir
+          workspace: ws-container
+          subPath: context-dir
         - name: ws-registries-secret
           workspace: ws-registries-secret
         - name: ws-koji-secret
@@ -137,9 +144,11 @@ spec:
         name: binary-container-build-0-1
       workspaces:
         - name: ws-build-dir
-          workspace: ws-build-dir
+          workspace: ws-container
+          subPath: build-dir
         - name: ws-context-dir
-          workspace: ws-context-dir
+          workspace: ws-container
+          subPath: context-dir
         - name: ws-registries-secret
           workspace: ws-registries-secret
         - name: ws-koji-secret
@@ -165,9 +174,11 @@ spec:
         name: binary-container-build-0-1
       workspaces:
         - name: ws-build-dir
-          workspace: ws-build-dir
+          workspace: ws-container
+          subPath: build-dir
         - name: ws-context-dir
-          workspace: ws-context-dir
+          workspace: ws-container
+          subPath: context-dir
         - name: ws-registries-secret
           workspace: ws-registries-secret
         - name: ws-koji-secret
@@ -196,9 +207,11 @@ spec:
         name: binary-container-postbuild-0-1
       workspaces:
         - name: ws-build-dir
-          workspace: ws-build-dir
+          workspace: ws-container
+          subPath: build-dir
         - name: ws-context-dir
-          workspace: ws-context-dir
+          workspace: ws-container
+          subPath: context-dir
         - name: ws-registries-secret
           workspace: ws-registries-secret
         - name: ws-koji-secret
@@ -220,7 +233,8 @@ spec:
         name: binary-container-set-results-0-1
       workspaces:
         - name: ws-context-dir
-          workspace: ws-context-dir
+          workspace: ws-container
+          subPath: context-dir
       params:
         - name: osbs-image
           value: "$(params.osbs-image)"
@@ -231,9 +245,11 @@ spec:
         name: binary-container-exit-0-1
       workspaces:
         - name: ws-build-dir
-          workspace: ws-build-dir
+          workspace: ws-container
+          subPath: build-dir
         - name: ws-context-dir
-          workspace: ws-context-dir
+          workspace: ws-container
+          subPath: context-dir
         - name: ws-registries-secret
           workspace: ws-registries-secret
         - name: ws-koji-secret
