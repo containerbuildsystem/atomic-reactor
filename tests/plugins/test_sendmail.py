@@ -309,7 +309,8 @@ class TestSendMailPlugin(object):
                 assert str(ex.value) == 'No recipients found'
 
     @pytest.mark.parametrize('success', (True, False))
-    @pytest.mark.parametrize(('has_store_metadata_results', 'annotations', 'has_repositories',
+    @pytest.mark.parametrize('has_repositories', (True, False))
+    @pytest.mark.parametrize(('has_store_metadata_results', 'annotations', 'empty_repositories',
                               'expect_error'), [
         (True, True, True, False),
         (True, True, False, False),
@@ -323,10 +324,11 @@ class TestSendMailPlugin(object):
         (True, False),
         (False, False),
     ])
-    def test_render_mail(self, workflow, source_dir,
+    def test_render_mail(self, workflow, source_dir, caplog,
                          manual_cancel, to_koji_submitter,
-                         koji_integration, success, has_store_metadata_results,
-                         annotations, has_repositories, expect_error):
+                         koji_integration, success, has_repositories,
+                         has_store_metadata_results, annotations, empty_repositories,
+                         expect_error):
         git_source_url = 'git_source_url'
         git_source_ref = '123423431234123'
         VcsInfo = namedtuple('VcsInfo', ['vcs_type', 'vcs_url', 'vcs_ref'])
@@ -358,10 +360,13 @@ class TestSendMailPlugin(object):
 
         if has_store_metadata_results:
             if annotations:
-                if has_repositories:
-                    mock_store_metadata_results(workflow)
-                else:
+                if empty_repositories:
                     mock_store_metadata_results(workflow, {'repositories': {}})
+                else:
+                    mock_store_metadata_results(workflow)
+                if not has_repositories:
+                    result = workflow.data.plugins_results[StoreMetadataPlugin.key]
+                    del result['annotations']['repositories']
             else:
                 mock_store_metadata_results(workflow, {})
 
@@ -404,7 +409,13 @@ class TestSendMailPlugin(object):
         else:
             status = 'Failed'
 
-        if has_repositories:
+        if not has_repositories or empty_repositories:
+            exp_subject = '%s building image %s' % (status, MOCK_NAME_LABEL)
+            exp_body = [
+                'Image Name: ' + MOCK_NAME_LABEL,
+                'Repositories: ',
+                ]
+        else:
             exp_subject = '%s building image foo/bar' % status
             exp_body = [
                 'Image Name: foo/bar',
@@ -412,12 +423,10 @@ class TestSendMailPlugin(object):
                 '    foo/bar:baz',
                 '    foo/bar:spam',
             ]
-        else:
-            exp_subject = '%s building image %s' % (status, MOCK_NAME_LABEL)
-            exp_body = [
-                'Image Name: ' + MOCK_NAME_LABEL,
-                'Repositories: ',
-            ]
+
+        result = workflow.data.plugins_results[StoreMetadataPlugin.key]
+        if 'repositories' not in result['annotations']:
+            assert "repositories is not included in annotations" in caplog.text
 
         common_body = [
             'Status: ' + status,

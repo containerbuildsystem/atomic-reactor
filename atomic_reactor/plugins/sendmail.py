@@ -151,7 +151,6 @@ class SendMailPlugin(Plugin):
 
     def _get_image_name_and_repos(self):
 
-        repos = []
         dockerfile = self.workflow.build_dir.any_platform.dockerfile_with_parent_env(
             self.workflow.imageutil.base_image_inspect()
         )
@@ -162,17 +161,19 @@ class SendMailPlugin(Plugin):
         if not stored_data or 'annotations' not in stored_data:
             raise ValueError('Stored Metadata not found')
 
-        repo_data = json.loads(stored_data['annotations']['repositories'])
+        repos = []
+        if (annotation_repos := stored_data['annotations'].get('repositories')) is None:
+            self.log.debug('repositories is not included in annotations.')
+        else:
+            repo_data = json.loads(annotation_repos)
+            repos.extend(repo_data.get('unique', []))
+            repos.extend(repo_data.get('primary', []))
+            repos.extend(repo_data.get('floating', []))
+            if repos:
+                image_name_obj = ImageName.parse(repos[0])
+                image_name = image_name_obj.get_repo()
 
-        repos.extend(repo_data.get('unique', []))
-        repos.extend(repo_data.get('primary', []))
-        repos.extend(repo_data.get('floating', []))
-
-        if repos:
-            image_name_obj = ImageName.parse(repos[0])
-            image_name = image_name_obj.get_repo()
-
-        return (image_name, repos)
+        return image_name, repos
 
     def _render_mail(self, success, manual_canceled):
         """Render and return subject and body of the mail to send."""
