@@ -273,7 +273,7 @@ def mock_environment(workflow: DockerBuildWorkflow, source_dir: Path,
 
     platforms = ['x86_64']
     workflow.data.plugins_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = platforms
-    workflow.data.plugins_results[PLUGIN_RESOLVE_COMPOSES_KEY] = {'composes': None}
+    workflow.data.plugins_results[PLUGIN_RESOLVE_COMPOSES_KEY] = {'composes': []}
 
     mock_reactor_config(workflow)
     workflow.user_params['scratch'] = scratch
@@ -1682,7 +1682,7 @@ class TestKojiImport(object):
                          name='ns/name', version='1.0', release='1', session=session)
 
         if resolve_run:
-            workflow.data.plugins_results[PLUGIN_RESOLVE_COMPOSES_KEY] = {'composes': None}
+            workflow.data.plugins_results[PLUGIN_RESOLVE_COMPOSES_KEY] = {'composes': []}
 
         runner = create_runner(workflow)
         runner.run()
