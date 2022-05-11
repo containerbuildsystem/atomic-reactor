@@ -71,7 +71,7 @@ class ResolveComposesPlugin(Plugin):
         self._odcs_client = None
         self.odcs_config = None
         self.compose_config = None
-        self.composes_info = None
+        self.composes_info = []
         self._parent_signing_intent = None
         self.repourls = repourls or []
         self.has_complete_repos = len(self.repourls) > 0
