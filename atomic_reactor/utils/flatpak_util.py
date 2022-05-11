@@ -50,7 +50,7 @@ class ComposeInfo(object):
 
 class FlatpakUtil:
     def __init__(self, workflow_config: Configuration, source_config: SourceConfig,
-                 composes=Optional[List[Dict[str, Any]]]):
+                 composes: Optional[List[Dict[str, Any]]] = None):
         self.workflow_config = workflow_config
         self.source_config = source_config
         self.composes = composes
@@ -109,7 +109,7 @@ class FlatpakUtil:
         source_spec = self.get_flatpak_source_spec()
         main_module = ModuleSpec.from_str(source_spec)
 
-        for compose_info in self.composes:
+        for compose_info in (self.composes or []):
             if compose_info['source_type'] != SOURCE_TYPE_MODULE:
                 continue
 
