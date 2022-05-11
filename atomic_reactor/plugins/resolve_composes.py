@@ -8,6 +8,7 @@ of the BSD license. See the LICENSE file for details.
 from collections import defaultdict
 from copy import deepcopy
 from datetime import datetime, timedelta
+from typing import TypedDict, List, Dict, Any, Optional
 
 from osbs.repo_utils import ModuleSpec
 
@@ -26,6 +27,14 @@ MINIMUM_TIME_TO_EXPIRE = timedelta(hours=2).total_seconds()
 UNPUBLISHED_REPOS = 'include_unpublished_pulp_repos'
 # flag to let ODCS ignore missing content sets
 IGNORE_ABSENT_REPOS = 'ignore_absent_pulp_repos'
+
+
+class ResolveComposesResult(TypedDict):
+    composes: List[Dict[str, Any]]
+    yum_repourls: Dict[str, List[str]]
+    include_koji_repo: bool
+    signing_intent: Optional[str]
+    signing_intent_overridden: bool
 
 
 class ResolveComposesPlugin(Plugin):
@@ -83,7 +92,7 @@ class ResolveComposesPlugin(Plugin):
         self.yum_repourls = defaultdict(list)
         self.architectures = get_platforms(self.workflow.data)
 
-    def run(self):
+    def run(self) -> ResolveComposesResult:
         if self.allow_inheritance():
             self.adjust_for_inherit()
         self.workflow.data.all_yum_repourls = self.repourls
@@ -355,13 +364,14 @@ class ResolveComposesPlugin(Plugin):
         if not self.has_complete_repos:
             self.include_koji_repo = True
 
-    def make_result(self):
+    def make_result(self) -> ResolveComposesResult:
         signing_intent = None
         signing_intent_overridden = False
         if self.compose_config:
             signing_intent = self.compose_config.signing_intent['name']
             signing_intent_overridden = self.compose_config.has_signing_intent_changed()
-        result = {
+
+        result: ResolveComposesResult = {
             'composes': self.composes_info,
             'yum_repourls': self.yum_repourls,
             'include_koji_repo': self.include_koji_repo,
