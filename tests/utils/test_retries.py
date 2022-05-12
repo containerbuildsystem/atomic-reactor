@@ -96,26 +96,40 @@ def test_run_cmd_success(retries_needed, caplog):
     cmd = ["skopeo", "copy", "docker://a", "docker://b"]
     n_tries = 0
 
-    def mock_check_output(*args, **kwargs):
+    def mock_run(*args, **kwargs):
         nonlocal n_tries
         n_tries += 1
+
         if n_tries > retries_needed:
-            return b'some output'
-        raise subprocess.CalledProcessError(1, cmd, output=b'something went wrong')
+            return subprocess.CompletedProcess(
+                cmd, 0, stdout=b'some output', stderr=b'some warning'
+            )
+        else:
+            raise subprocess.CalledProcessError(
+                1, cmd, output=b'some output', stderr=b'some error'
+            )
 
     (
         flexmock(subprocess)
-        .should_receive('check_output')
-        .with_args(cmd, stderr=subprocess.STDOUT)
+        .should_receive('run')
+        .with_args(cmd, check=True, capture_output=True)
         .times(retries_needed + 1)
-        .replace_with(mock_check_output)
+        .replace_with(mock_run)
     )
     flexmock(time).should_receive('sleep').times(retries_needed)
 
+    # important: the output shouldn't include 'some warning'
     assert retries.run_cmd(cmd) == b'some output'
 
     assert caplog.text.count('Running skopeo copy docker://a docker://b') == retries_needed + 1
-    assert caplog.text.count('skopeo failed with:\nsomething went wrong') == retries_needed
+    assert caplog.text.count(
+        'skopeo failed:\n'
+        'STDOUT:\n'
+        'some output\n'
+        'STDERR:\n'
+        'some error'
+    ) == retries_needed
+    assert caplog.text.count('skopeo STDERR:\nsome warning') == 1
 
     for n in range(retries_needed):
         wait = SUBPROCESS_BACKOFF_FACTOR * 2 ** n
@@ -128,10 +142,12 @@ def test_run_cmd_failure(caplog):
 
     (
         flexmock(subprocess)
-        .should_receive('check_output')
-        .with_args(cmd, stderr=subprocess.STDOUT)
+        .should_receive('run')
+        .with_args(cmd, check=True, capture_output=True)
         .times(total_tries)
-        .and_raise(subprocess.CalledProcessError(1, cmd, output=b'something went wrong'))
+        .and_raise(subprocess.CalledProcessError(
+            1, cmd, output=b'', stderr=b'something went wrong')
+        )
     )
     flexmock(time).should_receive('sleep').times(SUBPROCESS_MAX_RETRIES)
 
@@ -139,7 +155,13 @@ def test_run_cmd_failure(caplog):
         retries.run_cmd(cmd)
 
     assert caplog.text.count('Running skopeo copy docker://a docker://b') == total_tries
-    assert caplog.text.count('skopeo failed with:\nsomething went wrong') == total_tries
+    assert caplog.text.count(
+        'skopeo failed:\n'
+        'STDOUT:\n'
+        '\n'
+        'STDERR:\n'
+        'something went wrong'
+    ) == total_tries
 
     for n in range(SUBPROCESS_MAX_RETRIES):
         wait = SUBPROCESS_BACKOFF_FACTOR * 2 ** n
