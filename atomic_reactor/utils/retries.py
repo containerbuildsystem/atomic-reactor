@@ -96,8 +96,19 @@ def run_cmd(cmd: List[str]) -> bytes:
     :return: bytes, the combined stdout and stderr (if any) of the command
     """
     logger.debug("Running %s", " ".join(cmd))
+
     try:
-        return subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+        process = subprocess.run(cmd, check=True, capture_output=True)
     except subprocess.CalledProcessError as e:
-        logger.warning("%s failed with:\n%s", cmd[0], e.output.decode())
+        logger.warning(
+            "%s failed:\nSTDOUT:\n%s\nSTDERR:\n%s",
+            cmd[0],
+            e.stdout.decode(),
+            e.stderr.decode(),
+        )
         raise
+
+    if process.stderr:
+        logger.warning("%s STDERR:\n%s", cmd[0], process.stderr.decode())
+
+    return process.stdout
