@@ -22,6 +22,8 @@ try:
 except ImportError:
     from urllib.parse import urlparse
 
+from osbs.utils import clone_git_repo, get_commit_id
+
 from atomic_reactor import util
 from atomic_reactor.constants import REPO_CONTAINER_CONFIG
 from atomic_reactor.util import read_yaml_from_file_path
@@ -110,8 +112,11 @@ class Source(object):
     def workdir(self):
         return self._workdir
 
-    def get(self):
-        """Run this to get source and save it to `workdir` or a newly created workdir."""
+    def get(self) -> str:
+        """Run this to get source and save it to `workdir` or a newly created workdir.
+
+        Return the path to the saved source.
+        """
         raise NotImplementedError('Must override in subclasses!')
 
     def get_build_file_path(self):
@@ -137,35 +142,22 @@ class Source(object):
 
 
 class GitSource(Source):
-    def __init__(self, provider, uri, dockerfile_path=None, provider_params=None, workdir=None):
-        super(GitSource, self).__init__(provider, uri, dockerfile_path,
-                                        provider_params, workdir)
-        self.git_commit = self.provider_params.get('git_commit', None)
-        branch = self.provider_params.get('git_branch', None)
-        depth = self.provider_params.get('git_commit_depth', None)
-        self.lg = util.LazyGit(self.uri, self.git_commit, self.source_path, branch=branch,
-                               depth=depth)
-
     @property
     def commit_id(self):
-        return self.lg.commit_id
+        return get_commit_id(self.path)
 
-    def get(self):
-        return self.lg.clone()
+    def get(self) -> str:
+        if not os.path.exists(self.path):
+            commit = self.provider_params.get('git_commit', None)
+            branch = self.provider_params.get('git_branch', None)
+            depth = self.provider_params.get('git_commit_depth', None)
+            clone_git_repo(
+                self.uri, target_dir=self.path, commit=commit, branch=branch, depth=depth
+            )
+        return self.path
 
-    @property
-    def path(self):
-        return self.lg.git_path
-
-    def get_vcs_info(self):
-        return VcsInfo(
-            vcs_type='git',
-            vcs_url=self.lg.git_url,
-            vcs_ref=self.lg.commit_id
-        )
-
-    def reset(self, git_reference):
-        self.lg.reset(git_reference)
+    def get_vcs_info(self) -> VcsInfo:
+        return VcsInfo(vcs_type='git', vcs_url=self.uri, vcs_ref=self.commit_id)
 
 
 class PathSource(Source):
