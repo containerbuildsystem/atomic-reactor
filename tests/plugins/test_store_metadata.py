@@ -24,7 +24,8 @@ from atomic_reactor.plugins.add_help import AddHelpPlugin
 from atomic_reactor.plugins.rpmqa import RPMqaPlugin
 from atomic_reactor.plugins.store_metadata import StoreMetadataPlugin
 from atomic_reactor.plugins.verify_media_types import VerifyMediaTypesPlugin
-from atomic_reactor.util import LazyGit, ManifestDigest, DockerfileImages, RegistryClient
+from atomic_reactor.source import GitSource
+from atomic_reactor.util import ManifestDigest, DockerfileImages, RegistryClient
 import pytest
 from tests.constants import LOCALHOST_REGISTRY, TEST_IMAGE, TEST_IMAGE_NAME
 from tests.mock_env import MockEnv
@@ -100,11 +101,9 @@ def prepare(workflow, registry=None, no_dockerfile=True):
     workflow.build_logs = [
         "a", "b",
     ]
-    workflow.source.lg = LazyGit(None, commit="commit")
-    flexmock(workflow.source.lg)
-    # pylint: disable=no-member
-    workflow.source.lg.should_receive("_commit_id").and_return("commit")
-    # pylint: enable=no-member
+
+    workflow.source = GitSource('git', 'git://fake-url.com/repo')
+    flexmock(workflow.source).should_receive('commit_id').and_return('commit')
 
 
 def mock_dockerfile(workflow: DockerBuildWorkflow, content: str) -> None:
@@ -188,6 +187,7 @@ def test_metadata_plugin(workflow, source_dir,
     assert is_string_type(annotations['dockerfile'])
     assert "commit_id" in annotations
     assert is_string_type(annotations['commit_id'])
+    assert annotations['commit_id'] == 'commit'
 
     assert "base-image-id" in annotations
     assert is_string_type(annotations['base-image-id'])

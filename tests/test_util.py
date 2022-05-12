@@ -34,7 +34,7 @@ from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA1, MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
                                       DOCKERIGNORE, RELATIVE_REPOS_PATH)
-from atomic_reactor.util import (LazyGit, figure_out_build_file,
+from atomic_reactor.util import (figure_out_build_file,
                                  render_yum_repo, process_substitutions,
                                  get_checksums, print_version_of_tools,
                                  get_version_of_tools,
@@ -135,31 +135,6 @@ def test_figure_out_build_file(tmpdir, contents, local_path, expected_path, expe
         with pytest.raises(Exception) as e:
             figure_out_build_file(tmpdir_path, local_path=local_path)
         assert expected_exception in str(e.value)
-
-
-def test_lazy_git(local_fake_repo):
-    lazy_git = LazyGit(git_url=local_fake_repo)
-    lazy_git.clone()
-    with lazy_git:
-        assert lazy_git.git_path is not None
-        assert lazy_git.commit_id is not None
-        assert len(lazy_git.commit_id) == 40  # current git hashes are this long
-
-        previous_commit_id = lazy_git.commit_id
-        lazy_git.reset('HEAD~2')  # Go back two commits
-        assert lazy_git.commit_id is not None
-        assert lazy_git.commit_id != previous_commit_id
-        assert len(lazy_git.commit_id) == 40  # current git hashes are this long
-
-
-def test_lazy_git_with_tmpdir(local_fake_repo, tmpdir):
-    t = str(tmpdir.join("lazy-git-tmp-dir").realpath())
-    lazy_git = LazyGit(git_url=local_fake_repo, tmpdir=t)
-    lazy_git.clone()
-    assert lazy_git._tmpdir == t
-    assert lazy_git.git_path is not None
-    assert lazy_git.commit_id is not None
-    assert len(lazy_git.commit_id) == 40  # current git hashes are this long
 
 
 def test_render_yum_repo_unicode():
