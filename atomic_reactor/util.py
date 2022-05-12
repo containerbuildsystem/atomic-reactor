@@ -17,7 +17,6 @@ import os
 import re
 import requests
 from requests.exceptions import SSLError, HTTPError, RetryError
-import shutil
 import tempfile
 from typing import Any, Final, Iterator, Sequence, Dict, Union, List, BinaryIO, Tuple, Optional
 import logging
@@ -60,7 +59,7 @@ from requests.utils import guess_json_utf
 
 from osbs.api import OSBS
 from osbs.exceptions import OsbsException
-from osbs.utils import clone_git_repo, reset_git_repo, Labels, ImageName
+from osbs.utils import Labels, ImageName
 from osbs.utils import yaml as osbs_yaml
 
 from tempfile import NamedTemporaryFile
@@ -189,68 +188,6 @@ def wait_for_command(logs_generator):
 
     logger.info("no more logs")
     return cr
-
-
-class LazyGit(object):
-    """
-    usage:
-
-        lazy_git = LazyGit(git_url="...")
-        with lazy_git:
-            laze_git.git_path
-
-    or
-
-        lazy_git = LazyGit(git_url="...", tmpdir=tmp_dir)
-        lazy_git.git_path
-    """
-    def __init__(self, git_url, commit=None, tmpdir=None, branch=None, depth=None):
-        self.git_url = git_url
-        # provided commit ID/reference to check out
-        self.commit = commit
-        # commit ID of HEAD; we'll figure this out ourselves
-        self._commit_id = None
-        self.provided_tmpdir = tmpdir
-        self.our_tmpdir = None
-        self._git_path = None
-        self._branch = branch
-        self._git_depth = depth
-
-    @property
-    def _tmpdir(self):
-        return self.provided_tmpdir or self.our_tmpdir
-
-    @property
-    def commit_id(self):
-        return self._commit_id
-
-    def clone(self):
-        repo_data = clone_git_repo(self.git_url, self._tmpdir, self.commit,
-                                   branch=self._branch, depth=self._git_depth)
-        self._commit_id = repo_data.commit_id
-        self._git_path = repo_data.repo_path
-        self._git_depth = repo_data.commit_depth
-        return self._git_path
-
-    @property
-    def git_path(self):
-        if self._git_path is None:
-            self._commit_id, self._git_depth = reset_git_repo(self._tmpdir, self.commit)
-            self._git_path = self._tmpdir
-        return self._git_path
-
-    def __enter__(self):
-        if not self.provided_tmpdir:
-            self.our_tmpdir = tempfile.mkdtemp()
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if not self.provided_tmpdir:
-            if self.our_tmpdir:
-                shutil.rmtree(self.our_tmpdir)
-
-    def reset(self, git_reference):
-        self._commit_id, _ = reset_git_repo(self.git_path, git_reference)
-        self.commit = git_reference
 
 
 def escape_dollar(v):

@@ -86,10 +86,6 @@ PUSH_OPERATOR_MANIFESTS_RESULTS = {
 }
 
 
-class X(object):
-    pass
-
-
 class MockedPodResponse(object):
     def get_container_image_ids(self):
         return {'buildroot:latest': '0123456'}
@@ -331,9 +327,7 @@ def mock_environment(workflow: DockerBuildWorkflow, source_dir: Path,
         .with_args(PIPELINE_RUN_NAME)
         .and_return(logs))
     setattr(workflow, 'source', source)
-    setattr(workflow.source, 'lg', X())
-    setattr(workflow.source.lg, 'commit_id', '123456')
-    setattr(workflow.source.lg, 'git_path', str(source_dir))
+    flexmock(workflow.source).should_receive('commit_id').and_return('123456')
 
     workflow.build_dir.init_build_dirs(platforms, workflow.source)
 
