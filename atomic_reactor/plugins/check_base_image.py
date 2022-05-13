@@ -11,7 +11,7 @@ the specified registry. It also validates platforms in the parent images and sto
 their manifest digests.
 """
 from io import BytesIO
-from typing import Optional, Union
+from typing import Union, Dict
 
 import requests
 from osbs.utils import ImageName
@@ -56,52 +56,42 @@ class CheckBaseImagePlugin(Plugin):
                 continue
 
             image = parent
-            use_original_tag = False
             # base_image_key is an ImageName, so compare parent as an ImageName also
             if image == self.workflow.data.dockerfile_images.base_image_key:
-                use_original_tag = True
                 image = self._resolve_base_image()
 
             self._ensure_image_registry(image)
-
             self._validate_platforms_in_image(image)
+
             try:
-                self._store_manifest_digest(image, use_original_tag=use_original_tag)
+                digest = self._fetch_manifest_digest(image)
             except RuntimeError as exc:
                 digest_fetching_exceptions.append(exc)
+                continue
 
-            image_with_digest = self._get_image_with_digest(image)
-            if image_with_digest is None:
-                raise RuntimeError("Cannot resolve manifest digest for image {}".format(image))
-
+            image_with_digest = self._pin_to_digest(image, digest)
             self.log.info("Replacing image '%s' with '%s'", image, image_with_digest)
 
             self.workflow.data.dockerfile_images[parent] = image_with_digest
+            self.workflow.data.parent_images_digests[str(image_with_digest)] = digest
 
         if digest_fetching_exceptions:
             raise RuntimeError('Error when extracting parent images manifest digests: {}'
                                .format(digest_fetching_exceptions))
 
-    def _get_image_with_digest(self, image: ImageName) -> Optional[ImageName]:
-        image_str = image.to_str()
-        try:
-            image_metadata = self.workflow.data.parent_images_digests[image_str]
-        except KeyError:
-            return None
-
+    def _pin_to_digest(self, image: ImageName, digests: Dict[str, str]) -> ImageName:
         v2_list_type = get_manifest_media_type('v2_list')
         v2_type = get_manifest_media_type('v2')
-        raw_digest = image_metadata.get(v2_list_type) or image_metadata.get(v2_type)
-        if not raw_digest:
-            return None
+        # one of v2_list, v2 *must* be present in the dict
+        raw_digest = digests.get(v2_list_type) or digests[v2_type]
 
         digest = raw_digest.split(':', 1)[1]
         image_name = image.to_str(tag=False)
         new_image = '{}@sha256:{}'.format(image_name, digest)
         return ImageName.parse(new_image)
 
-    def _store_manifest_digest(self, image: ImageName, use_original_tag: bool) -> None:
-        """Store media type and digest for manifest list or v2 schema 2 manifest digest"""
+    def _fetch_manifest_digest(self, image: ImageName) -> Dict[str, str]:
+        """Fetch media type and digest for manifest list or v2 schema 2 manifest digest"""
         image_str = image.to_str()
         manifest_list = self._get_manifest_list(image)
         reg_client = self._get_registry_client(image.registry)
@@ -122,16 +112,8 @@ class CheckBaseImagePlugin(Plugin):
             digest_dict = get_checksums(BytesIO(manifest_digest_response.content), ['sha256'])
 
         manifest_digest = 'sha256:{}'.format(digest_dict['sha256sum'])
-        parent_digests = {media_type: manifest_digest}
-        if use_original_tag:
-            # image tag may have been replaced with a ref for autorebuild; use original tag
-            # to simplify fetching parent_images_digests data in other plugins
-            image = image.copy()
-            base_image_key: ImageName = self.workflow.data.dockerfile_images.base_image_key
-            image.tag = base_image_key.tag
-            image_str = image.to_str()
-
-        self.workflow.data.parent_images_digests[image_str] = parent_digests
+        parent_digest = {media_type: manifest_digest}
+        return parent_digest
 
     def _resolve_base_image(self) -> Union[str, ImageName]:
         base_image = self.workflow.data.dockerfile_images.base_image

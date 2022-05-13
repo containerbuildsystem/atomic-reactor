@@ -83,7 +83,7 @@ def workflow(workflow, source_dir):
     base_inspect = {INSPECT_CONFIG: {'Labels': BASE_IMAGE_LABELS.copy()}}
     flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return(base_inspect)
     flexmock(workflow.imageutil).should_receive('get_inspect_for_image').and_return(base_inspect)
-    workflow.data.parent_images_digests = {'base:latest': {V2_LIST: 'stubDigest'}}
+    workflow.data.parent_images_digests = {'base:stubDigest': {V2_LIST: 'stubDigest'}}
     return workflow
 
 
@@ -236,8 +236,8 @@ class TestKojiParent(object):
         }
         media_type = get_manifest_media_type(media_version)
         workflow.data.parent_images_digests = {}
-        for name, image in parent_images.items():
-            workflow.data.parent_images_digests[name.to_str()] = {media_type: image.tag}
+        for image in parent_images.values():
+            workflow.data.parent_images_digests[image.to_str()] = {media_type: image.tag}
         if not koji_mtype:
             media_type = get_manifest_media_type('v1')
         extra = {'image': {'index': {'digests': {media_type: 'stubDigest'}}}}
@@ -308,7 +308,7 @@ class TestKojiParent(object):
                 workflow, expect_result=expected
             )
             errors = []
-            error_msg = ('Manifest digest (miss) for parent image {}:latest does not match value '
+            error_msg = ('Manifest digest (miss) for parent image {}:miss does not match value '
                          'in its koji reference (stubDigest)')
             if parent_tags[0] == 'miss':
                 errors.append(error_msg.format('somebuilder'))
@@ -326,7 +326,9 @@ class TestKojiParent(object):
             )
 
     def test_unexpected_digest_data(self, workflow, koji_session):  # noqa
-        workflow.data.parent_images_digests = {'base:latest': {'unexpected_type': 'stubDigest'}}
+        workflow.data.parent_images_digests = {
+            'base:stubDigest': {'unexpected_type': 'stubDigest'}
+        }
         with pytest.raises(PluginFailedException) as exc_info:
             self.run_plugin_with_args(workflow)
         assert 'Unexpected parent image digest data' in str(exc_info.value)
@@ -396,12 +398,10 @@ class TestKojiParent(object):
 
         expected_result = {
             BASE_IMAGE_KOJI_BUILD: KOJI_BUILD,
-            PARENT_IMAGES_KOJI_BUILDS: {
-                ImageName.parse(image_str).to_str(): KOJI_BUILD,
-            },
+            PARENT_IMAGES_KOJI_BUILDS: {f'{image_str}:latest': KOJI_BUILD},
         }
 
-        workflow.data.parent_images_digests = {image_str+':latest': {V2_LIST: parent_tag}}
+        workflow.data.parent_images_digests = {f'{image_str}:{parent_tag}': {V2_LIST: parent_tag}}
         workflow.data.dockerfile_images = DockerfileImages([image_str])
         workflow.data.dockerfile_images[image_str] = ImageName.parse(f'{image_str}:{parent_tag}')
 
@@ -450,7 +450,7 @@ class TestKojiParent(object):
                         assert 'differs from Koji archive digest' in caplog.text
                         assert rebuild_str in caplog.text
                 else:
-                    fetch_error = 'Could not fetch manifest list for {}:latest'.format(image_str)
+                    fetch_error = f'Could not fetch manifest list for {image_str}:{parent_tag}'
                     assert fetch_error in caplog.text
                     assert rebuild_str in caplog.text
 
@@ -553,18 +553,15 @@ class TestKojiParent(object):
                             'application/vnd.docker.distribution.manifest.v2+json',
                          'platform': {'architecture': 's390x'}}]},
                     ['x86_64'],
-                    [('parent image example.com/base:latest differs from the manifest list '
-                      'for its koji reference')],
+                    [('parent image example.com/base:notExpectedDigest differs from the '
+                      'manifest list for its koji reference')],
                     []
             )
         ])
     def test_deep_digests_with_requested_arches(self, workflow, koji_session, caplog,
                                                 manifest_list, requested_platforms, expected_logs,
                                                 not_expected_logs):  # noqa
-        registry = 'example.com'
-        image_str = '{}/base:latest'.format(registry)
         extra = {'image': {'index': {'digests': {V2_LIST: 'stubDigest'}}}}
-        parent_tag = 'notExpectedDigest'
         workflow.data.plugins_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = requested_platforms
 
         koji_build = dict(nvr='base-image-1.0-99',
@@ -601,18 +598,19 @@ class TestKojiParent(object):
          .should_receive('get_manifest')
          .and_return((response, None)))
 
+        registry = 'example.com'
+        parent_tag = 'notExpectedDigest'
+        base_image = f'{registry}/base:latest'
+        pinned_base_image = f'{registry}/base:{parent_tag}'
+
         expected_result = {
             BASE_IMAGE_KOJI_BUILD: KOJI_BUILD,
-            PARENT_IMAGES_KOJI_BUILDS: {
-                ImageName.parse(image_str).to_str(): KOJI_BUILD,
-            },
+            PARENT_IMAGES_KOJI_BUILDS: {base_image: KOJI_BUILD},
         }
 
-        workflow.data.parent_images_digests = {image_str: {V2_LIST: parent_tag}}
-        workflow.data.dockerfile_images = DockerfileImages([image_str])
-        image_for_key = ImageName.parse(image_str)
-        image_for_key.tag = parent_tag
-        workflow.data.dockerfile_images[image_str] = image_for_key.to_str()
+        workflow.data.parent_images_digests = {pinned_base_image: {V2_LIST: parent_tag}}
+        workflow.data.dockerfile_images = DockerfileImages([base_image])
+        workflow.data.dockerfile_images[base_image] = pinned_base_image
         self.run_plugin_with_args(workflow, expect_result=expected_result, deep_inspection=True,
                                   pull_registries=[{'url': registry}])
 
