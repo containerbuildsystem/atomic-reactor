@@ -695,6 +695,10 @@
               "description": "Url with denylist yaml file, which will be used to exclude sources from cachito ",
               "type": "string"
           },
+          "lookaside_cache_allowlist": {
+              "description": "Url with allowlist yaml file, which allows usage of lookaside cache",
+              "type": "string"
+          },
           "cpu_request": {
               "description": "Openshift cpu request for build",
               "type": "string",
