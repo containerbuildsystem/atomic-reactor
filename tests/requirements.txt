@@ -9,3 +9,5 @@ pytest-html
 flake8
 koji
 requests-mock
+typing-extensions < 4.2.0;python_version<="3.6"
+typing-extensions;python_version>"3.6"
