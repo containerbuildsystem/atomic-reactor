@@ -549,7 +549,7 @@ class TestValidateBaseImage(object):
                                                  ['sha256'])['sha256sum']
             digest = 'sha256:{}'.format(manifest_list_digest)
             test_vals['expected_digest'] = {
-                '{}/{}'.format(SOURCE_REGISTRY, BASE_IMAGE): {
+                f'{reg_image_no_tag}@sha256:{manifest_list_digest}': {
                     MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST: digest
                 }
             }

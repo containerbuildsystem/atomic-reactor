@@ -16,7 +16,6 @@ from atomic_reactor.util import (
     base_image_is_custom, get_manifest_media_type, is_scratch_build,
     get_platforms, RegistrySession, RegistryClient
 )
-from copy import copy
 from osbs.utils import ImageName, Labels
 
 import json
@@ -101,11 +100,8 @@ class KojiParentPlugin(Plugin):
                 self._base_image_build = parent_build_info
 
             if parent_build_info:
-                # we need the possible floating tag
-                check_img = copy(local_tag)
-                check_img.tag = img.tag
                 try:
-                    self.check_manifest_digest(check_img, parent_build_info)
+                    self.check_manifest_digest(local_tag, parent_build_info)
                 except ValueError as exc:
                     manifest_mismatches.append(exc)
             else:
