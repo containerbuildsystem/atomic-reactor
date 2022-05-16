@@ -37,6 +37,7 @@ setup(
         'requests',
         'koji',
         'PyGObject',
+        'reflink',
     ],
     python_requires='>=3.8, <4',
     package_data={'atomic_reactor': ['schemas/*.json']},

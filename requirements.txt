@@ -17,6 +17,7 @@ cffi==1.15.0
     #   bcrypt
     #   cryptography
     #   pynacl
+    #   reflink
 charset-normalizer==2.0.7
     # via requests
 cryptography==3.4.8
@@ -71,6 +72,8 @@ pyyaml==6.0
     # via
     #   -r requirements.in
     #   osbs-client
+reflink==0.2.1
+    # via -r requirements.in
 requests==2.26.0
     # via
     #   -r requirements.in

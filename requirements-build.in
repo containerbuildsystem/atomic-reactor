@@ -16,3 +16,4 @@ setuptools_scm[toml]>=3.4
 # pin tomli to avoid issue when building with cachito
 tomli==1.0.1
 wheel
+pytest-runner<=5.3.1

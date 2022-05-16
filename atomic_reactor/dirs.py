@@ -6,9 +6,11 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 import logging
+import reflink
 
 from pathlib import Path
-from shutil import copy2, copytree
+import shutil
+from shutil import copytree
 from typing import Dict, List, Callable, Iterable, Optional, TypeVar
 
 from dockerfile_parse import DockerfileParser
@@ -23,6 +25,13 @@ from atomic_reactor.source import Source
 from atomic_reactor.types import ImageInspectionData
 
 logger = logging.getLogger(__name__)
+
+
+def reflink_copy(src, dst, *, follow_symlinks=True):
+    if follow_symlinks:
+        reflink.reflink(str(Path(src).resolve()), str(dst))
+    else:
+        reflink.reflink(str(src), str(dst))
 
 
 class DockerfileNotExist(Exception):
@@ -156,8 +165,14 @@ class RootBuildDir(object):
         :type source: Source
         """
         src_path = source.path
+
+        copy_method = shutil.copy2
+        if reflink.supported_at(self.path):
+            copy_method = reflink_copy
+        logger.debug("copy method used for copy sources: %s", copy_method.__name__)
+
         for platform in self.platforms:
-            copytree(src_path, self.path / platform)
+            copytree(src_path, self.path / platform, copy_function=copy_method)
 
     @property
     def has_sources(self) -> bool:
@@ -276,14 +291,20 @@ class RootBuildDir(object):
                 )
             the_new_files.append(file_path)
 
+        copy_method = shutil.copy2
+        if reflink.supported_at(self.path):
+            copy_method = reflink_copy
+        logger.debug("copy method used for all platforms copy: %s", copy_method.__name__)
+
         for platform in self.platforms[1:]:
             for src_file in the_new_files:
                 dest = self.path / platform / src_file.relative_to(build_dir.path)
+
                 if src_file.is_dir():
-                    copytree(src_file, dest)
+                    copytree(src_file, dest, copy_function=copy_method)
                 else:
                     dest.parent.mkdir(parents=True, exist_ok=True)
-                    copy2(src_file, dest)
+                    copy_method(src_file, dest)
 
         return the_new_files
 
