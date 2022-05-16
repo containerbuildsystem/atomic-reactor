@@ -38,6 +38,18 @@ class TestGitSource(object):
 
         assert len(gs.commit_id) == 40  # current git hashes are this long
 
+    @pytest.mark.parametrize(
+        'method_name', ['config', 'get_build_file_path', 'commit_id', 'get_vcs_info']
+    )
+    def test_check_for_nonexistent_path(self, method_name, local_fake_repo):
+        gs = GitSource('git', local_fake_repo)
+
+        with pytest.raises(
+            RuntimeError, match='Expected source path /tmp/.*/app-operator does not exist'
+        ):
+            method = getattr(gs, method_name)  # Fails here for @properties
+            method()  # Fails here for normal methods
+
 
 class TestPathSource(object):
     def test_copies_target_dir(self, tmpdir):

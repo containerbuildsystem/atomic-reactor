@@ -9,13 +9,14 @@ of the BSD license. See the LICENSE file for details.
 Code for getting source code to put inside container.
 """
 
+import functools
 import logging
 import copy
 import os
 import shutil
 import tempfile
 from textwrap import dedent
-from typing import Any, List
+from typing import Any, List, Callable, TypeVar
 import collections
 try:
     from urlparse import urlparse
@@ -87,6 +88,22 @@ class SourceConfig(object):
         return self.platforms['only']
 
 
+SourceT = TypeVar('SourceT', bound='Source')
+T = TypeVar('T')
+
+
+def path_must_exist(method: Callable[[SourceT], T]) -> Callable[[SourceT], T]:
+    """Make a Source method check that self.path exists before doing anything else."""
+
+    @functools.wraps(method)
+    def method_with_path_check(self: SourceT) -> T:
+        if not os.path.exists(self.path):
+            raise RuntimeError(f'Expected source path {self.path} does not exist')
+        return method(self)
+
+    return method_with_path_check
+
+
 class Source(object):
     def __init__(self, provider, uri, dockerfile_path=None, provider_params=None, workdir=None):
         self._config = None
@@ -119,10 +136,13 @@ class Source(object):
         """
         raise NotImplementedError('Must override in subclasses!')
 
+    @path_must_exist
     def get_build_file_path(self):
         return util.figure_out_build_file(self.path, self.dockerfile_path)
 
-    @property
+    # mypy does not support decorated properties; https://github.com/python/mypy/issues/1362
+    @property  # type: ignore
+    @path_must_exist
     def config(self):
         # contents of container.yaml
         self._config = self._config or SourceConfig(self.path)
@@ -142,7 +162,8 @@ class Source(object):
 
 
 class GitSource(Source):
-    @property
+    @property  # type: ignore
+    @path_must_exist
     def commit_id(self):
         return get_commit_id(self.path)
 
@@ -156,6 +177,7 @@ class GitSource(Source):
             )
         return self.path
 
+    @path_must_exist
     def get_vcs_info(self) -> VcsInfo:
         return VcsInfo(vcs_type='git', vcs_url=self.uri, vcs_ref=self.commit_id)
 
