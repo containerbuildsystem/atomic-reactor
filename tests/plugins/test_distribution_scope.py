@@ -90,7 +90,7 @@ class TestDistributionScope(object):
             plugin.run()
 
         # No errors logged
-        assert not caplog.records
+        assert not any(log.levelno >= logging.ERROR for log in caplog.records)
 
     @pytest.mark.parametrize('current_scope', [None, 'private'])
     def test_invalid_parent_distribution_scope(self, workflow, caplog, current_scope):

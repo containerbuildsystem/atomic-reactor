@@ -9,7 +9,10 @@ import os
 import tempfile
 from pathlib import Path
 from typing import Any, Iterable
+import shutil
 
+import reflink
+from flexmock import flexmock
 import pytest
 from atomic_reactor.constants import DOCKERFILE_FILENAME
 
@@ -114,6 +117,29 @@ def test_rootbuilddir_copy_sources(build_dir, mock_source):
         copied_dockerfile = root.path / platform / DOCKERFILE_FILENAME
         assert copied_dockerfile.exists()
         assert copied_dockerfile.read_text("utf-8") == original_content
+
+
+@pytest.mark.parametrize("reflink_support", [True, False])
+def test_rootbuilddir_copy_sources_reflink(caplog, build_dir, mock_source, reflink_support):
+    root_path = build_dir / "root_builddir"
+    root_path.mkdir()
+
+    platforms = ["x86_64"]
+    root = RootBuildDir(root_path)
+    root.platforms = platforms
+
+    flexmock(reflink).should_receive('supported_at').and_return(reflink_support).once()
+    flexmock(reflink).should_receive('reflink').and_return(True).times(int(reflink_support))
+    flexmock(shutil).should_receive('copy2').and_return(True).times(int(not reflink_support))
+
+    method_name = shutil.copy2.__name__
+    if reflink_support:
+        method_name = 'reflink_copy'
+
+    root._copy_sources(mock_source)
+
+    log_msg = f"copy method used for copy sources: {method_name}"
+    assert log_msg in caplog.text
 
 
 def test_rootbuilddir_has_sources_if_build_dirs_not_inited(build_dir):
@@ -232,22 +258,57 @@ def test_rootbuilddir_for_all_platforms_copy(build_dir, mock_source):
     results = root.for_all_platforms_copy(create_dockerfile)
 
     build_dir_s390x = build_dir.joinpath("s390x")
-    expected_created_files = sorted([
+    build_dir_x86_64 = build_dir.joinpath("x86_64")
+    # created files/dirs by action method
+    expected_created = sorted([
         build_dir_s390x / DOCKERFILE_FILENAME,
         build_dir_s390x / "data" / "data.json",
         build_dir_s390x / "cachito-1",
     ])
 
-    assert expected_created_files == sorted(results)
+    assert expected_created == sorted(results)
 
-    expected_all_copied_files = expected_created_files + [
+    # action method creates files for s390x (platforms are sorted)
+    # and copies it to x86_64
+    expected_all_copied = expected_created + [
         build_dir_s390x / "cachito-1" / "app",
         build_dir_s390x / "cachito-1" / "app" / "main.py",
+        build_dir_x86_64 / "cachito-1" / "app",
+        build_dir_x86_64 / "cachito-1" / "app" / "main.py",
+        build_dir_x86_64 / DOCKERFILE_FILENAME,
+        build_dir_x86_64 / "data" / "data.json",
+        build_dir_x86_64 / "cachito-1",
     ]
 
-    for f in expected_all_copied_files:
+    for f in expected_all_copied:
         assert f.is_absolute()
         assert f.exists()
+
+
+@pytest.mark.parametrize("reflink_support", [True, False])
+def test_rootbuilddir_for_all_platforms_copy_reflink(caplog, build_dir, mock_source,
+                                                     reflink_support):
+    root = RootBuildDir(build_dir)
+
+    # one time in copy_sources, another in for_all_platforms_copy
+    flexmock(reflink).should_receive('supported_at').and_return(reflink_support).times(2)
+    # 2 times in copy_source, it has to copy Dockerfile to both platform dirs
+    # 3 times in for_all_platforms, method itself creates all for the first platform s390x
+    # and then copies for x86_64 3 files
+    flexmock(reflink).should_receive('reflink').and_return(True).times(5 if reflink_support else 0)
+    flexmock(shutil).should_receive('copy2').and_return(True).times(0 if reflink_support else 5)
+
+    root.init_build_dirs(["x86_64", "s390x"], mock_source)
+    root.for_all_platforms_copy(create_dockerfile)
+
+    method_name = shutil.copy2.__name__
+    if reflink_support:
+        method_name = 'reflink_copy'
+
+    log_msg1 = f"copy method used for copy sources: {method_name}"
+    log_msg2 = f"copy method used for all platforms copy: {method_name}"
+    assert log_msg1 in caplog.text
+    assert log_msg2 in caplog.text
 
 
 def create_file_outside_build_dir(build_dir: BuildDir) -> Iterable[Path]:
