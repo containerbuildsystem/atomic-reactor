@@ -21,15 +21,13 @@ from atomic_reactor.plugins.flatpak_create_dockerfile import (
     FLATPAK_CLEANUPSCRIPT_FILENAME,
     FLATPAK_INCLUDEPKGS_FILENAME,
 )
-from atomic_reactor.util import is_flatpak_build, map_to_user_params
+from atomic_reactor.util import is_flatpak_build
 from atomic_reactor.utils.flatpak_util import FlatpakUtil
 
 
 class FlatpakUpdateDockerfilePlugin(Plugin):
     key = "flatpak_update_dockerfile"
     is_allowed_to_fail = False
-
-    args_from_user_params = map_to_user_params("compose_ids")
 
     def __init__(self, workflow):
         """
