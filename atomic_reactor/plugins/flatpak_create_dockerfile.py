@@ -46,9 +46,6 @@ ADD {relative_repos_path}* {yum_repos_dir}
 
 ADD {includepkgs} /tmp/
 
-RUN mkdir -p /var/tmp/flatpak-build/dev && \
-    for i in null zero random urandom ; do cp -a /dev/$i /var/tmp/flatpak-build/dev ; done
-
 RUN cat /tmp/atomic-reactor-includepkgs >> /etc/dnf/dnf.conf && \\
     INSTALLDIR=/var/tmp/flatpak-build && \\
     DNF='\\
