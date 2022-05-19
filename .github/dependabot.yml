@@ -11,3 +11,6 @@ updates:
       - dependency-name: "setuptools"
         # We explicitly pin setuptools<54 to avoid issues when building with Cachito
         versions: [">=54.0.0"]
+      - dependency-name: "pytest-runner"
+        # pytest-runner>=5.3.2 requires setuptools>=56
+        versions: [">=5.3.2"]
