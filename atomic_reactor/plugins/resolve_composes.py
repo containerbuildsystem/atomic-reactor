@@ -88,7 +88,6 @@ class ResolveComposesPlugin(Plugin):
         self.all_compose_ids = list(self.compose_ids)
         self.new_compose_ids = []
         self.parent_compose_ids = []
-        self.include_koji_repo = False
         self.yum_repourls = defaultdict(list)
         self.architectures = get_platforms(self.workflow.data)
 
@@ -357,13 +356,6 @@ class ResolveComposesPlugin(Plugin):
             for arch in self.yum_repourls:
                 self.yum_repourls[arch].extend(noarch_repos)
 
-        # If we don't think the set of packages available from the user-supplied repourls,
-        # inherited repourls, and composed repositories is complete, set the 'include_koji_repo'
-        # kwarg so that the so that the 'yum_repourls' kwarg that we just set doesn't
-        # result in the 'koji' plugin being omitted.
-        if not self.has_complete_repos:
-            self.include_koji_repo = True
-
     def make_result(self) -> ResolveComposesResult:
         signing_intent = None
         signing_intent_overridden = False
@@ -374,7 +366,11 @@ class ResolveComposesPlugin(Plugin):
         result: ResolveComposesResult = {
             'composes': self.composes_info,
             'yum_repourls': self.yum_repourls,
-            'include_koji_repo': self.include_koji_repo,
+            # If we don't think the set of packages available from the user-supplied repourls,
+            # inherited repourls, and composed repositories is complete,
+            # set the 'include_koji_repo' to True, so it can be
+            # properly processed in inject_yum_repos plugin
+            'include_koji_repo': not self.has_complete_repos,
             'signing_intent': signing_intent,
             'signing_intent_overridden': signing_intent_overridden,
         }

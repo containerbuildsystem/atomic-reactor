@@ -1622,3 +1622,34 @@ class TestResolveComposes(object):
             assert msg in caplog.text
             msg = 'The compose 16 is not in progress, skip canceling'
             assert msg in caplog.text
+
+    def test_plugin_aborted_no_yumrepourls_include_koji_repo_true(self, mocked_env, caplog):
+        """
+        If no yum_repourls are present, include_koji_repo should be set to True even
+        if the plugin is aborted at the start.
+        """
+        config = dedent("""\
+                    compose:
+                    """)
+        mock_repo_config(mocked_env._tmpdir, config)
+        plugin_result = self.run_plugin_with_args(mocked_env)
+        msg = 'Aborting plugin execution: "compose" config not set and compose_ids not given'
+        assert msg in (x.message for x in caplog.records)
+        assert plugin_result['include_koji_repo'] is True
+        assert not any(plugin_result['yum_repourls'].values())
+
+    def test_plugin_aborted_yum_repourls_include_koji_repo_false(self, mocked_env, caplog):
+        """
+        If there are yum_repourls are present, include_koji_repo should be set to false even
+        if the plugin is aborted at the start.
+        """
+        config = dedent("""\
+                    compose:
+                    """)
+        mock_repo_config(mocked_env._tmpdir, config)
+        plugin_result = self.run_plugin_with_args(mocked_env,
+                                                  plugin_args={'repourls': ["http://yum-repo.com"]})
+        msg = 'Aborting plugin execution: "compose" config not set and compose_ids not given'
+        assert msg in (x.message for x in caplog.records)
+        assert plugin_result['include_koji_repo'] is False
+        assert plugin_result['yum_repourls']['x86_64'] == ["http://yum-repo.com"]
