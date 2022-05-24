@@ -8,10 +8,12 @@ of the BSD license. See the LICENSE file for details.
 import os
 import shutil
 from pathlib import Path
+import re
 
 import koji
 import tarfile
 import yaml
+from typing import List, Dict, Any
 
 from atomic_reactor.constants import (PLUGIN_FETCH_SOURCES_KEY, PNC_SYSTEM_USER,
                                       REMOTE_SOURCE_JSON_FILENAME, REMOTE_SOURCE_TARBALL_FILENAME,
@@ -178,6 +180,23 @@ class FetchSourcesPlugin(Plugin):
         if not self.koji_build_nvr:
             self.koji_build_nvr = self.koji_build['nvr']
 
+    def _get_cache_allowlist(self) -> List[Dict[str, Any]]:
+        src_config = self.workflow.conf.source_container
+        allowlist_cache_url = src_config.get('lookaside_cache_allowlist')
+
+        if not allowlist_cache_url:
+            self.log.debug('no "lookaside_cache_allowlist" defined, '
+                           'not allowing any lookaside cache usage')
+            return []
+
+        self.log.debug('"lookaside_cache_allowlist" defined, might allow lookaside cache usage')
+        request_session = get_retrying_requests_session()
+        response = request_session.get(allowlist_cache_url)
+        response.raise_for_status()
+        allowlist_cache_yaml = yaml.safe_load(response.text)
+
+        return allowlist_cache_yaml
+
     def check_lookaside_cache_usage(self):
         """Check usage of lookaside cache, and fail if used"""
         git_uri, git_commit = self.koji_build['source'].split('#')
@@ -186,11 +205,43 @@ class FetchSourcesPlugin(Plugin):
         source_path = source.get()
         sources_cache_file = os.path.join(source_path, 'sources')
 
+        uses_cache = False
         if os.path.exists(sources_cache_file):
             if os.path.getsize(sources_cache_file) > 0:
-                raise RuntimeError('Repository is using lookaside cache, which is not allowed '
-                                   'for source container builds')
+                uses_cache = True
+
         source.remove_workdir()
+
+        if not uses_cache:
+            return
+
+        allowlist_cache_yaml = self._get_cache_allowlist()
+        should_raise = True
+
+        if allowlist_cache_yaml:
+            build_component = self.koji_build['package_name']
+            build_task = self.koji_build['extra']['container_koji_task_id']
+            task_info = self.session.getTaskInfo(build_task, request=True)
+            build_target = task_info['request'][1]
+
+            for allowed in allowlist_cache_yaml:
+                if allowed['component'] != build_component:
+                    continue
+
+                for target in allowed['targets']:
+                    if re.match(target, build_target):
+                        self.log.debug('target "%s" for component "%s" has allowed using '
+                                       'lookaside cache', build_target, build_component)
+
+                        should_raise = False
+                        break
+
+                if not should_raise:
+                    break
+
+        if should_raise:
+            raise RuntimeError('Repository is using lookaside cache, which is not allowed '
+                               'for source container builds')
 
     def assemble_srpm_url(self, base_url, srpm_filename, sign_key=None):
         """Assemble the URL used to fetch an SRPM file
