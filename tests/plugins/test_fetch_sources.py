@@ -59,10 +59,12 @@ KOJI_BUILD_WO_RS = {'build_id': 1, 'nvr': 'foobar-1-1', 'name': 'foobar', 'versi
                               'operator-manifests': {}},
                     'source': 'registry.com/repo#ref'}
 KOJI_BUILD_RS = {'build_id': 1, 'nvr': 'foobar-1-1', 'name': 'foobar', 'version': 1, 'release': 1,
+                 'package_name': 'foobar',
                  'extra': {'image': {'parent_build_id': 10,
                                      'pnc': {'builds': [{'id': 1234}]},
                                      'remote_source_url': 'remote_url'},
-                           'operator-manifests': {}},
+                           'operator-manifests': {},
+                           'container_koji_task_id': 1},
                  'source': 'registry.com/repo#ref'}
 KOJI_BUILD_MRS = {'build_id': 1, 'nvr': 'foobar-1-1', 'name': 'foobar', 'version': 1, 'release': 1,
                   'extra': {'image': {'parent_build_id': 10,
@@ -901,27 +903,88 @@ class TestFetchSources(object):
         elif denylist_json and exc_str is None:
             assert 'denylisted srpms: ' in caplog.text
 
+    @pytest.mark.parametrize(('allowlist_url', 'allowlist_json', 'component',
+                              'target', 'in_list'), [
+        ('http://myallowlist',
+         [],
+         'foobar', 'target1', False),
+
+        ('http://myallowlist',
+         [{'component': 'foobar', 'targets': [r'target\d', r'\dtarget']}],
+         'foobar', 'target1', True),
+
+        ('http://myallowlist',
+         [{'component': 'foobar', 'targets': [r'notargets\d', r'\dnotargets']}],
+         'foobar', 'target1', False),
+
+        ('http://myallowlist',
+         [{'component': 'other', 'targets': [r'target\d', r'\dtarget']}],
+         'foobar', 'target1', False),
+
+        ('',
+         [],
+         'foobar', 'target1', False)])
     @pytest.mark.parametrize('use_cache', [True, False, None])
-    def test_lookaside_cache(self, requests_mock, koji_session, workflow, source_dir, use_cache):
+    def test_lookaside_cache(self, caplog, requests_mock, koji_session, workflow, source_dir,
+                             allowlist_url, allowlist_json, component, target, in_list, use_cache):
         mock_koji_manifest_download(source_dir, requests_mock)
-        koji_build_nvr = 'foobar-1-1'
-        runner = mock_env(workflow, source_dir, koji_build_nvr=koji_build_nvr)
+        koji_build_nvr = f'{component}-1-1'
 
         if use_cache:
             source_dir.joinpath("sources").write_text("#ref file.tar.gz", "utf-8")
         elif use_cache is None:
             source_dir.joinpath("sources").touch()
 
+        rcm_json = yaml.safe_load(BASE_CONFIG_MAP)
+        rcm_json['source_container'] = {}
+
+        if allowlist_url:
+            rcm_json['source_container'] = {'lookaside_cache_allowlist': allowlist_url}
+
+        if allowlist_url and not allowlist_json:
+            requests_mock.register_uri('GET', allowlist_url,
+                                       reason='Not Found: {}'.format(allowlist_url),
+                                       status_code=404)
+
+        elif allowlist_url and allowlist_json:
+            requests_mock.register_uri('GET', allowlist_url,
+                                       json=allowlist_json, status_code=200)
+
+        task_json = {'request': ['repo', target]}
+        (flexmock(koji_session)
+         .should_receive('getTaskInfo')
+         .and_return(task_json))
+
+        runner = mock_env(workflow, source_dir, koji_build_nvr=koji_build_nvr,
+                          config_map=yaml.safe_dump(rcm_json))
+
         err_msg = 'Repository is using lookaside cache, which is not allowed ' \
                   'for source container builds'
+        if use_cache and allowlist_url and not allowlist_json:
+            err_msg = f'Not Found: {allowlist_url}'
 
-        if use_cache:
+        log_msg = f'target "{target}" for component "{component}" has allowed ' \
+                  f'using lookaside cache'
+
+        if use_cache and not in_list:
             with pytest.raises(PluginFailedException) as exc_info:
                 runner.run()
 
             assert err_msg in str(exc_info.value)
         else:
             runner.run()
+
+            if use_cache and in_list:
+                assert log_msg in caplog.text
+
+            if use_cache and not allowlist_url:
+                log_msg = 'no "lookaside_cache_allowlist" defined, ' \
+                          'not allowing any lookaside cache usage'
+                assert log_msg in caplog.text
+
+            if use_cache and allowlist_url:
+                log_msg = '"lookaside_cache_allowlist" defined, might allow lookaside cache usage'
+                assert log_msg in caplog.text
 
     @pytest.mark.parametrize('reason', ['external', 'other'])
     def test_missing_srpm_header(self, koji_session, workflow, source_dir, reason):
