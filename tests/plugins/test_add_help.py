@@ -1,5 +1,5 @@
 """
-Copyright (c) 2017 Red Hat, Inc
+Copyright (c) 2017-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -7,6 +7,8 @@ of the BSD license. See the LICENSE file for details.
 """
 
 import subprocess
+
+import osbs.conf
 import pytest
 import re
 from datetime import datetime as dt
@@ -15,13 +17,17 @@ from textwrap import dedent
 from typing import Dict, Optional, Callable, NamedTuple, List
 
 from flexmock import flexmock
+from osbs.api import OSBS
+
 from atomic_reactor.inner import DockerBuildWorkflow
 
 from atomic_reactor.plugin import PluginsRunner
 from atomic_reactor.plugins.add_help import AddHelpPlugin
-from atomic_reactor import start_time as atomic_reactor_start_time
 
 from tests.mock_env import MockEnv
+
+
+TIME = '2022-05-27T01:46:50Z'
 
 
 class MockedPopen(object):
@@ -83,6 +89,31 @@ def mock_env(
     plugin_args: Optional[Dict[str, str]] = None,
     mock_md2man: Callable[..., MockedPopen] = mock_md2man_success("man file content"),
 ) -> PluginsRunner:
+
+    def get_build(pipeline_run_name):
+        start_time_json = {'status': {'startTime': TIME}}
+        return start_time_json
+
+    flexmock(OSBS, get_build=get_build)
+    config_kwargs = {
+        'namespace': workflow.namespace,
+        'verify_ssl': True,
+        'openshift_url': 'http://example.com/',
+        'use_auth': True,
+        'conf_file': None,
+    }
+    (flexmock(osbs.conf.Configuration)
+     .should_call("__init__")
+     .with_args(**config_kwargs))
+
+    openshift_map = {
+        'url': 'http://example.com/',
+        'insecure': False,
+        'auth': {'enable': True},
+    }
+
+    rcm = {'version': 1, 'openshift': openshift_map}
+    workflow.conf.conf = rcm
 
     env = MockEnv(workflow).for_plugin(AddHelpPlugin.key, plugin_args)
     source_dir = Path(workflow.source.path)
@@ -252,11 +283,13 @@ def test_add_help_generate_metadata(workflow, filename):
     )
     runner.run()
 
+    expected_ts = dt.strptime(TIME, '%Y-%m-%dT%H:%M:%SZ').timestamp()
+
     expect_content = dedent(
         f"""\
         % test (1) Container Image Pages
         % me
-        % {dt.fromtimestamp(atomic_reactor_start_time).strftime(format="%B %-d, %Y")}
+        % {dt.fromtimestamp(expected_ts).strftime(format="%B %-d, %Y")}
         markdown file content
         """
     )

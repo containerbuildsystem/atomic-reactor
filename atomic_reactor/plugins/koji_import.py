@@ -5,7 +5,6 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
-
 from functools import cached_property
 import json
 import tempfile
@@ -21,14 +20,13 @@ from typing import Any, Dict, Iterator, List, Optional, Tuple, Iterable
 import koji_cli.lib
 
 from atomic_reactor.config import get_koji_session
-from atomic_reactor import start_time as atomic_reactor_start_time
 from atomic_reactor.plugin import Plugin
 from atomic_reactor.plugins.add_help import AddHelpPlugin
 from atomic_reactor.source import GitSource
 from atomic_reactor.plugins.add_filesystem import AddFilesystemPlugin
-from atomic_reactor.util import (OSBSLogs, get_parent_image_koji_data, get_manifest_media_version,
-                                 get_platforms, is_flatpak_build, is_manifest_list,
-                                 map_to_user_params)
+from atomic_reactor.util import (OSBSLogs, get_parent_image_koji_data, get_pipeline_run_start_time,
+                                 get_manifest_media_version, get_platforms, is_flatpak_build,
+                                 is_manifest_list, map_to_user_params)
 from atomic_reactor.utils.flatpak_util import FlatpakUtil
 from atomic_reactor.utils.koji import (
     add_type_info,
@@ -428,11 +426,13 @@ class KojiImportBase(Plugin):
         return extra
 
     def get_build(self):
-        start_time = int(atomic_reactor_start_time)
+        start_time = get_pipeline_run_start_time(self.workflow.osbs,
+                                                 self.workflow.pipeline_run_name)
+        start_ts = start_time.timestamp()
         koji_task_owner = get_koji_task_owner(self.session, self.koji_task_id).get('name')
 
         build = {
-            'start_time': start_time,
+            'start_time': int(start_ts),
             'end_time': int(time.time()),
             'extra': self._get_build_extra(),
             'owner': koji_task_owner,

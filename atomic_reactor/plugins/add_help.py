@@ -1,5 +1,5 @@
 """
-Copyright (c) 2017 Red Hat, Inc
+Copyright (c) 2017-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -18,16 +18,17 @@ Example configuration:
 """
 
 import errno
-from datetime import datetime as dt
 from pathlib import Path
 from subprocess import check_output, CalledProcessError, STDOUT
 from typing import List
 
-from atomic_reactor import start_time as atomic_reactor_start_time
+
 from atomic_reactor.dirs import BuildDir
 from atomic_reactor.plugin import Plugin
 from atomic_reactor.metadata import annotation_map
 from osbs.utils import Labels
+
+from atomic_reactor.util import get_pipeline_run_start_time
 
 DEFAULT_HELP_FILENAME = "help.md"
 
@@ -89,14 +90,16 @@ class AddHelpPlugin(Plugin):
 
         help_path = build_dir.path / self.help_file
 
+        start_time = get_pipeline_run_start_time(self.workflow.osbs,
+                                                 self.workflow.pipeline_run_name)
+
         with open(help_path, 'r+') as help_file:
             lines = help_file.readlines()
 
             if not lines[0].startswith("% "):
                 lines.insert(0, "%% %s (1) Container Image Pages\n" % name)
                 lines.insert(1, "%% %s\n" % maintainer)
-                lines.insert(2, "%% %s\n" % dt.fromtimestamp(atomic_reactor_start_time)
-                             .strftime("%B %-d, %Y"))
+                lines.insert(2, "%% %s\n" % start_time.strftime("%B %-d, %Y"))
 
                 help_file.seek(0)
                 help_file.truncate()

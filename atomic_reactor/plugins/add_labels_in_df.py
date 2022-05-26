@@ -1,5 +1,5 @@
 """
-Copyright (c) 2015 Red Hat, Inc
+Copyright (c) 2015-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -54,17 +54,15 @@ with different values, the value from the first in the list will be used
 to set value for the missing ones.
 """
 
-import datetime
 import json
 from typing import Dict
 
 from osbs.utils import Labels
 
-from atomic_reactor import start_time as atomic_reactor_start_time
 from atomic_reactor.constants import INSPECT_CONFIG
 from atomic_reactor.dirs import BuildDir
 from atomic_reactor.plugin import Plugin
-from atomic_reactor.util import label_to_string, LabelFormatter
+from atomic_reactor.util import get_pipeline_run_start_time, label_to_string, LabelFormatter
 
 
 class AddLabelsPlugin(Plugin):
@@ -133,10 +131,10 @@ class AddLabelsPlugin(Plugin):
             raise RuntimeError("equal_labels have to be list")
 
     def generate_auto_labels(self, platform: str) -> Dict[str, str]:
-        # build date
-        dt = datetime.datetime.utcfromtimestamp(atomic_reactor_start_time)
+        start_time = get_pipeline_run_start_time(self.workflow.osbs,
+                                                 self.workflow.pipeline_run_name)
 
-        generated = {'build-date': dt.isoformat(), 'architecture': platform}
+        generated = {'build-date': start_time.isoformat(), 'architecture': platform}
 
         # VCS info
         vcs = self.workflow.source.get_vcs_info()
