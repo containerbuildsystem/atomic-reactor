@@ -84,6 +84,7 @@ PUSH_OPERATOR_MANIFESTS_RESULTS = {
     "repository": 'test_repo',
     "release": 'test_release',
 }
+TIME = '2022-05-27T01:46:50Z'
 
 
 class MockedPodResponse(object):
@@ -326,6 +327,11 @@ def mock_environment(workflow: DockerBuildWorkflow, source_dir: Path,
         .should_receive('get_build_logs')
         .with_args(PIPELINE_RUN_NAME)
         .and_return(logs))
+    start_time_json = {'status': {'startTime': TIME}}
+    (flexmock(OSBS)
+        .should_receive('get_build')
+        .with_args(PIPELINE_RUN_NAME)
+        .and_return(start_time_json))
     setattr(workflow, 'source', source)
     flexmock(workflow.source).should_receive('commit_id').and_return('123456')
 

@@ -1,5 +1,5 @@
 """
-Copyright (c) 2015 Red Hat, Inc
+Copyright (c) 2015-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -13,14 +13,11 @@ from locale import nl_langinfo, CODESET
 import logging
 from os import fdopen, dup
 import sys
-import time
 
 from atomic_reactor.version import __version__  # noqa
 
 from osbs.constants import ATOMIC_REACTOR_LOGGING_FMT, USER_WARNING_LEVEL
 from osbs.utils import user_warning_log_handler
-
-start_time = time.time()
 
 
 class ArchFormatter(logging.Formatter):

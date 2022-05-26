@@ -1,5 +1,5 @@
 """
-Copyright (c) 2015, 2018, 2019 Red Hat, Inc
+Copyright (c) 2015-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -10,6 +10,7 @@ from dataclasses import dataclass
 import typing
 import _hashlib
 import hashlib
+from datetime import datetime
 from itertools import chain
 import json
 import io
@@ -368,6 +369,13 @@ def get_image_upload_filename(image_type, image_id, platform):
     name_fmt = '{base_name}-{id}.{platform}.{ext}'
     return name_fmt.format(base_name=base_name, id=image_id,
                            platform=platform, ext=ext)
+
+
+def get_pipeline_run_start_time(osbs: OSBS, pipeline_run_name: str) -> datetime:
+    build_info = osbs.get_build(pipeline_run_name)
+    start_time_str = build_info['status']['startTime']
+    start_time = datetime.strptime(start_time_str, '%Y-%m-%dT%H:%M:%SZ')
+    return start_time
 
 
 def get_version_of_tools():

@@ -1,5 +1,5 @@
 """
-Copyright (c) 2015 Red Hat, Inc
+Copyright (c) 2015-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -15,10 +15,11 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import osbs.conf
 import pytest
 from flexmock import flexmock
+from osbs.api import OSBS
 
-from atomic_reactor import start_time as atomic_reactor_start_time
 from atomic_reactor.constants import INSPECT_CONFIG
 from atomic_reactor.dirs import BuildDir
 from atomic_reactor.plugin import PluginsRunner, PluginFailedException
@@ -118,6 +119,7 @@ RUN yum install -y python-django
 CMD blabla
 LABEL "version"="x" "release"="1"
 """]
+TIME = '2022-05-27T01:46:50Z'
 
 
 def mock_env(
@@ -153,6 +155,35 @@ def mock_env(
     df_path = Path(workflow.source.path) / "Dockerfile"
     df_path.write_text(df_content)
 
+    def get_build(pipeline_run_name):
+        start_time_json = {'status': {'startTime': TIME}}
+        return start_time_json
+
+    flexmock(OSBS, get_build=get_build)
+    config_kwargs = {
+        'namespace': workflow.namespace,
+        'verify_ssl': True,
+        'openshift_url': 'http://example.com/',
+        'use_auth': True,
+        'conf_file': None,
+    }
+    (flexmock(osbs.conf.Configuration)
+     .should_call("__init__")
+     .with_args(**config_kwargs))
+
+    openshift_map = {
+        'url': 'http://example.com/',
+        'insecure': False,
+        'auth': {'enable': True},
+    }
+
+    rcm = {'version': 1, 'openshift': openshift_map}
+    if labels_reactor_conf is not None:
+        rcm["image_labels"] = deepcopy(labels_reactor_conf)
+    if eq_conf is not None:
+        rcm["image_equal_labels"] = eq_conf
+    workflow.conf.conf = rcm
+
     workflow.build_dir.init_build_dirs(["aarch64", "x86_64"], workflow.source)
 
     env.set_dockerfile_images(workflow.build_dir.any_platform.dockerfile.parent_images)
@@ -161,11 +192,6 @@ def mock_env(
     flexmock(workflow.source).should_receive('get_vcs_info').and_return(
         VcsInfo(vcs_type="git", vcs_url=DOCKERFILE_GIT, vcs_ref=DOCKERFILE_SHA1)
     )
-
-    if labels_reactor_conf is not None:
-        env.reactor_config.conf["image_labels"] = deepcopy(labels_reactor_conf)
-    if eq_conf is not None:
-        env.reactor_config.conf["image_equal_labels"] = eq_conf
 
     return env
 
@@ -281,8 +307,8 @@ def test_add_labels_plugin_generated(workflow, auto_label, value_re_part, reacto
             assert re.match(value_re_part, df.labels[auto_label])
 
         if auto_label == "build-date":
-            utc_dt = datetime.datetime.utcfromtimestamp(atomic_reactor_start_time).isoformat()
-            assert df.labels[auto_label] == utc_dt
+            utc_dt = datetime.datetime.strptime(TIME, '%Y-%m-%dT%H:%M:%SZ')
+            assert df.labels[auto_label] == utc_dt.isoformat()
         elif auto_label == "platform":
             assert df.labels[auto_label] == build_dir.platform
 
@@ -578,7 +604,7 @@ def test_url_label(workflow, url_format, info_url):
         df_content=DF_CONTENT_LABELS,
         base_inspect=base_labels
     )
-    env.reactor_config.conf['image_label_info_url_format'] = url_format
+    env.workflow.conf.conf['image_label_info_url_format'] = url_format
 
     runner = env.create_runner()
 
