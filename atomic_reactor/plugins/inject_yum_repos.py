@@ -148,7 +148,7 @@ class InjectYumReposPlugin(Plugin):
         self.log.info("baseurl = '%s'", baseurl)
 
         repo = {
-            'name': 'atomic-reactor-koji-target-%s' % self.target,
+            'name': 'atomic-reactor-koji-plugin-%s' % self.target,
             'baseurl': baseurl,
             'enabled': 1,
             'gpgcheck': 0,

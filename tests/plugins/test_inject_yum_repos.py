@@ -874,10 +874,10 @@ def test_include_koji(workflow, build_dir, caplog, parent_images, base_from_scra
     assert fnmatch(next(iter(files)), repofile)
     with open(repos_path / files[0], 'r') as f:
         content = f.read()
-    assert content.startswith("[atomic-reactor-koji-target-target]\n")
+    assert content.startswith("[atomic-reactor-koji-plugin-target]\n")
     assert "gpgcheck=0\n" in content
     assert "enabled=1\n" in content
-    assert "name=atomic-reactor-koji-target-target\n" in content
+    assert "name=atomic-reactor-koji-plugin-target\n" in content
     assert "baseurl=%s/repos/tag/2/$basearch\n" % root in content
 
     if proxy:
