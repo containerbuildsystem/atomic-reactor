@@ -1370,9 +1370,11 @@ class OSBSLogs(object):
         logfiles = {'noarch': NamedTemporaryFile(prefix=f'{pipeline_run_name}-{filename}-noarch-',
                                                  suffix='.log', mode='wb', delete=False)}
 
+        logger.debug("all logs order: %s", logs.keys())
         # Correct log order depends on dict iteration order
         # and on osbs.get_build_logs returning correctly ordered dict
         for task_run_name, containers in logs.items():
+            logger.debug("logs order: %s", task_run_name)
             task_platform = next(
                 (platform for platform in self.platforms if
                  platform.replace('_', '-') in task_run_name),
