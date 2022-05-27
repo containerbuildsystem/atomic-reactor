@@ -32,6 +32,7 @@ class BinaryPreBuildTask(plugin_based.PluginBasedTask[TaskParams]):
         {"name": "add_filesystem"},
         {"name": "flatpak_update_dockerfile"},
         {"name": "bump_release"},
+        {"name": "add_flatpak_labels"},
         {"name": "add_labels_in_dockerfile"},
         {"name": "resolve_remote_source"},
         {"name": "pin_operator_digest"},
