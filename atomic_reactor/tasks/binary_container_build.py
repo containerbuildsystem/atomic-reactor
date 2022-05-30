@@ -261,14 +261,14 @@ class PodmanRemote:
         while True:
             if line := build_process.stdout.readline():
                 yield line
-                last_line = line
+                # keep the last non-empty, non-whitespace line for an eventual error message
+                last_line = line.rstrip() or last_line
 
             if (rc := build_process.poll()) is not None:
                 break
 
         if rc != 0:
-            # the last line of output likely contains the error message
-            error = last_line.rstrip() if last_line else "<no output!>"
+            error = last_line if last_line else "<no output!>"
             raise BuildProcessError(f"Build failed (rc={rc}): {error}")
 
     def get_image_size(self, dest_tag: ImageName) -> int:

@@ -491,7 +491,9 @@ class TestPodmanRemote:
         "output_lines, expect_err_line",
         [
             (["starting the build\n", "failed :(\n"], "failed :("),
+            (["failed and printed an empty line\n", "\n"], "failed and printed an empty line"),
             ([], "<no output!>"),
+            (["\n"], "<no output!>"),
         ]
     )
     def test_build_container_fails(
