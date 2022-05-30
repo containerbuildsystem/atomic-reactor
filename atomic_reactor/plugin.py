@@ -251,7 +251,6 @@ class PluginsRunner(object):
             plugin: Optional[str] = None,
             exception: Optional[Exception] = None,
     ):
-        self.workflow.data.plugin_failed = True
         if plugin and exception:
             self.workflow.data.plugins_errors[plugin] = str(exception)
 

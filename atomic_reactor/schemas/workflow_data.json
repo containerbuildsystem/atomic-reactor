@@ -12,7 +12,6 @@
     "plugins_durations": {"type": "object"},
     "plugins_errors": {"type": "object"},
     "build_canceled": {"type": "boolean"},
-    "plugin_failed": {"type": "boolean"},
 
     "reserved_build_id": {"type": ["integer", "null"], "minimum": 1},
     "reserved_token": {"type": ["string", "null"]},
@@ -70,7 +69,7 @@
   "required": [
     "dockerfile_images", "tag_conf",
     "plugins_results",
-    "plugins_timestamps", "plugins_durations", "plugins_errors", "build_canceled", "plugin_failed",
+    "plugins_timestamps", "plugins_durations", "plugins_errors", "build_canceled",
     "reserved_build_id", "reserved_token", "koji_source_nvr", "koji_source_source_url", "koji_source_manifest",
     "buildargs", "exported_image_sequence", "files", "image_components", "all_yum_repourls",
     "annotations", "image_id", "parent_images_digests",

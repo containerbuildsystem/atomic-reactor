@@ -291,7 +291,6 @@ class ImageBuildWorkflowData(ISerializer):
     # Plugin name -> a string containing error message
     plugins_errors: Dict[str, str] = field(default_factory=dict)
     build_canceled: bool = False
-    plugin_failed: bool = False
 
     # info about pre-declared build, build-id and token
     reserved_build_id: Optional[int] = None
