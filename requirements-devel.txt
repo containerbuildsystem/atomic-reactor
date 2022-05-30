@@ -19,6 +19,7 @@ cffi==1.15.0
     #   bcrypt
     #   cryptography
     #   pynacl
+    #   reflink
 charset-normalizer==2.0.7
     # via requests
 coverage[toml]==6.1.1
@@ -35,6 +36,8 @@ dockerfile-parse==1.2.0
     # via
     #   -r requirements.in
     #   osbs-client
+execnet==1.9.0
+    # via pytest-xdist
 flake8==4.0.1
     # via -r tests/requirements.in
 flatpak-module-tools==0.13.1 ; python_version < "3.9"
@@ -70,7 +73,9 @@ pep8==1.7.1
 pluggy==1.0.0
     # via pytest
 py==1.10.0
-    # via pytest
+    # via
+    #   pytest
+    #   pytest-forked
 pycairo==1.20.1
     # via pygobject
 pycodestyle==2.8.0
@@ -97,14 +102,20 @@ pytest==6.2.5
     # via
     #   -r tests/requirements.in
     #   pytest-cov
+    #   pytest-forked
     #   pytest-html
     #   pytest-metadata
+    #   pytest-xdist
 pytest-cov==3.0.0
     # via -r tests/requirements.in
+pytest-forked==1.4.0
+    # via pytest-xdist
 pytest-html==3.1.1
     # via -r tests/requirements.in
 pytest-metadata==1.11.0
     # via pytest-html
+pytest-xdist==2.5.0
+    # via -r tests/requirements.in
 python-dateutil==2.8.2
     # via
     #   koji
@@ -113,6 +124,8 @@ pyyaml==6.0
     # via
     #   -r requirements.in
     #   osbs-client
+reflink==0.2.1
+    # via -r requirements.in
 requests==2.26.0
     # via
     #   -r requirements.in
