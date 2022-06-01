@@ -15,7 +15,7 @@ import time
 from dataclasses import fields, Field
 from pathlib import Path
 from textwrap import dedent
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
 import pytest
 from flexmock import flexmock
@@ -146,72 +146,38 @@ def test_build_results_decoder():
         assert getattr(results, attr) == getattr(expected_results, attr)
 
 
-@pytest.mark.parametrize(
-    'pipeline_status, plugin_errors, expect_outcome',
-    [
-        (
-            {"prev_task_failed": False, "prev_task_cancelled": False},
-            {},
-            # outcome is (failed, cancelled)
-            (False, False),
-        ),
-        (
-            {"prev_task_failed": True, "prev_task_cancelled": False},
-            {},
-            (True, False),
-        ),
-        (
-            {"prev_task_failed": False, "prev_task_cancelled": True},
-            {},
-            (True, True),
-        ),
-        (
-            {"prev_task_failed": True, "prev_task_cancelled": True},
-            {},
-            (True, True),
-        ),
-        (
-            {"prev_task_failed": False, "prev_task_cancelled": False},
-            {"some_plugin": "some error"},
-            (True, False),
-        ),
-        (
-            {"prev_task_failed": True, "prev_task_cancelled": False},
-            {"some_plugin": "some error"},
-            (True, False),
-        ),
-        (
-            {"prev_task_failed": False, "prev_task_cancelled": True},
-            {"some_plugin": "some error"},
-            (True, True),
-        ),
-        (
-            {"prev_task_failed": True, "prev_task_cancelled": True},
-            {"some_plugin": "some error"},
-            (True, True),
-        ),
-    ],
-)
+@pytest.mark.parametrize('prev_task_cancelled', [False, True])
+@pytest.mark.parametrize('data_build_canceled', [False, True])
+@pytest.mark.parametrize('prev_task_failed', [False, True])
+@pytest.mark.parametrize('plugin_errors', [{}, {"some_plugin": "some error"}])
 def test_check_build_outcome(
     workflow: DockerBuildWorkflow,
-    pipeline_status: Dict[str, bool],
+    prev_task_failed: bool,
+    data_build_canceled: bool,
+    prev_task_cancelled: bool,
     plugin_errors: Dict[str, str],
-    expect_outcome: Tuple[bool, bool],
 ):
-    prev_cancelled = pipeline_status['prev_task_cancelled']
-    prev_failed = pipeline_status['prev_task_failed']
+
+    expect_canceled = prev_task_cancelled or data_build_canceled
+    expect_failed = expect_canceled or prev_task_failed or bool(plugin_errors)
 
     workflow.conf.conf['openshift'] = {'url': 'https://something.com'}
     mock_osbs = flexmock(workflow.osbs)
-    mock_osbs.should_receive('build_has_any_cancelled_tasks').once().and_return(prev_cancelled)
+    (mock_osbs
+        .should_receive('build_has_any_cancelled_tasks')
+        .once()
+        .and_return(prev_task_cancelled))
     (mock_osbs
         .should_receive('build_has_any_failed_tasks')
-        .times(0 if prev_cancelled else 1)
-        .and_return(prev_failed))
+        .times(0 if expect_canceled else 1)
+        .and_return(prev_task_failed))
 
+    workflow.data.build_canceled = data_build_canceled
     workflow.data.plugins_errors = plugin_errors
 
-    assert workflow.check_build_outcome() == expect_outcome
+    outcome = workflow.check_build_outcome()
+    assert outcome == (expect_failed, expect_canceled)
+    assert outcome != (False, True)  # this is impossible, canceled counts as failed
 
 
 @pytest.mark.parametrize("terminate_build", [True, False])

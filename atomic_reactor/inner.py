@@ -635,7 +635,10 @@ class DockerBuildWorkflow(object):
 
         :return: Tuple of (failed, cancelled). Note that a cancelled build also counts as failed.
         """
-        cancelled = self.osbs.build_has_any_cancelled_tasks(self.pipeline_run_name)
+        cancelled = (
+            self.osbs.build_has_any_cancelled_tasks(self.pipeline_run_name)  # prev. task cancelled
+            or self.data.build_canceled  # this task cancelled
+        )
         failed = (
             cancelled  # cancelled counts as failed
             or self.osbs.build_has_any_failed_tasks(self.pipeline_run_name)  # prev. task failed
