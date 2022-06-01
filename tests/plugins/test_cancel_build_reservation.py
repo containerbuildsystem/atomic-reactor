@@ -13,6 +13,8 @@ from flexmock import flexmock
 from atomic_reactor.constants import PROG
 from atomic_reactor.plugins.cancel_build_reservation import CancelBuildReservation
 
+from tests.mock_env import MockEnv
+
 
 def test_build_reservation_is_not_enabled(workflow, caplog):
     """Skip cancelation if build reservation feature is not enabled."""
@@ -94,8 +96,7 @@ def test_reserved_build_has_been_released_already(build_state, workflow, caplog)
 def test_cancel_a_reserved_build(is_canceled, expected_dest_state, workflow):
     """A reserved build is canceled with a proper destination state."""
     mock_reactor_config(workflow)
-    workflow.data.plugin_failed = True
-    workflow.data.build_canceled = is_canceled
+    MockEnv(workflow).mock_build_outcome(failed=True, cancelled=is_canceled)
     workflow.data.reserved_token = "1234"
     workflow.data.reserved_build_id = 1
 
@@ -119,7 +120,7 @@ def test_mark_reserved_build_fail_if_koji_import_does_not_run(workflow):
     reserved_build_id = 1
     mock_reactor_config(workflow)
     # Mark the build is successful.
-    workflow.data.plugin_failed = False
+    MockEnv(workflow).mock_build_outcome(failed=False)
     workflow.data.reserved_token = "1234"
     workflow.data.reserved_build_id = reserved_build_id
 

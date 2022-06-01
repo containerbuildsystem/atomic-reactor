@@ -183,7 +183,6 @@ def test_running_build(workflow, caplog,
         err_msg += f"\nNo Maven source directory '{maven_dir_path}' available"
         # Since Python 3.7 logger adds additional whitespaces by default -> checking without them
         assert re.sub(r'\s+', " ", err_msg) in re.sub(r'\s+', " ", caplog.text)
-        assert workflow.build_process_failed
 
     elif export_failed:
         with pytest.raises(PluginFailedException):
@@ -258,6 +257,5 @@ def test_failed_build(workflow, source_dir, caplog, user_params):
 
     with pytest.raises(PluginFailedException, match="BSI utility failed"):
         runner.run()
-    assert workflow.build_process_failed
     assert 'BSI failed with output:' in caplog.text
     assert 'stub stdout' in caplog.text

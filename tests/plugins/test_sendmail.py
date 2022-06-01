@@ -13,6 +13,7 @@ from atomic_reactor.plugins.store_metadata import StoreMetadataPlugin
 from atomic_reactor.plugins.koji_import import KojiImportPlugin
 from atomic_reactor.utils.koji import get_koji_task_owner
 from atomic_reactor.config import Configuration
+from tests.mock_env import MockEnv
 from tests.util import add_koji_map_in_workflow
 from osbs.exceptions import OsbsException
 from smtplib import SMTPException
@@ -356,7 +357,7 @@ class TestSendMailPlugin(object):
                                                        vcs_url=git_source_url,
                                                        vcs_ref=git_source_ref))
 
-        workflow.data.build_canceled = manual_cancel
+        MockEnv(workflow).mock_build_outcome(failed=True, cancelled=manual_cancel)
 
         if has_store_metadata_results:
             if annotations:
@@ -681,7 +682,7 @@ class TestSendMailPlugin(object):
             p._send_mail(['spam@spam.com'], 'subject', 'body')
 
     def test_run_ok(self, tmpdir, workflow, source_dir):
-        workflow.data.plugin_failed = True
+        MockEnv(workflow).mock_build_outcome(failed=True)
         receivers = ['foo@bar.com', 'x@y.com']
 
         mock_dockerfile(workflow)
@@ -709,7 +710,7 @@ class TestSendMailPlugin(object):
         p.run()
 
     def test_run_ok_and_send(self, workflow):
-        workflow.data.plugin_failed = True
+        MockEnv(workflow).mock_build_outcome(failed=True)
 
         class SMTP(object):
             def sendmail(self, from_addr, to, msg):
@@ -744,7 +745,7 @@ class TestSendMailPlugin(object):
         p.run()
 
     def test_run_fails_to_obtain_receivers(self, workflow):
-        workflow.data.plugin_failed = True
+        MockEnv(workflow).mock_build_outcome(failed=True)
         error_addresses = ['error@address.com']
         mock_store_metadata_results(workflow)
 
@@ -773,7 +774,7 @@ class TestSendMailPlugin(object):
         p.run()
 
     def test_run_invalid_receivers(self, caplog, workflow):
-        workflow.data.plugin_failed = True
+        MockEnv(workflow).mock_build_outcome(failed=True)
         error_addresses = ['error@address.com']
 
         mock_store_metadata_results(workflow)
@@ -802,7 +803,7 @@ class TestSendMailPlugin(object):
         assert 'no valid addresses in requested addresses. Doing nothing' in caplog.text
 
     def test_run_does_nothing_if_conditions_not_met(self, workflow):
-        workflow.data.plugin_failed = True
+        MockEnv(workflow).mock_build_outcome(failed=True)
         smtp_map = {
             'from_address': 'foo@bar.com',
             'host': 'smtp.spam.com',

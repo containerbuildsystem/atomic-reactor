@@ -7,6 +7,8 @@ of the BSD license. See the LICENSE file for details.
 """
 from typing import Any, List, Union, Dict, Optional
 
+from flexmock import flexmock
+
 from atomic_reactor.constants import PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
 from atomic_reactor.plugin import PluginsRunner
 from atomic_reactor.inner import DockerBuildWorkflow
@@ -157,6 +159,17 @@ class MockEnv(object):
         if not isinstance(images, DockerfileImages):
             images = DockerfileImages(images)
         self.workflow.data.dockerfile_images = images
+        return self
+
+    def mock_build_outcome(self, *, failed: bool, cancelled: bool = False):
+        """Make the check_build_outcome method return the specified values."""
+        if cancelled and not failed:
+            raise ValueError(
+                "Cannot set build outcome (failed=False, cancelled=True), "
+                "cancelled=True implies failed=True"
+            )
+        outcome = (failed, cancelled)
+        flexmock(self.workflow).should_receive("check_build_outcome").and_return(outcome)
         return self
 
     def _get_plugin_conf(self, plugin_key: str) -> Dict[str, Any]:
