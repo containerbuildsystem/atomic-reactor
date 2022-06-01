@@ -19,7 +19,7 @@ import time
 import re
 from dataclasses import dataclass, field, fields
 from textwrap import dedent
-from typing import Any, Callable, Dict, Final, List, Optional, Union
+from typing import Any, Callable, Dict, Final, List, Optional, Union, Tuple
 
 from dockerfile_parse import DockerfileParser
 
@@ -631,12 +631,18 @@ class DockerBuildWorkflow(object):
     def osbs(self) -> OSBS:
         return get_openshift_session(self.conf, self.namespace)
 
-    @property
-    def build_process_failed(self):
+    def check_build_outcome(self) -> Tuple[bool, bool]:
+        """Did the build process fail? Was the build cancelled?
+
+        :return: Tuple of (failed, cancelled). Note that a cancelled build also counts as failed.
         """
-        Has any aspect of the build process failed?
-        """
-        return self.data.plugin_failed
+        cancelled = self.osbs.build_has_any_cancelled_tasks(self.pipeline_run_name)
+        failed = (
+            cancelled  # cancelled counts as failed
+            or self.osbs.build_has_any_failed_tasks(self.pipeline_run_name)  # prev. task failed
+            or bool(self.data.plugins_errors)  # this task failed
+        )
+        return failed, cancelled
 
     def throw_canceled_build_exception(self, *args, **kwargs):
         self.data.build_canceled = True

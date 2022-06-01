@@ -49,7 +49,9 @@ class CancelBuildReservation(Plugin):
                            reserved_build_id, cur_state_name)
             return
 
-        if not self.workflow.build_process_failed and cur_state == state_building:
+        failed, cancelled = self.workflow.check_build_outcome()
+
+        if not failed and cur_state == state_building:
             session.CGRefundBuild(PROG, reserved_build_id, reserved_token, state_failed)
             err_msg = (
                 f"Build process succeeds, but the reserved build {reserved_build_id} "
@@ -58,7 +60,7 @@ class CancelBuildReservation(Plugin):
             )
             raise RuntimeError(err_msg)
 
-        if self.workflow.data.build_canceled:
+        if cancelled:
             state = koji.BUILD_STATES["CANCELED"]
         else:
             state = state_failed

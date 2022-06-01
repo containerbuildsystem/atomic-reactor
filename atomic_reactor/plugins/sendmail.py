@@ -362,8 +362,8 @@ class SendMailPlugin(Plugin):
             self.log.info('no smtp configuration, skipping plugin')
             return
 
-        success = not self.workflow.build_process_failed
-        manual_canceled = self.workflow.data.build_canceled
+        failed, manual_canceled = self.workflow.check_build_outcome()
+        success = not failed
 
         self.log.info('checking conditions for sending notification ...')
         if self._should_send(success, manual_canceled):
