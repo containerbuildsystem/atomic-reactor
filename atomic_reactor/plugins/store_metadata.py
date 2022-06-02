@@ -12,7 +12,6 @@ from osbs.exceptions import OsbsResponseException
 
 from atomic_reactor.plugins.fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.constants import PLUGIN_VERIFY_MEDIA_KEY, SCRATCH_FROM
-from atomic_reactor.config import get_openshift_session
 from atomic_reactor.plugin import Plugin
 from atomic_reactor.util import get_manifest_digests
 
@@ -109,8 +108,6 @@ class StoreMetadataPlugin(Plugin):
     def run(self):
         pipeline_run_name = self.workflow.pipeline_run_name
         self.log.info("pipelineRun name = %s", pipeline_run_name)
-        osbs = get_openshift_session(self.workflow.conf,
-                                     self.workflow.namespace)
 
         wf_data = self.workflow.data
 
@@ -195,7 +192,7 @@ class StoreMetadataPlugin(Plugin):
         self.set_koji_task_annotations_whitelist(annotations)
 
         try:
-            osbs.update_annotations_on_build(pipeline_run_name, annotations)
+            self.workflow.osbs.update_annotations_on_build(pipeline_run_name, annotations)
         except OsbsResponseException:
             self.log.debug("annotations: %r", annotations)
             raise
