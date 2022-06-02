@@ -33,10 +33,11 @@ from atomic_reactor.constants import (
 from atomic_reactor.types import ISerializer, RpmComponent
 from atomic_reactor.util import (DockerfileImages,
                                  base_image_is_custom, print_version_of_tools, validate_with_schema)
-from atomic_reactor.config import Configuration
+from atomic_reactor.config import Configuration, get_openshift_session
 from atomic_reactor.source import Source, DummySource
 from atomic_reactor.utils import imageutil
 # from atomic_reactor import get_logging_encoding
+from osbs.api import OSBS
 from osbs.utils import ImageName
 
 
@@ -625,6 +626,10 @@ class DockerBuildWorkflow(object):
     @property
     def image(self):
         return self.user_params['image_tag']
+
+    @functools.cached_property
+    def osbs(self) -> OSBS:
+        return get_openshift_session(self.conf, self.namespace)
 
     @property
     def build_process_failed(self):

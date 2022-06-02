@@ -20,7 +20,7 @@ from typing import Any, Dict, Iterator, List, Optional, Tuple, Iterable
 
 import koji_cli.lib
 
-from atomic_reactor.config import get_koji_session, get_openshift_session
+from atomic_reactor.config import get_koji_session
 from atomic_reactor import start_time as atomic_reactor_start_time
 from atomic_reactor.plugin import Plugin
 from atomic_reactor.plugins.add_help import AddHelpPlugin
@@ -125,8 +125,6 @@ class KojiImportBase(Plugin):
         self.blocksize = blocksize
         self.poll_interval = poll_interval
 
-        self.osbs = get_openshift_session(self.workflow.conf,
-                                          self.workflow.namespace)
         self.build_id = None
         self.session = None
         self.userdata = userdata
@@ -185,7 +183,7 @@ class KojiImportBase(Plugin):
         koji_upload_files = self.workflow.data.koji_upload_files
         osbs_logs = OSBSLogs(self.log, get_platforms(self.workflow.data))
         log_files_outputs = osbs_logs.get_log_files(
-            self.osbs, self.workflow.pipeline_run_name
+            self.workflow.osbs, self.workflow.pipeline_run_name
         )
         for output in log_files_outputs:
             metadata = output.metadata
