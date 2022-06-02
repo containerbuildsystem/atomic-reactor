@@ -19,13 +19,20 @@ spec:
   workspaces:
     - name: ws-build-dir
     - name: ws-context-dir
+    - name: ws-home-dir
     - name: ws-registries-secret  # access with $(workspaces.ws-registries-secret.path)/token
     - name: ws-koji-secret  # access with $(workspaces.ws-koji-secret.path)/token
     - name: ws-reactor-config-map
 
+  stepTemplate:
+    env:
+      - name: HOME
+        value: $(workspaces.ws-home-dir.path)
+
   steps:
     - name: binary-container-prebuild
       image: $(params.osbs-image)
+      workingDir: $(workspaces.ws-home-dir.path)
       resources:
         requests:
           memory: 300Mi
