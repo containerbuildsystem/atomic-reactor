@@ -727,7 +727,6 @@ class KojiImportPlugin(KojiImportBase):
         self.set_go_metadata(extra)
         self.set_group_manifest_info(extra)
         extra['osbs_build']['kind'] = KOJI_KIND_IMAGE_BUILD
-        # OSBS2 TBD
         extra['osbs_build']['engine'] = 'podman'
         if has_operator_appregistry_manifest(self.workflow):
             extra['osbs_build']['subtypes'].append(KOJI_SUBTYPE_OP_APPREGISTRY)

@@ -124,7 +124,7 @@ class AddImageContentManifestPlugin(Plugin):
             #   base image. When building with `podman build --squash`, such images get squashed
             #   to only 1 layer => the layer index in this case is 0 (the first and only layer).
 
-            # OSBS2 TBD: this is only true for build tasks that behave like `podman build --squash`
+            # This is only true for build tasks that behave like `podman build --squash`
             return 0
 
         return len(inspect[INSPECT_ROOTFS][INSPECT_ROOTFS_LAYERS])

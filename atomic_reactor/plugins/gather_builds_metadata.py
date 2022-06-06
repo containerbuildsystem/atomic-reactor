@@ -75,13 +75,6 @@ class GatherBuildsMetadataPlugin(Plugin):
 
         return koji_metadata, output_files
 
-    def _update_remote_host_metadata(self, platform: str, koji_metadata: Dict[str, Any]) -> None:
-        """Fetch extra metadata and update them into existing metadata.
-
-        These extra metadata may be the data that have to be fetched from the remote hosts.
-        """
-        # OSBS2 TBD: what extra metadata should be fetched from the remote host?
-
     def run(self):
         """Run the plugin."""
         metadatas: Dict[str, Dict[str, Any]] = {}
@@ -93,7 +86,6 @@ class GatherBuildsMetadataPlugin(Plugin):
 
         for platform in enabled_platforms:
             koji_metadata, output_files = self._get_build_metadata(platform)
-            self._update_remote_host_metadata(platform, koji_metadata)
 
             if not is_scratch_build(self.workflow):
                 for output in output_files:

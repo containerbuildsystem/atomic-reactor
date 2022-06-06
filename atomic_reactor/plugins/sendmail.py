@@ -312,7 +312,6 @@ class SendMailPlugin(Plugin):
                 self.log.exception("Failed to fetch logs from koji")
         else:
             self.log.info("Logs URL: no koji task")
-            # OSBS2 TBD: where can users find logs if there is no Koji task?
 
         return url
 
