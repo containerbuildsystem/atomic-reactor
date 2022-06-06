@@ -182,7 +182,8 @@ class PodmanRemote:
         registries_authfile: Optional[str] = None,
     ):
         """Set up a connection for the specified remote resource, return a PodmanRemote instance."""
-        connection_name = remote_resource.prid  # identify the connection by the pipelineRun name
+        # identify the connection by the pipelineRun name and build platform
+        connection_name = f'{remote_resource.prid}-{remote_resource.host_platform}'
         host = remote_resource.host
         cmd = [
             which_podman(),

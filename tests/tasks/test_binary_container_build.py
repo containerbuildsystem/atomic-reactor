@@ -66,6 +66,8 @@ REGISTRY_CONFIG = [
     }
 ]
 
+X86_64 = 'x86_64'
+
 X86_REMOTE_HOST = remote_host.RemoteHost(
     hostname="osbs-remote-host-x86-64-1.example.com",
     username="osbs-podman-dev",
@@ -75,7 +77,8 @@ X86_REMOTE_HOST = remote_host.RemoteHost(
     slots_dir="/run/user/2022/osbs/slots",
 )
 
-X86_LOCKED_RESOURCE = remote_host.LockedResource(X86_REMOTE_HOST, slot=1, prid=PIPELINE_RUN_NAME)
+X86_LOCKED_RESOURCE = remote_host.LockedResource(X86_REMOTE_HOST, X86_64, slot=1,
+                                                 prid=PIPELINE_RUN_NAME)
 
 REMOTE_HOST_CONFIG = {
     "slots_dir": X86_REMOTE_HOST.slots_dir,
@@ -331,7 +334,7 @@ class TestBinaryBuildTask:
         assert DOCKERFILE_CONTENT in caplog.text
 
     def test_acquire_remote_resource_fails(self, x86_task_params):
-        pool = remote_host.RemoteHostsPool([X86_REMOTE_HOST])
+        pool = remote_host.RemoteHostsPool([X86_REMOTE_HOST], X86_64)
         # also test that the method passes params to the remote_host module correctly
         (
             flexmock(remote_host.RemoteHostsPool)
@@ -423,7 +426,7 @@ class TestPodmanRemote:
             "add",
             "--identity=/workspace/ws-remote-host-auth/remote-host-auth",
             "--socket-path=/run/user/2022/podman/podman.sock",
-            PIPELINE_RUN_NAME,
+            f'{PIPELINE_RUN_NAME}-{X86_64}',
             "ssh://osbs-podman-dev@osbs-remote-host-x86-64-1.example.com",
         ]
         (
@@ -434,7 +437,7 @@ class TestPodmanRemote:
         )
 
         podman_remote = PodmanRemote.setup_for(resource)
-        assert podman_remote._connection_name == PIPELINE_RUN_NAME
+        assert podman_remote._connection_name == f'{PIPELINE_RUN_NAME}-{X86_64}'
 
     def test_setup_for_fails(self):
         (

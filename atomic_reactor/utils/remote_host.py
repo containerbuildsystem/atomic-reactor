@@ -587,14 +587,16 @@ class HostSlot:
 
 class LockedResource:
 
-    def __init__(self, host: RemoteHost, slot: int, prid: str):
+    def __init__(self, host: RemoteHost, host_platform: str, slot: int, prid: str):
         """ Instantiate a locked resource with remote host, slot id and pipelinerun id
 
         :param host: RemoteHost, RemoteHost instance
+        :param host_platform: str Remote Host platform
         :param slot: int, slot ID
         :param prid: str, pipeline run ID
         """
         self.host = host
+        self.host_platform = host_platform
         self.slot = slot
         self.prid = prid
 
@@ -605,11 +607,12 @@ class LockedResource:
 
 class RemoteHostsPool:
 
-    def __init__(self, hosts: List[RemoteHost]):
+    def __init__(self, hosts: List[RemoteHost], host_platform: str):
         """
         :param hosts: List[RemoteHost], List of Remote hosts
         """
         self.hosts = hosts
+        self.host_platform = host_platform
 
     @classmethod
     def from_config(cls, config: dict, platform: str):
@@ -654,7 +657,7 @@ class RemoteHostsPool:
             if host.is_operational:
                 hosts.append(host)
 
-        return cls(hosts)
+        return cls(hosts, platform)
 
     def lock_resource(self, prid: str) -> Optional[LockedResource]:
         """
@@ -697,7 +700,7 @@ class RemoteHostsPool:
                     logger.warning("%s: unable to lock slot %s for pipelinerun %s: %s",
                                    host.hostname, slot, prid, ex)
                 if locked:
-                    return LockedResource(host, slot, prid)
+                    return LockedResource(host, self.host_platform, slot, prid)
 
         logger.info("Cannot find remote host resource for pipelinerun %s", prid)
         return None
