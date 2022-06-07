@@ -287,3 +287,20 @@ spec:
           value: "$(context.pipelineRun.name)"
         - name: user-params
           value: '$(params.user-params)'
+    - name: binary-container-output-dockerfile
+      when:
+        - input: "$(tasks.status)"
+          operator: in
+          values:
+            - Failed
+      taskRef:
+        name: binary-container-output-dockerfile-0-1
+      workspaces:
+        - name: ws-build-dir
+          workspace: ws-container
+          subPath: build-dir
+      params:
+        - name: osbs-image
+          value: "$(params.osbs-image)"
+        - name: user-params
+          value: '$(params.user-params)'

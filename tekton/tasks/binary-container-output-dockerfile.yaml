@@ -1,0 +1,37 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: binary-container-output-dockerfile-0-1  # dot is not allowed in the name
+spec:
+  description: >-
+    Output the original image Dockerfile
+  params:
+    - name: osbs-image
+      description: The location of the OSBS builder image (FQDN pullspec)
+      type: string
+    - name: user-params
+      type: string
+      description: User parameters in JSON format. Use git_uri.
+
+  workspaces:
+    - name: ws-build-dir
+
+  steps:
+    - name: binary-container-output-dockerfile
+      image: $(params.osbs-image)
+      resources:
+        requests:
+          memory: 300Mi
+          cpu: 250m
+        limits:
+          memory: 600Mi
+          cpu: 395m
+      script: |
+        repo=$(basename $(echo '$(params.user-params)' | jq -r '.git_uri') .git)
+        dockerfile="$(workspaces.ws-build-dir.path)/${repo}/Dockerfile"
+        if [ -e "$dockerfile" ]; then
+          echo "Original Dockerfile:"
+          cat "$dockerfile"
+        else
+          echo "Dockerfile does not exit: ${dockerfile}"
+        fi
