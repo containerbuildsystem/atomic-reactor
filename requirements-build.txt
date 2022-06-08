@@ -141,9 +141,9 @@ pytest-runner==5.3.1 \
     --hash=sha256:0fce5b8dc68760f353979d99fdd6b3ad46330b6b1837e2077a89ebcf204aac91 \
     --hash=sha256:85f93af814438ee322b4ea08fe3f5c2ad53b253577f3bd84b2ad451fee450ac5
     # via -r requirements-build.in
-semantic-version==2.9.0 \
-    --hash=sha256:abf54873553e5e07a6fd4d5f653b781f5ae41297a493666b59dcf214006a12b2 \
-    --hash=sha256:db2504ab37902dd2c9876ece53567aa43a5b2a417fbe188097b2048fff46da3d
+semantic-version==2.10.0 \
+    --hash=sha256:bdabb6d336998cbb378d4b9db3a4b56a1e3235701dc05ea2690d9a997ed5041c \
+    --hash=sha256:de78a3b8e0feda74cabc54aab2da702113e33ac9d9eb9d2389bcf1f58b7d9177
     # via
     #   -r requirements-build.in
     #   setuptools-rust
