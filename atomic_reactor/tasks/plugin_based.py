@@ -37,7 +37,7 @@ class PluginBasedTask(Task[ParamsT]):
         workflow = inner.DockerBuildWorkflow(
             context_dir=self.get_context_dir(),
             build_dir=self.get_build_dir(),
-            data=self.load_workflow_data(),
+            data=self.workflow_data,
             namespace=self._params.namespace,
             pipeline_run_name=self._params.pipeline_run_name,
             source=self._params.source,
@@ -69,10 +69,6 @@ class PluginBasedTask(Task[ParamsT]):
         except Exception as e:
             logger.error("task failed: %s", e)
             raise
-        finally:
-            # For whatever the reason a build fails, always write the workflow
-            # data into the data file.
-            workflow.data.save(self.get_context_dir())
 
         # OSBS2 TBD: OSBS used to log the original Dockerfile after executing the workflow.
         #   It probably doesn't make sense to do that here, but it would be good to log the

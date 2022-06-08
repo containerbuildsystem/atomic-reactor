@@ -73,6 +73,7 @@ class BinaryExitTask(plugin_based.PluginBasedTask[TaskParams]):
     """Binary container exit-build task."""
 
     keep_plugins_running = True
+    ignore_sigterm = True
     plugins_conf = [
         {"name": "cancel_build_reservation"},
         {"name": "store_metadata"},

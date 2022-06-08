@@ -21,7 +21,7 @@ def source_container_build(task_args: dict):
     """
     params = SourceBuildTaskParams.from_cli_args(task_args)
     task = SourceBuildTask(params)
-    return task.execute()
+    return task.run()
 
 
 def source_container_exit(task_args: dict):
@@ -31,7 +31,7 @@ def source_container_exit(task_args: dict):
     """
     params = SourceBuildTaskParams.from_cli_args(task_args)
     task = SourceExitTask(params)
-    return task.execute()
+    return task.run()
 
 
 def clone(task_args: dict):
@@ -41,7 +41,7 @@ def clone(task_args: dict):
     """
     params = TaskParams.from_cli_args(task_args)
     task = CloneTask(params)
-    return task.execute()
+    return task.run()
 
 
 def binary_container_prebuild(task_args: dict):
@@ -51,7 +51,7 @@ def binary_container_prebuild(task_args: dict):
     """
     params = TaskParams.from_cli_args(task_args)
     task = BinaryPreBuildTask(params)
-    return task.execute()
+    return task.run()
 
 
 def binary_container_build(task_args: dict):
@@ -61,7 +61,7 @@ def binary_container_build(task_args: dict):
     """
     params = BinaryBuildTaskParams.from_cli_args(task_args)
     task = BinaryBuildTask(params)
-    return task.execute()
+    return task.run()
 
 
 def binary_container_postbuild(task_args: dict):
@@ -71,7 +71,7 @@ def binary_container_postbuild(task_args: dict):
     """
     params = TaskParams.from_cli_args(task_args)
     task = BinaryPostBuildTask(params)
-    return task.execute(init_build_dirs=True)
+    return task.run(init_build_dirs=True)
 
 
 def binary_container_exit(task_args: dict):
@@ -81,4 +81,4 @@ def binary_container_exit(task_args: dict):
     """
     params = TaskParams.from_cli_args(task_args)
     task = BinaryExitTask(params)
-    return task.execute(init_build_dirs=True)
+    return task.run(init_build_dirs=True)

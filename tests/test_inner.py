@@ -10,7 +10,6 @@ import inspect
 import json
 import logging
 import os
-import signal
 import time
 from dataclasses import fields, Field
 from pathlib import Path
@@ -62,17 +61,6 @@ class Watcher(object):
 
     def was_called(self):
         return self.called
-
-
-class WatcherWithSignal(Watcher):
-    def __init__(self, signal=None):
-        super(WatcherWithSignal, self).__init__()
-        self.signal = signal
-
-    def call(self):
-        super(WatcherWithSignal, self).call()
-        if self.signal:
-            os.kill(os.getpid(), self.signal)
 
 
 class UpdateMaintainerPlugin(Plugin):
@@ -147,18 +135,18 @@ def test_build_results_decoder():
 
 
 @pytest.mark.parametrize('prev_task_cancelled', [False, True])
-@pytest.mark.parametrize('data_build_canceled', [False, True])
+@pytest.mark.parametrize('task_canceled', [False, True])
 @pytest.mark.parametrize('prev_task_failed', [False, True])
 @pytest.mark.parametrize('plugin_errors', [{}, {"some_plugin": "some error"}])
 def test_check_build_outcome(
     workflow: DockerBuildWorkflow,
     prev_task_failed: bool,
-    data_build_canceled: bool,
+    task_canceled: bool,
     prev_task_cancelled: bool,
     plugin_errors: Dict[str, str],
 ):
 
-    expect_canceled = prev_task_cancelled or data_build_canceled
+    expect_canceled = prev_task_cancelled or task_canceled
     expect_failed = expect_canceled or prev_task_failed or bool(plugin_errors)
 
     workflow.conf.conf['openshift'] = {'url': 'https://something.com'}
@@ -172,7 +160,7 @@ def test_check_build_outcome(
         .times(0 if expect_canceled else 1)
         .and_return(prev_task_failed))
 
-    workflow.data.build_canceled = data_build_canceled
+    workflow.data.task_canceled = task_canceled
     workflow.data.plugins_errors = plugin_errors
 
     outcome = workflow.check_build_outcome()
@@ -180,8 +168,7 @@ def test_check_build_outcome(
     assert outcome != (False, True)  # this is impossible, canceled counts as failed
 
 
-@pytest.mark.parametrize("terminate_build", [True, False])
-def test_workflow_build_image(terminate_build: bool, workflow: DockerBuildWorkflow, caplog):
+def test_workflow_build_image(workflow: DockerBuildWorkflow, caplog):
     """
     Test workflow for base images
     """
@@ -205,29 +192,23 @@ def test_workflow_build_image(terminate_build: bool, workflow: DockerBuildWorkfl
             'args': {'watcher': watch_cleanup}
         },
     ]
-    workflow.plugin_files = [this_file]
 
     # This test does not require a separate FSWatcher thread.
     fs_watcher = flexmock(workflow.fs_watcher)
     fs_watcher.should_receive('start')
     fs_watcher.should_receive('finish')
 
-    if terminate_build:
-        workflow.plugins_conf[1]['args']['watcher'] = WatcherWithSignal(signal=signal.SIGTERM)
-        workflow.build_docker_image()
-        assert "Build was canceled" in caplog.text
-        assert workflow.data.build_canceled
-    else:
-        workflow.build_docker_image()
+    workflow.plugin_files = [this_file]
+    workflow.build_docker_image()
 
-        assert watch_update_maintainer.was_called()
-        assert watch_push_image.was_called()
-        assert watch_cleanup.was_called()
+    assert watch_update_maintainer.was_called()
+    assert watch_push_image.was_called()
+    assert watch_cleanup.was_called()
 
-        results = workflow.data.plugins_results
-        assert results[UpdateMaintainerPluginWatched.key]
-        assert "pushed image" == results[PushImagePluginWatched.key]
-        assert results[CleanupPluginWatched.key] is None
+    results = workflow.data.plugins_results
+    assert results[UpdateMaintainerPluginWatched.key]
+    assert "pushed image" == results[PushImagePluginWatched.key]
+    assert results[CleanupPluginWatched.key] is None
 
 
 @pytest.mark.parametrize('plugins_conf', [

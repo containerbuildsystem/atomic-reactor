@@ -132,7 +132,7 @@ def x86_build_dir(build_dir: Path) -> dirs.BuildDir:
 
 
 def mock_workflow_data(*, enabled_platforms: List[str]) -> inner.ImageBuildWorkflowData:
-    """Make load_workflow_data() return mocked workflow data. Also return this data."""
+    """Make workflow_data return mocked workflow data. Also return this data."""
     tag_conf = inner.TagConf()
     tag_conf.add_unique_image(NOARCH_UNIQUE_IMAGE)
 
@@ -144,7 +144,7 @@ def mock_workflow_data(*, enabled_platforms: List[str]) -> inner.ImageBuildWorkf
 
     (
         flexmock(BinaryBuildTask)
-        .should_receive("load_workflow_data")
+        .should_receive("workflow_data")
         .and_return(mocked_data)
     )
     return mocked_data

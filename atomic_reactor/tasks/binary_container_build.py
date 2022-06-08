@@ -64,8 +64,7 @@ class BinaryBuildTask(Task[BinaryBuildTaskParams]):
         """
         platform = self._params.platform
 
-        data = self.load_workflow_data()
-        enabled_platforms = util.get_platforms(data)
+        enabled_platforms = util.get_platforms(self.workflow_data)
         flatpak = self._params.user_params.get('flatpak', False)
 
         if platform not in enabled_platforms:
@@ -78,7 +77,7 @@ class BinaryBuildTask(Task[BinaryBuildTaskParams]):
 
         config = self.load_config()
         build_dir = self.get_build_dir().platform_dir(platform)
-        dest_tag = data.tag_conf.get_unique_images_with_platform(platform)[0]
+        dest_tag = self.workflow_data.tag_conf.get_unique_images_with_platform(platform)[0]
 
         logger.info("Building for the %s platform from %s", platform, build_dir.dockerfile_path)
 
@@ -102,7 +101,7 @@ class BinaryBuildTask(Task[BinaryBuildTaskParams]):
 
             output_lines = podman_remote.build_container(
                 build_dir=build_dir,
-                build_args=data.buildargs,
+                build_args=self.workflow_data.buildargs,
                 dest_tag=dest_tag,
                 flatpak=flatpak,
             )

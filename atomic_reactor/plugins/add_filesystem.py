@@ -19,7 +19,7 @@ from atomic_reactor.dirs import BuildDir
 from atomic_reactor.constants import (DEFAULT_DOWNLOAD_BLOCK_SIZE, PLUGIN_ADD_FILESYSTEM_KEY,
                                       PLUGIN_RESOLVE_COMPOSES_KEY)
 from atomic_reactor.config import get_koji_session
-from atomic_reactor.plugin import Plugin, BuildCanceledException
+from atomic_reactor.plugin import Plugin, TaskCanceledException
 from atomic_reactor.utils.koji import TaskWatcher, stream_task_output
 from atomic_reactor.utils.yum import YumRepo
 from atomic_reactor.util import get_platforms, base_image_is_custom, map_to_user_params
@@ -286,8 +286,8 @@ class AddFilesystemPlugin(Plugin):
         task = TaskWatcher(self.session, task_id, self.poll_interval)
         try:
             task.wait()
-        except BuildCanceledException:
-            self.log.info("Build was canceled, canceling task %s", task_id)
+        except TaskCanceledException:
+            self.log.info("Tekton task was canceled, canceling brew task %s", task_id)
             try:
                 self.session.cancelTask(task_id)
                 self.log.info('task %s canceled', task_id)

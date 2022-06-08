@@ -7,15 +7,18 @@ of the BSD license. See the LICENSE file for details.
 """
 
 import abc
+import signal
 from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Dict, Any, ClassVar, Generic, TypeVar
+from functools import cached_property
 
 from atomic_reactor import config
 from atomic_reactor import dirs
 from atomic_reactor import inner
 from atomic_reactor import source
 from atomic_reactor import util
+from atomic_reactor.plugin import TaskCanceledException
 
 
 @dataclass(frozen=True)
@@ -87,6 +90,8 @@ ParamsT = TypeVar("ParamsT", bound=TaskParams)
 class Task(abc.ABC, Generic[ParamsT]):
     """Task; the main execution unit in atomic-reactor."""
 
+    ignore_sigterm: ClassVar[bool] = False
+
     def __init__(self, params: ParamsT):
         """Initialize a Task."""
         self._params = params
@@ -101,9 +106,29 @@ class Task(abc.ABC, Generic[ParamsT]):
     def get_context_dir(self) -> dirs.ContextDir:
         return dirs.ContextDir(Path(self._params.context_dir))
 
-    def load_workflow_data(self) -> inner.ImageBuildWorkflowData:
+    @cached_property
+    def workflow_data(self) -> inner.ImageBuildWorkflowData:
         context_dir = self.get_context_dir()
         return inner.ImageBuildWorkflowData.load_from_dir(context_dir)
 
     def load_config(self) -> config.Configuration:
         return config.Configuration(self._params.config_file)
+
+    def throw_task_canceled_exception(self, *args, **kwargs):
+        self.workflow_data.task_canceled = True
+        raise TaskCanceledException("Tekton task was canceled")
+
+    def run(self, *args, **kwargs):
+        try:
+            if self.ignore_sigterm:
+                signal.signal(signal.SIGTERM, signal.SIG_IGN)
+            else:
+                signal.signal(signal.SIGTERM, self.throw_task_canceled_exception)
+
+            self.execute(*args, **kwargs)
+
+        finally:
+            signal.signal(signal.SIGTERM, signal.SIG_DFL)
+            # For whatever the reason a task fails, always write the workflow
+            # data into the data file.
+            self.workflow_data.save(self.get_context_dir())
