@@ -403,7 +403,7 @@ def mock_environment(workflow: DockerBuildWorkflow, source_dir: Path,
 
     workflow.data.plugin_failed = build_process_failed
     if build_process_failed and build_process_canceled:
-        workflow.data.build_canceled = True
+        workflow.data.task_canceled = True
 
     workflow.prebuild_plugins_conf = {}
     workflow.data.plugins_results[PLUGIN_FETCH_SOURCES_KEY] = {

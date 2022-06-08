@@ -44,11 +44,11 @@ def mock(task_cls, init_build_dirs=False):
     flexmock(task_cls).should_receive("__init__").with_args(params)
     if init_build_dirs:
         (flexmock(task_cls)
-         .should_receive("execute")
+         .should_receive("run")
          .with_args(init_build_dirs=True)
          .and_return(TASK_RESULT))
     else:
-        flexmock(task_cls).should_receive("execute").and_return(TASK_RESULT)
+        flexmock(task_cls).should_receive("run").and_return(TASK_RESULT)
 
 
 def test_source_build():

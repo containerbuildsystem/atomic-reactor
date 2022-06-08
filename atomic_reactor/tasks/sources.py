@@ -60,6 +60,7 @@ class SourceExitTask(SourceBuildBaseTask):
     """Source container exit task."""
 
     keep_plugins_running = True
+    ignore_sigterm = True
     plugins_conf = [
         {"name": "cancel_build_reservation"},
         {"name": "store_metadata"},

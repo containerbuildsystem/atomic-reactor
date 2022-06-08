@@ -18,7 +18,7 @@ import responses
 import logging
 from dockerfile_parse import DockerfileParser
 
-from atomic_reactor.plugin import PluginFailedException, BuildCanceledException
+from atomic_reactor.plugin import PluginFailedException, TaskCanceledException
 from atomic_reactor.plugins.add_filesystem import AddFilesystemPlugin
 from atomic_reactor.util import DockerfileImages
 from atomic_reactor.source import VcsInfo
@@ -70,8 +70,8 @@ class X(object):
 
 
 def mock_koji_session(scratch=False, image_task_fail=False,
-                      throws_build_cancelled=False,
-                      error_on_build_cancelled=False,
+                      throws_task_cancelled=False,
+                      error_on_task_cancelled=False,
                       get_task_result_mock=None,
                       arches=None):
 
@@ -118,16 +118,16 @@ def mock_koji_session(scratch=False, image_task_fail=False,
     expectation.and_return('')
     session.should_receive('krb_login').and_return(True)
 
-    if throws_build_cancelled:
+    if throws_task_cancelled:
         task_watcher = flexmock(koji_util.TaskWatcher)
 
-        task_watcher.should_receive('wait').and_raise(BuildCanceledException)
+        task_watcher.should_receive('wait').and_raise(TaskCanceledException)
         task_watcher.should_receive('failed').and_return(True)
 
         cancel_mock_chain = session.should_receive('cancelTask').\
             with_args(FILESYSTEM_TASK_ID).once()
 
-        if error_on_build_cancelled:
+        if error_on_task_cancelled:
             cancel_mock_chain.and_raise(Exception("foo"))
 
     (flexmock(koji)
@@ -375,13 +375,13 @@ def test_missing_yum_repourls(workflow, build_dir):  # noqa
     assert 'install_tree cannot be empty' in str(exc.value)
 
 
-@pytest.mark.parametrize(('build_cancel', 'error_during_cancel'), [
+@pytest.mark.parametrize(('task_canceled', 'error_during_cancel'), [
     (True, False),
     (True, True),
     (False, False),
 ])
 @pytest.mark.parametrize('raise_error', [True, False])
-def test_image_task_failure(workflow, build_dir, build_cancel, error_during_cancel,
+def test_image_task_failure(workflow, build_dir, task_canceled, error_during_cancel,
                             raise_error, caplog):
     task_result = 'task-result'
 
@@ -392,8 +392,8 @@ def test_image_task_failure(workflow, build_dir, build_cancel, error_during_canc
     mock_workflow(workflow, build_dir)
     workflow.data.plugins_results[PLUGIN_RESOLVE_COMPOSES_KEY] = {'composes': []}
     mock_koji_session(image_task_fail=True,
-                      throws_build_cancelled=build_cancel,
-                      error_on_build_cancelled=error_during_cancel,
+                      throws_task_cancelled=task_canceled,
+                      error_on_task_cancelled=error_during_cancel,
                       get_task_result_mock=_mockGetTaskResult)
     mock_image_build_file(workflow)
 
@@ -413,8 +413,8 @@ def test_image_task_failure(workflow, build_dir, build_cancel, error_during_canc
     # Also ensure getTaskResult exception message is wrapped properly
     assert 'image task,' in str(exc.value)
 
-    if build_cancel:
-        msg = "Build was canceled, canceling task %s" % FILESYSTEM_TASK_ID
+    if task_canceled:
+        msg = "Tekton task was canceled, canceling brew task %s" % FILESYSTEM_TASK_ID
         assert msg in [x.message for x in caplog.records]
 
         if error_during_cancel:

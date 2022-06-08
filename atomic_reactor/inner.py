@@ -12,7 +12,6 @@ Script for building docker image. This is expected to run inside container.
 import functools
 import json
 import logging
-import signal
 import threading
 import os
 import time
@@ -24,7 +23,7 @@ from typing import Any, Callable, Dict, Final, List, Optional, Union, Tuple
 from dockerfile_parse import DockerfileParser
 
 from atomic_reactor.dirs import ContextDir, RootBuildDir
-from atomic_reactor.plugin import BuildCanceledException, PluginsRunner
+from atomic_reactor.plugin import PluginsRunner
 from atomic_reactor.constants import (
     DOCKER_STORAGE_TRANSPORT_NAME,
     REACTOR_CONFIG_FULL_PATH,
@@ -290,7 +289,7 @@ class ImageBuildWorkflowData(ISerializer):
     plugins_durations: Dict[str, float] = field(default_factory=dict)
     # Plugin name -> a string containing error message
     plugins_errors: Dict[str, str] = field(default_factory=dict)
-    build_canceled: bool = False
+    task_canceled: bool = False
 
     # info about pre-declared build, build-id and token
     reserved_build_id: Optional[int] = None
@@ -626,7 +625,7 @@ class DockerBuildWorkflow(object):
         """
         cancelled = (
             self.osbs.build_has_any_cancelled_tasks(self.pipeline_run_name)  # prev. task cancelled
-            or self.data.build_canceled  # this task cancelled
+            or self.data.task_canceled  # this task cancelled
         )
         failed = (
             cancelled  # cancelled counts as failed
@@ -635,10 +634,6 @@ class DockerBuildWorkflow(object):
         )
         return failed, cancelled
 
-    def throw_canceled_build_exception(self, *args, **kwargs):
-        self.data.build_canceled = True
-        raise BuildCanceledException("Build was canceled")
-
     def build_docker_image(self) -> None:
         """Start the container build.
 
@@ -646,15 +641,11 @@ class DockerBuildWorkflow(object):
         terminated by sending SIGTERM signal to atomic-reactor.
 
         When argument ``keep_plugins_running`` is set, the specified plugins
-        are all ensured to be executed and the SIGTERM signal is ignored.
+        are all ensured to be executed.
         """
         print_version_of_tools()
         try:
             self.fs_watcher.start()
-            if self.keep_plugins_running:
-                signal.signal(signal.SIGTERM, signal.SIG_IGN)
-            else:
-                signal.signal(signal.SIGTERM, self.throw_canceled_build_exception)
             runner = PluginsRunner(self,
                                    self.plugins_conf,
                                    self.plugin_files,
@@ -662,5 +653,4 @@ class DockerBuildWorkflow(object):
                                    plugins_results=self.data.plugins_results)
             runner.run()
         finally:
-            signal.signal(signal.SIGTERM, signal.SIG_DFL)
             self.fs_watcher.finish()

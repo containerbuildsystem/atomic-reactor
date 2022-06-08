@@ -15,7 +15,7 @@ from flexmock import flexmock
 import pytest
 
 from atomic_reactor.inner import ImageBuildWorkflowData
-from atomic_reactor.plugin import BuildCanceledException, PluginFailedException
+from atomic_reactor.plugin import TaskCanceledException, PluginFailedException
 from atomic_reactor.tasks.common import TaskParams
 from atomic_reactor.util import DockerfileImages
 
@@ -146,24 +146,24 @@ def test_ensure_workflow_data_is_saved_in_various_conditions(
          .should_receive("build_docker_image")
          .once())
 
-        task.execute()
+        task.run()
 
     elif build_result == "error_raised":
         (flexmock(plugin_based.inner.DockerBuildWorkflow)
          .should_receive("build_docker_image")
-         .and_raise(BuildCanceledException))
+         .and_raise(TaskCanceledException))
 
-        with pytest.raises(BuildCanceledException):
-            task.execute()
+        with pytest.raises(TaskCanceledException):
+            task.run()
 
     elif build_result == "terminated":
-        # Start the task.execute in a separate process and terminate it.
+        # Start the task.run in a separate process and terminate it.
         # This simulates the Cancel behavior by TERM signal.
 
         def _build_docker_image(self, *args, **kwargs):
 
             def _cancel_build(*args, **kwargs):
-                raise BuildCanceledException()
+                raise TaskCanceledException()
 
             signal.signal(signal.SIGTERM, _cancel_build)
             # Whatever how long to sleep, just meaning it's running.
@@ -173,10 +173,10 @@ def test_ensure_workflow_data_is_saved_in_various_conditions(
          .should_receive("build_docker_image")
          .replace_with(_build_docker_image))
 
-        proc = multiprocessing.Process(target=task.execute)
+        proc = multiprocessing.Process(target=task.run)
         proc.start()
 
-        # wait a short a while for the task.execute to run in the separate process.
+        # wait a short a while for the task.run to run in the separate process.
         time.sleep(0.3)
         proc.terminate()
 

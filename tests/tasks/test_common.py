@@ -11,12 +11,14 @@ from typing import Optional, ClassVar
 
 from flexmock import flexmock
 import pytest
+import signal
 
 from atomic_reactor import dirs
 from atomic_reactor import inner
 from atomic_reactor import source
 from atomic_reactor import util
 from atomic_reactor.tasks import common
+
 
 TASK_ARGS = {
     "build_dir": "/build",
@@ -155,12 +157,9 @@ class TestTaskParams:
 class TestTask:
     """Tests for the Task class."""
 
-    class ConcreteTask(common.Task):
-        def execute(self):
-            return None
-
-    def test_load_workflow_data(self, tmp_path):
-        params = common.TaskParams(
+    @pytest.fixture()
+    def params(self, tmp_path):
+        return common.TaskParams(
             build_dir="",
             context_dir=str(tmp_path),
             config_file="",
@@ -169,10 +168,47 @@ class TestTask:
             user_params={}
         )
 
+    class ConcreteTask(common.Task):
+        def execute(self):
+            return None
+
+    def test_workflow_data(self, params):
         expect_data = inner.ImageBuildWorkflowData()
         (flexmock(inner.ImageBuildWorkflowData)
          .should_receive("load_from_dir")
          .with_args(dirs.ContextDir)
          .and_return(expect_data))
 
-        assert self.ConcreteTask(params).load_workflow_data() == expect_data
+        assert self.ConcreteTask(params).workflow_data == expect_data
+
+    def test_run(self, params):
+        task = self.ConcreteTask(params)
+
+        task_mock = flexmock(self.ConcreteTask)
+        task_mock.should_receive("execute").once()
+
+        signal_mock = flexmock(signal)
+        signal_mock.should_receive("signal").with_args(
+            signal.SIGTERM, task.throw_task_canceled_exception
+        ).once()
+        signal_mock.should_receive("signal").with_args(signal.SIGTERM, signal.SIG_DFL).once()
+
+        task.run()
+
+    def test_run_task_ignores_sigterm(self, params):
+
+        class TaskIgnoreSigterm(common.Task):
+            ignore_sigterm = True
+
+            def execute(self):
+                return None
+
+        task = TaskIgnoreSigterm(params)
+        task_mock = flexmock(TaskIgnoreSigterm)
+        task_mock.should_receive("execute").once()
+
+        signal_mock = flexmock(signal)
+        signal_mock.should_receive("signal").with_args(signal.SIGTERM, signal.SIG_IGN).once()
+        signal_mock.should_receive("signal").with_args(signal.SIGTERM, signal.SIG_DFL).once()
+
+        task.run()

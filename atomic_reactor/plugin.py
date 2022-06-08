@@ -45,8 +45,8 @@ class PluginFailedException(Exception):
     """ There was an error during plugin execution """
 
 
-class BuildCanceledException(Exception):
-    """Build was canceled"""
+class TaskCanceledException(Exception):
+    """Task was canceled"""
 
 
 class Plugin(ABC):

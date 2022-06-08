@@ -21,7 +21,7 @@ from atomic_reactor.utils.koji import (koji_login, create_koji_session,
                                        TaskWatcher, tag_koji_build,
                                        get_koji_module_build, KojiUploadLogger,
                                        get_output)
-from atomic_reactor.plugin import BuildCanceledException
+from atomic_reactor.plugin import TaskCanceledException
 from atomic_reactor.constants import (KOJI_MAX_RETRIES,
                                       KOJI_OFFLINE_RETRY_INTERVAL,
                                       KOJI_RETRY_INTERVAL,
@@ -203,12 +203,12 @@ class TestTaskWatcher(object):
         session = flexmock()
         task_id = 1234
         (session
-            .should_receive('taskFinished')
-            .with_args(task_id)
-            .and_raise(BuildCanceledException))
+         .should_receive('taskFinished')
+         .with_args(task_id)
+         .and_raise(TaskCanceledException))
 
         task = TaskWatcher(session, task_id, poll_interval=0)
-        with pytest.raises(BuildCanceledException):
+        with pytest.raises(TaskCanceledException):
             task.wait()
 
         assert task.failed()
