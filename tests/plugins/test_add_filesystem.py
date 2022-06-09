@@ -111,7 +111,7 @@ def mock_koji_session(scratch=False, image_task_fail=False,
     session.should_receive('getTaskChildren').and_return([
         {'id': 1234568},
     ])
-    contents = 'tarball-contents'
+    contents = [b'tarball', b'content']
     expectation = session.should_receive('downloadTaskOutput')
     for chunk in contents:
         expectation = expectation.and_return(chunk)

@@ -274,7 +274,7 @@ class AddFilesystemPlugin(Plugin):
         if file_path.exists():
             raise RuntimeError(f'Filesystem {file_name} already exists at {file_path}')
 
-        with open(file_path, 'w') as f:
+        with open(file_path, 'wb') as f:
             for chunk in stream_task_output(self.session, task_id, file_name, self.blocksize):
                 f.write(chunk)
 
