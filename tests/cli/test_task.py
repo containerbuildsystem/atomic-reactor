@@ -5,16 +5,23 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
+import json
+import os
 
+import pytest
 from flexmock import flexmock
 
 from atomic_reactor.cli import task
+from atomic_reactor.constants import DOCKERFILE_FILENAME
+from atomic_reactor.source import GitSource
 from atomic_reactor.tasks import (
     sources,
     common,
     binary,
     binary_container_build,
 )
+from atomic_reactor.tasks.plugin_based import PluginBasedTask
+
 TASK_ARGS = {
     "build_dir": "/build",
     "context_dir": "/context",
@@ -64,6 +71,35 @@ def test_binary_container_postbuild():
     assert task.binary_container_postbuild(TASK_ARGS) == TASK_RESULT
 
 
-def test_binary_container_exit():
-    mock(binary.BinaryExitTask, init_build_dirs=True)
-    assert task.binary_container_exit(TASK_ARGS) == TASK_RESULT
+@pytest.mark.parametrize("has_dockerfile", [True, False])
+def test_binary_container_exit(has_dockerfile, build_dir, context_dir, caplog):
+    git_uri = "https://git.host/containers/coolapp"
+    dockerfile_content = 'FROM fedora:36\nCMD ["exit", "0"]'
+
+    if has_dockerfile:
+        source = GitSource("git", git_uri, workdir=str(build_dir))
+        os.mkdir(source.path)
+        dockerfile = os.path.join(source.path, DOCKERFILE_FILENAME)
+        with open(dockerfile, "w", encoding="utf-8") as f:
+            f.write(dockerfile_content)
+
+    (flexmock(PluginBasedTask)
+     .should_receive("execute")
+     .with_args(True)
+     .and_return(TASK_RESULT))
+
+    task_args = TASK_ARGS.copy()
+    task_args["context_dir"] = str(context_dir)
+    task_args["build_dir"] = str(build_dir)
+    task_args["namespace"] = "test"
+    task_args["pipeline_run_name"] = "test-pr"
+    task_args["user_params"] = json.dumps({
+        "git_uri": git_uri, "git_ref": "1234", "user": "osbs"
+    })
+
+    assert task.binary_container_exit(task_args) is None
+
+    if has_dockerfile:
+        assert f"Original Dockerfile:\n{dockerfile_content}" in caplog.text
+    else:
+        assert "No Dockerfile" in caplog.text

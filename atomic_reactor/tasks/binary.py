@@ -5,9 +5,16 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
+import logging
+import os.path
+from pathlib import Path
+from typing import Optional
 
+from atomic_reactor.constants import DOCKERFILE_FILENAME
 from atomic_reactor.tasks import plugin_based
 from atomic_reactor.tasks.common import TaskParams
+
+logger = logging.getLogger(__name__)
 
 
 class BinaryPreBuildTask(plugin_based.PluginBasedTask[TaskParams]):
@@ -70,3 +77,16 @@ class BinaryExitTask(plugin_based.PluginBasedTask[TaskParams]):
         {"name": "store_metadata"},
         {"name": "sendmail"},
     ]
+
+    def _output_dockerfile(self):
+        dockerfile = Path(os.path.join(self._params.source.path, DOCKERFILE_FILENAME))
+        if dockerfile.exists():
+            logger.debug("Original Dockerfile:\n%s", dockerfile.read_text("utf-8"))
+        else:
+            logger.debug("No Dockerfile exists: %s", str(dockerfile))
+
+    def execute(self, init_build_dirs: Optional[bool] = False):
+        try:
+            super(BinaryExitTask, self).execute(init_build_dirs)
+        finally:
+            self._output_dockerfile()
