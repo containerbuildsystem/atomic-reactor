@@ -196,13 +196,11 @@ def test_tag_and_push_plugin(
         .and_return(None))
 
     reactor_config = {
-        'registries': [
-            {
-                'url': LOCALHOST_REGISTRY,
-                'insecure': True,
-                'auth': {'cfg_path': secret_path},
-            }
-        ]
+        'registry': {
+            'url': LOCALHOST_REGISTRY,
+            'insecure': True,
+            'auth': {'cfg_path': secret_path},
+        }
     }
     runner = (MockEnv(workflow)
               .for_plugin(TagAndPushPlugin.key)
@@ -269,13 +267,11 @@ def test_tag_and_push_plugin_oci(workflow, monkeypatch, is_source_build, v2s2,
             secret_path = temp_dir
 
     reactor_config = {
-        'registries': [
-            {
-                'url': LOCALHOST_REGISTRY,
-                'insecure': True,
-                'auth': {'cfg_path': secret_path},
-            },
-        ],
+        'registry': {
+            'url': LOCALHOST_REGISTRY,
+            'insecure': True,
+            'auth': {'cfg_path': secret_path},
+        },
     }
     env = (MockEnv(workflow)
            .for_plugin(TagAndPushPlugin.key)
@@ -437,13 +433,11 @@ def test_tag_and_push_plugin_oci(workflow, monkeypatch, is_source_build, v2s2,
 
 def test_skip_plugin(workflow, caplog):
     reactor_config = {
-        'registries': [
-            {
-                'url': LOCALHOST_REGISTRY,
-                'insecure': True,
-                'auth': {},
-            },
-        ],
+        'registry': {
+            'url': LOCALHOST_REGISTRY,
+            'insecure': True,
+            'auth': {},
+        },
     }
     runner = (MockEnv(workflow)
               .for_plugin(TagAndPushPlugin.key)

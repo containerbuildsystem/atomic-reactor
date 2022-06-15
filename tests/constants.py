@@ -127,8 +127,8 @@ platform_descriptors:
 content_versions:
 - v2
 
-registries:
-- url: https://container-registry.example.com/v2
+registry:
+  url: https://container-registry.example.com/v2
   auth:
       cfg_path: /var/run/secrets/atomic-reactor/v2-registry-dockercfg
 

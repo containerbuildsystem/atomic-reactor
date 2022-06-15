@@ -381,13 +381,11 @@ def test_floating_tags_push(workflow, tmpdir, test_name, manifest_results,
                            floating_images=floating_tags,
                            manifest_results=manifest_results)
 
-    registries_list = [
-        {
-            'url': f'https://{docker_uri}/{registry["version"]}',
-            'auth': {'cfg_path': registry.get('secret', str(temp_dir))},
-        }
-        for docker_uri, registry in registry_conf.items()
-    ]
+    reg_info = registry_conf[REGISTRY_V2]
+    registry = {
+        'url': f'https://{REGISTRY_V2}/{reg_info["version"]}',
+        'auth': {'cfg_path': reg_info.get('secret', str(temp_dir))},
+    }
 
     platform_descriptors_list = []
     for platform, arch in goarch.items():
@@ -397,7 +395,7 @@ def test_floating_tags_push(workflow, tmpdir, test_name, manifest_results,
         }
         platform_descriptors_list.append(new_plat)
 
-    rcm = {'version': 1, 'registries': registries_list,
+    rcm = {'version': 1, 'registry': registry,
            'platform_descriptors': platform_descriptors_list}
     env.set_reactor_config(rcm)
 

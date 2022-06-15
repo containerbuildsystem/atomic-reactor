@@ -158,7 +158,7 @@ class ReactorConfigKeys(object):
     PREFER_SCHEMA1_DIGEST_KEY = 'prefer_schema1_digest'
     CONTENT_VERSIONS_KEY = 'content_versions'
     REGISTRIES_ORGANIZATION_KEY = 'registries_organization'
-    REGISTRIES_KEY = 'registries'
+    REGISTRY_KEY = 'registry'
     REMOTE_HOSTS_KEY = 'remote_hosts'
     YUM_PROXY_KEY = 'yum_proxy'
     SOURCE_REGISTRY_KEY = 'source_registry'
@@ -392,9 +392,7 @@ class Configuration(object):
 
     @property
     def registry(self):
-        all_registries = self._get_value(ReactorConfigKeys.REGISTRIES_KEY)
-
-        registry = all_registries[0]
+        registry = self._get_value(ReactorConfigKeys.REGISTRY_KEY)
 
         reguri = RegistryURI(registry.get('url'))
         regdict = {'uri': reguri.docker_uri, 'version': reguri.version}
@@ -407,18 +405,17 @@ class Configuration(object):
 
     @property
     def docker_registry(self):
-        all_registries = self._get_value(ReactorConfigKeys.REGISTRIES_KEY)
+        registry = self._get_value(ReactorConfigKeys.REGISTRY_KEY)
 
-        for registry in all_registries:
-            reguri = RegistryURI(registry.get('url'))
-            if reguri.version == 'v2':
-                regdict = {
-                    'url': reguri.uri,
-                    'insecure': registry.get('insecure', False)
-                }
-                if registry.get('auth'):
-                    regdict['secret'] = registry['auth']['cfg_path']
-                return regdict
+        reguri = RegistryURI(registry.get('url'))
+        if reguri.version == 'v2':
+            regdict = {
+                'url': reguri.uri,
+                'insecure': registry.get('insecure', False)
+            }
+            if registry.get('auth'):
+                regdict['secret'] = registry['auth']['cfg_path']
+            return regdict
 
         raise RuntimeError("Expected V2 registry but none in REACTOR_CONFIG")
 

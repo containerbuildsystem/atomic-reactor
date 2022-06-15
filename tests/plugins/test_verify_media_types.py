@@ -5,6 +5,7 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
+from typing import Any, Dict, Optional
 
 from atomic_reactor.constants import (PLUGIN_GROUP_MANIFESTS_KEY,
                                       PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
@@ -116,7 +117,9 @@ class TestVerifyImageTypes(object):
                 'Content-Type': MEDIA_TYPE_OCI_V1_INDEX,
               }))
 
-    def workflow(self, build_process_failed=False, registries=None, registry_types=None,
+    def workflow(self, build_process_failed=False,
+                 registry: Optional[Dict[str, Any]] = None,
+                 registry_types=None,
                  platforms=None, platform_descriptors=None, group=True, fail=False,
                  limit_media_types=None):
         tag_conf = TagConf()
@@ -134,24 +137,24 @@ class TestVerifyImageTypes(object):
         no_amd64 = 'x86_64' not in platforms
 
         keep_types = False
-        if registries or registry_types:
+        if registry or registry_types:
             keep_types = True
 
-        if registries is None and registry_types is None:
+        if registry is None and registry_types is None:
             registry_types = [MEDIA_TYPE_DOCKER_V2_SCHEMA1,
                               MEDIA_TYPE_DOCKER_V2_SCHEMA2, MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
                               MEDIA_TYPE_OCI_V1, MEDIA_TYPE_OCI_V1_INDEX]
 
-        if registries is None:
-            registries = [{
+        if registry is None:
+            registry = {
                 'url': 'https://container-registry.example.com/v2',
                 'version': 'v2',
                 'insecure': True,
                 'expected_media_types': registry_types
-            }]
+            }
         conf = {
             'version': 1,
-            'registries': registries,
+            'registry': registry,
         }
 
         if limit_media_types is not None:
@@ -162,92 +165,91 @@ class TestVerifyImageTypes(object):
         if platform_descriptors:
             conf['platform_descriptors'] = platform_descriptors
 
-        for registry in registries:
-            def get_manifest(request):
-                media_types = request.headers.get('Accept', '').split(',')
-                content_type = media_types[0]
+        def get_manifest(request):
+            media_types = request.headers.get('Accept', '').split(',')
+            content_type = media_types[0]
 
-                return 200, {'Content-Type': content_type}, '{}'
+            return 200, {'Content-Type': content_type}, '{}'
 
-            url_regex = "r'" + registry['url'] + ".*/manifests/.*'"
-            url = re.compile(url_regex)
-            responses.add_callback(responses.GET, url, callback=get_manifest)
+        url_regex = "r'" + registry['url'] + ".*/manifests/.*'"
+        url = re.compile(url_regex)
+        responses.add_callback(responses.GET, url, callback=get_manifest)
 
-            expected_types = registry.get('expected_media_types', registry_types or [])
-            if fail == "bad_results":
-                response_types = []
-            elif not keep_types and no_amd64:
-                response_types = [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]
-            else:
-                response_types = expected_types
+        expected_types = registry.get('expected_media_types', registry_types or [])
+        if fail == "bad_results":
+            response_types = []
+        elif not keep_types and no_amd64:
+            response_types = [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]
+        else:
+            response_types = expected_types
 
-            reguri = RegistryURI(registry['url']).docker_uri
-            if re.match('http(s)?://', reguri):
-                urlbase = reguri
-            else:
-                urlbase = 'https://{0}'.format(reguri)
+        reguri = RegistryURI(registry['url']).docker_uri
+        if re.match('http(s)?://', reguri):
+            urlbase = reguri
+        else:
+            urlbase = 'https://{0}'.format(reguri)
 
-            actual_v2_url = urlbase + "/v2/foo/manifests/unique-tag"
+        actual_v2_url = urlbase + "/v2/foo/manifests/unique-tag"
 
-            if fail == "bad_results":
-                response = requests.Response()
-                (flexmock(response,
-                          raise_for_status=lambda: None,
-                          status_code=requests.codes.ok,
-                          json={},
-                          headers={'Content-Type': 'application/json'}))
-                v1_response = response
-                v1_oci_response = response
-                v1_oci_index_response = response
-                v2_response = response
-                v2_list_response = response
-            else:
-                v1_response = self.config_response_none
-                v1_oci_response = self.config_response_none
-                v1_oci_index_response = self.config_response_none
-                v2_response = self.config_response_none
-                v2_list_response = self.config_response_none
+        if fail == "bad_results":
+            response = requests.Response()
+            (flexmock(response,
+                      raise_for_status=lambda: None,
+                      status_code=requests.codes.ok,
+                      json={},
+                      headers={'Content-Type': 'application/json'}))
+            v1_response = response
+            v1_oci_response = response
+            v1_oci_index_response = response
+            v2_response = response
+            v2_list_response = response
+        else:
+            v1_response = self.config_response_none
+            v1_oci_response = self.config_response_none
+            v1_oci_index_response = self.config_response_none
+            v2_response = self.config_response_none
+            v2_list_response = self.config_response_none
 
-            if MEDIA_TYPE_DOCKER_V2_SCHEMA1 in response_types:
-                v1_response = self.config_response_config_v1
-            if MEDIA_TYPE_DOCKER_V2_SCHEMA2 in response_types:
-                v2_response = self.config_response_config_v2
-            if MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST in response_types:
-                v2_list_response = self.config_response_config_v2_list
-            if MEDIA_TYPE_OCI_V1 in response_types:
-                v1_oci_response = self.config_response_config_oci_v1
-            if MEDIA_TYPE_OCI_V1_INDEX in response_types:
-                v1_oci_index_response = self.config_response_config_oci_v1_index
+        if MEDIA_TYPE_DOCKER_V2_SCHEMA1 in response_types:
+            v1_response = self.config_response_config_v1
+        if MEDIA_TYPE_DOCKER_V2_SCHEMA2 in response_types:
+            v2_response = self.config_response_config_v2
+        if MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST in response_types:
+            v2_list_response = self.config_response_config_v2_list
+        if MEDIA_TYPE_OCI_V1 in response_types:
+            v1_oci_response = self.config_response_config_oci_v1
+        if MEDIA_TYPE_OCI_V1_INDEX in response_types:
+            v1_oci_index_response = self.config_response_config_oci_v1_index
 
-            v2_header_v1 = {'Accept': MEDIA_TYPE_DOCKER_V2_SCHEMA1}
-            v2_header_v2 = {'Accept': MEDIA_TYPE_DOCKER_V2_SCHEMA2}
-            manifest_header = {'Accept': MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST}
+        v2_header_v1 = {'Accept': MEDIA_TYPE_DOCKER_V2_SCHEMA1}
+        v2_header_v2 = {'Accept': MEDIA_TYPE_DOCKER_V2_SCHEMA2}
+        manifest_header = {'Accept': MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST}
 
-            (flexmock(requests.Session)
-                .should_receive('get')
-                .with_args(actual_v2_url, headers=v2_header_v1,
-                           auth=HTTPRegistryAuth, verify=False)
-                .and_return(v1_response))
-            (flexmock(requests.Session)
-                .should_receive('get')
-                .with_args(actual_v2_url, headers=v2_header_v2,
-                           auth=HTTPRegistryAuth, verify=False)
-                .and_return(v2_response))
-            (flexmock(requests.Session)
-                .should_receive('get')
-                .with_args(actual_v2_url, headers={'Accept': MEDIA_TYPE_OCI_V1},
-                           auth=HTTPRegistryAuth, verify=False)
-                .and_return(v1_oci_response))
-            (flexmock(requests.Session)
-                .should_receive('get')
-                .with_args(actual_v2_url, headers={'Accept': MEDIA_TYPE_OCI_V1_INDEX},
-                           auth=HTTPRegistryAuth, verify=False)
-                .and_return(v1_oci_index_response))
-            (flexmock(requests.Session)
-                .should_receive('get')
-                .with_args(actual_v2_url, headers=manifest_header,
-                           auth=HTTPRegistryAuth, verify=False)
-                .and_return(v2_list_response))
+        (flexmock(requests.Session)
+            .should_receive('get')
+            .with_args(actual_v2_url, headers=v2_header_v1,
+                       auth=HTTPRegistryAuth, verify=False)
+            .and_return(v1_response))
+        (flexmock(requests.Session)
+            .should_receive('get')
+            .with_args(actual_v2_url, headers=v2_header_v2,
+                       auth=HTTPRegistryAuth, verify=False)
+            .and_return(v2_response))
+        (flexmock(requests.Session)
+            .should_receive('get')
+            .with_args(actual_v2_url, headers={'Accept': MEDIA_TYPE_OCI_V1},
+                       auth=HTTPRegistryAuth, verify=False)
+            .and_return(v1_oci_response))
+        (flexmock(requests.Session)
+            .should_receive('get')
+            .with_args(actual_v2_url, headers={'Accept': MEDIA_TYPE_OCI_V1_INDEX},
+                       auth=HTTPRegistryAuth, verify=False)
+            .and_return(v1_oci_index_response))
+        (flexmock(requests.Session)
+            .should_receive('get')
+            .with_args(actual_v2_url, headers=manifest_header,
+                       auth=HTTPRegistryAuth, verify=False)
+            .and_return(v2_list_response))
 
         digests = {'media_type': MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST}
         if not group:
@@ -349,40 +351,36 @@ class TestVerifyImageTypes(object):
         assert results == sorted(expected_results)
 
     @responses.activate
-    @pytest.mark.parametrize(('registries', 'platform_descriptors', 'group',
+    @pytest.mark.parametrize(('registry', 'platform_descriptors', 'group',
                               'expected_results'), [
-        ([{'url': 'https://container-registry.example.com/v2',
-           'version': 'v2', 'insecure': True,
-           'expected_media_types': [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]},
-          ],
+        ({'url': 'https://container-registry.example.com/v2',
+          'version': 'v2', 'insecure': True,
+          'expected_media_types': [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]},
          [{'platform': 'arm64', 'architecture': 'arm64'}],
          True, [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]),
-        ([{'url': 'https://container-registry.example.com/v2',
-           'version': 'v2', 'insecure': True,
-           'expected_media_types': [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]},
-          ],
+        ({'url': 'https://container-registry.example.com/v2',
+          'version': 'v2', 'insecure': True,
+          'expected_media_types': [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]},
          [{'platform': 'arm64', 'architecture': 'arm64'}],
          False, [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]),
-        ([{'url': 'https://container-registry.example.com/v2',
-           'version': 'v2', 'insecure': True,
-           'expected_media_types': [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]},
-          ],
+        ({'url': 'https://container-registry.example.com/v2',
+          'version': 'v2', 'insecure': True,
+          'expected_media_types': [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]},
          [{'platform': 'arm64', 'architecture': 'arm64'}],
          False, [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]),
-        ([{'url': 'https://container-registry.example.com/v2',
-           'version': 'v2', 'insecure': True,
-           'expected_media_types': [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]},
-          ],
+        ({'url': 'https://container-registry.example.com/v2',
+          'version': 'v2', 'insecure': True,
+          'expected_media_types': [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]},
          [{'platform': 'arm64', 'architecture': 'arm64'},
           {'platform': 'x86_64', 'architecture': 'amd64'}],
          True, [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]),
     ])
-    def test_verify_successful_registries(self, registries, platform_descriptors, group,
+    def test_verify_successful_registries(self, registry, platform_descriptors, group,
                                           expected_results):
         """
         Everything behaves correctly
         """
-        workflow = self.workflow(registries=registries,
+        workflow = self.workflow(registry=registry,
                                  platform_descriptors=platform_descriptors, group=group)
 
         plugin = VerifyMediaTypesPlugin(workflow)
@@ -390,32 +388,32 @@ class TestVerifyImageTypes(object):
         assert results == sorted(expected_results)
 
     @responses.activate
-    @pytest.mark.parametrize(('registries', 'platforms', 'platform_descriptors',
+    @pytest.mark.parametrize(('registry', 'platforms', 'platform_descriptors',
                               'group', 'expected_results'), [
-        ([{'url': 'https://container-registry.example.com/v2',
-           'version': 'v2', 'insecure': True}],
+        ({'url': 'https://container-registry.example.com/v2',
+          'version': 'v2', 'insecure': True},
          None, [{'platform': 'x86_64', 'architecture': 'amd64'}],
          True, []),
 
-        ([{'url': 'https://container-registry-test.example.com/v2',
-           'version': 'v2', 'insecure': True,
-           'expected_media_types': [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]}],
+        ({'url': 'https://container-registry-test.example.com/v2',
+          'version': 'v2', 'insecure': True,
+          'expected_media_types': [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]},
          None, [{'platform': 'arm64', 'architecture': 'arm64'}],
          False, [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]),
 
         # no platforms or platform descriptors, assume x86_64 wasn't build
-        ([{'url': 'https://container-registry.example.com/v2',
-           'version': 'v2', 'insecure': True,
-           'expected_media_types': [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]}],
+        ({'url': 'https://container-registry.example.com/v2',
+          'version': 'v2', 'insecure': True,
+          'expected_media_types': [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]},
          ['x86_64', 'arm64'], [],
          True, [MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST]),
     ])
-    def test_verify_malformed_registries(self, registries, platforms, platform_descriptors,
+    def test_verify_malformed_registries(self, registry, platforms, platform_descriptors,
                                          group, expected_results):
         """
         Configuration is bad, but not so bad as to cause a problem
         """
-        workflow = self.workflow(registries=registries, platforms=platforms,
+        workflow = self.workflow(registry=registry, platforms=platforms,
                                  platform_descriptors=platform_descriptors, group=group)
 
         plugin = VerifyMediaTypesPlugin(workflow)
@@ -480,7 +478,7 @@ class TestVerifyImageTypes(object):
         if expected_media_types is not None:
             registry['expected_media_types'] = expected_media_types
 
-        workflow = self.workflow(registries=[registry], group=False,
+        workflow = self.workflow(registry=registry, group=False,
                                  limit_media_types=[
                                      MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                  ],

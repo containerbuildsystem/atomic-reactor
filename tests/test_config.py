@@ -41,40 +41,30 @@ openshift:
   url: openshift_url
 source_registry:
   url: source_registry.com
-registries:
-  - url: registry_url
+registry:
+  url: registry_url
 """
 
 
 class TestConfiguration(object):
     @pytest.mark.parametrize(('config', 'exc'), [
         ("""\
-registries:
-- url: https://container-registry.example.com/v2
+registry:
+  url: https://container-registry.example.com/v2
   auth:
     cfg_path: /var/run/secrets/atomic-reactor/v2-registry-dockercfg
          """,
          None),
         ("""\
-registries:
-- url: https://container-registry.example.com/v2
-  auth:
-    cfg_path: /var/run/secrets/atomic-reactor/v2-registry-dockercfg
-- url: https://another-container-registry.example.com/
-  auth:
-    cfg_path: /var/run/secrets/atomic-reactor/another-registry-dockercfg
-         """,
-         None),
-        ("""\
-registries:
-- url: https://old-container-registry.example.com/v1
+registry:
+  url: https://old-container-registry.example.com/v1
   auth:
     cfg_path: /var/run/secrets/atomic-reactor/v1-registry-dockercfg
          """,
          OsbsValidationException),
         ("""\
-registries:
-- url: https://wrong-container-registry.example.com/v3
+registry:
+  url: https://wrong-container-registry.example.com/v3
   auth:
     cfg_path: /var/run/secrets/atomic-reactor/wrong-registry-dockercfg
          """,
@@ -448,8 +438,8 @@ pull_registries:
                   url: openshift_url
                 source_registry:
                   url: source_registry.com
-                registries:
-                  - url: registry_url
+                registry:
+                  url: registry_url
             """))
 
         with pytest.raises(ValueError):
@@ -603,13 +593,13 @@ odcs:
 
         if method == 'registry':
             # map `registry` to `registries` in config so that neither use nor devs are confused
-            expected = yaml.safe_load(REACTOR_CONFIG_MAP)['registries']
+            expected = yaml.safe_load(REACTOR_CONFIG_MAP)['registry']
         else:
             expected = yaml.safe_load(REACTOR_CONFIG_MAP)[method]
 
         if method == 'registry':
             # since there will only be exactly one registry
-            registry = expected[0]
+            registry = expected
             reguri = RegistryURI(registry.get('url'))
             regdict = {'uri': reguri.docker_uri, 'version': reguri.version}
             if registry.get('auth'):
@@ -835,8 +825,8 @@ koji:
 version: 1
 source_registry:
   url: source_registry.com
-registries:
-  - url: registry_url
+registry:
+  url: registry_url
 openshift:
   url: openshift_url
 """
@@ -883,7 +873,7 @@ openshift:
             },
             'openshift': {'url': 'openshift_url'},
             'source_registry': {'url': 'source_registry'},
-            'registries': [{'url': 'registry_url'}]
+            'registry': {'url': 'registry_url'}
         }
         expected_root_url = 'https://koji.example.com/root'
 
@@ -1241,8 +1231,8 @@ koji:
   auth: {}
 source_registry:
   url: source_registry.com
-registries:
-  - url: registry_url
+registry:
+  url: registry_url
 """
 
         config += "\n" + required_config

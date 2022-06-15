@@ -1016,8 +1016,8 @@ def test_get_primary_and_floating_images(workflow, tag_conf, expected_primary,
         auth: {}
       openshift:
         url: openshift_url
-      registries:
-        - url: registry
+      registry:
+        url: registry
       source_registry:
         url: source_registry
     """),
