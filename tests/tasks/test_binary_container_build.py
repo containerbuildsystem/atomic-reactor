@@ -56,15 +56,13 @@ X86_UNIQUE_IMAGE = ImageName.parse("registry.example.org/osbs/spam:v1.0-x86_64")
 AUTHFILE_PATH = "/workspace/ws-registries-secret/"
 NAMESPACE = "test-namespace"
 PIPELINE_RUN_NAME = "binary-container-0-1-123456"
-REGISTRY_CONFIG = [
-    {
-        "url": "https://registry.example.org/v2",
-        "auth": {
-            "cfg_path": AUTHFILE_PATH,
-        },
-        "insecure": False,
-    }
-]
+REGISTRY_CONFIG = {
+    "url": "https://registry.example.org/v2",
+    "auth": {
+        "cfg_path": AUTHFILE_PATH,
+    },
+    "insecure": False,
+}
 
 X86_64 = 'x86_64'
 
@@ -154,7 +152,7 @@ def mock_workflow_data(*, enabled_platforms: List[str]) -> inner.ImageBuildWorkf
     return mocked_data
 
 
-def mock_config(registry_config: List[Dict[str, Any]], remote_hosts_config: Dict[str, Any],
+def mock_config(registry_config: Dict[str, Any], remote_hosts_config: Dict[str, Any],
                 image_size_limit=0) -> config.Configuration:
     """Make load_config() return mocked config.
 
@@ -162,7 +160,7 @@ def mock_config(registry_config: List[Dict[str, Any]], remote_hosts_config: Dict
     The remote_hosts property will return the remote hosts config.
     """
     raw_config = {'version': 1,
-                  ReactorConfigKeys.REGISTRIES_KEY: registry_config,
+                  ReactorConfigKeys.REGISTRY_KEY: registry_config,
                   ReactorConfigKeys.REMOTE_HOSTS_KEY: remote_hosts_config,
                   ReactorConfigKeys.IMAGE_SIZE_LIMIT_KEY: {'binary_image': image_size_limit}}
     cfg = config.Configuration(raw_config=raw_config)
@@ -274,7 +272,7 @@ class TestBinaryBuildTask:
         (
             flexmock(mock_podman_remote)
             .should_receive("push_container")
-            .with_args(X86_UNIQUE_IMAGE, insecure=REGISTRY_CONFIG[0]["insecure"])
+            .with_args(X86_UNIQUE_IMAGE, insecure=REGISTRY_CONFIG["insecure"])
             .times(0 if fail_image_size_check else 1)
         )
         (
@@ -364,12 +362,12 @@ def test_get_authfile_path(has_authfile, tmp_path):
     dockercfg_path = tmp_path / ".dockerconfigjson"
     dockercfg_path.write_text("{}")
 
-    registry_config = deepcopy(REGISTRY_CONFIG[0])
+    registry_config = deepcopy(REGISTRY_CONFIG)
     if has_authfile:
         registry_config['auth']['cfg_path'] = str(dockercfg_path.parent)
     else:
         registry_config['auth'] = dict()
-    task_config = mock_config([registry_config], REMOTE_HOST_CONFIG)
+    task_config = mock_config(registry_config, REMOTE_HOST_CONFIG)
 
     if has_authfile:
         assert get_authfile_path(task_config.registry) == str(dockercfg_path)

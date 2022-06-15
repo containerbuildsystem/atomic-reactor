@@ -488,9 +488,7 @@ def test_binary_build_get_output(no_v2_digest: bool,
      .and_return(layer_sizes))
 
     workflow.conf.conf = {
-        'registries': [
-            {'url': 'https://registry.host/', 'insecure': False},
-        ],
+        'registry': {'url': 'https://registry.host/', 'insecure': False},
     }
 
     # Mock get_inspect_for_image

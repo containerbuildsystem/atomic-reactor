@@ -26,8 +26,8 @@ openshift:
   url: openshift_url
 source_registry:
   url: source_registry.com
-registries:
-  - url: registry_url
+registry:
+  url: registry_url
 remote_hosts:
   slots_dir: {}
   pools:

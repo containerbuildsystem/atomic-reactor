@@ -246,8 +246,9 @@ def mock_reactor_config(workflow, allow_multiple_remote_sources=False):
                                      'auth': {}
                                      },
               'allow_multiple_remote_sources': allow_multiple_remote_sources,
-              'openshift': {'url': 'openshift_url'}, 'registries': [{'url': REGISTRY,
-                                                                     'insecure': False}]}
+              'openshift': {'url': 'openshift_url'},
+              'registry': {'url': REGISTRY, 'insecure': False},
+              }
 
     workflow.conf.conf = config
 

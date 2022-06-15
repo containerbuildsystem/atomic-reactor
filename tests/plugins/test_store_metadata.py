@@ -67,9 +67,12 @@ def prepare(workflow, registry=None, no_dockerfile=True):
         'insecure': False,
         'auth': {'enable': True},
     }
-    registries_conf = [{'url': registry,
-                        'insecure': True}]
-    rcm = {'version': 1, 'openshift': openshift_map, 'registries': registries_conf}
+
+    rcm = {
+        'version': 1,
+        'openshift': openshift_map,
+        'registry': {'url': registry, 'insecure': True},
+    }
     workflow.conf.conf = rcm
     add_koji_map_in_workflow(workflow, hub_url='/', root_url='')
 

@@ -456,28 +456,23 @@
         }
     },
     "registries_organization": {"$ref": "#/definitions/organization"},
-    "registries": {
-        "description": "Container registries to output images",
-        "type": "array",
-        "items": {
-            "type": "object",
-            "properties": {
-                "url": {
-                    "description": "Registry URI including version",
-                    "type": "string"
-                },
-                "insecure": {
-                    "description": "Don't check SSL certificate for url",
-                    "type": "boolean"
-                },
-                "auth": {"$ref": "#/definitions/registry_auth"},
-                "expected_media_types": {"$ref": "#/definitions/media_types"}
+    "registry": {
+        "description": "Container registry to output images",
+        "type": "object",
+        "properties": {
+            "url": {
+                "description": "Registry URI including version",
+                "type": "string"
             },
-            "additionalProperties": false,
-            "maxItems": 1,
-            "minItems": 1,
-            "required": ["url"]
-        }
+            "insecure": {
+                "description": "Don't check SSL certificate for url",
+                "type": "boolean"
+            },
+            "auth": {"$ref": "#/definitions/registry_auth"},
+            "expected_media_types": {"$ref": "#/definitions/media_types"}
+        },
+        "additionalProperties": false,
+        "required": ["url"]
     },
     "yum_proxy": {
         "description": "Proxy to access yum repositories",
@@ -795,5 +790,5 @@
         "examples": ["/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem"]
     }
   },
-  "required": ["version", "koji", "openshift", "registries", "source_registry"]
+  "required": ["version", "koji", "openshift", "registry", "source_registry"]
 }

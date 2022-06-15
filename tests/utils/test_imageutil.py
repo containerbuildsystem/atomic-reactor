@@ -62,7 +62,7 @@ class TestImageUtil:
     config = config.Configuration(
         raw_config={
             "version": 1,
-            # "registries": [],  # relevant to RegistrySession, not directly relevant to ImageUtil
+            # "registry": [],  # relevant to RegistrySession, not directly relevant to ImageUtil
             "platform_descriptors": [{"platform": "x86_64", "architecture": "amd64"}],
         },
     )
