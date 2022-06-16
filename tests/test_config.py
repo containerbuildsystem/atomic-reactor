@@ -48,56 +48,66 @@ registry:
 
 class TestConfiguration(object):
     @pytest.mark.parametrize(('config', 'exc'), [
-        ("""\
-registry:
-  url: https://container-registry.example.com/v2
-  auth:
-    cfg_path: /var/run/secrets/atomic-reactor/v2-registry-dockercfg
-         """,
-         None),
-        ("""\
-registry:
-  url: https://old-container-registry.example.com/v1
-  auth:
-    cfg_path: /var/run/secrets/atomic-reactor/v1-registry-dockercfg
-         """,
-         OsbsValidationException),
-        ("""\
-registry:
-  url: https://wrong-container-registry.example.com/v3
-  auth:
-    cfg_path: /var/run/secrets/atomic-reactor/wrong-registry-dockercfg
-         """,
-         RuntimeError),
+        # Only API version v2 is valid.
+        (
+            dedent("""\
+            registry:
+              url: https://container-registry.example.com/v2
+              auth:
+                cfg_path: /var/run/secrets/atomic-reactor/v2-registry-dockercfg
+            """),
+            None,
+        ),
+        # API version v1 is invalid.
+        (
+            dedent("""\
+            registry:
+              url: https://old-container-registry.example.com/v1
+              auth:
+                cfg_path: /var/run/secrets/atomic-reactor/v1-registry-dockercfg
+            """),
+            pytest.raises(OsbsValidationException, match="Invalid API version requested in .+")
+        ),
+        # Only API version v2 is valid.
+        (
+            dedent("""\
+            registry:
+              url: https://wrong-container-registry.example.com/v3
+              auth:
+                cfg_path: /var/run/secrets/atomic-reactor/wrong-registry-dockercfg
+            """),
+            pytest.raises(RuntimeError, match="Expected V2 registry but none in REACTOR_CONFIG")
+        ),
     ])
-    def test_get_docker_registry(self, config, exc):
-        required_config = """\
-version: 1
-koji:
-  hub_url: /
-  root_url: ''
-  auth: {}
-openshift:
-  url: openshift_url
-source_registry:
-  url: source_registry.com
-"""
+    def test_get_registry(self, config, exc):
+        required_config = dedent("""\
+        version: 1
+        koji:
+          hub_url: /
+          root_url: ''
+          auth: {}
+        openshift:
+          url: openshift_url
+        source_registry:
+          url: source_registry.com
+        """)
         config += "\n" + required_config
         config_json = read_yaml(config, 'schemas/config.json')
 
         expected = {
-            'url': 'https://container-registry.example.com',
+            'uri': 'container-registry.example.com',
             'insecure': False,
-            'secret': '/var/run/secrets/atomic-reactor/v2-registry-dockercfg'
+            'secret': '/var/run/secrets/atomic-reactor/v2-registry-dockercfg',
+            'expected_media_types': [],
+            'version': 'v2',
         }
         conf = Configuration(raw_config=config_json)
 
         if exc is None:
-            docker_registry = conf.docker_registry
-            assert docker_registry == expected
+            assert conf.registry == expected
         else:
-            with pytest.raises(exc):
-                getattr(conf, 'docker_registry')
+            with exc:
+                getattr(conf, 'registry')
 
     @pytest.mark.parametrize(('config', 'expected'), [
         ("""\
