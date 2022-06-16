@@ -395,23 +395,12 @@ class Configuration(object):
         registry = self._get_value(ReactorConfigKeys.REGISTRY_KEY)
 
         reguri = RegistryURI(registry.get('url'))
-        regdict = {'uri': reguri.docker_uri, 'version': reguri.version}
-        if registry.get('auth'):
-            regdict['secret'] = registry['auth']['cfg_path']
-        regdict['insecure'] = registry.get('insecure', False)
-        regdict['expected_media_types'] = registry.get('expected_media_types', [])
-
-        return regdict
-
-    @property
-    def docker_registry(self):
-        registry = self._get_value(ReactorConfigKeys.REGISTRY_KEY)
-
-        reguri = RegistryURI(registry.get('url'))
         if reguri.version == 'v2':
             regdict = {
-                'url': reguri.uri,
-                'insecure': registry.get('insecure', False)
+                'version': reguri.version,
+                'uri': reguri.docker_uri,
+                'insecure': registry.get('insecure', False),
+                'expected_media_types': registry.get('expected_media_types', []),
             }
             if registry.get('auth'):
                 regdict['secret'] = registry['auth']['cfg_path']
