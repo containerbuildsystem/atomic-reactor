@@ -7,6 +7,8 @@ of the BSD license. See the LICENSE file for details.
 """
 
 from copy import deepcopy
+from typing import Optional
+
 from atomic_reactor.utils.cachito import CachitoAPI
 from atomic_reactor.constants import REACTOR_CONFIG_ENV_NAME
 from atomic_reactor.util import (
@@ -159,6 +161,7 @@ class ReactorConfigKeys(object):
     CONTENT_VERSIONS_KEY = 'content_versions'
     REGISTRIES_ORGANIZATION_KEY = 'registries_organization'
     REGISTRY_KEY = 'registry'
+    REGISTRIES_CFG_PATH_KEY = 'registries_cfg_path'
     REMOTE_HOSTS_KEY = 'remote_hosts'
     YUM_PROXY_KEY = 'yum_proxy'
     SOURCE_REGISTRY_KEY = 'source_registry'
@@ -387,6 +390,10 @@ class Configuration(object):
         return self._get_value(ReactorConfigKeys.CONTENT_VERSIONS_KEY, fallback=[])
 
     @property
+    def yum_proxy(self):
+        return self._get_value(ReactorConfigKeys.YUM_PROXY_KEY, fallback=None)
+
+    @property
     def registries_organization(self):
         return self._get_value(ReactorConfigKeys.REGISTRIES_ORGANIZATION_KEY, fallback=None)
 
@@ -396,33 +403,33 @@ class Configuration(object):
 
         reguri = RegistryURI(registry.get('url'))
         if reguri.version == 'v2':
-            regdict = {
+            info = {
                 'version': reguri.version,
                 'uri': reguri.docker_uri,
                 'insecure': registry.get('insecure', False),
                 'expected_media_types': registry.get('expected_media_types', []),
             }
-            if registry.get('auth'):
-                regdict['secret'] = registry['auth']['cfg_path']
-            return regdict
+            if (cfg_path := self.registries_cfg_path) is not None:
+                info['secret'] = cfg_path
+            return info
 
         raise RuntimeError("Expected V2 registry but none in REACTOR_CONFIG")
 
     @property
-    def yum_proxy(self):
-        return self._get_value(ReactorConfigKeys.YUM_PROXY_KEY, fallback=None)
+    def registries_cfg_path(self) -> Optional[str]:
+        return self._get_value(ReactorConfigKeys.REGISTRIES_CFG_PATH_KEY, fallback=None)
 
-    def _as_source_registry(self, registry):
+    def _as_registry(self, registry):
         return {
             'uri': RegistryURI(registry['url']),
             'insecure': registry.get('insecure', False),
-            'dockercfg_path': registry.get('auth', {}).get('cfg_path', None)
+            'dockercfg_path': self.registries_cfg_path,
         }
 
     @property
     def source_registry(self):
         source_registry = self._get_value(ReactorConfigKeys.SOURCE_REGISTRY_KEY)
-        return self._as_source_registry(source_registry)
+        return self._as_registry(source_registry)
 
     @property
     def pull_registries(self):
@@ -431,7 +438,7 @@ class Configuration(object):
         format as the result of source_registry
         """
         pull_registries = self._get_value(ReactorConfigKeys.PULL_REGISTRIES_KEY, fallback=[])
-        return [self._as_source_registry(reg) for reg in pull_registries]
+        return [self._as_registry(reg) for reg in pull_registries]
 
     @property
     def sources_command(self):

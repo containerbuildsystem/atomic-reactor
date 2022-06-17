@@ -199,9 +199,11 @@ def test_tag_and_push_plugin(
         'registry': {
             'url': LOCALHOST_REGISTRY,
             'insecure': True,
-            'auth': {'cfg_path': secret_path},
-        }
+            'auth': use_secret,
+        },
     }
+    if use_secret:
+        reactor_config['registries_cfg_path'] = secret_path
     runner = (MockEnv(workflow)
               .for_plugin(TagAndPushPlugin.key)
               .set_reactor_config(reactor_config)
@@ -270,9 +272,11 @@ def test_tag_and_push_plugin_oci(workflow, monkeypatch, is_source_build, v2s2,
         'registry': {
             'url': LOCALHOST_REGISTRY,
             'insecure': True,
-            'auth': {'cfg_path': secret_path},
+            'auth': use_secret,
         },
     }
+    if use_secret:
+        reactor_config['registries_cfg_path'] = secret_path
     env = (MockEnv(workflow)
            .for_plugin(TagAndPushPlugin.key)
            .set_plugin_args({'koji_target': sources_koji_target})

@@ -58,10 +58,8 @@ NAMESPACE = "test-namespace"
 PIPELINE_RUN_NAME = "binary-container-0-1-123456"
 REGISTRY_CONFIG = {
     "url": "https://registry.example.org/v2",
-    "auth": {
-        "cfg_path": AUTHFILE_PATH,
-    },
     "insecure": False,
+    "auth": True,
 }
 
 X86_64 = 'x86_64'
@@ -152,8 +150,9 @@ def mock_workflow_data(*, enabled_platforms: List[str]) -> inner.ImageBuildWorkf
     return mocked_data
 
 
-def mock_config(registry_config: Dict[str, Any], remote_hosts_config: Dict[str, Any],
-                image_size_limit=0) -> config.Configuration:
+def mock_config(registry_config: Dict[str, Any],
+                remote_hosts_config: Dict[str, Any],
+                image_size_limit: int = 0) -> config.Configuration:
     """Make load_config() return mocked config.
 
     The registry property of the mocked config will return the specified registry_config.
@@ -162,7 +161,8 @@ def mock_config(registry_config: Dict[str, Any], remote_hosts_config: Dict[str, 
     raw_config = {'version': 1,
                   ReactorConfigKeys.REGISTRY_KEY: registry_config,
                   ReactorConfigKeys.REMOTE_HOSTS_KEY: remote_hosts_config,
-                  ReactorConfigKeys.IMAGE_SIZE_LIMIT_KEY: {'binary_image': image_size_limit}}
+                  ReactorConfigKeys.IMAGE_SIZE_LIMIT_KEY: {'binary_image': image_size_limit},
+                  ReactorConfigKeys.REGISTRIES_CFG_PATH_KEY: AUTHFILE_PATH}
     cfg = config.Configuration(raw_config=raw_config)
     flexmock(BinaryBuildTask).should_receive("load_config").and_return(cfg)
     return cfg
@@ -363,15 +363,13 @@ def test_get_authfile_path(has_authfile, tmp_path):
     dockercfg_path.write_text("{}")
 
     registry_config = deepcopy(REGISTRY_CONFIG)
-    if has_authfile:
-        registry_config['auth']['cfg_path'] = str(dockercfg_path.parent)
-    else:
-        registry_config['auth'] = dict()
     task_config = mock_config(registry_config, REMOTE_HOST_CONFIG)
 
     if has_authfile:
+        task_config.conf["registries_cfg_path"] = str(dockercfg_path.parent)
         assert get_authfile_path(task_config.registry) == str(dockercfg_path)
     else:
+        del task_config.conf["registries_cfg_path"]
         assert get_authfile_path(task_config.registry) is None
 
 

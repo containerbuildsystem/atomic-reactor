@@ -408,12 +408,6 @@ def test_group_manifests(workflow, source_dir, schema_version, test_name, group,
     noarch_image, *_ = some_per_platform_image.rsplit("-", 1)
     mock_environment(workflow, unique_image=noarch_image, primary_images=test_images)
 
-    reg_info = registry_conf[REGISTRY_V2]
-    registry = {
-        'url': f'https://{REGISTRY_V2}/{reg_info["version"]}',
-        'auth': {'cfg_path': reg_info.get('secret', str(temp_dir))},
-    }
-
     platform_descriptors_list = []
     for platform, arch in goarch.items():
         new_plat = {
@@ -430,7 +424,11 @@ def test_group_manifests(workflow, source_dir, schema_version, test_name, group,
             {
                 'version': 1,
                 'group_manifests': group,
-                'registry': registry,
+                'registry': {
+                    'url': f'https://{REGISTRY_V2}/{registry_conf[REGISTRY_V2]["version"]}',
+                    'auth': True,
+                },
+                'registries_cfg_path': str(temp_dir),
                 'platform_descriptors': platform_descriptors_list,
             }
         )
