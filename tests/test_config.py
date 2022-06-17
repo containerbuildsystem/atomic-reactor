@@ -53,8 +53,22 @@ class TestConfiguration(object):
             dedent("""\
             registry:
               url: https://container-registry.example.com/v2
-              auth:
-                cfg_path: /var/run/secrets/atomic-reactor/v2-registry-dockercfg
+            registries_cfg_path: /var/run/secrets/atomic-reactor/v2-registry-dockercfg
+            """),
+            None,
+        ),
+        (
+            dedent("""\
+            registry:
+              url: https://container-registry.example.com/v2
+            """),
+            None,
+        ),
+        (
+            dedent("""\
+            registry:
+              url: https://container-registry.example.com/v2
+            registries_cfg_path: /var/run/secrets/atomic-reactor/v2-registry-dockercfg
             """),
             None,
         ),
@@ -63,8 +77,7 @@ class TestConfiguration(object):
             dedent("""\
             registry:
               url: https://old-container-registry.example.com/v1
-              auth:
-                cfg_path: /var/run/secrets/atomic-reactor/v1-registry-dockercfg
+            registries_cfg_path: /var/run/secrets/atomic-reactor/v1-registry-dockercfg
             """),
             pytest.raises(OsbsValidationException, match="Invalid API version requested in .+")
         ),
@@ -73,8 +86,7 @@ class TestConfiguration(object):
             dedent("""\
             registry:
               url: https://wrong-container-registry.example.com/v3
-              auth:
-                cfg_path: /var/run/secrets/atomic-reactor/wrong-registry-dockercfg
+            registries_cfg_path: /var/run/secrets/atomic-reactor/wrong-registry-dockercfg
             """),
             pytest.raises(RuntimeError, match="Expected V2 registry but none in REACTOR_CONFIG")
         ),
@@ -97,10 +109,11 @@ class TestConfiguration(object):
         expected = {
             'uri': 'container-registry.example.com',
             'insecure': False,
-            'secret': '/var/run/secrets/atomic-reactor/v2-registry-dockercfg',
             'expected_media_types': [],
             'version': 'v2',
         }
+        if 'registries_cfg_path' in config:
+            expected['secret'] = '/var/run/secrets/atomic-reactor/v2-registry-dockercfg'
         conf = Configuration(raw_config=config_json)
 
         if exc is None:
@@ -110,67 +123,83 @@ class TestConfiguration(object):
                 getattr(conf, 'registry')
 
     @pytest.mark.parametrize(('config', 'expected'), [
-        ("""\
-pull_registries: []
-         """,
-         []),
-        ("""\
-pull_registries:
-- url: registry.io
-         """,
-         [
-             {"uri": RegistryURI("registry.io"),
-              "insecure": False,
-              "dockercfg_path": None},
-         ]),
-        ("""\
-pull_registries:
-- url: https://registry.io
-         """,
-         [
-             {"uri": RegistryURI("https://registry.io"),
-              "insecure": False,
-              "dockercfg_path": None},
-         ]),
-        ("""\
-pull_registries:
-- url: registry.io
-  auth:
-    cfg_path: /var/run/secrets/atomic-reactor/v2-registry-dockercfg
-         """,
-         [
-             {"uri": RegistryURI("registry.io"),
-              "insecure": False,
-              "dockercfg_path": "/var/run/secrets/atomic-reactor/v2-registry-dockercfg"},
-         ]),
-        ("""\
-pull_registries:
-- url: registry.io
-  insecure: true
-  auth:
-    cfg_path: /var/run/secrets/atomic-reactor/v2-registry-dockercfg
-         """,
-         [
-             {"uri": RegistryURI("registry.io"),
-              "insecure": True,
-              "dockercfg_path": "/var/run/secrets/atomic-reactor/v2-registry-dockercfg"},
-         ]),
-        ("""\
-pull_registries:
-- url: registry.io
-  insecure: true
-  auth:
-    cfg_path: /var/run/secrets/atomic-reactor/v2-registry-dockercfg
-- url: registry.org
-         """,
-         [
-             {"uri": RegistryURI("registry.io"),
-              "insecure": True,
-              "dockercfg_path": "/var/run/secrets/atomic-reactor/v2-registry-dockercfg"},
-             {"uri": RegistryURI("registry.org"),
-              "insecure": False,
-              "dockercfg_path": None},
-         ]),
+        ("pull_registries: []", []),
+        (
+            dedent("""\
+            pull_registries:
+            - url: registry.io
+            """),
+            [
+                {
+                    "uri": RegistryURI("registry.io"),
+                    "insecure": False,
+                    "dockercfg_path": None,
+                }
+            ],
+        ),
+        (
+            dedent("""\
+            pull_registries:
+            - url: https://registry.io
+            """),
+            [
+                {
+                    "uri": RegistryURI("https://registry.io"),
+                    "insecure": False,
+                    "dockercfg_path": None,
+                },
+            ],
+        ),
+        (
+            dedent("""\
+            pull_registries:
+            - url: https://registry.io
+            registries_cfg_path: /var/run/secrets/atomic-reactor/v2-registry-dockercfg
+            """),
+            [
+                {
+                    "uri": RegistryURI("https://registry.io"),
+                    "insecure": False,
+                    "dockercfg_path": '/var/run/secrets/atomic-reactor/v2-registry-dockercfg',
+                },
+            ],
+        ),
+        (
+            dedent("""\
+            pull_registries:
+            - url: registry.io
+              insecure: true
+            registries_cfg_path: /var/run/secrets/atomic-reactor/v2-registry-dockercfg
+            """),
+            [
+                {
+                    "uri": RegistryURI("registry.io"),
+                    "insecure": True,
+                    "dockercfg_path": "/var/run/secrets/atomic-reactor/v2-registry-dockercfg",
+                },
+            ],
+        ),
+        (
+            dedent("""\
+            pull_registries:
+            - url: registry.io
+              insecure: true
+            - url: registry.org
+            registries_cfg_path: /var/run/secrets/atomic-reactor/v2-registry-dockercfg
+            """),
+            [
+                {
+                    "uri": RegistryURI("registry.io"),
+                    "insecure": True,
+                    "dockercfg_path": "/var/run/secrets/atomic-reactor/v2-registry-dockercfg",
+                },
+                {
+                    "uri": RegistryURI("registry.org"),
+                    "insecure": False,
+                    "dockercfg_path": "/var/run/secrets/atomic-reactor/v2-registry-dockercfg",
+                },
+            ],
+        ),
     ])
     def test_get_pull_registries(self, config, expected):
         config += "\n" + REQUIRED_CONFIG
@@ -178,13 +207,17 @@ pull_registries:
         config_json = read_yaml(config, 'schemas/config.json')
         conf = Configuration(raw_config=config_json)
 
-        pull_registries = conf.pull_registries
+        if isinstance(expected, list):
+            pull_registries = conf.pull_registries
 
-        # RegistryURI does not implement equality, check URI as string
-        for reg in pull_registries + expected:
-            reg['uri'] = reg['uri'].uri
+            # RegistryURI does not implement equality, check URI as string
+            for reg in pull_registries + expected:
+                reg['uri'] = reg['uri'].uri
 
-        assert pull_registries == expected
+            assert pull_registries == expected
+        else:
+            with expected:
+                print(conf.pull_registries)
 
     @pytest.mark.parametrize(('config', 'expected_slots_dir', 'expected_enabled_hosts'), [
         ("""\
@@ -366,12 +399,6 @@ pull_registries:
 - insecure: false
          """,
          "{!r} is a required property".format("url")),
-        ("""\
-pull_registries:
-- url: registry.io
-  auth: {}
-         """,
-         "{!r} is a required property".format("cfg_path")),
     ])
     def test_get_pull_registries_schema_validation(self, config, error):
         config += "\n" + REQUIRED_CONFIG
@@ -600,20 +627,19 @@ odcs:
         real_attr = getattr(conf, method)
 
         output = real_attr
+        reactor_config_map = yaml.safe_load(REACTOR_CONFIG_MAP)
 
         if method == 'registry':
-            # map `registry` to `registries` in config so that neither use nor devs are confused
-            expected = yaml.safe_load(REACTOR_CONFIG_MAP)['registry']
+            expected = reactor_config_map['registry']
         else:
-            expected = yaml.safe_load(REACTOR_CONFIG_MAP)[method]
+            expected = reactor_config_map[method]
 
         if method == 'registry':
             # since there will only be exactly one registry
             registry = expected
             reguri = RegistryURI(registry.get('url'))
             regdict = {'uri': reguri.docker_uri, 'version': reguri.version}
-            if registry.get('auth'):
-                regdict['secret'] = registry['auth']['cfg_path']
+            regdict['secret'] = reactor_config_map['registries_cfg_path']
             regdict['insecure'] = registry.get('insecure', False)
             regdict['expected_media_types'] = registry.get('expected_media_types', [])
 

@@ -129,15 +129,12 @@ content_versions:
 
 registry:
   url: https://container-registry.example.com/v2
-  auth:
-      cfg_path: /var/run/secrets/atomic-reactor/v2-registry-dockercfg
 
 source_registry:
     url: https://registry.private.example.com
     insecure: True
-    auth:
-        cfg_path: /var/run/secrets/atomic-reactor/private-registry-dockercfg
 
+registries_cfg_path: /var/run/secrets/atomic-reactor/v2-registry-dockercfg
 
 sources_command: "fedpkg sources"
 

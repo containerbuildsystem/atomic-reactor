@@ -6,6 +6,9 @@ YAML file describing atomic-reactor's configuration.
 It has the following keys
 
 - **version**: Must be 1.
+- **registries_cfg_path**: A directory path where holds a docker
+  configuration file for registry authentication. Either `.dockercfg`
+  or `.dockerconfigjson` is supported.
 - **remote_hosts**: Contains 'pools' which is a map of platform names,
   with each value being a list. Each list item describes host which can handle
   builds for that platform.

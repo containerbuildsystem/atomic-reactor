@@ -362,10 +362,8 @@ def test_registry_session(tmpdir, registry, insecure, method, responses_method, 
      {
          'source_registry': {
             'url': "default_registry.io",
-            'auth': {
-                'cfg_path': '/not/important'
-            }
-         }
+         },
+         'registries_cfg_path': '/not/important',
      },
      {
          'uri': "default_registry.io",
@@ -377,16 +375,14 @@ def test_registry_session(tmpdir, registry, insecure, method, responses_method, 
      {
          'source_registry': {
             'url': "default_registry.io",
-            'auth': {
-                'cfg_path': '/not/important'
-            }
          },
          'pull_registries': [
              {
                  'url': "some_registry.io",
                  'insecure': True
              }
-         ]
+         ],
+         'registries_cfg_path': '/not/important',
      },
      {
          'uri': "default_registry.io",
@@ -415,11 +411,9 @@ def test_registry_session(tmpdir, registry, insecure, method, responses_method, 
              {
                  'url': "https://some_registry.io",
                  'insecure': False,
-                 'auth': {
-                     'cfg_path': '/not/important'
-                 }
              }
-         ]
+         ],
+         'registries_cfg_path': '/not/important',
      },
      {
          'uri': "https://some_registry.io",
@@ -427,30 +421,27 @@ def test_registry_session(tmpdir, registry, insecure, method, responses_method, 
          'dockercfg_path': '/not/important'
      }),
     # Have both source_registry and pull_registries, matches pull_registries
-    ('some_registry.io',
-     {
-         'source_registry': {
-             'url': "default_registry.io",
-             'insecure': False,
-             'auth': {
-                 'cfg_path': '/not/important'
-             }
-         },
-         'pull_registries': [
-             {
-                 'url': "some_registry.io",
-                 'insecure': False,
-                 'auth': {
-                     'cfg_path': '/also/not/important'
-                 }
-             }
-         ]
-     },
-     {
-         'uri': "some_registry.io",
-         'insecure': False,
-         'dockercfg_path': '/also/not/important'
-     }),
+    (
+        'some_registry.io',
+        {
+            'source_registry': {
+                'url': "default_registry.io",
+                'insecure': False,
+            },
+            'pull_registries': [
+                {
+                    'url': "some_registry.io",
+                    'insecure': False,
+                }
+            ],
+            'registries_cfg_path': '/not/important'
+        },
+        {
+            'uri': "some_registry.io",
+            'insecure': False,
+            'dockercfg_path': '/not/important'
+        },
+    ),
 ])
 @pytest.mark.parametrize('access', [None, ('pull', 'push')])
 def test_registry_create_from_config(workflow, registry, reactor_config, matched_registry, access):
