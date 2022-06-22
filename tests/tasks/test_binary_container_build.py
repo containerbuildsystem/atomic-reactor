@@ -254,12 +254,12 @@ class TestBinaryBuildTask:
             mock_config(REGISTRY_CONFIG, REMOTE_HOST_CONFIG, image_size_limit=1234)
         x86_build_dir.dockerfile_path.write_text(DOCKERFILE_CONTENT)
 
-        def mock_build_container(*, build_dir, build_args, dest_tag, squash_all):
+        def mock_build_container(*, build_dir, build_args, dest_tag, flatpak):
             assert build_dir.path == x86_build_dir.path
             assert build_dir.platform == "x86_64"
             assert build_args == BUILD_ARGS
             assert dest_tag == X86_UNIQUE_IMAGE
-            assert squash_all == is_flatpak
+            assert flatpak == is_flatpak
 
             yield from ["output line 1\n", "output line 2\n"]
 
@@ -461,6 +461,8 @@ class TestPodmanRemote:
         ]
         if is_flatpak:
             options.append("--squash-all")
+            for device in ['null', 'random', 'urandom', 'zero']:
+                options.append(f"--device=/dev/{device}:/var/tmp/flatpak-build/dev/{device}")
         else:
             options.append("--squash")
         options.append("--build-arg=REMOTE_SOURCES=unpacked_remote_sources")
@@ -483,7 +485,7 @@ class TestPodmanRemote:
             build_dir=x86_build_dir,
             build_args=BUILD_ARGS,
             dest_tag=X86_UNIQUE_IMAGE,
-            squash_all=is_flatpak
+            flatpak=is_flatpak
         )
 
         assert list(output_lines) == ["starting the build\n", "finished successfully\n"]
@@ -507,7 +509,7 @@ class TestPodmanRemote:
             build_dir=x86_build_dir,
             build_args=BUILD_ARGS,
             dest_tag=X86_UNIQUE_IMAGE,
-            squash_all=False,
+            flatpak=False,
         )
 
         for expect_line in output_lines:
