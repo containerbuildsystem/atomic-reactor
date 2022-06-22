@@ -344,10 +344,13 @@ class AddFilesystemPlugin(Plugin):
 
         build_dir.dockerfile.lines = lines
         new_parents = []
+        df_images = self.workflow.data.dockerfile_images
 
         for image in build_dir.dockerfile.parent_images:
             if base_image_is_custom(image):
                 new_parents.append('scratch')
+                # To make change_from_in_df happy and nothing will change due to this.
+                df_images[image] = 'scratch'
             else:
                 new_parents.append(image)
 
