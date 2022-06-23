@@ -87,11 +87,6 @@ PUSH_OPERATOR_MANIFESTS_RESULTS = {
 TIME = '2022-05-27T01:46:50Z'
 
 
-class MockedPodResponse(object):
-    def get_container_image_ids(self):
-        return {'buildroot:latest': '0123456'}
-
-
 class MockedClientSession(object):
     TAG_TASK_ID = 1234
     DEST_TAG = 'images-candidate'
@@ -278,7 +273,6 @@ def mock_environment(workflow: DockerBuildWorkflow, source_dir: Path,
 
     if yum_repourls:
         workflow.data.all_yum_repourls = yum_repourls
-    workflow.data.image_id = '123456imageid'
     workflow.data.dockerfile_images = DockerfileImages(['Fedora:22'])
 
     flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return({})
@@ -1184,19 +1178,18 @@ class TestKojiImport(object):
         assert AddFilesystemPlugin.key in caplog.text
 
     @pytest.mark.parametrize('blocksize', (None, 1048576))
-    @pytest.mark.parametrize(('verify_media', 'expect_id'), (
-        (['v1', 'v2', 'v2_list'], 'ab12'),
-        (['v1'], 'ab12'),
-        (False, 'ab12')
-    ))
+    @pytest.mark.parametrize('verify_media', (
+        ['v1', 'v2', 'v2_list'],
+        ['v1'],
+        False)
+    )
     @pytest.mark.parametrize('has_reserved_build', (True, False))
     @pytest.mark.parametrize(('task_states', 'skip_import'), [
         (['OPEN'], False),
         (['FAILED'], True),
     ])
     def test_koji_import_success(self, workflow, source_dir, caplog,
-                                 blocksize, verify_media,
-                                 expect_id, has_reserved_build, task_states,
+                                 blocksize, verify_media, has_reserved_build, task_states,
                                  skip_import):
         session = MockedClientSession('', task_states=task_states)
         component = 'component'
@@ -1211,8 +1204,6 @@ class TestKojiImport(object):
         if verify_media:
             workflow.data.plugins_results[PLUGIN_VERIFY_MEDIA_KEY] = verify_media
         expected_media_types = verify_media or []
-
-        workflow.data.image_id = expect_id
 
         build_token = 'token_12345'
         build_id = '123'
@@ -2091,8 +2082,6 @@ class TestKojiImport(object):
         if verify_media:
             workflow.data.plugins_results[PLUGIN_VERIFY_MEDIA_KEY] = verify_media
         expected_media_types = verify_media or []
-
-        workflow.data.image_id = expect_id
 
         build_token = 'token_12345'
         build_id = '123'

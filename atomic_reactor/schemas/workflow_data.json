@@ -50,7 +50,6 @@
 
     "annotations": {"type": "object"},
 
-    "image_id": {"type": ["string", "null"]},
     "parent_images_digests": {"type": "object"},
 
     "koji_upload_files": {
@@ -72,7 +71,7 @@
     "plugins_timestamps", "plugins_durations", "plugins_errors", "build_canceled",
     "reserved_build_id", "reserved_token", "koji_source_nvr", "koji_source_source_url", "koji_source_manifest",
     "buildargs", "exported_image_sequence", "files", "image_components", "all_yum_repourls",
-    "annotations", "image_id", "parent_images_digests",
+    "annotations", "parent_images_digests",
     "koji_upload_files"
   ],
   "additionalProperties": false,

@@ -1,5 +1,5 @@
 """
-Copyright (c) 2017 Red Hat, Inc
+Copyright (c) 2017-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -17,7 +17,6 @@ from osbs.utils import ImageName
 from tests.mock_env import MockEnv
 from tests.stubs import StubSource
 from flexmock import flexmock
-from tests.constants import INPUT_IMAGE
 
 
 class Y(object):
@@ -26,7 +25,6 @@ class Y(object):
 
 
 class X(object):
-    image_id = INPUT_IMAGE
     source = Y()
     base_image = ImageName.parse('asd')
 

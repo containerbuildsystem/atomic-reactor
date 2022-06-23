@@ -1,5 +1,5 @@
 """
-Copyright (c) 2015 Red Hat, Inc
+Copyright (c) 2015-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -164,7 +164,6 @@ def test_check_no_reload(workflow):
 ])
 def test_runner_create_instance_from_plugin(tmpdir, params):
     workflow = flexmock(data=flexmock())
-    workflow.data.image_id = 'image-id'
     workflow.source = flexmock()
     workflow.source.dockerfile_path = 'dockerfile-path'
     workflow.source.path = 'path'
@@ -199,7 +198,6 @@ def test_runner_create_instance_from_plugin(tmpdir, params):
 ])
 def test_runner_create_instance_from_plugin_with_kwargs(tmpdir, params):
     workflow = flexmock(data=flexmock())
-    workflow.data.image_id = 'image-id'
     workflow.source = flexmock()
     workflow.source.dockerfile_path = 'dockerfile-path'
     workflow.source.path = 'path'

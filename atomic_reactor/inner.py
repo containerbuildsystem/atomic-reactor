@@ -327,8 +327,6 @@ class ImageBuildWorkflowData(ISerializer):
     # from atomic_reactor.metadata
     annotations: Dict[str, Any] = field(default_factory=dict)
 
-    # OSBS2 TBD
-    image_id: Optional[str] = None
     parent_images_digests: Dict[str, Dict[str, str]] = field(default_factory=dict)
 
     # List of output files that are uploaded to Brew/Koji

@@ -1,5 +1,5 @@
 """
-Copyright (c) 2017 Red Hat, Inc
+Copyright (c) 2017-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -54,7 +54,6 @@ class MockSource(object):
 
 class MockBuilder(object):
     def __init__(self):
-        self.image_id = "xxx"
         self.base_image = ImageName.parse("org.gnome.eog")
         self.df_path = None
         self.dockerfile_images = None

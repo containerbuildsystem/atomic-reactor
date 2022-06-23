@@ -120,14 +120,8 @@ class StoreMetadataPlugin(Plugin):
             base_image = wf_data.dockerfile_images.original_base_image
             if base_image is not None and not wf_data.dockerfile_images.base_from_scratch:
                 base_image_name = base_image
-                try:
-                    # OSBS2 TBD: we probably don't need this and many other annotations anymore
-                    base_image_id = self.workflow.imageutil.base_image_inspect().get('Id', "")
-                except KeyError:
-                    base_image_id = ""
             else:
                 base_image_name = ""
-                base_image_id = ""
 
             parent_images_strings = self.workflow.parent_images_to_str()
             if wf_data.dockerfile_images.base_from_scratch:
@@ -147,17 +141,10 @@ class StoreMetadataPlugin(Plugin):
             'filesystem': json.dumps(self.get_filesystem_metadata()),
         }
 
-        if self.source_build:
-            annotations['image-id'] = ''
-            if wf_data.koji_source_manifest:
-                annotations['image-id'] = wf_data.koji_source_manifest['config']['digest']
-        else:
+        if not self.source_build:
             annotations['dockerfile'] = dockerfile_contents
             annotations['commit_id'] = commit_id
-            annotations['base-image-id'] = base_image_id
             annotations['base-image-name'] = base_image_name
-            # OSBS2 TBD
-            annotations['image-id'] = wf_data.image_id or ''
             annotations['parent_images'] = json.dumps(parent_images_strings)
 
         media_types = []

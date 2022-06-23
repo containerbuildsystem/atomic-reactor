@@ -267,8 +267,6 @@ class PluginsRunner(object):
         translate some reserved values to the runtime values
         """
         translation_dict = {
-            # OSBS2 TBD
-            'BUILT_IMAGE_ID': self.workflow.data.image_id,
             'BUILD_DOCKERFILE_PATH': self.workflow.source.dockerfile_path,
             'BUILD_SOURCE_PATH': self.workflow.source.path,
         }

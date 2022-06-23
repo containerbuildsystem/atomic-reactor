@@ -66,7 +66,6 @@ class MockSource(object):
 
 class X(object):
     def __init__(self, parent_images):
-        self.image_id = "xxx"
         self.dockerfile_images = DockerfileImages(parent_images)
 
 

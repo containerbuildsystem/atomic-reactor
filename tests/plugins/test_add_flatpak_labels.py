@@ -1,5 +1,5 @@
 """
-Copyright (c) 2017 Red Hat, Inc
+Copyright (c) 2017-2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -38,7 +38,6 @@ class MockBuilder(object):
     def __init__(self):
         self.base_image = ImageName(repo="qwe", tag="asd")
         self.df_path = None
-        self.image_id = "xxx"
 
 
 def mock_workflow(workflow, source_dir: Path, container_yaml, user_params=None):
