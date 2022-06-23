@@ -10,6 +10,9 @@ from pathlib import Path
 from textwrap import dedent
 
 import pytest
+from atomic_reactor.dirs import BuildDir
+from atomic_reactor.inner import DockerBuildWorkflow
+from atomic_reactor.util import DockerfileImages
 from osbs.utils import ImageName
 
 from atomic_reactor.plugin import PluginFailedException
@@ -308,3 +311,65 @@ def test_parent_images_mismatch_base_image(workflow):
         run_plugin(workflow)
 
     assert "raised an exception: BaseImageMismatch" in str(exc.value)
+
+
+@pytest.mark.parametrize(
+    [
+        "updated_df_images",    # dockerfile_images updated by plugins
+        "dockerfile",           # Dockerfile updated by add_filesystem
+        "expected_dockerfile",  # Expected result content after plugin runs
+    ],
+    [
+        (
+            # add_filesystem does not update in-memory parent image representation
+            (('koji/image-build', None),),
+            'FROM scratch\nCMD ["/bin/bash"]',
+            'FROM scratch\nCMD ["/bin/bash"]',
+        ),
+        (
+            (
+                # add_filesystem does not update in-memory parent image representation
+                ('koji/image-build', None),
+                # Resolved by some other plugin
+                ('img:1.0', 'img@sha256:12345'),
+            ),
+            dedent("""\
+            FROM scratch
+            ADD filesystem.tar
+            FROM img:1.0
+            CMD echo hello
+            """),
+            dedent("""\
+            FROM scratch
+            ADD filesystem.tar
+            FROM img@sha256:12345
+            CMD echo hello
+            """),
+        ),
+    ],
+)
+def test_ignore_custom_parent_image(
+    updated_df_images, dockerfile, expected_dockerfile, workflow: DockerBuildWorkflow
+):
+    """Test plugin works well after add_filesystem plugin run."""
+    # Initialize firstly, otherwise the next __setitem__ call will fail.
+    workflow.data.dockerfile_images = DockerfileImages(
+        [pullable for pullable, _ in updated_df_images]
+    )
+
+    for pullable, local_parent in updated_df_images:
+        if local_parent is not None:
+            workflow.data.dockerfile_images[pullable] = local_parent
+    workflow.build_dir.init_build_dirs(['x86_64'], workflow.source)
+
+    def _update_dockerfile(build_dir: BuildDir):
+        build_dir.dockerfile.content = dockerfile
+
+    workflow.build_dir.for_each_platform(_update_dockerfile)
+
+    run_plugin(workflow)
+
+    def _assert(build_dir: BuildDir):
+        assert build_dir.dockerfile.content.strip() == expected_dockerfile.strip()
+
+    workflow.build_dir.for_each_platform(_assert)
