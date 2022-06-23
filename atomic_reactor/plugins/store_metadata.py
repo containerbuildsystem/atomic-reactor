@@ -6,7 +6,6 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 import json
-import os
 
 from osbs.exceptions import OsbsResponseException
 
@@ -156,24 +155,6 @@ class StoreMetadataPlugin(Plugin):
 
         if media_types:
             annotations['media-types'] = json.dumps(sorted(list(set(media_types))))
-
-        tar_path = tar_size = tar_md5sum = tar_sha256sum = None
-        if len(wf_data.exported_image_sequence) > 0:
-            # OSBS2 TBD exported_image_sequence will not work for multiple platform
-            info = wf_data.exported_image_sequence[-1]
-            tar_path = info.get("path")
-            tar_size = info.get("size")
-            tar_md5sum = info.get("md5sum")
-            tar_sha256sum = info.get("sha256sum")
-        # looks like that openshift can't handle value being None (null in json)
-        if tar_size is not None and tar_md5sum is not None and tar_sha256sum is not None and \
-                tar_path is not None:
-            annotations["tar_metadata"] = json.dumps({
-                "size": tar_size,
-                "md5sum": tar_md5sum,
-                "sha256sum": tar_sha256sum,
-                "filename": os.path.basename(tar_path),
-            })
 
         self.apply_plugin_annotations(annotations)
         self.set_koji_task_annotations_whitelist(annotations)

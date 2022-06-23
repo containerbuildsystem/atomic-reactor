@@ -301,15 +301,6 @@ class ImageBuildWorkflowData(ISerializer):
 
     buildargs: Dict[str, str] = field(default_factory=dict)  # --buildargs for container build
 
-    # When an image is exported into tarball, it can then be processed by various plugins.
-    #  Each plugin that transforms the image should save it as a new file and append it to
-    #  the end of exported_image_sequence. Other plugins should then operate with last
-    #  member of this structure. Example:
-    #  [{'path': '/tmp/foo.tar', 'size': 12345678, 'md5sum': '<md5>', 'sha256sum': '<sha256>'}]
-    #  You can use util.get_exported_image_metadata to create a dict to append to this list.
-    # OSBS2 TBD exported_image_sequence will not work for multiple platform
-    exported_image_sequence: List[Dict[str, Union[str, int]]] = field(default_factory=list)
-
     # mapping of downloaded files; DON'T PUT ANYTHING BIG HERE!
     # "path/to/file" -> "content"
     files: Dict[str, str] = field(default_factory=dict)

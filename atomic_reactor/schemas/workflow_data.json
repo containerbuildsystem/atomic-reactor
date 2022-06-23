@@ -28,11 +28,6 @@
 
     "buildargs": {"type": "object"},
 
-    "exported_image_sequence": {
-      "type": "array",
-      "items": {"$ref": "#/definitions/exported_image_info"}
-    },
-
     "files": {"type": "object"},
     "image_components": {
       "type": ["object", "null"],
@@ -70,9 +65,8 @@
     "plugins_results",
     "plugins_timestamps", "plugins_durations", "plugins_errors", "build_canceled",
     "reserved_build_id", "reserved_token", "koji_source_nvr", "koji_source_source_url", "koji_source_manifest",
-    "buildargs", "exported_image_sequence", "files", "image_components", "all_yum_repourls",
-    "annotations", "parent_images_digests",
-    "koji_upload_files"
+    "buildargs", "files", "image_components", "all_yum_repourls", "annotations",
+    "parent_images_digests", "koji_upload_files"
   ],
   "additionalProperties": false,
   "definitions": {

@@ -339,7 +339,6 @@ def get_image_output(image_type, image_id, arch, pullspec):
     :return: tuple, (metadata dict, Output instance)
 
     """
-    # OSBS2 TBD exported_image_sequence will not work for multiple platform
     image_name = get_image_upload_filename(image_type, image_id, arch)
 
     readme_content = ('Archive is just a placeholder for the koji archive, if you need the '

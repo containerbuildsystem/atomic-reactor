@@ -469,7 +469,6 @@ This class defines a workflow for building images
 - builder
 - built_image_inspect
 - exit_plugins_conf
-- exported_image_sequence
 - files
 - image
 - kwargs
