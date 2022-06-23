@@ -11,7 +11,7 @@ to the more specific names given by the builder.
 """
 from atomic_reactor.dirs import BuildDir
 from atomic_reactor.plugin import Plugin
-from atomic_reactor.util import base_image_is_scratch
+from atomic_reactor.util import base_image_is_custom, base_image_is_scratch
 
 
 class BaseImageMismatch(RuntimeError):
@@ -58,7 +58,7 @@ class ChangeFromPlugin(Plugin):
         df_images = self.workflow.data.dockerfile_images
         build_base = df_images.base_image
 
-        if not df_images.base_from_scratch:
+        if not df_images.base_from_scratch and not df_images.custom_base_image:
             # do some sanity checks to defend against bugs and rogue plugins
             self._sanity_check(dfp.baseimage, build_base)
 
@@ -103,7 +103,10 @@ class ChangeFromPlugin(Plugin):
         df_images = self.workflow.data.dockerfile_images
 
         self.log.info("parent_images '%s'", df_images.keys())
-        unresolved = [key for key, val in df_images.items() if not val]
+        unresolved = [
+            key for key, val in df_images.items()
+            if not base_image_is_custom(str(key)) and not val
+        ]
         if unresolved:
             # this would generally mean check_base_image didn't run and/or
             # custom plugins modified parent_images; treat it as an error.
