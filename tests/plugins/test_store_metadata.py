@@ -192,25 +192,19 @@ def test_metadata_plugin(workflow, source_dir,
     assert is_string_type(annotations['commit_id'])
     assert annotations['commit_id'] == 'commit'
 
-    assert "base-image-id" in annotations
-    assert is_string_type(annotations['base-image-id'])
     assert "base-image-name" in annotations
     assert is_string_type(annotations['base-image-name'])
     assert "parent_images" in annotations
     assert is_string_type(annotations['parent_images'])
     if base_from_scratch:
         assert annotations["base-image-name"] == ""
-        assert annotations["base-image-id"] == ""
         assert '"scratch": "scratch"' in annotations['parent_images']
     else:
         assert annotations["base-image-name"] ==\
                workflow.data.dockerfile_images.original_base_image
-        assert annotations["base-image-id"] != ""
 
         assert (workflow.data.dockerfile_images.base_image.to_str() in
                 annotations['parent_images'])
-    assert "image-id" in annotations
-    assert is_string_type(annotations['image-id'])
     assert "filesystem" in annotations
     assert "fs_data" in annotations['filesystem']
 
@@ -265,13 +259,12 @@ def test_metadata_plugin(workflow, source_dir,
         assert 'media-types' not in annotations
 
 
-@pytest.mark.parametrize('image_id', ('c9243f9abf2b', None))
 @pytest.mark.parametrize(('verify_media_results', 'expected_media_results'), (
     ([], False),
     (["application/vnd.docker.distribution.manifest.v1+json"],
      ["application/vnd.docker.distribution.manifest.v1+json"]),
 ))
-def test_metadata_plugin_source(image_id, verify_media_results, expected_media_results, workflow):
+def test_metadata_plugin_source(verify_media_results, expected_media_results, workflow):
     sources_for_nvr = 'image_build'
     sources_for_koji_build_id = '12345'
 
@@ -287,8 +280,6 @@ def test_metadata_plugin_source(image_id, verify_media_results, expected_media_r
            .set_plugin_result(PLUGIN_FETCH_SOURCES_KEY, fetch_sources_result)
            .set_plugin_result(VerifyMediaTypesPlugin.key, verify_media_results))
     prepare(workflow)
-    if image_id:
-        workflow.data.koji_source_manifest = {'config': {'digest': image_id}}
 
     workflow.fs_watcher._data = dict(fs_data=None)
 
@@ -308,9 +299,6 @@ def test_metadata_plugin_source(image_id, verify_media_results, expected_media_r
     annotations = output[StoreMetadataPlugin.key]["annotations"]
     assert "filesystem" in annotations
     assert "fs_data" in annotations['filesystem']
-    assert "image-id" in annotations
-    assert is_string_type(annotations['image-id'])
-    assert annotations['image-id'] == (image_id if image_id else '')
     assert "digests" in annotations
     assert is_string_type(annotations['digests'])
     digests = json.loads(annotations['digests'])
@@ -368,7 +356,6 @@ def test_exit_before_dockerfile_created(workflow, source_dir):
     assert StoreMetadataPlugin.key in output
     annotations = output[StoreMetadataPlugin.key]["annotations"]
     assert annotations["base-image-name"] == ""
-    assert annotations["base-image-id"] == ""
     assert annotations["dockerfile"] == ""
 
 

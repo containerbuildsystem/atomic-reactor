@@ -261,7 +261,6 @@ class TestVerifyImageTypes(object):
 
         mock_get_retry_session()
         builder = flexmock()
-        setattr(builder, 'image_id', 'sha256:(old)')
 
         flexmock(tag_conf=tag_conf)
         wf_data = ImageBuildWorkflowData()

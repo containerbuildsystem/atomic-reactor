@@ -292,7 +292,6 @@ DEFAULT_PNC_RESPONSES = {
 
 
 class X(object):
-    image_id = "xxx"
     base_image = ImageName.parse("fedora/jboss")
     set_base_image = flexmock()
 
