@@ -409,9 +409,8 @@ def get_output(workflow: DockerBuildWorkflow,
         imageutil = workflow.imageutil
         image_id = imageutil.get_inspect_for_image(pullspec, platform=platform)['Id']
 
-        parent_id = None
-        if not workflow.data.dockerfile_images.base_from_scratch:
-            parent_id = imageutil.base_image_inspect(platform)['Id']
+        inspect = imageutil.base_image_inspect(platform)
+        parent_id = inspect['Id'] if inspect else None
 
         image_archive = str(workflow.build_dir.platform_dir(platform).exported_squashed_image)
         layer_sizes = imageutil.get_uncompressed_image_layer_sizes(image_archive)
@@ -479,7 +478,7 @@ def get_output(workflow: DockerBuildWorkflow,
     if not source_build:
         metadata['components'] = get_image_components(workflow.data, platform)
 
-        if not workflow.data.dockerfile_images.base_from_scratch:
+        if parent_id is not None:
             metadata['extra']['docker']['parent_id'] = parent_id
 
     # Add the 'docker save' image to the output
