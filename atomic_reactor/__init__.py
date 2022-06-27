@@ -20,14 +20,6 @@ from osbs.constants import ATOMIC_REACTOR_LOGGING_FMT, USER_WARNING_LEVEL
 from osbs.utils import user_warning_log_handler
 
 
-class ArchFormatter(logging.Formatter):
-    def format(self, record):
-        if not hasattr(record, 'arch'):
-            record.arch = '-'
-
-        return super(ArchFormatter, self).format(record)
-
-
 class EncodedStream(object):
     # The point of this class is to force python to enocde UTF-8
     # over stderr.  Normal techniques were not working, so we dup
@@ -78,7 +70,7 @@ def set_logging(name="atomic_reactor", level=logging.DEBUG, handler=None):
         handler.setLevel(logging.DEBUG)
 
         # create formatter
-        formatter = ArchFormatter(ATOMIC_REACTOR_LOGGING_FMT)
+        formatter = logging.Formatter(ATOMIC_REACTOR_LOGGING_FMT)
 
         # add formatter to ch
         handler.setFormatter(formatter)
