@@ -156,39 +156,45 @@ def test_check_and_set_platforms(workflow, source_dir, caplog,
 
     runner = env.create_runner()
 
-    plugin_result = runner.run()
     if platforms:
+        plugin_result = runner.run()
         koji_msg = "Koji platforms are {0}".format(sorted(platforms.keys()))
         assert koji_msg in caplog.text
         assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
         assert sorted(plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]) == sorted(result)
     else:
-        assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] is None
-        assert "No platforms found in koji target" in caplog.text
+        with pytest.raises(Exception):
+            runner.run()
 
 
 @pytest.mark.parametrize(('labels', 'platforms', 'user_platforms', 'platform_only',
                           'result'), [
     ({}, None,
-     None, '', None),
+     None, '', 'koji_empty'),
     ({}, {'x86_64': True, 'arm64': True},
      ['spam', 'bacon'], '', ['arm64', 'x86_64']),
     ({'isolated': True}, {'spam': True, 'bacon': True},
-     ['x86_64', 'arm64'], '', ['arm64', 'x86_64']),
+     ['x86_64', 'arm64'], '', 'empty'),
     ({'isolated': True}, {'x86_64': True, 'arm64': True},
      None, '', ['arm64', 'x86_64']),
     ({'isolated': True}, None,
-     ['x86_64', 'arm64'], '', None),
+     ['x86_64', 'arm64'], '', 'koji_empty'),
     ({'scratch': True}, {'spam': True, 'bacon': True},
-     ['x86_64', 'arm64'], '', ['arm64', 'x86_64']),
+     ['x86_64', 'arm64'], '', 'empty'),
     ({'scratch': True}, {'x86_64': True, 'arm64': True},
      None, '', ['arm64', 'x86_64']),
     ({'scratch': True}, None,
-     ['x86_64', 'arm64'], '', None),
+     ['x86_64', 'arm64'], '', 'koji_empty'),
     ({'scratch': True}, {'x86_64': True, 'arm64': True},
      ['x86_64', 'arm64'], 'x86_64', ['x86_64']),
+    ({'scratch': True}, {'x86_64': True, 'arm64': False},
+     ['x86_64', 'arm64'], 'x86_64', 'disabled'),
     ({'scratch': True}, {'x86_64': True, 'arm64': True, 's390x': True},
      ['x86_64', 'arm64'], 'x86_64', ['x86_64', 'arm64']),
+    ({'scratch': True}, {'x86_64': True, 'arm64': True, 's390x': True},
+     ['x86_64', 'arm64', 'ppc64le'], 'x86_64', ['x86_64', 'arm64']),
+    ({'scratch': True}, {'x86_64': False, 'arm64': True, 's390x': True},
+     ['x86_64', 'arm64'], 'x86_64', 'disabled'),
 ])
 def test_check_isolated_or_scratch(workflow, source_dir, caplog,
                                    labels, platforms, user_platforms, platform_only,
@@ -207,23 +213,35 @@ def test_check_isolated_or_scratch(workflow, source_dir, caplog,
 
     runner = env.create_runner()
 
-    plugin_result = runner.run()
-    if platforms:
-        koji_msg = "Koji platforms are {0}".format(sorted(platforms.keys()))
-        assert koji_msg in caplog.text
-        diffplat = user_platforms and set(platforms.keys()) != set(user_platforms)
-        if labels and diffplat:
-            sort_platforms = sorted(user_platforms)
-            user_msg = "Received user specified platforms {0}".format(sort_platforms)
-            assert user_msg in caplog.text
-    else:
-        assert "No platforms found in koji target" in caplog.text
+    if not isinstance(result, list):
+        with pytest.raises(Exception) as e:
+            runner.run()
 
-    if result:
+        msg = 'bla'
+        if result == 'disabled':
+            msg = 'Platforms specified in config map, but have all remote hosts disabled'
+        elif result == 'empty':
+            msg = 'No platforms to build for'
+        elif result == 'koji_empty':
+            msg = 'No platforms found in koji target'
+        assert msg in str(e.value)
+
+    else:
+        plugin_result = runner.run()
+        if platforms:
+            koji_msg = "Koji platforms are {0}".format(sorted(platforms.keys()))
+            assert koji_msg in caplog.text
+            diffplat = user_platforms and set(platforms.keys()) != set(user_platforms)
+            if labels and diffplat:
+                sort_platforms = sorted(user_platforms)
+                user_msg = "Received user specified platforms {0}".format(sort_platforms)
+                assert user_msg in caplog.text
+        else:
+            assert "No platforms found in koji target" in caplog.text
+
+    if isinstance(result, list):
         assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
         assert sorted(plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]) == sorted(result)
-    else:
-        assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] is None
 
 
 @pytest.mark.parametrize(('platforms', 'platform_only', 'result'), [
@@ -282,7 +300,7 @@ def test_check_and_set_platforms_no_platforms_in_limits(
         runner.run()
 
     assert f"platforms in limits : {[]}" in caplog.text
-    assert "platforms in limits are empty" in caplog.text
+    assert "final platforms are empty" in caplog.text
     assert "No platforms to build for" in str(e.value)
 
 
@@ -312,7 +330,7 @@ def test_platforms_from_cluster_config(workflow, source_dir,
 
 
 @pytest.mark.parametrize(('koji_platforms', 'cluster_platforms', 'result', 'skips', 'fails'), [
-    (None, None, None, None, None),
+    (None, None, None, None, 'koji_empty'),
     (['x86_64'], None, None, None, 'no_platforms'),
     (['x86_64'], {'ppc64le': True}, None, None, 'no_platforms'),
     (['x86_64', 'ppc64le'], {'x86_64': True, 'ppc64le': True}, ['x86_64', 'ppc64le'], None, None),
@@ -346,6 +364,8 @@ def test_disabled_clusters(workflow, source_dir, caplog, koji_platforms,
             msg = 'No platforms to build for'
         elif fails == 'disabled':
             msg = 'Platforms specified in config map, but have all remote hosts disabled'
+        elif fails == 'koji_empty':
+            msg = 'No platforms found in koji target'
         assert msg in str(e.value)
     else:
         plugin_result = runner.run()
