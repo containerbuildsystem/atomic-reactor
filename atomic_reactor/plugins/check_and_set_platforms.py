@@ -58,6 +58,7 @@ class CheckAndSetPlatformsPlugin(Plugin):
         run the plugin
         """
         user_platforms: Optional[List[str]] = self.workflow.user_params.get("platforms")
+        user_platforms_override = False
 
         if self.koji_target:
             koji_session = get_koji_session(self.workflow.conf)
@@ -68,21 +69,17 @@ class CheckAndSetPlatformsPlugin(Plugin):
             koji_build_conf = koji_session.getBuildConfig(build_tag, event=event_id)
             koji_platforms = koji_build_conf['arches']
             if not koji_platforms:
-                self.log.info("No platforms found in koji target")
-                return None
+                raise RuntimeError("No platforms found in koji target")
             platforms = koji_platforms.split()
             self.log.info("Koji platforms are %s", sorted(platforms))
 
             if is_scratch_build(self.workflow) or is_isolated_build(self.workflow):
                 override_platforms = set(user_platforms or [])
                 if override_platforms and override_platforms != set(platforms):
-                    sorted_platforms = sorted(override_platforms)
-                    self.log.info("Received user specified platforms %s", sorted_platforms)
+                    user_platforms_override = True
+                    platforms = sorted(override_platforms)
+                    self.log.info("Received user specified platforms %s", platforms)
                     self.log.info("Using them instead of koji platforms")
-                    # platforms from user params do not match platforms from koji target
-                    # that almost certainly means they were overridden and should be used
-                    self.workflow.build_dir.init_build_dirs(sorted_platforms, self.workflow.source)
-                    return sorted_platforms
         else:
             platforms = user_platforms
             self.log.info(
@@ -97,6 +94,7 @@ class CheckAndSetPlatformsPlugin(Plugin):
         remote_host_pools = self.workflow.conf.remote_hosts.get("pools", {})
         enabled_platforms = []
         defined_but_disabled = []
+        undefined_platforms = []
 
         def has_enabled_hosts(platform: str) -> bool:
             platform_hosts = remote_host_pools.get(platform, {})
@@ -108,6 +106,7 @@ class CheckAndSetPlatformsPlugin(Plugin):
             elif p in remote_host_pools:
                 defined_but_disabled.append(p)
             else:
+                undefined_platforms.append(p)
                 self.log.warning("No remote hosts found for platform '%s' in "
                                  "reactor config map, skipping", p)
         if defined_but_disabled:
@@ -115,12 +114,17 @@ class CheckAndSetPlatformsPlugin(Plugin):
                   ' {}'.format(defined_but_disabled)
             raise RuntimeError(msg)
 
-        final_platforms = self._limit_platforms(enabled_platforms)
-        self.log.info("platforms in limits : %s", final_platforms)
-        if not final_platforms:
-            self.log.error("platforms in limits are empty")
+        if user_platforms_override:
+            final_platforms = platforms
+        else:
+            final_platforms = self._limit_platforms(enabled_platforms)
+            self.log.info("platforms in limits : %s", final_platforms)
+
+        final_defined = list(set(final_platforms) - set(undefined_platforms))
+        if not final_defined:
+            self.log.error("final platforms are empty")
             raise RuntimeError("No platforms to build for")
 
-        self.workflow.build_dir.init_build_dirs(final_platforms, self.workflow.source)
+        self.workflow.build_dir.init_build_dirs(final_defined, self.workflow.source)
 
-        return final_platforms
+        return final_defined
