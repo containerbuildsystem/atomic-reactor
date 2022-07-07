@@ -84,18 +84,6 @@ class StoreMetadataPlugin(Plugin):
 
         return data
 
-    def set_koji_task_annotations_whitelist(self, annotations):
-        """Whitelist annotations to be included in koji task output
-
-        Allow annotations whose names are listed in task_annotations_whitelist
-        koji's configuration to be included in the build_annotations.json file,
-        which will be attached in the koji task output.
-        """
-        koji_config = self.workflow.conf.koji
-        whitelist = koji_config.get('task_annotations_whitelist')
-        if whitelist:
-            annotations['koji_task_annotations_whitelist'] = json.dumps(whitelist)
-
     def _update_annotations(self, annotations, updates):
         if updates:
             updates = {key: json.dumps(value) for key, value in updates.items()}
@@ -157,7 +145,6 @@ class StoreMetadataPlugin(Plugin):
             annotations['media-types'] = json.dumps(sorted(list(set(media_types))))
 
         self.apply_plugin_annotations(annotations)
-        self.set_koji_task_annotations_whitelist(annotations)
 
         try:
             self.workflow.osbs.update_annotations_on_build(pipeline_run_name, annotations)
