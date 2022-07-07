@@ -379,41 +379,6 @@ def test_store_metadata_fail_update_annotations(workflow, source_dir, caplog):
     assert 'annotations:' in caplog.text
 
 
-@pytest.mark.parametrize('koji_conf', (
-    {},
-    {'task_annotations_whitelist': []},
-    {'task_annotations_whitelist': ['foo']},
-    ))
-def test_set_koji_annotations_whitelist(workflow, source_dir, koji_conf):
-    env = (MockEnv(workflow)
-           .for_plugin(StoreMetadataPlugin.key)
-           .set_plugin_args({"url": "http://example.com/"}))
-    prepare(workflow)
-    if koji_conf is not None:
-        workflow.conf.conf['koji'] = koji_conf
-
-    df_content = dedent('''\
-        FROM nowhere
-        RUN nothing
-        CMD cowsay moo
-        ''')
-    mock_dockerfile(workflow, df_content)
-    output = env.create_runner().run()
-    assert StoreMetadataPlugin.key in output
-    annotations = output[StoreMetadataPlugin.key]["annotations"]
-    whitelist = None
-    if koji_conf:
-        whitelist = koji_conf.get('task_annotations_whitelist')
-
-    if whitelist:
-        assert 'koji_task_annotations_whitelist' in annotations
-        assert all(entry in whitelist for entry in koji_conf['task_annotations_whitelist'])
-        assert all(entry in whitelist for entry in json.loads(
-            annotations['koji_task_annotations_whitelist']))
-    else:
-        assert 'koji_task_annotations_whitelist' not in annotations
-
-
 def test_plugin_annotations(workflow):
     env = (MockEnv(workflow)
            .for_plugin(StoreMetadataPlugin.key)
