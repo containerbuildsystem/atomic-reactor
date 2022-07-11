@@ -739,7 +739,7 @@ class RegistryClient(object):
             # you ask for an OCI manifest, the registry will try to convert the
             # v2 manifest into a v1 manifest as the default type, so the same
             # thing occurs.
-            if version != 'v2' and ex.response.status_code == requests.codes.bad_request:
+            if ex.response.status_code == requests.codes.bad_request:
                 logger.warning('Unable to fetch digest for %s, got error %s',
                                media_type, ex.response.status_code)
                 return None, saved_not_found
