@@ -91,6 +91,8 @@ class Task(abc.ABC, Generic[ParamsT]):
     """Task; the main execution unit in atomic-reactor."""
 
     ignore_sigterm: ClassVar[bool] = False
+    # Automatically save context data before exiting? (Note: do not use for parallel tasks)
+    autosave_context_data: ClassVar[bool] = True
 
     def __init__(self, params: ParamsT):
         """Initialize a Task."""
@@ -129,6 +131,5 @@ class Task(abc.ABC, Generic[ParamsT]):
 
         finally:
             signal.signal(signal.SIGTERM, signal.SIG_DFL)
-            # For whatever the reason a task fails, always write the workflow
-            # data into the data file.
-            self.workflow_data.save(self.get_context_dir())
+            if self.autosave_context_data:
+                self.workflow_data.save(self.get_context_dir())
