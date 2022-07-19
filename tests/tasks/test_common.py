@@ -212,3 +212,16 @@ class TestTask:
         signal_mock.should_receive("signal").with_args(signal.SIGTERM, signal.SIG_DFL).once()
 
         task.run()
+
+    @pytest.mark.parametrize("autosave", [True, False])
+    def test_autosave_context_data(self, autosave, params):
+
+        class SomeTask(common.Task):
+            autosave_context_data = autosave
+
+            def execute(self):
+                return None
+
+        task = SomeTask(params)
+        flexmock(task.workflow_data).should_receive("save").times(1 if autosave else 0)
+        task.run()
