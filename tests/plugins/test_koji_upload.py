@@ -306,8 +306,43 @@ def mock_environment(tmpdir, session=None, name=None,
 
     docker_reg.config = {
         'config': {'architecture': LOCAL_ARCH},
+        'rootfs': {'diff_ids': ['sha256:123456', 'sha256:abcdef']},
+        'history': [
+            {
+                'created': '2022-07-21T03:56:25.127425856Z',
+                'comment': 'Imported from -'
+            },
+            {
+                'created': '2022-07-21T03:56:25.670656065Z',
+                'created_by': '/bin/sh -c #(nop) LABEL foo=bar',
+                'empty_layer': True,
+            },
+            {
+                'created': '2022-07-21T03:58:27.587238287Z',
+                'created_by': '/bin/sh -c dnf -y upgrade',
+            },
+        ],
         'container_config': {}
     }
+    workflow.built_image_history = [
+        {
+            'Created': '2022-07-21T03:58:27Z',
+            'Created_by': '/bin/sh -c dnf -y upgrade',
+            'Size': 42024,
+        },
+        {
+            'Created': '2022-07-21T03:56:25Z',
+            # empty layer, does not create rootfs entry
+            'Created_by': '/bin/sh -c #(nop) LABEL foo=bar',
+            'Size': 0,
+        },
+        {
+            'Created': '2022-07-21T03:56:25Z',
+            'Comment': 'Imported from -',
+            # Has Size=0 but is *not* an empty layer
+            'Size': 0,
+        },
+    ]
 
     with open(os.path.join(str(tmpdir), 'image.tar.xz'), 'wt') as fp:
         fp.write('x' * 2**12)
@@ -777,6 +812,13 @@ class TestKojiUpload(object):
 
             expected_keys_set.add('digests')
             assert set(docker.keys()) == expected_keys_set
+
+            # see mock_environment
+            expected_layer_sizes = [
+                {'diff_id': 'sha256:123456', 'size': 0},
+                {'diff_id': 'sha256:abcdef', 'size': 42024},
+            ]
+            assert docker['layer_sizes'] == expected_layer_sizes
 
             assert is_string_type(docker['id'])
             repositories = docker['repositories']

@@ -650,10 +650,10 @@ def test_exceed_binary_image_size(image_size_limit, workflow):
     workflow.builder = StubInsideBuilder()
     workflow.builder.image_id = INPUT_IMAGE
     # fake layer sizes of the test image
-    workflow.layer_sizes = [
-        {'diff_id': '12345', 'size': 1000},
-        {'diff_id': '23456', 'size': 2000},
-        {'diff_id': '34567', 'size': 3000},
+    workflow.built_image_history = [
+        {'Created': '2022-07-21T11:55:24Z', 'Size': 3000},
+        {'Created': '2022-07-21T11:55:23Z', 'Size': 2000},
+        {'Created': '2022-07-21T11:55:22Z', 'Size': 1000},
     ]
 
     mock_docker()

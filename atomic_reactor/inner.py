@@ -33,8 +33,6 @@ from atomic_reactor.source import get_source_instance_for, DummySource
 from atomic_reactor.constants import (
     CONTAINER_DEFAULT_BUILD_METHOD,
     DOCKER_STORAGE_TRANSPORT_NAME,
-    INSPECT_ROOTFS,
-    INSPECT_ROOTFS_LAYERS,
     PLUGIN_BUILD_ORCHESTRATE_KEY
 )
 from atomic_reactor.util import exception_message
@@ -380,7 +378,7 @@ class DockerBuildWorkflow(object):
 
         self.builder = None
         self.built_image_inspect = None
-        self.layer_sizes = []
+        self.built_image_history = []
         self.default_image_build_method = CONTAINER_DEFAULT_BUILD_METHOD
         self.storage_transport = DOCKER_STORAGE_TRANSPORT_NAME
 
@@ -541,13 +539,7 @@ class DockerBuildWorkflow(object):
             if self.build_result.is_image_available():
                 self.built_image_inspect = self.builder.inspect_built_image()
                 history = self.builder.tasker.get_image_history(self.builder.image_id)
-                diff_ids = self.built_image_inspect[INSPECT_ROOTFS][INSPECT_ROOTFS_LAYERS]
-
-                # diff_ids is ordered oldest first
-                # history is ordered newest first
-                # We want layer_sizes to be ordered oldest first
-                self.layer_sizes = [{"diff_id": diff_id, "size": layer['Size']}
-                                    for (diff_id, layer) in zip(diff_ids, reversed(history))]
+                self.built_image_history = history
 
             try:
                 postbuild_runner.run()

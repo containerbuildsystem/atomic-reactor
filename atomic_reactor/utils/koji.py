@@ -461,6 +461,12 @@ def get_output(workflow, buildroot_id, pullspec, platform, source_build=False, l
 
     arch = os.uname()[4]
 
+    registries = workflow.push_conf.docker_registries
+    config = copy.deepcopy(registries[0].config)
+    # We don't need container_config section
+    if 'container_config' in config:
+        del config['container_config']
+
     if source_build:
         image_id = workflow.koji_source_manifest['config']['digest']
         # we are using digest from manifest, because we can't get diff_ids
@@ -479,14 +485,20 @@ def get_output(workflow, buildroot_id, pullspec, platform, source_build=False, l
         if not workflow.builder.dockerfile_images.base_from_scratch:
             parent_id = workflow.builder.base_image_inspect['Id']
 
-        layer_sizes = workflow.layer_sizes
+        diff_ids = config['rootfs']['diff_ids']
+        # diff_ids are ordered oldest to newest, history is ordered newest to oldest
+        # we want oldest to newest
+        layers = reversed(workflow.built_image_history)
+        nonempty_layers = [
+            layer
+            for layer, history_entry in zip(layers, config['history'])
+            if not history_entry.get("empty_layer")  # empty layers do not create rootfs entries
+        ]
 
-    registries = workflow.push_conf.docker_registries
-    config = copy.deepcopy(registries[0].config)
-
-    # We don't need container_config section
-    if 'container_config' in config:
-        del config['container_config']
+        layer_sizes = [
+            {"diff_id": diff_id, "size": layer['Size']}
+            for (diff_id, layer) in zip(diff_ids, nonempty_layers)
+        ]
 
     repositories, typed_digests = get_repositories_and_digests(workflow, pullspec)
 
