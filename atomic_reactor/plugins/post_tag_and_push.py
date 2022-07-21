@@ -172,7 +172,7 @@ class TagAndPushPlugin(PostBuildPlugin):
                     raise RuntimeError("Image name must not contain registry: %r" % image.registry)
 
                 if not source_docker_archive:
-                    image_size = sum(item['size'] for item in self.workflow.layer_sizes)
+                    image_size = sum(layer['Size'] for layer in self.workflow.built_image_history)
                     config_image_size = image_size_limit['binary_image']
                     # Only handle the case when size is set > 0 in config
                     if config_image_size and image_size > config_image_size:

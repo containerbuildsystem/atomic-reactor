@@ -1341,37 +1341,6 @@ def test_show_version(has_version, caplog):
     ) == has_version
 
 
-def test_layer_sizes():
-    flexmock(DockerfileParser, content='df_content')
-    this_file = inspect.getfile(PreRaises)
-    mock_docker()
-    fake_builder = MockInsideBuilder()
-    flexmock(InsideBuilder).new_instances(fake_builder)
-    watch_exit = Watcher()
-    watch_buildstep = Watcher()
-    workflow = DockerBuildWorkflow(source=SOURCE,
-                                   exit_plugins=[{'name': 'uses_source',
-                                                  'args': {
-                                                      'watcher': watch_exit,
-                                                  }}],
-                                   buildstep_plugins=[{'name': 'buildstep_watched',
-                                                       'args': {
-                                                           'watcher': watch_buildstep,
-                                                       }}],
-                                   plugin_files=[this_file])
-
-    workflow.build_docker_image()
-
-    expected = [
-        {'diff_id': u'sha256:diff_id1-oldest', 'size': 4},
-        {'diff_id': u'sha256:diff_id2', 'size': 3},
-        {'diff_id': u'sha256:diff_id3', 'size': 2},
-        {'diff_id': u'sha256:diff_id4-newest', 'size': 1}
-    ]
-
-    assert workflow.layer_sizes == expected
-
-
 @pytest.mark.parametrize('buildstep_plugins, is_orchestrator', [
     (None, False),
     ([], False),
