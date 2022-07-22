@@ -13,7 +13,6 @@ from itertools import chain
 import koji
 import os
 import time
-import logging
 from tempfile import NamedTemporaryFile
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Iterable
 
@@ -487,8 +486,7 @@ class KojiImportBase(Plugin):
         local_filename = metadata_file.name
         try:
             uploaded_filename = self.upload_file(local_filename, "metadata.json", koji_upload_dir)
-            log = logging.LoggerAdapter(self.log, {'arch': METADATA_TAG})
-            log.info(uploaded_filename)
+            self.log.info("platform:%s %s", METADATA_TAG, uploaded_filename)
         finally:
             os.unlink(local_filename)
 

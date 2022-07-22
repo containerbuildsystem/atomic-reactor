@@ -1516,14 +1516,18 @@ class TestKojiImport(object):
         runner.run()
 
         if is_scratch:
-            medata_tag = '_metadata_'
+            medata_tag = 'platform:_metadata_'
             metadata_file = 'metadata.json'
             assert metadata_file in session.uploaded_files
             data = json.loads(session.uploaded_files[metadata_file])
-            meta_rec = {x.arch: x.message for x in caplog.records if hasattr(x, 'arch')
-                        and x.arch == medata_tag}
-            assert medata_tag in meta_rec
-            assert os.path.join('upload-dir', metadata_file) == meta_rec[medata_tag]
+
+            meta_record = ''
+            for rec in caplog.records:
+                if medata_tag in rec.message:
+                    _, meta_record = rec.message.rsplit(' ', 1)
+                    break
+
+            assert os.path.join('upload-dir', metadata_file) == meta_record
         else:
             data = session.metadata
 
