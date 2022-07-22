@@ -249,7 +249,7 @@ def mock_environment(tmpdir, session=None, name=None,
                      component=None, version=None, release=None,
                      source=None, build_process_failed=False,
                      blocksize=None, task_states=None,
-                     additional_tags=None, has_config=None, scratch=False):
+                     additional_tags=None, scratch=False):
     if session is None:
         session = MockedClientSession('', task_states=None)
     if source is None:
@@ -304,11 +304,10 @@ def mock_environment(tmpdir, session=None, name=None,
         docker_reg.digests[tag] = ManifestDigest(v1='sha256:not-used',
                                                  v2=fake_digest(image))
 
-        if has_config:
-            docker_reg.config = {
-                'config': {'architecture': LOCAL_ARCH},
-                'container_config': {}
-            }
+    docker_reg.config = {
+        'config': {'architecture': LOCAL_ARCH},
+        'container_config': {}
+    }
 
     with open(os.path.join(str(tmpdir), 'image.tar.xz'), 'wt') as fp:
         fp.write('x' * 2**12)
@@ -702,8 +701,7 @@ class TestKojiUpload(object):
         for key in builder_image_id:
             assert is_string_type(builder_image_id[key])
 
-    def validate_output(self, output, has_config,
-                        base_from_scratch=False):
+    def validate_output(self, output, base_from_scratch=False):
         assert isinstance(output, dict)
         assert 'buildroot_id' in output
         assert 'filename' in output
@@ -769,15 +767,13 @@ class TestKojiUpload(object):
                 'repositories',
                 'layer_sizes',
                 'tags',
+                'config',
             }
             if base_from_scratch:
                 expected_keys_set.remove('parent_id')
                 assert 'parent_id' not in docker
             else:
                 assert is_string_type(docker['parent_id'])
-
-            if has_config:
-                expected_keys_set.add('config')
 
             expected_keys_set.add('digests')
             assert set(docker.keys()) == expected_keys_set
@@ -812,11 +808,10 @@ class TestKojiUpload(object):
             assert isinstance(tags, list)
             assert all(is_string_type(tag) for tag in tags)
 
-            if has_config:
-                config = docker['config']
-                assert isinstance(config, dict)
-                assert 'container_config' not in [x.lower() for x in config.keys()]
-                assert all(is_string_type(entry) for entry in config)
+            config = docker['config']
+            assert isinstance(config, dict)
+            assert 'container_config' not in [x.lower() for x in config.keys()]
+            assert all(is_string_type(entry) for entry in config)
 
     def test_koji_upload_import_fail(self, tmpdir, os_env, caplog):
         session = MockedClientSession('')
@@ -886,11 +881,10 @@ class TestKojiUpload(object):
         (None),
         (10485760),
     ])
-    @pytest.mark.parametrize('has_config', (True, False))
     @pytest.mark.parametrize('base_from_scratch', (True, False))
     def test_koji_upload_success(self, tmpdir,
                                  blocksize,
-                                 os_env, has_config,
+                                 os_env,
                                  base_from_scratch):
         osbs = MockedOSBS()
         session = MockedClientSession('')
@@ -907,7 +901,6 @@ class TestKojiUpload(object):
                                             version=version,
                                             release=release,
                                             blocksize=blocksize,
-                                            has_config=has_config,
                                             )
         if base_from_scratch:
             workflow.builder.set_dockerfile_images(['scratch'])
@@ -938,8 +931,7 @@ class TestKojiUpload(object):
                         if b['id'] == buildroot['id']]) == 1
 
         for output in output_files:
-            self.validate_output(output, has_config,
-                                 base_from_scratch=base_from_scratch)
+            self.validate_output(output, base_from_scratch=base_from_scratch)
             buildroot_id = output['buildroot_id']
 
             # References one of the buildroots

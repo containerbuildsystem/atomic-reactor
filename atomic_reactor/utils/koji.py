@@ -485,7 +485,7 @@ def get_output(workflow, buildroot_id, pullspec, platform, source_build=False, l
     config = copy.deepcopy(registries[0].config)
 
     # We don't need container_config section
-    if config and 'container_config' in config:
+    if 'container_config' in config:
         del config['container_config']
 
     repositories, typed_digests = get_repositories_and_digests(workflow, pullspec)
@@ -511,9 +511,6 @@ def get_output(workflow, buildroot_id, pullspec, platform, source_build=False, l
             },
         },
     })
-
-    if not config:
-        del metadata['extra']['docker']['config']
 
     if not source_build:
         metadata['components'] = get_image_components(workflow)

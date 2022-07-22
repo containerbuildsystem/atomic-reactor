@@ -252,7 +252,7 @@ def mock_environment(tmpdir, session=None, name=None,
                      component=None, version=None, release=None,
                      source=None, build_process_failed=False, build_process_canceled=False,
                      is_rebuild=True, docker_registry=True, additional_tags=None,
-                     has_config=None, add_tag_conf_primaries=True,
+                     add_tag_conf_primaries=True,
                      container_first=False, yum_repourls=None,
                      has_op_appregistry_manifests=False,
                      has_op_bundle_manifests=False,
@@ -341,11 +341,10 @@ def mock_environment(tmpdir, session=None, name=None,
             docker_reg.digests[tag] = ManifestDigest(v1='sha256:not-used',
                                                      v2=fake_digest(image))
 
-            if has_config:
-                docker_reg.config = {
-                    'config': {'architecture': 'x86_64'},
-                    'container_config': {}
-                }
+        docker_reg.config = {
+            'config': {'architecture': 'x86_64'},
+            'container_config': {}
+        }
 
     if source_build:
         exported_file_type = IMAGE_TYPE_OCI_TAR
@@ -481,6 +480,7 @@ def mock_environment(tmpdir, session=None, name=None,
                             ],
                             'parent_id': 'sha256:bf203442',
                             'id': '123456',
+                            'config': {'architecture': 'x86_64'},
                         }
                     },
                     'checksum': '58a52e6f3ed52818603c2744b4e2b0a2',
@@ -1090,7 +1090,7 @@ class TestKojiImport(object):
         assert is_string_type(osbs['build_id'])
         assert is_string_type(osbs['builder_image_id'])
 
-    def validate_output(self, output, has_config, source=False):
+    def validate_output(self, output, source=False):
         assert isinstance(output, dict)
         assert 'buildroot_id' in output
         assert 'filename' in output
@@ -1160,6 +1160,7 @@ class TestKojiImport(object):
                     'layer_sizes',
                     'repositories',
                     'id',
+                    'config',
                 }
             else:
                 expected_keys_set = {
@@ -1169,9 +1170,8 @@ class TestKojiImport(object):
                     'tags',
                     'floating_tags',
                     'unique_tags',
+                    'config',
                 }
-            if has_config:
-                expected_keys_set.add('config')
 
             assert set(docker.keys()) == expected_keys_set
 
@@ -1183,11 +1183,10 @@ class TestKojiImport(object):
             repositories_digest = list(filter(lambda repo: '@sha256' in repo, repositories))
             assert sorted(repositories_digest) == sorted(set(repositories_digest))
 
-            # if has_config:
-            #    config = docker['config']
-            #    assert isinstance(config, dict)
-            #    assert 'container_config' not in [x.lower() for x in config.keys()]
-            #    assert all(is_string_type(entry) for entry in config)
+            # config = docker['config']
+            # assert isinstance(config, dict)
+            # assert 'container_config' not in [x.lower() for x in config.keys()]
+            # assert all(is_string_type(entry) for entry in config)
 
     def test_koji_import_import_fail(self, tmpdir, os_env, caplog):  # noqa
         session = MockedClientSession('')
@@ -1354,11 +1353,9 @@ class TestKojiImport(object):
         assert AddFilesystemPlugin.key in caplog.text
 
     @pytest.mark.parametrize('blocksize', (None, 1048576))
-    @pytest.mark.parametrize(('has_config', 'is_autorebuild', 'triggered_task'), [
-        (False,
-         False, None),
-        (False,
-         True, 12345),
+    @pytest.mark.parametrize(('is_autorebuild', 'triggered_task'), [
+        (False, None),
+        (True, 12345),
     ])
     @pytest.mark.parametrize(('verify_media', 'expect_id'), (
         (['v1', 'v2', 'v2_list'], 'ab12'),
@@ -1373,7 +1370,7 @@ class TestKojiImport(object):
         (['OPEN'], False),
         (['FAILED'], True),
     ])
-    def test_koji_import_success(self, tmpdir, caplog, blocksize, os_env, has_config,
+    def test_koji_import_success(self, tmpdir, caplog, blocksize, os_env,
                                  is_autorebuild, triggered_task, verify_media, expect_id,
                                  reserved_build, build_method, task_states, skip_import):
         session = MockedClientSession('', task_states=task_states)
@@ -1388,7 +1385,6 @@ class TestKojiImport(object):
                                             component=component,
                                             version=version,
                                             release=release,
-                                            has_config=has_config,
                                             build_method=build_method)
         workflow.prebuild_results[CheckAndSetRebuildPlugin.key] = is_autorebuild
         workflow.triggered_after_koji_task = triggered_task
@@ -1519,7 +1515,7 @@ class TestKojiImport(object):
                         if b['id'] == buildroot['id']]) == 1
 
         for output in output_files:
-            self.validate_output(output, has_config)
+            self.validate_output(output)
             buildroot_id = output['buildroot_id']
 
             # References one of the buildroots
@@ -2494,7 +2490,6 @@ class TestKojiImport(object):
             assert 'pnc' not in extra['image']
 
     @pytest.mark.parametrize('blocksize', (None, 1048576))
-    @pytest.mark.parametrize('has_config', (True, False))
     @pytest.mark.parametrize(('verify_media', 'expect_id'), (
         (['v1', 'v2', 'v2_list'], 'ab12'),
         (['v1'], 'ab12'),
@@ -2510,7 +2505,7 @@ class TestKojiImport(object):
         {},
         {'custom': 'userdata'},
     ])
-    def test_koji_import_success_source(self, tmpdir, caplog, blocksize, os_env, has_config,
+    def test_koji_import_success_source(self, tmpdir, caplog, blocksize, os_env,
                                         verify_media, expect_id, reserved_build, task_states,
                                         skip_import, userdata):
         session = MockedClientSession('', task_states=task_states)
@@ -2527,7 +2522,6 @@ class TestKojiImport(object):
                                             component=component,
                                             version=version,
                                             release=release,
-                                            has_config=has_config,
                                             source_build=True)
 
         workflow.build_result = BuildResult(source_docker_archive="oci_path")
@@ -2673,7 +2667,7 @@ class TestKojiImport(object):
                         if b['id'] == buildroot['id']]) == 1
 
         for output in output_files:
-            self.validate_output(output, has_config, source=True)
+            self.validate_output(output, source=True)
             buildroot_id = output['buildroot_id']
 
             # References one of the buildroots
