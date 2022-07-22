@@ -160,7 +160,7 @@ def test_ensure_workflow_data_is_saved_in_various_conditions(
         # Start the task.run in a separate process and terminate it.
         # This simulates the Cancel behavior by TERM signal.
 
-        def _build_docker_image(self, *args, **kwargs):
+        def _build_docker_image(*args, **kwargs):
 
             def _cancel_build(*args, **kwargs):
                 raise TaskCanceledException()
@@ -180,6 +180,7 @@ def test_ensure_workflow_data_is_saved_in_various_conditions(
         time.sleep(0.3)
         proc.terminate()
 
+    time.sleep(1)
     assert context_dir.join("workflow.json").exists()
 
     wf_data = ImageBuildWorkflowData()
