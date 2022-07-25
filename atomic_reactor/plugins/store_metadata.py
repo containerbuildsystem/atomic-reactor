@@ -98,6 +98,10 @@ class StoreMetadataPlugin(Plugin):
 
         wf_data = self.workflow.data
 
+        failed, cancelled = self.workflow.check_build_outcome()
+        success = not failed and not cancelled
+        build_dir_initialized = self.workflow.build_dir.has_sources
+
         if not self.source_build:
             try:
                 commit_id = self.workflow.source.commit_id
@@ -114,19 +118,24 @@ class StoreMetadataPlugin(Plugin):
             if wf_data.dockerfile_images.base_from_scratch:
                 parent_images_strings[SCRATCH_FROM] = SCRATCH_FROM
 
-            try:
-                dockerfile = self.workflow.build_dir.any_platform.dockerfile_with_parent_env(
-                    self.workflow.imageutil.base_image_inspect()
-                )
-                dockerfile_contents = dockerfile.content
-            except FileNotFoundError:
-                dockerfile_contents = ""
+            dockerfile_contents = ""
+
+            if build_dir_initialized:
+                try:
+                    dockerfile = self.workflow.build_dir.any_platform.dockerfile_with_parent_env(
+                        self.workflow.imageutil.base_image_inspect()
+                    )
+                    dockerfile_contents = dockerfile.content
+                except FileNotFoundError:
+                    dockerfile_contents = ""
 
         annotations = {
-            'digests': json.dumps(self.get_pullspecs(self.get_digests())),
+            'digests': '[]',
             'plugins-metadata': json.dumps(self.get_plugin_metadata()),
             'filesystem': json.dumps(self.get_filesystem_metadata()),
         }
+        if success:
+            annotations['digests'] = json.dumps(self.get_pullspecs(self.get_digests()))
 
         if not self.source_build:
             annotations['dockerfile'] = dockerfile_contents
