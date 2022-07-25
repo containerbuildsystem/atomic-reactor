@@ -736,9 +736,6 @@ class TestSendMailPlugin(object):
         (flexmock(p).should_receive('_should_send')
             .with_args(False, False).and_return(True))
         flexmock(p).should_receive('_get_receivers_list').and_return(receivers)
-        flexmock(p).should_receive('_get_image_name_and_repos').and_return(('foobar',
-                                                                           ['foo/bar:baz',
-                                                                            'foo/bar:spam']))
 
         smtp_inst = SMTP()
         flexmock(smtplib).should_receive('SMTP').and_return(smtp_inst)

@@ -40,7 +40,7 @@ MOCK_DOCKERFILE = ""
 pytestmark = pytest.mark.usefixtures('user_params')
 
 
-def prepare(workflow, registry=None, no_dockerfile=True):
+def prepare(workflow, registry=None, no_dockerfile=True, init_dirs=True):
     if not registry:
         registry = LOCALHOST_REGISTRY
 
@@ -50,7 +50,8 @@ def prepare(workflow, registry=None, no_dockerfile=True):
     flexmock(OSBS, update_annotations_on_build=update_annotations_on_build)
     if no_dockerfile:
         os.remove(os.path.join(workflow.source.path, 'Dockerfile'))
-    workflow.build_dir.init_build_dirs(["x86_64"], workflow.source)
+    if init_dirs:
+        workflow.build_dir.init_build_dirs(["x86_64"], workflow.source)
     config_kwargs = {
         'namespace': workflow.namespace,
         'verify_ssl': True,
@@ -113,6 +114,8 @@ def mock_dockerfile(workflow: DockerBuildWorkflow, content: str) -> None:
     workflow.build_dir.any_platform.dockerfile_path.write_text(content, "utf-8")
 
 
+@pytest.mark.parametrize('failed', (True, False))
+@pytest.mark.parametrize('init_dirs', (True, False))
 @pytest.mark.parametrize(('help_results', 'expected_help_results', 'base_from_scratch'), (
     (None, False, False),
     ({
@@ -129,7 +132,7 @@ def mock_dockerfile(workflow: DockerBuildWorkflow, content: str) -> None:
     (["application/vnd.docker.distribution.manifest.v1+json"],
      ["application/vnd.docker.distribution.manifest.v1+json"]),
 ))
-def test_metadata_plugin(workflow, source_dir,
+def test_metadata_plugin(workflow, source_dir, failed, init_dirs,
                          help_results, expected_help_results, base_from_scratch,
                          verify_media_results, expected_media_results):
     if base_from_scratch:
@@ -140,24 +143,30 @@ def test_metadata_plugin(workflow, source_dir,
             FROM scratch
             RUN yum install -y python
             """)
+        all_parents = ['fedora', 'scratch']
     else:
         df_content = dedent("""\
             FROM fedora
             RUN yum install -y python-django
             CMD blabla
             """)
+        all_parents = ['fedora']
 
-    prepare(workflow)
-    mock_dockerfile(workflow, df_content)
+    prepare(workflow, init_dirs=init_dirs)
+    if init_dirs:
+        mock_dockerfile(workflow, df_content)
 
-    dockerfile = workflow.build_dir.any_platform.dockerfile_with_parent_env(
-        workflow.imageutil.base_image_inspect()
-    )
+        dockerfile = workflow.build_dir.any_platform.dockerfile_with_parent_env(
+            workflow.imageutil.base_image_inspect()
+        )
 
-    df_images = DockerfileImages(dockerfile.parent_images)
-    for parent in dockerfile.parent_images:
-        if parent != 'scratch':
-            df_images[parent] = "sha256:spamneggs"
+        df_images = DockerfileImages(dockerfile.parent_images)
+        for parent in dockerfile.parent_images:
+            if parent != 'scratch':
+                df_images[parent] = "sha256:spamneggs"
+    else:
+        df_images = DockerfileImages(all_parents)
+        df_images['fedora'] = "sha256:spamneggs"
 
     env = (MockEnv(workflow)
            .for_plugin(StoreMetadataPlugin.key)
@@ -165,7 +174,8 @@ def test_metadata_plugin(workflow, source_dir,
            .set_dockerfile_images(df_images)
            .set_plugin_result(RPMqaPlugin.key, "rpm1\nrpm2")
            .set_plugin_result(VerifyMediaTypesPlugin.key, verify_media_results)
-           .set_plugin_result(AddHelpPlugin.key, help_results))
+           .set_plugin_result(AddHelpPlugin.key, help_results)
+           .mock_build_outcome(failed=failed))
 
     if help_results is not None:
         workflow.data.annotations['help_file'] = help_results['help_file']
@@ -188,6 +198,10 @@ def test_metadata_plugin(workflow, source_dir,
     annotations = output[StoreMetadataPlugin.key]["annotations"]
     assert "dockerfile" in annotations
     assert is_string_type(annotations['dockerfile'])
+    if init_dirs:
+        assert annotations['dockerfile'] == df_content
+    else:
+        assert annotations['dockerfile'] == ''
     assert "commit_id" in annotations
     assert is_string_type(annotations['commit_id'])
     assert annotations['commit_id'] == 'commit'
@@ -236,8 +250,11 @@ def test_metadata_plugin(workflow, source_dir,
         "digest": DIGEST2,
         "version": "v2"
     }]
-    assert all(digest in expected for digest in digests)
-    assert all(digest in digests for digest in expected)
+    if failed:
+        assert digests == []
+    else:
+        assert all(digest in expected for digest in digests)
+        assert all(digest in digests for digest in expected)
 
     assert "plugins-metadata" in annotations
     assert "errors" in annotations["plugins-metadata"]
@@ -259,12 +276,13 @@ def test_metadata_plugin(workflow, source_dir,
         assert 'media-types' not in annotations
 
 
+@pytest.mark.parametrize('failed', (True, False))
 @pytest.mark.parametrize(('verify_media_results', 'expected_media_results'), (
     ([], False),
     (["application/vnd.docker.distribution.manifest.v1+json"],
      ["application/vnd.docker.distribution.manifest.v1+json"]),
 ))
-def test_metadata_plugin_source(verify_media_results, expected_media_results, workflow):
+def test_metadata_plugin_source(failed, verify_media_results, expected_media_results, workflow):
     sources_for_nvr = 'image_build'
     sources_for_koji_build_id = '12345'
 
@@ -278,7 +296,8 @@ def test_metadata_plugin_source(verify_media_results, expected_media_results, wo
            .for_plugin(StoreMetadataPlugin.key)
            .set_plugin_args({"url": "http://example.com/"})
            .set_plugin_result(PLUGIN_FETCH_SOURCES_KEY, fetch_sources_result)
-           .set_plugin_result(VerifyMediaTypesPlugin.key, verify_media_results))
+           .set_plugin_result(VerifyMediaTypesPlugin.key, verify_media_results)
+           .mock_build_outcome(failed=failed))
     prepare(workflow)
 
     workflow.fs_watcher._data = dict(fs_data=None)
@@ -327,8 +346,12 @@ def test_metadata_plugin_source(verify_media_results, expected_media_results, wo
         "digest": DIGEST2,
         "version": "v2"
     }]
-    assert all(digest in expected for digest in digests)
-    assert all(digest in digests for digest in expected)
+
+    if failed:
+        assert digests == []
+    else:
+        assert all(digest in expected for digest in digests)
+        assert all(digest in digests for digest in expected)
 
     assert "plugins-metadata" in annotations
     assert "errors" in annotations["plugins-metadata"]
@@ -348,7 +371,8 @@ def test_metadata_plugin_source(verify_media_results, expected_media_results, wo
 def test_exit_before_dockerfile_created(workflow, source_dir):
     env = (MockEnv(workflow)
            .for_plugin(StoreMetadataPlugin.key)
-           .set_plugin_args({"url": "http://example.com/"}))
+           .set_plugin_args({"url": "http://example.com/"})
+           .mock_build_outcome(failed=False))
     prepare(workflow, no_dockerfile=True)
     workflow.data.plugins_results = {}
 
@@ -362,7 +386,8 @@ def test_exit_before_dockerfile_created(workflow, source_dir):
 def test_store_metadata_fail_update_annotations(workflow, source_dir, caplog):
     env = (MockEnv(workflow)
            .for_plugin(StoreMetadataPlugin.key)
-           .set_plugin_args({"url": "http://example.com/"}))
+           .set_plugin_args({"url": "http://example.com/"})
+           .mock_build_outcome(failed=False))
     prepare(workflow)
     df_content = dedent("""\
         FROM fedora
@@ -382,7 +407,8 @@ def test_store_metadata_fail_update_annotations(workflow, source_dir, caplog):
 def test_plugin_annotations(workflow):
     env = (MockEnv(workflow)
            .for_plugin(StoreMetadataPlugin.key)
-           .set_plugin_args({"url": "http://example.com/"}))
+           .set_plugin_args({"url": "http://example.com/"})
+           .mock_build_outcome(failed=False))
     prepare(workflow)
     workflow.data.annotations = {'foo': {'bar': 'baz'}, 'spam': ['eggs']}
 

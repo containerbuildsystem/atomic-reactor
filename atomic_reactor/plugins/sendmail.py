@@ -150,6 +150,8 @@ class SendMailPlugin(Plugin):
         return should_send
 
     def _get_image_name_and_repos(self):
+        if not self.workflow.build_dir.has_sources:
+            return '', []
 
         dockerfile = self.workflow.build_dir.any_platform.dockerfile_with_parent_env(
             self.workflow.imageutil.base_image_inspect()
