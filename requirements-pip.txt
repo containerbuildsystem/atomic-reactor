@@ -6,7 +6,7 @@
 #
 
 # The following packages are considered to be unsafe in a requirements file:
-pip==22.1.2 \
-    --hash=sha256:6d55b27e10f506312894a87ccc59f280136bad9061719fac9101bdad5a6bce69 \
-    --hash=sha256:a3edacb89022ef5258bf61852728bf866632a394da837ca49eb4303635835f17
+pip==22.2.1 \
+    --hash=sha256:0bbbc87dfbe6eed217beff0021f8b7dea04c8f4a0baa9d31dc4cff281ffc5b2b \
+    --hash=sha256:50516e47a2b79e77446f0d05649f0d53772c192571486236b1905492bfc24bac
     # via -r requirements-pip.in
