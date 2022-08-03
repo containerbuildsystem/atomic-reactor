@@ -24,6 +24,7 @@ def params(build_dir, tmpdir) -> sources.SourceBuildTaskParams:
         namespace="test-namespace",
         pipeline_run_name='test-pipeline-run',
         user_params={},
+        task_result=None,
     )
 
 

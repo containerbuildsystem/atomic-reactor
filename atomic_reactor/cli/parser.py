@@ -173,6 +173,12 @@ def _add_common_task_args(task_parser: argparse.ArgumentParser) -> None:
         required=True,
         help="PipelineRun name to reference current PipelineRun"
     )
+    task_parser.add_argument(
+        "--task-result",
+        metavar="FILE",
+        default=None,
+        help="file to write task result",
+    )
     # Two different ways to pass user params
     userparams_ex = task_parser.add_mutually_exclusive_group()
     userparams_ex.add_argument(

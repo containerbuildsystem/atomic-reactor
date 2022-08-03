@@ -6,8 +6,10 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
+import json
 from dataclasses import dataclass
 from typing import Optional, ClassVar
+from copy import deepcopy
 
 from flexmock import flexmock
 import pytest
@@ -26,6 +28,7 @@ TASK_ARGS = {
     "config_file": "config.yaml",
     "namespace": "test-namespace",
     "pipeline_run_name": "test-pipeline-run",
+    "task_result": "results",
 }
 
 USER_PARAMS_STR = '{"a": "b"}'
@@ -65,11 +68,6 @@ class TestTaskParams:
         with pytest.raises(ValueError, match="Did not receive user params"):
             common.TaskParams.from_cli_args({**TASK_ARGS})
 
-    def test_drop_known_unset_arg(self):
-        self.mock_read_user_params()
-        with pytest.raises(TypeError, match=r"__init__\(\) missing .* 'config_file'"):
-            common.TaskParams.from_cli_args({**TASK_ARGS_WITH_USER_PARAMS, "config_file": None})
-
     def test_keep_unknown_unset_arg(self):
         self.mock_read_user_params()
         err = r"__init__\(\) got an unexpected keyword argument 'unknown'"
@@ -78,7 +76,8 @@ class TestTaskParams:
 
     def test_user_params_from_str(self):
         self.mock_read_user_params()
-        params = common.TaskParams.from_cli_args(TASK_ARGS_WITH_USER_PARAMS)
+        args = deepcopy(TASK_ARGS_WITH_USER_PARAMS)
+        params = common.TaskParams.from_cli_args(args)
         self.check_attrs(params)
 
     def test_user_params_from_file(self):
@@ -100,7 +99,8 @@ class TestTaskParams:
             b: Optional[int] = None
 
         self.mock_read_user_params("schemas/some_schema.json")
-        params = ChildTaskParams.from_cli_args({**TASK_ARGS_WITH_USER_PARAMS, "a": 1})
+        args = deepcopy(TASK_ARGS_WITH_USER_PARAMS)
+        params = ChildTaskParams.from_cli_args({**args, "a": 1})
         self.check_attrs(params)
         assert params.a == 1
         assert params.b is None
@@ -131,6 +131,7 @@ class TestTaskParams:
             namespace="test-namespace",
             pipeline_run_name="test-pipeline-run",
             user_params=user_params,
+            task_result='results',
         )
         src = params.source
 
@@ -147,6 +148,7 @@ class TestTaskParams:
             namespace="test-namespace",
             pipeline_run_name="test-pipeline-run",
             user_params={},
+            task_result='results',
         )
 
         expect_err = r"TaskParams instance has no source \(no git_uri in user params\)"
@@ -165,7 +167,8 @@ class TestTask:
             config_file="",
             namespace="test-namespace",
             pipeline_run_name='',
-            user_params={}
+            user_params={},
+            task_result=tmp_path / 'results',
         )
 
     class ConcreteTask(common.Task):
@@ -225,3 +228,29 @@ class TestTask:
         task = SomeTask(params)
         flexmock(task.workflow_data).should_receive("save").times(1 if autosave else 0)
         task.run()
+
+    @pytest.mark.parametrize("fails", [True, False])
+    def test_task_result(self, fails, params):
+
+        class SomeTask(common.Task):
+            def execute(self):
+                if fails:
+                    raise(Exception('failed'))
+                else:
+                    return 'result'
+
+        task = SomeTask(params)
+
+        if fails:
+            with pytest.raises(Exception):
+                task.run()
+        else:
+            task.run()
+
+        with open(params.task_result) as f:
+            results = f.read()
+
+        if fails:
+            assert results == "Exception('failed')"
+        else:
+            assert json.loads(results) == 'result'
