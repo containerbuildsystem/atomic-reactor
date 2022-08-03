@@ -39,7 +39,8 @@ class TestPluginBasedTask:
                                  context_dir=str(context_dir),
                                  namespace="test-namespace",
                                  pipeline_run_name='test-pipeline-run',
-                                 user_params={"a": "b"})
+                                 user_params={"a": "b"},
+                                 task_result='results')
 
         expect_source = dummy_source
         (flexmock(task_params)
@@ -134,7 +135,8 @@ def test_ensure_workflow_data_is_saved_in_various_conditions(
                         context_dir=str(context_dir),
                         namespace="test-namespace",
                         pipeline_run_name='test-pipeline-run',
-                        user_params={})
+                        user_params={},
+                        task_result='results')
     (flexmock(params)
      .should_receive("source")
      .and_return(dummy_source))
@@ -211,7 +213,8 @@ def test_workflow_data_is_restored_before_starting_to_build(build_dir, dummy_sou
                         context_dir=str(context_dir),
                         namespace="test-namespace",
                         pipeline_run_name='test-pipeline-run',
-                        user_params={})
+                        user_params={},
+                        task_result='results')
     (flexmock(params)
      .should_receive("source")
      .and_return(dummy_source))

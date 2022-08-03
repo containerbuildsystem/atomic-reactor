@@ -111,6 +111,7 @@ def base_task_params(build_dir: Path, context_dir: Path) -> Dict[str, Any]:
         "namespace": NAMESPACE,
         "pipeline_run_name": PIPELINE_RUN_NAME,
         "user_params": {},
+        "task_result": None,
     }
 
 

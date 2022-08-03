@@ -31,6 +31,7 @@ class TestCloneTask:
                          'git_ref': 'master',
                          'git_commit_depth': 1,
                          'git_branch': 'master'},
+            task_result=None,
         )
         src = params.source
 

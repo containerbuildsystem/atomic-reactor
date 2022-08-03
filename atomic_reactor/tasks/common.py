@@ -8,9 +8,10 @@ of the BSD license. See the LICENSE file for details.
 
 import abc
 import signal
-from dataclasses import dataclass, fields
+import json
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Any, ClassVar, Generic, TypeVar
+from typing import Dict, Any, ClassVar, Generic, TypeVar, Optional
 from functools import cached_property
 
 from atomic_reactor import config
@@ -19,6 +20,11 @@ from atomic_reactor import inner
 from atomic_reactor import source
 from atomic_reactor import util
 from atomic_reactor.plugin import TaskCanceledException
+
+
+def write_task_result(output_file, msg):
+    with open(output_file, 'w') as f:
+        f.write(msg)
 
 
 @dataclass(frozen=True)
@@ -33,6 +39,7 @@ class TaskParams:
     namespace: str
     pipeline_run_name: str
     user_params: Dict[str, Any]
+    task_result: Optional[str]
 
     # Note: do not give any attributes in this class default values, that would make dataclass
     #   inheritance difficult. If they should have defaults, define them in the CLI parser.
@@ -59,7 +66,6 @@ class TaskParams:
     @classmethod
     def from_cli_args(cls, args: dict):
         """Create a TaskParams instance from CLI arguments."""
-        args = cls._drop_known_unset_args(args)
         params_str = args.pop("user_params", None)
         params_file = args.pop("user_params_file", None)
 
@@ -71,17 +77,6 @@ class TaskParams:
             raise ValueError("Did not receive user params. User params are currently required.")
 
         return cls(**args, user_params=user_params)
-
-    @classmethod
-    def _drop_known_unset_args(cls, args: dict) -> dict:
-        # When an argument is not set on the CLI, argparse stores it as None. Drop those arguments
-        #   to avoid accidentally setting required attributes to None, make sure we instead get
-        #   a TypeError from __init__().
-        # Drop only arguments defined on this class (or a parent class), if an unknown argument
-        #   is received, we want a TypeError regardless of the value.
-        # The CLI should be responsible for not letting any of this happen, but let's double-check.
-        known_args = {f.name for f in fields(cls)}
-        return {k: v for k, v in args.items() if v is not None or k not in known_args}
 
 
 ParamsT = TypeVar("ParamsT", bound=TaskParams)
@@ -127,7 +122,14 @@ class Task(abc.ABC, Generic[ParamsT]):
             else:
                 signal.signal(signal.SIGTERM, self.throw_task_canceled_exception)
 
-            self.execute(*args, **kwargs)
+            result = self.execute(*args, **kwargs)
+            if self._params.task_result:
+                write_task_result(self._params.task_result, json.dumps(result))
+
+        except Exception as e:
+            if self._params.task_result:
+                write_task_result(self._params.task_result, repr(e))
+            raise e
 
         finally:
             signal.signal(signal.SIGTERM, signal.SIG_DFL)

@@ -96,6 +96,7 @@ def test_binary_container_exit(has_dockerfile, build_dir, context_dir, caplog):
     task_args["user_params"] = json.dumps({
         "git_uri": git_uri, "git_ref": "1234", "user": "osbs"
     })
+    task_args["task_result"] = None
 
     assert task.binary_container_exit(task_args) is None
 

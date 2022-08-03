@@ -25,6 +25,14 @@ spec:
       value: $(tasks.binary-container-set-results.results.koji-build-id)
     - name: remote_sources
       value: $(tasks.binary-container-set-results.results.remote_sources)
+    - name: task_build_result_x86_64
+      value: $(tasks.binary-container-build-x86-64.results.task_result)
+    - name: task_build_result_s390x
+      value: $(tasks.binary-container-build-s390x.results.task_result)
+    - name: task_build_result_ppc64le
+      value: $(tasks.binary-container-build-ppc64le.results.task_result)
+    - name: task_build_result_aarch64
+      value: $(tasks.binary-container-build-aarch64.results.task_result)
 
   tasks:
     - name: clone

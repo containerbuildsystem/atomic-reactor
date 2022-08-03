@@ -35,6 +35,7 @@ EXPECTED_ARGS = {
     "pipeline_run_name": PIPELINE_RUN_NAME,
     "user_params": None,
     "user_params_file": None,
+    "task_result": None,
 }
 EXPECTED_ARGS_BINARY_CONTAINER_BUILD = {
     **EXPECTED_ARGS,
@@ -113,6 +114,12 @@ def test_parse_args_version(capsys):
             ["task", *REQUIRED_COMMON_ARGS, "--config-file=config.yaml",
              "binary-container-postbuild"],
             {**EXPECTED_ARGS, "config_file": "config.yaml",
+             "func": task.binary_container_postbuild},
+        ),
+        (
+            ["task", *REQUIRED_COMMON_ARGS, "--task-result=result_file",
+             "binary-container-postbuild"],
+            {**EXPECTED_ARGS, "task_result": "result_file",
              "func": task.binary_container_postbuild},
         ),
         (
