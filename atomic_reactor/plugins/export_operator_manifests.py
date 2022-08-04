@@ -100,7 +100,11 @@ class ExportOperatorManifestsPlugin(Plugin):
             raise ValueError(f'Operator manifests check in built image failed: {e}') from e
 
         repo_csv: OperatorCSV = OperatorManifest.from_directory(
-            os.path.join(self.workflow.build_dir.any_platform.path, MANIFESTS_DIR_NAME)).csv
+            os.path.join(
+                self.workflow.build_dir.any_platform.path,
+                self.workflow.source.config.operator_manifests["manifests_dir"],
+            )
+        ).csv
 
         if image_csv.checksum != repo_csv.checksum:
             image_csv_filename = os.path.basename(image_csv.path)

@@ -125,6 +125,7 @@ def mock_env(workflow, has_appregistry_label=False, appregistry_label=False,
 
     env.workflow.build_dir.init_build_dirs(PLATFORMS, env.workflow.source)
     env.workflow.data.tag_conf.add_unique_image(TEST_IMAGE)
+    env.workflow.source.config.operator_manifests = {"manifests_dir": "manifests"}
 
     mock_oc_image_extract = functools.partial(extract_manifests_dir, empty=empty_archive,
                                               multiple_csv=multiple_csv, has_archive=has_archive,
