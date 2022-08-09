@@ -8,6 +8,7 @@ of the BSD license. See the LICENSE file for details.
 
 import os
 import sys
+import json
 from pathlib import Path
 from typing import List, Union
 from atomic_reactor.plugins.check_and_set_platforms import CheckAndSetPlatformsPlugin
@@ -142,10 +143,11 @@ def teardown_function(function):
     ({'x86_64': True, 'ppc64le': True},
      '', '', ['x86_64', 'ppc64le'])
 ])
-def test_check_and_set_platforms(workflow, source_dir, caplog,
+def test_check_and_set_platforms(workflow, source_dir, caplog, tmpdir,
                                  platforms, platform_exclude, platform_only, result):
     write_container_yaml(source_dir, platform_exclude, platform_only)
 
+    workflow.platforms_result = tmpdir / 'platforms_result'
     env = mock_env(workflow, source_dir)
 
     session = mock_session(platforms)
@@ -162,6 +164,11 @@ def test_check_and_set_platforms(workflow, source_dir, caplog,
         assert koji_msg in caplog.text
         assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]
         assert sorted(plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]) == sorted(result)
+
+        with open(workflow.platforms_result) as f:
+            platforms_result = json.loads(f.read())
+        assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] == platforms_result
+
     else:
         with pytest.raises(Exception):
             runner.run()

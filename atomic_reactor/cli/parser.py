@@ -82,6 +82,8 @@ def parse_args(args: Optional[Sequence[str]] = None) -> dict:
         description="Execute binary container pre-build steps.",
     )
     binary_container_prebuild.set_defaults(func=task.binary_container_prebuild)
+    binary_container_prebuild.add_argument("--platforms-result", metavar="FILE", default=None,
+                                           help="file to write final platforms result")
 
     binary_container_build = tasks.add_parser(
         "binary-container-build",
