@@ -33,6 +33,8 @@ spec:
       value: $(tasks.binary-container-build-ppc64le.results.task_result)
     - name: task_build_result_aarch64
       value: $(tasks.binary-container-build-aarch64.results.task_result)
+    - name: platforms_result
+      value: $(tasks.binary-container-prebuild.results.platforms_result)
 
   tasks:
     - name: clone

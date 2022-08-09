@@ -41,6 +41,10 @@ EXPECTED_ARGS_BINARY_CONTAINER_BUILD = {
     **EXPECTED_ARGS,
     "platform": "x86_64",
 }
+EXPECTED_ARGS_CONTAINER_PREBUILD = {
+    **EXPECTED_ARGS,
+    "platforms_result": None,
+}
 EXPECTED_ARGS_JOB = {
     "quiet": False,
     "verbose": False,
@@ -75,7 +79,7 @@ def test_parse_args_version(capsys):
         ),
         (
             ["task", *REQUIRED_COMMON_ARGS, "binary-container-prebuild"],
-            {**EXPECTED_ARGS, "func": task.binary_container_prebuild},
+            {**EXPECTED_ARGS_CONTAINER_PREBUILD, "func": task.binary_container_prebuild},
         ),
         (
             ["task", *REQUIRED_COMMON_ARGS, "binary-container-build",
@@ -102,7 +106,8 @@ def test_parse_args_version(capsys):
         (
             ["task", *REQUIRED_COMMON_ARGS, "--config-file=config.yaml",
              "binary-container-prebuild"],
-            {**EXPECTED_ARGS, "config_file": "config.yaml", "func": task.binary_container_prebuild},
+            {**EXPECTED_ARGS_CONTAINER_PREBUILD, "config_file": "config.yaml",
+             "func": task.binary_container_prebuild},
         ),
         (
             ["task", *REQUIRED_COMMON_ARGS, "--config-file=config.yaml",
@@ -121,6 +126,12 @@ def test_parse_args_version(capsys):
              "binary-container-postbuild"],
             {**EXPECTED_ARGS, "task_result": "result_file",
              "func": task.binary_container_postbuild},
+        ),
+        (
+            ["task", *REQUIRED_COMMON_ARGS, "binary-container-prebuild",
+             "--platforms-result=platforms_file"],
+            {**EXPECTED_ARGS, "platforms_result": "platforms_file",
+             "func": task.binary_container_prebuild},
         ),
         (
             ["task", *REQUIRED_COMMON_ARGS, "--config-file=config.yaml", "binary-container-exit"],

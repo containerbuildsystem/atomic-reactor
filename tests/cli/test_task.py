@@ -28,17 +28,21 @@ TASK_ARGS = {
     "config_file": "reactor-config-map.yaml",
     "user_params": '{"some_param": "some_value"}',
 }
+PRE_TASK_ARGS = {
+    **TASK_ARGS,
+    "platforms_result": 'platform_result',
+}
 
 TASK_RESULT = object()
 
 
-def mock(task_cls, init_build_dirs=False):
+def mock(task_cls, init_build_dirs=False, task_args=TASK_ARGS):
     params = flexmock()
     (
         #  mock the common TaskParams because child classes do not override from_cli_args
         flexmock(common.TaskParams)
         .should_receive("from_cli_args")
-        .with_args(TASK_ARGS)
+        .with_args(task_args)
         .and_return(params)
     )
     flexmock(task_cls).should_receive("__init__").with_args(params)
@@ -57,8 +61,8 @@ def test_source_build():
 
 
 def test_binary_container_prebuild():
-    mock(binary.BinaryPreBuildTask)
-    assert task.binary_container_prebuild(TASK_ARGS) == TASK_RESULT
+    mock(binary.BinaryPreBuildTask, task_args=PRE_TASK_ARGS)
+    assert task.binary_container_prebuild(PRE_TASK_ARGS) == TASK_RESULT
 
 
 def test_binary_container_build():

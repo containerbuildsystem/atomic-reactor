@@ -9,6 +9,7 @@ of the BSD license. See the LICENSE file for details.
 Query the koji build target, if any, to find the enabled architectures. Remove any excluded
 architectures, and return the resulting list.
 """
+import json
 from typing import List, Optional
 from atomic_reactor.plugin import Plugin
 from atomic_reactor.util import is_scratch_build, is_isolated_build, map_to_user_params
@@ -126,5 +127,9 @@ class CheckAndSetPlatformsPlugin(Plugin):
             raise RuntimeError("No platforms to build for")
 
         self.workflow.build_dir.init_build_dirs(final_defined, self.workflow.source)
+
+        if self.workflow.platforms_result:
+            with open(self.workflow.platforms_result, 'w') as f:
+                f.write(json.dumps(final_defined))
 
         return final_defined

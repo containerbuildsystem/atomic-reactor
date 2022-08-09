@@ -5,7 +5,8 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
-from atomic_reactor.tasks.binary import BinaryExitTask, BinaryPostBuildTask, BinaryPreBuildTask
+from atomic_reactor.tasks.binary import (BinaryExitTask, BinaryPostBuildTask, BinaryPreBuildTask,
+                                         PreBuildTaskParams)
 from atomic_reactor.tasks.binary_container_build import BinaryBuildTask, BinaryBuildTaskParams
 from atomic_reactor.tasks.clone import CloneTask
 from atomic_reactor.tasks.common import TaskParams
@@ -49,7 +50,7 @@ def binary_container_prebuild(task_args: dict):
 
     :param task_args: CLI arguments for a binary-container-prebuild task
     """
-    params = TaskParams.from_cli_args(task_args)
+    params = PreBuildTaskParams.from_cli_args(task_args)
     task = BinaryPreBuildTask(params)
     return task.run()
 

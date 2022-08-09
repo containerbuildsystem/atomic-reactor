@@ -465,6 +465,7 @@ class DockerBuildWorkflow(object):
         plugins_conf: Optional[List[Dict[str, Any]]] = None,
         plugin_files: Optional[List[str]] = None,
         keep_plugins_running: bool = False,
+        platforms_result: Optional[str] = None,
     ):
         """
         :param context_dir: the directory passed to task --context-dir argument.
@@ -484,6 +485,7 @@ class DockerBuildWorkflow(object):
         :param client_version: osbs-client version used to render build json
         :param bool keep_plugins_running: keep plugins running even if error is
             raised from previous one. This is passed to ``PluginsRunner`` directly.
+        :param platforms_result: path to platform results for prebuild task
         """
         self.context_dir = context_dir
         self.build_dir = build_dir
@@ -492,6 +494,7 @@ class DockerBuildWorkflow(object):
         self.pipeline_run_name = pipeline_run_name
         self.source = source or DummySource(None, None)
         self.user_params = user_params or self._default_user_params.copy()
+        self.platforms_result = platforms_result
 
         self.keep_plugins_running = keep_plugins_running
         self.plugin_files = plugin_files

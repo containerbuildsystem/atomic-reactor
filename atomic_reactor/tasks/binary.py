@@ -9,7 +9,9 @@ import logging
 import os.path
 from pathlib import Path
 from typing import Optional
+from dataclasses import dataclass
 
+from atomic_reactor import inner
 from atomic_reactor.constants import DOCKERFILE_FILENAME
 from atomic_reactor.tasks import plugin_based
 from atomic_reactor.tasks.common import TaskParams
@@ -17,7 +19,13 @@ from atomic_reactor.tasks.common import TaskParams
 logger = logging.getLogger(__name__)
 
 
-class BinaryPreBuildTask(plugin_based.PluginBasedTask[TaskParams]):
+@dataclass(frozen=True)
+class PreBuildTaskParams(TaskParams):
+    """Binary container prebuild task parameters"""
+    platforms_result: Optional[str]
+
+
+class BinaryPreBuildTask(plugin_based.PluginBasedTask[PreBuildTaskParams]):
     """Binary container pre-build task."""
 
     plugins_conf = [
@@ -47,6 +55,24 @@ class BinaryPreBuildTask(plugin_based.PluginBasedTask[TaskParams]):
         {"name": "add_buildargs_in_dockerfile"},
         {"name": "tag_from_config"},
     ]
+
+    def prepare_workflow(self) -> inner.DockerBuildWorkflow:
+        """Fully initialize the workflow instance to be used for running the list of plugins."""
+        workflow = inner.DockerBuildWorkflow(
+            context_dir=self.get_context_dir(),
+            build_dir=self.get_build_dir(),
+            data=self.workflow_data,
+            namespace=self._params.namespace,
+            pipeline_run_name=self._params.pipeline_run_name,
+            source=self._params.source,
+            user_params=self._params.user_params,
+            reactor_config_path=self._params.config_file,
+            # Set what plugins to run and how
+            plugins_conf=self.plugins_conf,
+            keep_plugins_running=self.keep_plugins_running,
+            platforms_result=self._params.platforms_result,
+        )
+        return workflow
 
 
 class BinaryPostBuildTask(plugin_based.PluginBasedTask[TaskParams]):

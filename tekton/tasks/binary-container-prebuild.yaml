@@ -24,6 +24,9 @@ spec:
     - name: ws-koji-secret  # access with $(workspaces.ws-koji-secret.path)/token
     - name: ws-reactor-config-map
 
+  results:
+    - name: platforms_result
+
   stepTemplate:
     env:
       - name: HOME
@@ -49,3 +52,4 @@ spec:
         --namespace=$(context.taskRun.namespace)
         --pipeline-run-name="$(params.pipeline-run-name)"
         binary-container-prebuild
+        --platforms-result=$(results.platforms_result.path)
