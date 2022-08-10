@@ -360,6 +360,41 @@ def test_rootbuilddir_for_all_platforms_copy_invalid_file_path(
         root.for_all_platforms_copy(creation_func)
 
 
+def test_rootbuilddir_for_all_platforms_copy_dir_with_broken_symlinks(build_dir, mock_source):
+    """
+    Test that broken symlinks inside a directory are not followed/resolved when
+    copying build_dir contents to platforms dir.
+    """
+
+    def create_dir_with_broken_symlinks_inside(build_dir: BuildDir) -> Iterable[Path]:
+        directory = build_dir.path.joinpath("dir")
+        directory.mkdir()
+
+        symlink_to_nonexistent_file = directory.joinpath("symlink.file")
+        symlink_to_nonexistent_file.symlink_to(build_dir.path / directory / "nonexistent.file")
+
+        circular_symlink_1 = directory.joinpath("circular-symlink_1.file")
+        circular_symlink_2 = directory.joinpath("circular-symlink_2.file")
+
+        circular_symlink_1.symlink_to(circular_symlink_2)
+        circular_symlink_2.symlink_to(circular_symlink_1)
+
+        return [directory]
+
+    root = RootBuildDir(build_dir)
+    platforms = ["x86_64", "ppc64le"]
+    root.init_build_dirs(platforms, mock_source)
+    root.for_all_platforms_copy(create_dir_with_broken_symlinks_inside)
+
+    for platform in platforms:
+        dir_path = root.path / platform / "dir"
+        assert {file.name for file in dir_path.iterdir()} == {
+            "symlink.file",
+            "circular-symlink_1.file",
+            "circular-symlink_2.file",
+        }
+
+
 def test_rootbuilddir_for_all_platforms_copy_fails_if_build_dirs_not_inited(build_dir):
     with pytest.raises(BuildDirIsNotInitialized, match="not initialized yet"):
         RootBuildDir(build_dir).for_all_platforms_copy(lambda path: [])
