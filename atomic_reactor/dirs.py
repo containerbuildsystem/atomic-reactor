@@ -172,7 +172,7 @@ class RootBuildDir(object):
         logger.debug("copy method used for copy sources: %s", copy_method.__name__)
 
         for platform in self.platforms:
-            copytree(src_path, self.path / platform, copy_function=copy_method)
+            copytree(src_path, self.path / platform, symlinks=True, copy_function=copy_method)
 
     @property
     def has_sources(self) -> bool:
@@ -301,10 +301,10 @@ class RootBuildDir(object):
                 dest = self.path / platform / src_file.relative_to(build_dir.path)
 
                 if src_file.is_dir():
-                    copytree(src_file, dest, copy_function=copy_method)
+                    copytree(src_file, dest, symlinks=True, copy_function=copy_method)
                 else:
                     dest.parent.mkdir(parents=True, exist_ok=True)
-                    copy_method(src_file, dest)
+                    copy_method(src_file, dest, follow_symlinks=False)
 
         return the_new_files
 
