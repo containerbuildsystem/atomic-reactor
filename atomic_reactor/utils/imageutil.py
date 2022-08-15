@@ -138,7 +138,8 @@ class ImageUtil:
         if any(Path(dst_path).iterdir()):
             raise NonEmptyDestinationError(f'the destination directory {dst_path} must be empty')
 
-        cmd = ['oc', 'image', 'extract', f'{image}', '--path', f'{src_path}:{dst_path}']
+        cmd = ['oc', 'image', 'extract', f'{image}', '--confirm', '--path',
+               f'{src_path}:{dst_path}']
 
         try:
             retries.run_cmd(cmd)

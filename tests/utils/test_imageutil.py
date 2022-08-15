@@ -194,7 +194,8 @@ class TestImageUtil:
         (
             flexmock(retries)
             .should_receive("run_cmd")
-            .with_args(['oc', 'image', 'extract', image, '--path', f'{src_path}:{dst_path}'])
+            .with_args(['oc', 'image', 'extract', image, '--confirm', '--path',
+                        f'{src_path}:{dst_path}'])
             .once()
         )
         with pytest.raises(
@@ -215,7 +216,8 @@ class TestImageUtil:
         (
             flexmock(retries)
             .should_receive("run_cmd")
-            .with_args(['oc', 'image', 'extract', image, '--path', f'{src_path}:{dst_path}'])
+            .with_args(['oc', 'image', 'extract', image, '--confirm', '--path',
+                        f'{src_path}:{dst_path}'])
             .and_raise(
                 subprocess.CalledProcessError(1, ["oc", "..."], output=b'something went wrong')
             )
@@ -244,7 +246,8 @@ class TestImageUtil:
         (
             flexmock(retries)
             .should_receive("run_cmd")
-            .with_args(['oc', 'image', 'extract', image, '--path', f'{src_path}:{dst_path}'])
+            .with_args(['oc', 'image', 'extract', image, '--confirm', '--path',
+                        f'{src_path}:{dst_path}'])
             .replace_with(mock_extract_file).once()
         )
         image_util.extract_file_from_image(image=image, src_path=src_path, dst_path=dst_path)
