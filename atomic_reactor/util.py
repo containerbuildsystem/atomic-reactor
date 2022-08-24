@@ -1389,6 +1389,9 @@ class OSBSLogs(object):
             if task_platform in logfiles:
                 log_file = logfiles[task_platform]
             else:
+                logfiles['noarch'].write(bytearray(f'{task_platform} build has started. '
+                                                   + 'Check platform specific logs\n', 'utf-8'))
+
                 log_file = NamedTemporaryFile(
                     prefix=f'{pipeline_run_name}-{filename}-{task_platform}-',
                     suffix='.log',
