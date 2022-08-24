@@ -157,6 +157,9 @@ class StoreMetadataPlugin(Plugin):
 
         try:
             self.workflow.osbs.update_annotations_on_build(pipeline_run_name, annotations)
+            self.log.debug("annotations on pipeline run '%s' were updated", pipeline_run_name)
+            self.log.debug("annotations on pipeline run are : '%s'",
+                           self.workflow.osbs.get_build_annotations(pipeline_run_name))
         except OsbsResponseException:
             self.log.debug("annotations: %r", annotations)
             raise

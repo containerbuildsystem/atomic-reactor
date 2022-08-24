@@ -47,7 +47,11 @@ def prepare(workflow, registry=None, no_dockerfile=True, init_dirs=True):
     def update_annotations_on_build(build_id, annotations):
         pass
 
+    def get_build_annotations(build_id):
+        pass
+
     flexmock(OSBS, update_annotations_on_build=update_annotations_on_build)
+    flexmock(OSBS, get_build_annotations=get_build_annotations)
     if no_dockerfile:
         os.remove(os.path.join(workflow.source.path, 'Dockerfile'))
     if init_dirs:
