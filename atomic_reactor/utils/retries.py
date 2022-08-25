@@ -50,7 +50,10 @@ def hook_log_error_response_content(response, *args, **kwargs):
     :type response: requests.Response
     """
     if 400 <= response.status_code <= 599:
-        logger.error('Error response from %s: %s', response.url, response.content)
+        logger.debug(
+            'HTTP %d response from %s: %s',
+            response.status_code, response.url, response.content
+        )
 
 
 def get_retrying_requests_session(client_statuses=HTTP_CLIENT_STATUS_RETRY,

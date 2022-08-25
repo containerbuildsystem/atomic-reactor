@@ -84,7 +84,7 @@ def test_log_error_response(http_code, caplog):
     session.get(api_url)
 
     content = json.dumps(json_data).encode()
-    expected = f"Error response from {api_url}: {content}"
+    expected = f"HTTP {http_code} response from {api_url}: {content}"
     if 400 <= http_code <= 599:
         assert expected in caplog.text
     else:
