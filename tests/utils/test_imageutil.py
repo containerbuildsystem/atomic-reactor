@@ -164,10 +164,13 @@ class TestImageUtil:
             .once()
             .and_return(registry_session)
         )
-        flexmock(util.RegistryClient).should_receive("__init__").with_args(registry_session).once()
+        (
+            flexmock(util.RegistryClient)
+            .should_receive("__init__")
+            .with_args(registry_session)
+            .once()
+        )
 
-        image_util._get_registry_client("registry.com")
-        # test caching (i.e. test that the create_from_config method is called only once)
         image_util._get_registry_client("registry.com")
 
     def test_extract_file_from_image_non_empty_dst_dir(self, tmpdir):
