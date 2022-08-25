@@ -108,7 +108,6 @@ class ImageUtil:
         client = self._get_registry_client(parsed_image.registry)
         return client.get_inspect_for_image(parsed_image, goarch)
 
-    @functools.lru_cache(maxsize=None)
     def _get_registry_client(self, registry: str) -> util.RegistryClient:
         session = util.RegistrySession.create_from_config(self._conf, registry)
         return util.RegistryClient(session)
