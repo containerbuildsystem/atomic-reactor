@@ -89,12 +89,14 @@ def get_retrying_requests_session(client_statuses=HTTP_CLIENT_STATUS_RETRY,
     max_tries=SUBPROCESS_MAX_RETRIES + 1,  # total tries is N retries + 1 initial attempt
     jitter=None,  # use deterministic backoff, do not apply random jitter
 )
-def run_cmd(cmd: List[str]) -> bytes:
+def run_cmd(cmd: List[str], cleanup_cmd: List[str] = None) -> bytes:
     """Run a subprocess command, retry on any non-zero exit status.
 
     Whenever an attempt fails, the stdout and stderr of the failed command will be logged.
     If all attempts fail, the raised exception will also provide the combined stdout and stderr
     in the `output` attribute.
+
+    If a cleanup command is specified it'll be run on exception before retry.
 
     :return: bytes, the combined stdout and stderr (if any) of the command
     """
@@ -109,6 +111,17 @@ def run_cmd(cmd: List[str]) -> bytes:
             e.stdout.decode(),
             e.stderr.decode(),
         )
+        if cleanup_cmd:
+            try:
+                logger.debug("Running %s", " ".join(cleanup_cmd))
+                subprocess.run(cleanup_cmd, check=True, capture_output=True)
+            except subprocess.CalledProcessError as c_e:
+                logger.warning(
+                    "Cleanup command: %s failed:\nSTDOUT:\n%s\nSTDERR:\n%s",
+                    cleanup_cmd[0],
+                    c_e.stdout.decode(),
+                    c_e.stderr.decode(),
+                )
         raise
 
     if process.stderr:
