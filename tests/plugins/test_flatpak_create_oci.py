@@ -558,8 +558,11 @@ def test_flatpak_create_oci(workflow, config_name, flatpak_metadata, breakage):
             skopeo_cmd = ['skopeo', 'copy', f'oci:{str(platform_dir.path)}'
                                             f'/flatpak-oci-image:app/org.gnome.eog/x86_64/stable',
                           '--format=v2s2', f'docker-archive:{platform_dir.exported_squashed_image}']
-            flexmock(retries).should_receive('run_cmd').with_args(skopeo_cmd).and_raise(
-                subprocess.CalledProcessError(1, ["skopeo", "..."], output=b'something went wrong'))
+            cleanup_cmd = ['rm', str(platform_dir.exported_squashed_image)]
+            (flexmock(retries).should_receive('run_cmd')
+                .with_args(skopeo_cmd, cleanup_cmd)
+                .and_raise(subprocess.CalledProcessError(1, ["skopeo", "..."],
+                                                         output=b'something went wrong')))
         expected_exception = 'skopeo copy failed with output:'
     else:
         assert breakage is None

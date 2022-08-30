@@ -37,9 +37,10 @@ class SourceContainerPlugin(Plugin):
         source_img = 'oci:{}'.format(image_output_dir)
         dest_img = 'docker-archive:{}'.format(output_path)
         cmd += [source_img, dest_img]
+        cleanup_cmd = ['rm', str(output_path)]
 
         try:
-            retries.run_cmd(cmd)
+            retries.run_cmd(cmd, cleanup_cmd)
         except subprocess.CalledProcessError as e:
             self.log.error("failed to save docker-archive :\n%s", e.output)
             raise

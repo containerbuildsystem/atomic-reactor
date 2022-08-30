@@ -85,9 +85,10 @@ class FlatpakCreateOciPlugin(Plugin):
 
         cmd = ['skopeo', 'copy', 'oci:{path}:{ref_name}'.format(**metadata), '--format=v2s2',
                'docker-archive:{}'.format(str(build_dir.exported_squashed_image))]
+        cleanup_cmd = ['rm', str(build_dir.exported_squashed_image)]
 
         try:
-            retries.run_cmd(cmd)
+            retries.run_cmd(cmd, cleanup_cmd)
         except subprocess.CalledProcessError as e:
             self.log.error("skopeo copy failed with output:\n%s", e.output)
             raise RuntimeError("skopeo copy failed with output:\n{}".format(e.output)) from e
