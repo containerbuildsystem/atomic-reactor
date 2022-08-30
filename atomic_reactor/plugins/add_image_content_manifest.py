@@ -22,7 +22,7 @@ from atomic_reactor.constants import (IMAGE_BUILD_INFO_DIR, INSPECT_ROOTFS,
 from atomic_reactor.config import get_cachito_session
 from atomic_reactor.dirs import BuildDir
 from atomic_reactor.plugin import Plugin
-from atomic_reactor.util import read_yaml, read_content_sets, map_to_user_params
+from atomic_reactor.util import validate_with_schema, read_content_sets, map_to_user_params
 from atomic_reactor.utils.pnc import PNCUtil
 
 
@@ -150,7 +150,8 @@ class AddImageContentManifestPlugin(Plugin):
 
     def make_icm(self, platform: str) -> dict:
         """Create the complete ICM document for the specified platform."""
-        icm = deepcopy(self._icm_base)
+        # NOTE: this is a *shallow* copy, don't modify nested data!
+        icm = self._icm_base.copy()
 
         content_sets = read_content_sets(self.workflow) or {}
         icm['content_sets'] = content_sets.get(platform, [])
@@ -158,9 +159,7 @@ class AddImageContentManifestPlugin(Plugin):
         self.log.debug('Output ICM content_sets: %s', icm['content_sets'])
         self.log.debug('Output ICM metadata: %s', icm['metadata'])
 
-        # Validate; `json.dumps()` converts `icm` to str. Confusingly, `read_yaml`
-        #     *will* validate JSON
-        read_yaml(json.dumps(icm), 'schemas/content_manifest.json')
+        validate_with_schema(icm, 'schemas/content_manifest.json')
         return icm
 
     def _write_json_file(self, icm: dict, build_dir: BuildDir) -> None:
