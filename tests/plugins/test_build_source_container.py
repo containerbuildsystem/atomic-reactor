@@ -92,12 +92,14 @@ def test_running_build(workflow, caplog,
     temp_bsi_dir = workflow.build_dir.path / 'SrcImg'
     temp_bsi_dir.mkdir()
 
-    def check_run_skopeo(args):
+    def check_run_skopeo(args, cleanup_args):
         """Mocked call to skopeo"""
         assert args[0] == 'skopeo'
         assert args[1] == 'copy'
         assert args[2] == 'oci:%s' % temp_image_output_dir
         assert args[3] == f'docker-archive:{exported_image_file}'
+        assert cleanup_args[0] == 'rm'
+        assert cleanup_args[1] == str(exported_image_file)
 
         if export_failed:
             raise subprocess.CalledProcessError(returncode=1, cmd=args, output="Failed")

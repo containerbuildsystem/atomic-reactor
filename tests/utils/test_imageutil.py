@@ -262,7 +262,8 @@ class TestImageUtil:
         (
             flexmock(retries)
             .should_receive("run_cmd")
-            .with_args(['skopeo', 'copy', f'docker://{image}', f'docker-archive:{path}'])
+            .with_args(['skopeo', 'copy', f'docker://{image}', f'docker-archive:{path}'],
+                       ['rm', path])
             .once()
         )
         image_util.download_image_archive_tarball(image=image, path=path)

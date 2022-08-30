@@ -158,8 +158,9 @@ class ImageUtil:
         :param path: str, path including the filename of the tarball
         """
         cmd = ['skopeo', 'copy', f'docker://{image}', f'docker-archive:{path}']
+        cleanup_cmd = ['rm', path]
         try:
-            retries.run_cmd(cmd)
+            retries.run_cmd(cmd, cleanup_cmd)
         except subprocess.CalledProcessError as e:
             logger.error("Image archive download failed:\n%s", e.output)
             raise
