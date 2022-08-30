@@ -136,7 +136,8 @@ def test_run_cmd_success(retries_needed, caplog):
         assert f'Backing off run_cmd(...) for {wait:.1f}s' in caplog.text
 
 
-def test_run_cmd_failure(caplog):
+@pytest.mark.parametrize('cleanup_cmd', [[], None, ['rm', 'image.tar']])
+def test_run_cmd_failure(cleanup_cmd, caplog):
     cmd = ["skopeo", "copy", "docker://a", "docker://b"]
     total_tries = SUBPROCESS_MAX_RETRIES + 1
 
@@ -149,10 +150,20 @@ def test_run_cmd_failure(caplog):
             1, cmd, output=b'', stderr=b'something went wrong')
         )
     )
+    if cleanup_cmd:
+        (
+            flexmock(subprocess)
+            .should_receive('run')
+            .with_args(cleanup_cmd, check=True, capture_output=True)
+            .times(total_tries)
+            .and_raise(subprocess.CalledProcessError(
+                1, cleanup_cmd, output=b'', stderr=b'something went wrong')
+            )
+        )
     flexmock(time).should_receive('sleep').times(SUBPROCESS_MAX_RETRIES)
 
     with pytest.raises(subprocess.CalledProcessError):
-        retries.run_cmd(cmd)
+        retries.run_cmd(cmd, cleanup_cmd)
 
     assert caplog.text.count('Running skopeo copy docker://a docker://b') == total_tries
     assert caplog.text.count(
@@ -162,6 +173,15 @@ def test_run_cmd_failure(caplog):
         'STDERR:\n'
         'something went wrong'
     ) == total_tries
+    if cleanup_cmd:
+        assert caplog.text.count('rm image.tar') == total_tries
+        assert caplog.text.count(
+            'Cleanup command: rm failed:\n'
+            'STDOUT:\n'
+            '\n'
+            'STDERR:\n'
+            'something went wrong'
+        ) == total_tries
 
     for n in range(SUBPROCESS_MAX_RETRIES):
         wait = SUBPROCESS_BACKOFF_FACTOR * 2 ** n
