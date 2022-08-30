@@ -38,10 +38,10 @@ spec:
       workingDir: $(workspaces.ws-home-dir.path)
       resources:
         requests:
-          memory: 300Mi
+          memory: 512Mi
           cpu: 250m
         limits:
-          memory: 600Mi
+          memory: 1Gi
           cpu: 395m
       script: >
         atomic-reactor -v task
