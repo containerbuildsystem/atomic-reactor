@@ -333,12 +333,15 @@ def test_unlock_host_slot(slot_content, expected_log, expected_result, caplog):
 
 
 @pytest.mark.disable_autouse
-@pytest.mark.parametrize(("slot_content", "expected_log", "expected_result"), (
-    ("", "is locked for pipelinerun pr123", True),
+@pytest.mark.parametrize(("slot_content", "expected_log", "expected_result", "failure"), (
+    ("", "is locked for pipelinerun pr123", True, None),
     ("pr124@2022-02-15T10:22:33.234234",
-     "no remote host slot available for pipelinerun pr123", False),
+     "no remote host slot available for pipelinerun pr123", False, None),
+    (None, "no remote host slot available for pipelinerun pr123", False, 'slot'),
+    ("", "Cannot find remote host resource for pipelinerun pr123",
+     False, 'lock'),
 ))
-def test_pool_lock_resource(slot_content, expected_log, expected_result, caplog):
+def test_pool_lock_resource(slot_content, expected_log, expected_result, failure, caplog):
     hosts_config = {
         "slots_dir": "/var/tmp/osbs_slots",
         "pools": {
@@ -353,6 +356,15 @@ def test_pool_lock_resource(slot_content, expected_log, expected_result, caplog)
             }
         }
     }
+
+    if failure == 'slot':
+        (flexmock(RemoteHost)
+         .should_receive('available_slots')
+         .and_raise(Exception))
+    elif failure == 'lock':
+        (flexmock(RemoteHost)
+         .should_receive('lock')
+         .and_raise(Exception))
 
     def mocked_command(cmd, *args, **kwargs):
         if cmd == "mkdir -p /var/tmp/osbs_slots":
@@ -388,6 +400,12 @@ def test_pool_lock_resource(slot_content, expected_log, expected_result, caplog)
     locked = pool.lock_resource("pr123")
     assert bool(locked) is expected_result
     assert expected_log in caplog.text
+    if failure == 'slot':
+        assert 'unable to get available slots:' in caplog.text
+    elif failure == 'lock':
+        assert 'remote-host-001: unable to lock slot 0 for pipelinerun pr123:' in caplog.text
+        assert 'remote-host-001: unable to lock slot 1 for pipelinerun pr123:' in caplog.text
+        assert 'remote-host-001: unable to lock slot 2 for pipelinerun pr123:' in caplog.text
 
 
 @pytest.mark.parametrize(("slot0", "slot1", "slot2", "available", "occupied"), (

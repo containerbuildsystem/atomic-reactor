@@ -653,9 +653,7 @@ class RemoteHostsPool:
                 hostname=hostname, username=attr["username"], ssh_keyfile=attr["auth"],
                 slots=attr.get("slots", 1), socket_path=attr["socket_path"], slots_dir=slots_dir
             )
-            # Check whether host is operational before use it
-            if host.is_operational:
-                hosts.append(host)
+            hosts.append(host)
 
         return cls(hosts, platform)
 
@@ -672,7 +670,15 @@ class RemoteHostsPool:
 
         resources = []
         for host in self.hosts:
-            available_slots = host.available_slots()
+            available_slots = []
+            try:
+                if host.is_operational:
+                    available_slots = host.available_slots()
+            except Exception as ex:
+                # Specific exceptions should be handled in nested methods
+                logger.warning("%s: unable to get available slots: %s", host.hostname, ex)
+                continue
+
             if not available_slots:
                 logger.info("%s: no available slots", host.hostname)
                 continue
