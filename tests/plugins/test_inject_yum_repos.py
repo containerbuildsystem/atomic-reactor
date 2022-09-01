@@ -764,10 +764,10 @@ def test_inject_repos(configure_ca_bundle, inherited_user, include_koji_repo, re
     # Ensure the ca_bundle PEM file is copied into build context
     flexmock(shutil).should_receive('copyfile').with_args(
         BUILDER_CA_BUNDLE,
-        (workflow.build_dir.any_platform.path / CA_BUNDLE_PEM))
+        workflow.build_dir.platform_dir('ppc64le').path / CA_BUNDLE_PEM)
     flexmock(shutil).should_receive('copyfile').with_args(
         BUILDER_CA_BUNDLE,
-        (workflow.build_dir.path / 'x86_64' / CA_BUNDLE_PEM))
+        workflow.build_dir.platform_dir('x86_64').path / CA_BUNDLE_PEM)
 
     for repofile_url, repofile_content, _ in repos:
         responses.add(responses.GET, repofile_url, body=repofile_content)
