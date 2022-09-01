@@ -70,8 +70,10 @@ def test_parse_args_version(capsys):
             {**EXPECTED_ARGS, "func": task.source_container_build},
         ),
         (
-            ["task", *REQUIRED_COMMON_ARGS, "source-container-exit"],
-            {**EXPECTED_ARGS, "func": task.source_container_exit},
+            ["task", *REQUIRED_COMMON_ARGS, "source-container-exit",
+             "--annotations-result=annotations_file"],
+            {**EXPECTED_ARGS, "annotations_result": "annotations_file",
+             "func": task.source_container_exit},
         ),
         (
             ["task", *REQUIRED_COMMON_ARGS, "clone"],
@@ -91,8 +93,10 @@ def test_parse_args_version(capsys):
             {**EXPECTED_ARGS, "func": task.binary_container_postbuild},
         ),
         (
-            ["task", *REQUIRED_COMMON_ARGS, "binary-container-exit"],
-            {**EXPECTED_ARGS, "func": task.binary_container_exit},
+            ["task", *REQUIRED_COMMON_ARGS, "binary-container-exit",
+             "--annotations-result=annotations_file"],
+            {**EXPECTED_ARGS, "annotations_result": "annotations_file",
+             "func": task.binary_container_exit},
         ),
         # all common task args
         (
@@ -134,8 +138,10 @@ def test_parse_args_version(capsys):
              "func": task.binary_container_prebuild},
         ),
         (
-            ["task", *REQUIRED_COMMON_ARGS, "--config-file=config.yaml", "binary-container-exit"],
-            {**EXPECTED_ARGS, "config_file": "config.yaml", "func": task.binary_container_exit},
+            ["task", *REQUIRED_COMMON_ARGS, "--config-file=config.yaml", "binary-container-exit",
+             "--annotations-result=annotations_file"],
+            {**EXPECTED_ARGS, "annotations_result": "annotations_file",
+             "config_file": "config.yaml", "func": task.binary_container_exit},
         ),
         (
             ["job", *REQUIRED_JOB_ARGS, "remote-hosts-unlocking-recovery"],

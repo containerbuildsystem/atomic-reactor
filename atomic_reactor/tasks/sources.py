@@ -7,7 +7,7 @@ of the BSD license. See the LICENSE file for details.
 """
 
 from dataclasses import dataclass
-from typing import ClassVar
+from typing import ClassVar, Optional
 
 from atomic_reactor import inner
 from atomic_reactor import source
@@ -28,7 +28,13 @@ class SourceBuildTaskParams(common.TaskParams):
         return source.DummySource(None, None, workdir=self.build_dir)
 
 
-class SourceBuildBaseTask(plugin_based.PluginBasedTask[SourceBuildTaskParams]):
+@dataclass(frozen=True)
+class SourceExitTaskParams(SourceBuildTaskParams):
+    """Source exit task parameters"""
+    annotations_result: Optional[str]
+
+
+class SourceBuildBaseTask(plugin_based.PluginBasedTask[common.ParamsT]):
     """Base task for defining different build phases for source container build."""
 
     def prepare_workflow(self) -> inner.DockerBuildWorkflow:
@@ -65,3 +71,8 @@ class SourceExitTask(SourceBuildBaseTask):
         {"name": "cancel_build_reservation"},
         {"name": "store_metadata"},
     ]
+
+    def prepare_workflow(self) -> inner.DockerBuildWorkflow:
+        workflow = super().prepare_workflow()
+        workflow.annotations_result = self._params.annotations_result
+        return workflow

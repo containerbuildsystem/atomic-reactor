@@ -22,6 +22,8 @@ spec:
       value: $(tasks.source-container-set-results.results.repositories)
     - name: koji-build-id
       value: $(tasks.source-container-set-results.results.koji-build-id)
+    - name: annotations
+      value: $(tasks.source-container-exit.results.annotations)
 
   tasks:
     - name: source-container-build

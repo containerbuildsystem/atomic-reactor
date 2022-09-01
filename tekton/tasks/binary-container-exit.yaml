@@ -16,6 +16,9 @@ spec:
       type: string
       description: User parameters in JSON format
 
+  results:
+    - name: annotations
+
   workspaces:
     - name: ws-build-dir
     - name: ws-context-dir
@@ -49,3 +52,4 @@ spec:
         --namespace=$(context.taskRun.namespace)
         --pipeline-run-name="$(params.pipeline-run-name)"
         binary-container-exit
+        --annotations-result=$(results.annotations.path)

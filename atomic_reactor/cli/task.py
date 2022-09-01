@@ -6,13 +6,12 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 from atomic_reactor.tasks.binary import (BinaryExitTask, BinaryPostBuildTask, BinaryPreBuildTask,
-                                         PreBuildTaskParams)
+                                         PreBuildTaskParams, BinaryExitTaskParams)
 from atomic_reactor.tasks.binary_container_build import BinaryBuildTask, BinaryBuildTaskParams
 from atomic_reactor.tasks.clone import CloneTask
 from atomic_reactor.tasks.common import TaskParams
-from atomic_reactor.tasks.sources import (
-    SourceExitTask, SourceBuildTask, SourceBuildTaskParams
-)
+from atomic_reactor.tasks.sources import (SourceExitTask, SourceBuildTask, SourceBuildTaskParams,
+                                          SourceExitTaskParams)
 
 
 def source_container_build(task_args: dict):
@@ -30,7 +29,7 @@ def source_container_exit(task_args: dict):
 
     :param task_args: CLI arguments for a source-container-exit task
     """
-    params = SourceBuildTaskParams.from_cli_args(task_args)
+    params = SourceExitTaskParams.from_cli_args(task_args)
     task = SourceExitTask(params)
     return task.run()
 
@@ -80,6 +79,6 @@ def binary_container_exit(task_args: dict):
 
     :param task_args: CLI arguments for a binary-container-exit task
     """
-    params = TaskParams.from_cli_args(task_args)
+    params = BinaryExitTaskParams.from_cli_args(task_args)
     task = BinaryExitTask(params)
     return task.run(init_build_dirs=True)

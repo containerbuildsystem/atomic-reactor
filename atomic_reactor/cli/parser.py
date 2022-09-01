@@ -68,6 +68,8 @@ def parse_args(args: Optional[Sequence[str]] = None) -> dict:
         description="Execute source container exit steps.",
     )
     source_container_exit.set_defaults(func=task.source_container_exit)
+    source_container_exit.add_argument("--annotations-result", metavar="FILE", default=None,
+                                       help="file to write annotations result")
 
     clone = tasks.add_parser(
         "clone",
@@ -107,6 +109,8 @@ def parse_args(args: Optional[Sequence[str]] = None) -> dict:
         description="Execute binary container exit steps.",
     )
     binary_container_exit.set_defaults(func=task.binary_container_exit)
+    binary_container_exit.add_argument("--annotations-result", metavar="FILE", default=None,
+                                       help="file to write annotations result")
 
     remote_hosts_unlocking_recovery = jobs.add_parser(
         "remote-hosts-unlocking-recovery",
