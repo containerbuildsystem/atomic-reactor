@@ -915,7 +915,7 @@ def test_include_koji_without_target(workflow, build_dir, caplog, target, includ
 
 
 @pytest.mark.parametrize('inject_proxy', [None, 'http://proxy.example.com'])
-def test_no_repourls(inject_proxy, workflow, build_dir):
+def test_no_repourls(inject_proxy, workflow, build_dir, caplog):
     workflow = prepare(workflow, build_dir, yum_repourls={'x86_64': []})
     (MockEnv(workflow)
      .for_plugin(InjectYumReposPlugin.key, args={'inject_proxy': inject_proxy})
@@ -923,6 +923,7 @@ def test_no_repourls(inject_proxy, workflow, build_dir):
      .run())
     assert InjectYumReposPlugin.key is not None
     assert not (workflow.build_dir.any_platform.path / RELATIVE_REPOS_PATH).exists()
+    assert "no repos to inject, exiting" in caplog.text
 
 
 @pytest.mark.parametrize('inject_proxy', [None, 'http://proxy.example.com'])
@@ -951,6 +952,34 @@ def test_single_repourl(workflow, build_dir, inject_proxy, repourl, repo_filenam
         assert 'proxy = %s\n\n' % inject_proxy in content
     else:
         assert 'proxy' not in content
+
+
+@pytest.mark.parametrize(('repourl', 'repo_filename'),
+                         [
+                             ('http://example.com/example%20repo.repo', 'example repo-a8b44.repo'),
+                         ])
+@responses.activate
+def test_some_platform_has_no_repos(workflow, build_dir, repourl, repo_filename, caplog):
+    workflow = prepare(
+        workflow, build_dir, platforms=['aarch64', 'x86_64'], yum_repourls={'x86_64': [repourl]}
+    )
+    responses.add(responses.GET, repourl, body='[repo]\n')
+
+    (MockEnv(workflow)
+     .for_plugin(InjectYumReposPlugin.key)
+     .create_runner()
+     .run())
+
+    x86_dir = workflow.build_dir.platform_dir("x86_64")
+    aarch64_dir = workflow.build_dir.platform_dir("aarch64")
+
+    assert (x86_dir.path / RELATIVE_REPOS_PATH / repo_filename).exists()
+    assert "ADD atomic-reactor-repos/* /etc/yum.repos.d" in x86_dir.dockerfile.content
+
+    assert not (aarch64_dir.path / RELATIVE_REPOS_PATH).exists()
+    assert "ADD atomic-reactor-repos/* /etc/yum.repos.d" not in aarch64_dir.dockerfile.content
+
+    assert "no repos to inject for aarch64 platform" in caplog.text
 
 
 @pytest.mark.parametrize('base_from_scratch', [True, False])

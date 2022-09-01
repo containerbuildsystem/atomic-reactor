@@ -174,14 +174,19 @@ class InjectYumReposPlugin(Plugin):
         for platform in self.platforms:
             self.yum_repos[platform].append(yum_repo)
 
-    def _inject_into_repo_files(self, build_dir: BuildDir):
+    def _inject_repo_files(self, build_dir: BuildDir) -> None:
         """Inject repo files into a relative directory inside the build context"""
+        platform_repos = self.yum_repos[build_dir.platform]
+        if not platform_repos:
+            self.log.warning("no repos to inject for %s platform", build_dir.platform)
+            return
+
         host_repos_path = build_dir.path / RELATIVE_REPOS_PATH
         self.log.info("creating directory for yum repos: %s", host_repos_path)
         os.mkdir(host_repos_path)
         allow_repo_dir_in_dockerignore(build_dir.path)
 
-        for repo in self.yum_repos[build_dir.platform]:
+        for repo in platform_repos:
             # Update every repo accordingly in a repofile
             # input_buf ---- updated ----> updated_buf
             with StringIO(repo.content.decode()) as input_buf, StringIO() as updated_buf:
@@ -196,6 +201,8 @@ class InjectYumReposPlugin(Plugin):
                                    dst_repos_dir=host_repos_path,
                                    add_hash=False)
                 yum_repo.write_content()
+
+        self._inject_into_dockerfile(build_dir)
 
     def _inject_into_dockerfile(self, build_dir: BuildDir):
         build_dir.dockerfile.add_lines(
@@ -260,14 +267,14 @@ class InjectYumReposPlugin(Plugin):
                 fetched_yum_repos[repourl] = yum_repo
 
         if not self.yum_repos:
+            self.log.info("no repos to inject, exiting")
             return
 
         self._builder_ca_bundle = self.workflow.conf.builder_ca_bundle
         if self._builder_ca_bundle:
             self._ca_bundle_pem = os.path.basename(self._builder_ca_bundle)
 
-        self.workflow.build_dir.for_each_platform(self._inject_into_repo_files)
-        self.workflow.build_dir.for_each_platform(self._inject_into_dockerfile)
+        self.workflow.build_dir.for_each_platform(self._inject_repo_files)
 
         for platform in self.platforms:
             for repo in self.yum_repos[platform]:
