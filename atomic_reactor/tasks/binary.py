@@ -25,6 +25,12 @@ class PreBuildTaskParams(TaskParams):
     platforms_result: Optional[str]
 
 
+@dataclass(frozen=True)
+class BinaryExitTaskParams(TaskParams):
+    """Binary container exit task parameters"""
+    annotations_result: Optional[str]
+
+
 class BinaryPreBuildTask(plugin_based.PluginBasedTask[PreBuildTaskParams]):
     """Binary container pre-build task."""
 
@@ -95,7 +101,7 @@ class BinaryPostBuildTask(plugin_based.PluginBasedTask[TaskParams]):
     ]
 
 
-class BinaryExitTask(plugin_based.PluginBasedTask[TaskParams]):
+class BinaryExitTask(plugin_based.PluginBasedTask[BinaryExitTaskParams]):
     """Binary container exit-build task."""
 
     keep_plugins_running = True
@@ -105,6 +111,12 @@ class BinaryExitTask(plugin_based.PluginBasedTask[TaskParams]):
         {"name": "store_metadata"},
         {"name": "sendmail"},
     ]
+
+    def prepare_workflow(self) -> inner.DockerBuildWorkflow:
+        """Fully initialize the workflow instance to be used for running the list of plugins."""
+        workflow = super().prepare_workflow()
+        workflow.annotations_result = self._params.annotations_result
+        return workflow
 
     def _output_dockerfile(self):
         dockerfile = Path(os.path.join(self._params.source.path, DOCKERFILE_FILENAME))

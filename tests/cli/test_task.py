@@ -93,6 +93,7 @@ def test_binary_container_exit(has_dockerfile, build_dir, context_dir, caplog):
      .and_return(TASK_RESULT))
 
     task_args = TASK_ARGS.copy()
+    task_args["annotations_result"] = "annotations"
     task_args["context_dir"] = str(context_dir)
     task_args["build_dir"] = str(build_dir)
     task_args["namespace"] = "test"

@@ -12,14 +12,11 @@ from datetime import datetime, timedelta
 from textwrap import dedent
 
 from flexmock import flexmock
-from osbs.api import OSBS
 import osbs.conf
-from osbs.exceptions import OsbsResponseException
 from osbs.utils import ImageName
 
 from atomic_reactor.constants import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.inner import DockerBuildWorkflow
-from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.add_help import AddHelpPlugin
 from atomic_reactor.plugins.rpmqa import RPMqaPlugin
 from atomic_reactor.plugins.store_metadata import StoreMetadataPlugin
@@ -44,14 +41,6 @@ def prepare(workflow, registry=None, no_dockerfile=True, init_dirs=True):
     if not registry:
         registry = LOCALHOST_REGISTRY
 
-    def update_annotations_on_build(build_id, annotations):
-        pass
-
-    def get_build_annotations(build_id):
-        pass
-
-    flexmock(OSBS, update_annotations_on_build=update_annotations_on_build)
-    flexmock(OSBS, get_build_annotations=get_build_annotations)
     if no_dockerfile:
         os.remove(os.path.join(workflow.source.path, 'Dockerfile'))
     if init_dirs:
@@ -136,7 +125,7 @@ def mock_dockerfile(workflow: DockerBuildWorkflow, content: str) -> None:
     (["application/vnd.docker.distribution.manifest.v1+json"],
      ["application/vnd.docker.distribution.manifest.v1+json"]),
 ))
-def test_metadata_plugin(workflow, source_dir, failed, init_dirs,
+def test_metadata_plugin(workflow, source_dir, tmpdir, failed, init_dirs,
                          help_results, expected_help_results, base_from_scratch,
                          verify_media_results, expected_media_results):
     if base_from_scratch:
@@ -157,6 +146,7 @@ def test_metadata_plugin(workflow, source_dir, failed, init_dirs,
         all_parents = ['fedora']
 
     prepare(workflow, init_dirs=init_dirs)
+    workflow.annotations_result = tmpdir / 'annotations_result'
     if init_dirs:
         mock_dockerfile(workflow, df_content)
 
@@ -213,22 +203,23 @@ def test_metadata_plugin(workflow, source_dir, failed, init_dirs,
     assert "base-image-name" in annotations
     assert is_string_type(annotations['base-image-name'])
     assert "parent_images" in annotations
-    assert is_string_type(annotations['parent_images'])
+
     if base_from_scratch:
         assert annotations["base-image-name"] == ""
-        assert '"scratch": "scratch"' in annotations['parent_images']
+        assert 'scratch' in annotations['parent_images']
+        assert annotations['parent_images']['scratch'] == 'scratch'
     else:
         assert annotations["base-image-name"] ==\
                workflow.data.dockerfile_images.original_base_image
+        assert 'fedora:latest' in annotations['parent_images']
+        assert annotations['parent_images']['fedora:latest'] ==\
+               workflow.data.dockerfile_images.base_image.to_str()
 
-        assert (workflow.data.dockerfile_images.base_image.to_str() in
-                annotations['parent_images'])
     assert "filesystem" in annotations
     assert "fs_data" in annotations['filesystem']
 
     assert "digests" in annotations
-    assert is_string_type(annotations['digests'])
-    digests = json.loads(annotations['digests'])
+    digests = annotations['digests']
     expected = [{
         "registry": LOCALHOST_REGISTRY,
         "repository": TEST_IMAGE,
@@ -265,19 +256,26 @@ def test_metadata_plugin(workflow, source_dir, failed, init_dirs,
     assert "durations" in annotations["plugins-metadata"]
     assert "timestamps" in annotations["plugins-metadata"]
 
-    plugins_metadata = json.loads(annotations["plugins-metadata"])
+    plugins_metadata = annotations["plugins-metadata"]
     assert "all_rpm_packages" in plugins_metadata["durations"]
 
     if expected_help_results is False:
         assert 'help_file' not in annotations
     else:
-        assert json.loads(annotations['help_file']) == expected_help_results
+        assert annotations['help_file'] == expected_help_results
 
     if expected_media_results:
         media_types = expected_media_results
-        assert sorted(json.loads(annotations['media-types'])) == sorted(list(set(media_types)))
+        assert sorted(annotations['media-types']) == sorted(list(set(media_types)))
     else:
         assert 'media-types' not in annotations
+
+    with open(workflow.annotations_result) as f:
+        annotations_result = json.loads(f.read())
+
+    # remove store_metadata duration as it isn't there yet when it is writing to result
+    annotations['plugins-metadata']['durations'].pop('store_metadata')
+    assert annotations['plugins-metadata'] == annotations_result['plugins-metadata']
 
 
 @pytest.mark.parametrize('failed', (True, False))
@@ -286,7 +284,8 @@ def test_metadata_plugin(workflow, source_dir, failed, init_dirs,
     (["application/vnd.docker.distribution.manifest.v1+json"],
      ["application/vnd.docker.distribution.manifest.v1+json"]),
 ))
-def test_metadata_plugin_source(failed, verify_media_results, expected_media_results, workflow):
+def test_metadata_plugin_source(failed, verify_media_results, expected_media_results,
+                                workflow, tmpdir):
     sources_for_nvr = 'image_build'
     sources_for_koji_build_id = '12345'
 
@@ -304,6 +303,7 @@ def test_metadata_plugin_source(failed, verify_media_results, expected_media_res
            .mock_build_outcome(failed=failed))
     prepare(workflow)
 
+    workflow.annotations_result = tmpdir / 'annotations_result'
     workflow.fs_watcher._data = dict(fs_data=None)
 
     initial_timestamp = datetime.now()
@@ -323,8 +323,7 @@ def test_metadata_plugin_source(failed, verify_media_results, expected_media_res
     assert "filesystem" in annotations
     assert "fs_data" in annotations['filesystem']
     assert "digests" in annotations
-    assert is_string_type(annotations['digests'])
-    digests = json.loads(annotations['digests'])
+    digests = annotations['digests']
     expected = [{
         "registry": LOCALHOST_REGISTRY,
         "repository": TEST_IMAGE,
@@ -362,14 +361,21 @@ def test_metadata_plugin_source(failed, verify_media_results, expected_media_res
     assert "durations" in annotations["plugins-metadata"]
     assert "timestamps" in annotations["plugins-metadata"]
 
-    plugins_metadata = json.loads(annotations["plugins-metadata"])
+    plugins_metadata = annotations["plugins-metadata"]
     assert PLUGIN_FETCH_SOURCES_KEY in plugins_metadata["durations"]
 
     if expected_media_results:
         media_types = expected_media_results
-        assert sorted(json.loads(annotations['media-types'])) == sorted(list(set(media_types)))
+        assert sorted(annotations['media-types']) == sorted(list(set(media_types)))
     else:
         assert 'media-types' not in annotations
+
+    with open(workflow.annotations_result) as f:
+        annotations_result = json.loads(f.read())
+
+    # remove store_metadata duration as it isn't there yet when it is writing to result
+    annotations['plugins-metadata']['durations'].pop('store_metadata')
+    assert annotations['plugins-metadata'] == annotations_result['plugins-metadata']
 
 
 def test_exit_before_dockerfile_created(workflow, source_dir):
@@ -387,27 +393,6 @@ def test_exit_before_dockerfile_created(workflow, source_dir):
     assert annotations["dockerfile"] == ""
 
 
-def test_store_metadata_fail_update_annotations(workflow, source_dir, caplog):
-    env = (MockEnv(workflow)
-           .for_plugin(StoreMetadataPlugin.key)
-           .set_plugin_args({"url": "http://example.com/"})
-           .mock_build_outcome(failed=False))
-    prepare(workflow)
-    df_content = dedent("""\
-        FROM fedora
-        RUN yum install -y python-django
-        CMD blabla
-        """)
-    mock_dockerfile(workflow, df_content)
-
-    (flexmock(OSBS)
-        .should_receive('update_annotations_on_build')
-        .and_raise(OsbsResponseException('/', 'failed', 0)))
-    with pytest.raises(PluginFailedException):
-        env.create_runner().run()
-    assert 'annotations:' in caplog.text
-
-
 def test_plugin_annotations(workflow):
     env = (MockEnv(workflow)
            .for_plugin(StoreMetadataPlugin.key)
@@ -419,5 +404,5 @@ def test_plugin_annotations(workflow):
     output = env.create_runner().run()
     annotations = output[StoreMetadataPlugin.key]["annotations"]
 
-    assert annotations['foo'] == '{"bar": "baz"}'
-    assert annotations['spam'] == '["eggs"]'
+    assert annotations['foo'] == {"bar": "baz"}
+    assert annotations['spam'] == ["eggs"]

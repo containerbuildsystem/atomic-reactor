@@ -13,7 +13,6 @@ from email.mime.base import MIMEBase
 from email import encoders
 import smtplib
 import socket
-import json
 
 from atomic_reactor.plugin import Plugin, PluginFailedException
 from atomic_reactor.plugins.koji_import import KojiImportPlugin
@@ -167,7 +166,7 @@ class SendMailPlugin(Plugin):
         if (annotation_repos := stored_data['annotations'].get('repositories')) is None:
             self.log.debug('repositories is not included in annotations.')
         else:
-            repo_data = json.loads(annotation_repos)
+            repo_data = annotation_repos
             repos.extend(repo_data.get('unique', []))
             repos.extend(repo_data.get('primary', []))
             repos.extend(repo_data.get('floating', []))

@@ -7,8 +7,6 @@ of the BSD license. See the LICENSE file for details.
 """
 import json
 
-from osbs.exceptions import OsbsResponseException
-
 from atomic_reactor.plugins.fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 from atomic_reactor.constants import PLUGIN_VERIFY_MEDIA_KEY, SCRATCH_FROM
 from atomic_reactor.plugin import Plugin
@@ -86,7 +84,6 @@ class StoreMetadataPlugin(Plugin):
 
     def _update_annotations(self, annotations, updates):
         if updates:
-            updates = {key: json.dumps(value) for key, value in updates.items()}
             annotations.update(updates)
 
     def apply_plugin_annotations(self, annotations):
@@ -130,18 +127,18 @@ class StoreMetadataPlugin(Plugin):
                     dockerfile_contents = ""
 
         annotations = {
-            'digests': '[]',
-            'plugins-metadata': json.dumps(self.get_plugin_metadata()),
-            'filesystem': json.dumps(self.get_filesystem_metadata()),
+            'digests': [],
+            'plugins-metadata': self.get_plugin_metadata(),
+            'filesystem': self.get_filesystem_metadata(),
         }
         if success:
-            annotations['digests'] = json.dumps(self.get_pullspecs(self.get_digests()))
+            annotations['digests'] = self.get_pullspecs(self.get_digests())
 
         if not self.source_build:
             annotations['dockerfile'] = dockerfile_contents
             annotations['commit_id'] = commit_id
             annotations['base-image-name'] = base_image_name
-            annotations['parent_images'] = json.dumps(parent_images_strings)
+            annotations['parent_images'] = parent_images_strings
 
         media_types = []
 
@@ -151,17 +148,16 @@ class StoreMetadataPlugin(Plugin):
             media_types += media_results
 
         if media_types:
-            annotations['media-types'] = json.dumps(sorted(list(set(media_types))))
+            annotations['media-types'] = sorted(list(set(media_types)))
 
         self.apply_plugin_annotations(annotations)
 
-        try:
-            self.workflow.osbs.update_annotations_on_build(pipeline_run_name, annotations)
-            self.log.debug("annotations on pipeline run '%s' were updated", pipeline_run_name)
-            self.log.debug("annotations on pipeline run are : '%s'",
-                           self.workflow.osbs.get_build_annotations(pipeline_run_name))
-        except OsbsResponseException:
-            self.log.debug("annotations: %r", annotations)
-            raise
+        if self.workflow.annotations_result:
+            annotations_result = {'plugins-metadata': annotations['plugins-metadata']}
+            with open(self.workflow.annotations_result, 'w') as f:
+                f.write(json.dumps(annotations_result))
+
+            self.log.debug("annotations written to result")
+        self.log.debug("annotations: %r", annotations)
 
         return {"annotations": annotations}

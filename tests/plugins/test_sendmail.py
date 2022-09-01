@@ -4,7 +4,6 @@ from collections import namedtuple
 from flexmock import flexmock
 import koji
 import pytest
-import json
 
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugin import PluginFailedException
@@ -136,7 +135,7 @@ def mock_store_metadata_results(workflow, annotations=None):
     annotations = DEFAULT_ANNOTATIONS if annotations is None else annotations
     result = {}
     if annotations:
-        result['annotations'] = {key: json.dumps(value) for key, value in annotations.items()}
+        result['annotations'] = {key: value for key, value in annotations.items()}
     workflow.data.plugins_results[StoreMetadataPlugin.key] = result
 
 
