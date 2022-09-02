@@ -1067,7 +1067,7 @@ class TestResolveComposes(object):
         yum_repourls = defaultdict(list)
         yum_repourls[ODCS_COMPOSE_DEFAULT_ARCH].append(ODCS_COMPOSE['result_repofile'])
         expected_result = {
-            'include_koji_repo': False,
+            'include_koji_repo': {ODCS_COMPOSE_DEFAULT_ARCH: False},
             'yum_repourls': yum_repourls,
             'signing_intent': expected_si,
             'signing_intent_overridden': overridden,
@@ -1436,20 +1436,31 @@ class TestResolveComposes(object):
         self.run_plugin_with_args(mocked_env, expect_error=expect_error)
 
     @pytest.mark.parametrize('parent_repourls,modules,packages,content_sets,expect_include_repo', [
-        (True, True, False, None, False),
-        (False, True, False, None, True),
-        (False, True, True, None, False),
-        (True, True, True, None, False),
-        (False, False, True, None, False),
-        (False, True, False, '{}', True),
-        (True, True, True, '{}', False),
-        (False, False, False, 'x86_64: ["spam-rpms"]', False),
-        (True, True, True, 'x86_64: ["spam-rpms"]', False),
+        (True, True, False, None, {'ppc64le': False, 'x86_64': False}),
+        (False, True, False, None, {'ppc64le': True, 'x86_64': True}),
+        (False, True, True, None, {'ppc64le': False, 'x86_64': False}),
+        (True, True, True, None, {'ppc64le': False, 'x86_64': False}),
+        (False, False, True, None, {'ppc64le': False, 'x86_64': False}),
+        (False, True, False, {}, {'ppc64le': True, 'x86_64': True}),
+        (True, True, True, {}, {'ppc64le': False, 'x86_64': False}),
+        # only x86_64 has content sets, include koji repo for ppc64le
+        (False, False, False, {'x86_64': ['spam-rpms']}, {'ppc64le': True, 'x86_64': False}),
+        # both arches have modules, only x86_64 has content sets, include koji repo for ppc64le
+        (False, True, False, {'x86_64': ['spam-rpms']}, {'ppc64le': True, 'x86_64': False}),
+        # both arches have content sets, don't include repo
+        (False, False, False,
+         {'x86_64': ['spam-rpms'], 'ppc64le': ['ham-rpms']}, {'ppc64le': False, 'x86_64': False}),
+        (True, True, True, {'x86_64': ['spam-rpms']}, {'ppc64le': False, 'x86_64': False}),
     ])
     def test_include_koji_repo(self, mocked_env, parent_repourls, modules,
                                packages, content_sets, expect_include_repo):
 
         mock_koji_parent(mocked_env, parent_repo="http://example.com/parent.repo")
+
+        arches = ['ppc64le', 'x86_64']
+        mocked_env.set_check_platforms_result(arches)
+        odcs_arches = ' '.join(arches)
+        content_set_arches = ' '.join((content_sets or {}).keys())
 
         repo_config = {
             'compose': {
@@ -1467,7 +1478,7 @@ class TestResolveComposes(object):
 
         mock_repo_config(mocked_env._tmpdir, yaml.safe_dump(repo_config))
         if content_sets:
-            mock_content_sets_config(mocked_env._tmpdir, content_sets)
+            mock_content_sets_config(mocked_env._tmpdir, yaml.safe_dump(content_sets))
 
         compose_module_id = 80
         compose_package_id = 90
@@ -1475,12 +1486,15 @@ class TestResolveComposes(object):
         custom_module_compose = deepcopy(ODCS_COMPOSE)
         custom_module_compose['source_type'] = 2  # PungiSourceType.MODULE
         custom_module_compose['id'] = compose_module_id
+        custom_module_compose['arches'] = odcs_arches
         custom_package_compose = deepcopy(ODCS_COMPOSE)
         custom_package_compose['source_type'] = 1
         custom_package_compose['id'] = compose_package_id
+        custom_package_compose['arches'] = odcs_arches
         custom_pulp_compose = deepcopy(ODCS_COMPOSE)
         custom_pulp_compose['source_type'] = 4
         custom_pulp_compose['id'] = compose_pulp_id
+        custom_pulp_compose['arches'] = content_set_arches
 
         start_chain = flexmock(ODCSClient).should_receive('start_compose')
         if packages:
@@ -1635,7 +1649,7 @@ class TestResolveComposes(object):
         plugin_result = self.run_plugin_with_args(mocked_env)
         msg = 'Aborting plugin execution: "compose" config not set and compose_ids not given'
         assert msg in (x.message for x in caplog.records)
-        assert plugin_result['include_koji_repo'] is True
+        assert plugin_result['include_koji_repo'] == {ODCS_COMPOSE_DEFAULT_ARCH: True}
         assert not any(plugin_result['yum_repourls'].values())
 
     def test_plugin_aborted_yum_repourls_include_koji_repo_false(self, mocked_env, caplog):
@@ -1651,5 +1665,5 @@ class TestResolveComposes(object):
                                                   plugin_args={'repourls': ["http://yum-repo.com"]})
         msg = 'Aborting plugin execution: "compose" config not set and compose_ids not given'
         assert msg in (x.message for x in caplog.records)
-        assert plugin_result['include_koji_repo'] is False
+        assert plugin_result['include_koji_repo'] == {ODCS_COMPOSE_DEFAULT_ARCH: False}
         assert plugin_result['yum_repourls']['x86_64'] == ["http://yum-repo.com"]

@@ -31,8 +31,10 @@ IGNORE_ABSENT_REPOS = 'ignore_absent_pulp_repos'
 
 class ResolveComposesResult(TypedDict):
     composes: List[Dict[str, Any]]
+    # list of repourls per platform
     yum_repourls: Dict[str, List[str]]
-    include_koji_repo: bool
+    # include koji repo for platform
+    include_koji_repo: Dict[str, bool]
     signing_intent: Optional[str]
     signing_intent_overridden: bool
 
@@ -83,13 +85,12 @@ class ResolveComposesPlugin(Plugin):
         self.composes_info = []
         self._parent_signing_intent = None
         self.repourls = repourls or []
-        self.has_complete_repos = len(self.repourls) > 0
         self.plugin_result = self.workflow.data.plugins_results.get(PLUGIN_KOJI_PARENT_KEY)
         self.all_compose_ids = list(self.compose_ids)
         self.new_compose_ids = []
         self.parent_compose_ids = []
         self.yum_repourls = defaultdict(list)
-        self.architectures = get_platforms(self.workflow.data)
+        self.platforms = get_platforms(self.workflow.data)
 
     def run(self) -> ResolveComposesResult:
         if self.allow_inheritance():
@@ -100,7 +101,7 @@ class ResolveComposesPlugin(Plugin):
             self.read_configs()
         except SkipResolveComposesPlugin as abort_exc:
             self.log.info('Aborting plugin execution: %s', abort_exc)
-            for arch in self.architectures:
+            for arch in self.platforms:
                 self.yum_repourls[arch].extend(self.repourls)
             return self.make_result()
 
@@ -178,8 +179,6 @@ class ResolveComposesPlugin(Plugin):
         for repo in all_yum_repos:
             if repo not in original_yum_repos:
                 self.log.info('Inheriting yum repo %s', repo)
-        if len(parent_repourls) > 0:
-            self.has_complete_repos = True
 
     def read_configs(self):
         self.odcs_config = self.workflow.conf.odcs_config
@@ -192,9 +191,7 @@ class ResolveComposesPlugin(Plugin):
 
         pulp_data = util.read_content_sets(self.workflow) or {}
 
-        platforms = get_platforms(self.workflow.data)
-        if platforms:
-            platforms = sorted(platforms)  # sorted to keep predictable for tests
+        platforms = sorted(self.platforms)  # sorted to keep predictable for tests
 
         koji_tag = None
         if self.koji_target:
@@ -287,19 +284,6 @@ class ResolveComposesPlugin(Plugin):
 
             self.composes_info.append(compose_info)
 
-            # A module compose is not standalone - it depends on packages from the
-            # virtual platform module - if no extra repourls or other composes are
-            # provided, we'll need packages from the target build tag using the
-            # 'koji' plugin.
-
-            # We assume other types of composes might provide all the packages needed -
-            # though we don't really know that for sure - a compose with packages
-            # listed might list all the packages that are needed, or might also require
-            # packages from some other source.
-
-            if compose_info['source_type'] != 2:  # PungiSourceType.MODULE
-                self.has_complete_repos = True
-
         self.all_compose_ids = [item['id'] for item in self.composes_info]
 
     def _needs_renewal(self, compose_info):
@@ -356,6 +340,27 @@ class ResolveComposesPlugin(Plugin):
             for arch in self.yum_repourls:
                 self.yum_repourls[arch].extend(noarch_repos)
 
+    def has_complete_repos(self, platform: str) -> bool:
+        # repourls are for all platforms
+        if self.repourls:
+            return True
+
+        # A module compose is not standalone - it depends on packages from the
+        # virtual platform module - if no extra repourls or other composes are
+        # provided, we'll need packages from the target build tag.
+
+        # We assume other types of composes might provide all the packages needed -
+        # though we don't really know that for sure - a compose with packages
+        # listed might list all the packages that are needed, or might also require
+        # packages from some other source.
+        return any(
+            # any compose for this platform is a non-module compose
+            compose_info['source_type'] != 2  # PungiSourceType.MODULE
+            for compose_info in self.composes_info
+            # missing 'arches' => compose for all arches
+            if ('arches' not in compose_info) or (platform in compose_info['arches'].split())
+        )
+
     def make_result(self) -> ResolveComposesResult:
         signing_intent = None
         signing_intent_overridden = False
@@ -370,7 +375,10 @@ class ResolveComposesPlugin(Plugin):
             # inherited repourls, and composed repositories is complete,
             # set the 'include_koji_repo' to True, so it can be
             # properly processed in inject_yum_repos plugin
-            'include_koji_repo': not self.has_complete_repos,
+            'include_koji_repo': {
+                platform: not self.has_complete_repos(platform)
+                for platform in self.platforms
+            },
             'signing_intent': signing_intent,
             'signing_intent_overridden': signing_intent_overridden,
         }
