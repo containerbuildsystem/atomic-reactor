@@ -117,12 +117,14 @@ class MockSource(object):
 
 
 def prepare(workflow, build_dir, inherited_user='', dockerfile=DEFAULT_DOCKERFILE, scratch=False,
-            platforms=None, include_koji_repo=False, yum_proxy=None, koji_ssl_certs=False,
+            platforms=None, include_koji_repo=None, yum_proxy=None, koji_ssl_certs=False,
             root_url=ROOT, yum_repourls=None):
     if yum_repourls is None:
         yum_repourls = {}
     if not platforms:
         platforms = ['x86_64']
+    if not include_koji_repo:
+        include_koji_repo = {platform: False for platform in platforms}
     if koji_ssl_certs:
         build_dir.joinpath("cert").write_text("cert", "utf-8")
         build_dir.joinpath("serverca").write_text("serverca", "utf-8")
@@ -136,7 +138,7 @@ def prepare(workflow, build_dir, inherited_user='', dockerfile=DEFAULT_DOCKERFIL
     workflow.build_dir.init_build_dirs(platforms, workflow.source)
     df = DockerfileParser(str(build_dir))
     workflow.data.dockerfile_images = DockerfileImages(df.parent_images)
-    if include_koji_repo:
+    if any(include_koji_repo.values()):
         session = MockedClientSession(hub='', opts=None)
         workflow.koji_session = session
         flexmock(koji,
@@ -228,7 +230,7 @@ def test_no_base_image_in_dockerfile(workflow, build_dir, configure_ca_bundle, r
     [
         # normal simplest image build
         [
-            True, '', False,
+            True, '', None,
             [
                 (
                     'http://repos.host/custom.repo',
@@ -259,7 +261,7 @@ def test_no_base_image_in_dockerfile(workflow, build_dir, configure_ca_bundle, r
             '''),
         ],
         [
-            True, '', True,
+            True, '', {'x86_64': True, 'ppc64le': True},
             [
                 (
                     'http://repos.host/custom.repo',
@@ -293,7 +295,7 @@ def test_no_base_image_in_dockerfile(workflow, build_dir, configure_ca_bundle, r
         # a multi-stage build, every non-scratch stage should be handled
         # every repo inside a repofile should have sslcacert set
         [
-            True, '', False,
+            True, '', None,
             [
                 (
                     'http://odcs.example.com/Temporary/odcs-1234.repo',
@@ -343,7 +345,7 @@ def test_no_base_image_in_dockerfile(workflow, build_dir, configure_ca_bundle, r
             '''),
         ],
         [
-            True, '', True,
+            True, '', {'x86_64': True, 'ppc64le': True},
             [
                 (
                     'http://odcs.example.com/Temporary/odcs-1234.repo',
@@ -396,7 +398,7 @@ def test_no_base_image_in_dockerfile(workflow, build_dir, configure_ca_bundle, r
         # multi-stage build based on scratch at last
         # The last scratch stage should not have cleanup instructions
         [
-            True, '', False,
+            True, '', None,
             [
                 (
                     'http://repos.host/custom.repo',
@@ -447,7 +449,7 @@ def test_no_base_image_in_dockerfile(workflow, build_dir, configure_ca_bundle, r
             """),
         ],
         [
-            True, '', True,
+            True, '', {'x86_64': True, 'ppc64le': True},
             [
                 (
                     'http://repos.host/custom.repo',
@@ -500,7 +502,7 @@ def test_no_base_image_in_dockerfile(workflow, build_dir, configure_ca_bundle, r
 
         # Respect the USER from the image inspection data
         [
-            True, 'johncleese', False,
+            True, 'johncleese', None,
             [
                 (
                     'http://repos.host/custom.repo',
@@ -541,7 +543,7 @@ def test_no_base_image_in_dockerfile(workflow, build_dir, configure_ca_bundle, r
 
         # Respect the USER from the inpsection data even if USER is set in previous build stage.
         [
-            True, 'johncleese', False,
+            True, 'johncleese', None,
             [
                 (
                     'http://repos.host/custom.repo',
@@ -584,7 +586,7 @@ def test_no_base_image_in_dockerfile(workflow, build_dir, configure_ca_bundle, r
 
         # Multiple repourls
         [
-            True, '', False,
+            True, '', None,
             [
                 (
                     'http://repos.host/custom.repo',
@@ -631,7 +633,7 @@ def test_no_base_image_in_dockerfile(workflow, build_dir, configure_ca_bundle, r
 
         # No repourls, Dockerfile should have no change.
         [
-            True, '', False,
+            True, '', None,
             [],
             'FROM fedora:33\nRUN dnf update -y\n',
             'FROM fedora:33\nRUN dnf update -y\n',
@@ -639,7 +641,7 @@ def test_no_base_image_in_dockerfile(workflow, build_dir, configure_ca_bundle, r
 
         # Dockerfile contains continuous lines
         [
-            True, '', False,
+            True, '', None,
             [
                 (
                     'http://repos.host/custom.repo',
@@ -673,7 +675,7 @@ RUN yum install -y httpd \
 
         # builder_ca_bundle is optional. When not set, the plugin should work.
         [
-            False, '', False,
+            False, '', None,
             [
                 (
                     'http://repos.host/custom.repo',
@@ -705,7 +707,7 @@ RUN yum install -y httpd \
         # Reset the USER found from the last stage properly.
         # `USER 1001` should be reset after the removal commands
         [
-            True, '', False,
+            True, '', None,
             [
                 (
                     'http://repos.host/custom.repo',
@@ -829,8 +831,8 @@ def test_inject_repos(configure_ca_bundle, inherited_user, include_koji_repo, re
 ])
 def test_include_koji(workflow, build_dir, caplog, parent_images, base_from_scratch, target,
                       expect_success, root, koji_ssl_certs, expected_string, proxy):
-    prepare(workflow, build_dir, include_koji_repo=True, koji_ssl_certs=koji_ssl_certs,
-            yum_proxy=proxy, root_url=root)
+    prepare(workflow, build_dir, include_koji_repo={'x86_64': True},
+            koji_ssl_certs=koji_ssl_certs, yum_proxy=proxy, root_url=root)
     dockerfile_images = []
     if parent_images:
         dockerfile_images.append('parent_image:latest')
@@ -887,14 +889,21 @@ def test_include_koji(workflow, build_dir, caplog, parent_images, base_from_scra
         assert expected_string in content
 
 
-@pytest.mark.parametrize('target, include_repo', [
-    ('target', False),
-    ('target', True),
-    (None, False),
-    (None, True),
-])
-def test_include_koji_without_target(workflow, build_dir, caplog, target, include_repo):
-    prepare(workflow, build_dir, include_koji_repo=include_repo)
+@pytest.mark.parametrize('target', ['target', None])
+@pytest.mark.parametrize(
+    'include_repo',
+    [
+        {'x86_64': True},
+        {'x86_64': False},
+        {'ppc64le': True, 'x86_64': True},
+        {'ppc64le': True, 'x86_64': False},
+        {'ppc64le': False, 'x86_64': False},
+    ],
+)
+def test_include_koji_conditionally(workflow, build_dir, caplog, target, include_repo):
+    prepare(
+        workflow, build_dir, include_koji_repo=include_repo, platforms=sorted(include_repo.keys())
+    )
 
     add_koji_map_in_workflow(workflow, hub_url='', root_url='http://example.com')
 
@@ -903,15 +912,24 @@ def test_include_koji_without_target(workflow, build_dir, caplog, target, includ
      .create_runner()
      .run())
 
-    if not include_repo or not target:
-        if not include_repo:
-            log_msg = f"'include_koji_repo parameter is set to '{include_repo}', " \
-                      f"not including koji repo"
+    if not any(include_repo.values()):
+        assert 'not adding koji repo, all platforms already have repos' in caplog.text
+    elif not target:
+        assert 'no target provided, not adding koji repo' in caplog.text
+
+    repofile_name = 'target-bd4b1.repo'
+
+    for platform, include in include_repo.items():
+        platform_dir = workflow.build_dir.platform_dir(platform)
+        repo_file = platform_dir.path / RELATIVE_REPOS_PATH / repofile_name
+
+        if include and target:
+            msg = f"injected yum repo: /etc/yum.repos.d/{repofile_name} for '{platform}' platform"
+            assert msg in caplog.text
+            assert repo_file.exists()
         else:
-            log_msg = 'no target provided, not adding koji repo'
-    else:
-        log_msg = "injected yum repo: /etc/yum.repos.d/target-bd4b1.repo for 'x86_64' platform"
-    assert log_msg in caplog.text
+            assert not repo_file.exists()
+            assert not repo_file.parent.exists()
 
 
 @pytest.mark.parametrize('inject_proxy', [None, 'http://proxy.example.com'])

@@ -12,6 +12,7 @@ import os
 import shutil
 from collections import defaultdict
 from io import StringIO
+from typing import Optional
 from urllib.parse import urlparse
 
 from atomic_reactor.config import get_koji_session
@@ -47,7 +48,6 @@ class InjectYumReposPlugin(Plugin):
         self.inject_proxy = inject_proxy
         self.yum_repos = defaultdict(list)
         self.allowed_domains = self.workflow.conf.yum_repo_allowed_domains
-        self.include_koji_repo = False
         self._builder_ca_bundle = None
         self._ca_bundle_pem = None
         self.platforms = get_platforms(workflow.data)
@@ -117,14 +117,14 @@ class InjectYumReposPlugin(Plugin):
 
         return lines
 
-    def add_koji_repo(self):
+    def get_koji_repo(self) -> Optional[YumRepo]:
         xmlrpc = get_koji_session(self.workflow.conf)
         pathinfo = self.workflow.conf.koji_path_info
         proxy = self.workflow.conf.yum_proxy
 
         if not self.target:
             self.log.info('no target provided, not adding koji repo')
-            return
+            return None
 
         target_info = xmlrpc.getBuildTarget(self.target)
         if target_info is None:
@@ -134,13 +134,13 @@ class InjectYumReposPlugin(Plugin):
 
         if not tag_info or 'name' not in tag_info:
             self.log.warning("No tag info was retrieved")
-            return
+            return None
 
         repo_info = xmlrpc.getRepo(tag_info['id'])
 
         if not repo_info or 'id' not in repo_info:
             self.log.warning("No repo info was retrieved")
-            return
+            return None
 
         # to use urljoin, we would have to append '/', so let's append everything
         baseurl = pathinfo.repo(repo_info['id'], tag_info['name']) + "/$basearch"
@@ -171,8 +171,28 @@ class InjectYumReposPlugin(Plugin):
         path = yum_repo.dst_filename
         self.log.info("yum repo of koji target: '%s'", path)
         yum_repo.content = render_yum_repo(repo, escape_dollars=False)
-        for platform in self.platforms:
-            self.yum_repos[platform].append(yum_repo)
+        return yum_repo
+
+    def add_koji_repo(self) -> None:
+        platforms_that_need_koji_repo = [
+            platform for platform in self.platforms if self.include_koji_repo[platform]
+        ]
+        if not platforms_that_need_koji_repo:
+            self.log.info("not adding koji repo, all platforms already have repos")
+            return
+
+        self.log.info(
+            "adding koji repo for these platforms: %s",
+            ", ".join(sorted(platforms_that_need_koji_repo)),
+        )
+
+        koji_repo = self.get_koji_repo()
+        if not koji_repo:
+            self.log.warning("couldn't get koji repo")
+            return
+
+        for platform in platforms_that_need_koji_repo:
+            self.yum_repos[platform].append(koji_repo)
 
     def _inject_repo_files(self, build_dir: BuildDir) -> None:
         """Inject repo files into a relative directory inside the build context"""
@@ -231,11 +251,7 @@ class InjectYumReposPlugin(Plugin):
             self.log.info("Skipping plugin, from scratch stage(s) can't add repos")
             return
 
-        if self.include_koji_repo:
-            self.add_koji_repo()
-        else:
-            self.log.info("'include_koji_repo parameter is set to '%s', not including koji repo",
-                          self.include_koji_repo)
+        self.add_koji_repo()
 
         if self.repourls and not is_scratch_build(self.workflow):
             self.validate_yum_repo_files_url()
