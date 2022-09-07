@@ -13,6 +13,7 @@ spec:
 
   workspaces:
     - name: ws-container
+    - name: ws-home-dir
     - name: ws-registries-secret
     - name: ws-koji-secret
     - name: ws-reactor-config-map
@@ -50,8 +51,7 @@ spec:
           workspace: ws-container
           subPath: context-dir
         - name: ws-home-dir
-          subPath: home-dir
-          workspace: ws-container
+          workspace: ws-home-dir
         - name: ws-registries-secret
           workspace: ws-registries-secret
         - name: ws-koji-secret
@@ -79,8 +79,7 @@ spec:
           workspace: ws-container
           subPath: context-dir
         - name: ws-home-dir
-          subPath: home-dir
-          workspace: ws-container
+          workspace: ws-home-dir
         - name: ws-registries-secret
           workspace: ws-registries-secret
         - name: ws-koji-secret
@@ -108,8 +107,7 @@ spec:
           workspace: ws-container
           subPath: context-dir
         - name: ws-home-dir
-          subPath: home-dir
-          workspace: ws-container
+          workspace: ws-home-dir
         - name: ws-registries-secret
           workspace: ws-registries-secret
         - name: ws-koji-secret
@@ -141,8 +139,7 @@ spec:
           workspace: ws-container
           subPath: context-dir
         - name: ws-home-dir
-          subPath: home-dir
-          workspace: ws-container
+          workspace: ws-home-dir
         - name: ws-registries-secret
           workspace: ws-registries-secret
         - name: ws-koji-secret
@@ -174,8 +171,7 @@ spec:
           workspace: ws-container
           subPath: context-dir
         - name: ws-home-dir
-          subPath: home-dir
-          workspace: ws-container
+          workspace: ws-home-dir
         - name: ws-registries-secret
           workspace: ws-registries-secret
         - name: ws-koji-secret
@@ -207,8 +203,7 @@ spec:
           workspace: ws-container
           subPath: context-dir
         - name: ws-home-dir
-          subPath: home-dir
-          workspace: ws-container
+          workspace: ws-home-dir
         - name: ws-registries-secret
           workspace: ws-registries-secret
         - name: ws-koji-secret
@@ -243,8 +238,7 @@ spec:
           workspace: ws-container
           subPath: context-dir
         - name: ws-home-dir
-          subPath: home-dir
-          workspace: ws-container
+          workspace: ws-home-dir
         - name: ws-registries-secret
           workspace: ws-registries-secret
         - name: ws-koji-secret
@@ -284,8 +278,7 @@ spec:
           workspace: ws-container
           subPath: context-dir
         - name: ws-home-dir
-          subPath: home-dir
-          workspace: ws-container
+          workspace: ws-home-dir
         - name: ws-registries-secret
           workspace: ws-registries-secret
         - name: ws-koji-secret
