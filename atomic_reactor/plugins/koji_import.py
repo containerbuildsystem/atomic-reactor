@@ -628,13 +628,10 @@ class KojiImportPlugin(KojiImportBase):
         result = wf_data.plugins_results.get(PLUGIN_FETCH_MAVEN_KEY) or {}
         maven_components = result.get('components', [])
 
-        platform: str
         output: Dict[str, Any]  # an output metadata of the build
         outputs: List[Dict[str, Any]] = []
 
-        for platform, output in self._iter_build_metadata_outputs():
-            buildroot_id = output['buildroot_id']
-            output['buildroot_id'] = f'{platform}-{buildroot_id}'
+        for _, output in self._iter_build_metadata_outputs():
             if maven_components and output['type'] == 'docker-image':
                 # add maven components alongside RPM components
                 output['components'] += maven_components
@@ -674,7 +671,6 @@ class KojiImportPlugin(KojiImportBase):
 
         for platform in sorted(self._builds_metadatas.keys()):
             for instance in self._builds_metadatas[platform]['buildroots']:
-                instance['id'] = '{}-{}'.format(platform, instance['id'])
                 buildroots.append(instance)
 
         return buildroots

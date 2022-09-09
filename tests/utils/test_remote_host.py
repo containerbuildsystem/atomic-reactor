@@ -13,6 +13,8 @@ from flexmock import flexmock, Mock
 from functools import wraps
 from typing import Callable, Optional, Tuple
 
+from atomic_reactor.utils.rpm import rpm_qf_args
+
 
 def _do_nothing_decorator(func):
     @wraps(func)
@@ -114,6 +116,38 @@ def test_host_is_operational(mkdir_stderr, mkdir_code, expected_result, caplog):
 
     if not operational:
         assert mkdir_stderr in caplog.text
+
+
+@pytest.mark.parametrize(("rpm_stderr", "rpm_code", "expected_result"), (
+    ("", 0, 'list;of;rpms'),
+    ("rpm: no rpm db found", 1, None),
+))
+def test_rpms_installed(rpm_stderr, rpm_code, expected_result, caplog):
+    host_name = "remote-host-001"
+    host = RemoteHost(hostname=host_name, username="builder",
+                      ssh_keyfile="/path/to/key", slots=3, socket_path=SOCKET_PATH)
+
+    def mocked_command(cmd, *args, **kwargs):
+        if not expected_result:
+            raise Exception(rpm_stderr)
+
+        if cmd == f"rpm {rpm_qf_args()}":
+            return make_ssh_result(stdout=expected_result, stderr=rpm_stderr, code=rpm_code)
+
+        assert False, f"Unexpected command: {cmd}"
+
+    (
+        flexmock(SSHRetrySession)
+        .should_receive("exec_command")
+        .replace_with(mocked_command)
+    )
+
+    rpms = host.rpms_installed
+
+    assert rpms == expected_result
+    if not expected_result:
+        msg = f"can't get rpms from host: {host_name} : {rpm_stderr}"
+        assert msg in caplog.text
 
 
 @pytest.mark.disable_autouse

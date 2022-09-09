@@ -29,7 +29,7 @@ from atomic_reactor.types import RpmComponent
 from atomic_reactor.util import (Output, get_image_upload_filename,
                                  get_checksums, get_manifest_media_type,
                                  create_tar_gz_archive, get_config_from_registry,
-                                 get_manifest_digests)
+                                 get_manifest_digests, get_version_of_tools)
 from osbs.utils import ImageName
 
 logger = logging.getLogger(__name__)
@@ -323,7 +323,12 @@ def get_buildroot(arch: Optional[str] = None) -> Dict[str, Any]:
             'arch': host_arch,
         },
         'components': [],
-        'tools': [],
+        'tools': [
+            {
+                'name': tool['name'],
+                'version': tool['version'],
+            }
+            for tool in get_version_of_tools()]
     }
 
     return buildroot
