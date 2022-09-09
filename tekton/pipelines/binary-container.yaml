@@ -245,6 +245,8 @@ spec:
           workspace: ws-koji-secret
         - name: ws-reactor-config-map
           workspace: ws-reactor-config-map
+        - name: ws-remote-host-auth
+          workspace: ws-remote-host-auth
       params:
         - name: osbs-image
           value: "$(params.osbs-image)"

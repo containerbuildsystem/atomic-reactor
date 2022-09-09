@@ -23,6 +23,7 @@ spec:
     - name: ws-registries-secret  # access with $(workspaces.ws-registries-secret.path)/token
     - name: ws-koji-secret  # access with $(workspaces.ws-koji-secret.path)/token
     - name: ws-reactor-config-map
+    - name: ws-remote-host-auth
 
   stepTemplate:
     env:

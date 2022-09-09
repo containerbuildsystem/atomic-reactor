@@ -18,6 +18,7 @@ from functools import cached_property
 from shlex import quote
 from typing import List, Optional, Tuple, Set
 from paramiko.channel import ChannelFile  # just for type annotation
+from atomic_reactor.utils.rpm import rpm_qf_args
 
 SSH_COMMAND_TIMEOUT = 30
 SLOTS_RELATIVE_PATH = "osbs_slots"
@@ -343,6 +344,16 @@ class RemoteHost:
             logger.error("%s: cannot prepare slots directory:\n%s", self.hostname, stderr)
             return False
         return True
+
+    @property
+    def rpms_installed(self):
+        rpms = None
+        try:
+            rpms, _, _ = self._run(f"rpm {rpm_qf_args()}")
+        except Exception as e:
+            logger.info("can't get rpms from host: %s : %s", self.hostname, e)
+
+        return rpms
 
     def is_free(self, slot_id: int) -> bool:
         """ Check whether a slot is in free state

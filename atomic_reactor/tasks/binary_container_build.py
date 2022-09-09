@@ -60,7 +60,7 @@ class BinaryBuildTask(Task[BinaryBuildTaskParams]):
     #   and inconsistencies. Luckily, this task does not make any context data updates.
     autosave_context_data = False
 
-    def execute(self) -> None:
+    def execute(self) -> Any:
         """Build a container image for the platform specified in the task parameters.
 
         The built image will be pushed to the unique tag for this platform, which can be found
@@ -126,6 +126,8 @@ class BinaryBuildTask(Task[BinaryBuildTaskParams]):
                 )
 
             podman_remote.push_container(dest_tag, insecure=config.registry.get("insecure", False))
+
+            return remote_resource.host.hostname
 
     def acquire_remote_resource(self, remote_hosts_config: dict) -> remote_host.LockedResource:
         """Lock a build slot on a remote host."""

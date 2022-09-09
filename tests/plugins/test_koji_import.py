@@ -662,14 +662,14 @@ class TestKojiImport(object):
                     'arch': 'ppc64le',
                     'type': 'docker',
                 },
-                'id': 'ppc64le-1',
+                'id': 1,
             },
             {
                 'container': {
                     'arch': 'x86_64',
                     'type': 'docker',
                 },
-                'id': 'x86_64-1',
+                'id': 1,
             },
         ]
 

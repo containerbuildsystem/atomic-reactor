@@ -63,9 +63,10 @@ REGISTRY_CONFIG = {
 }
 
 X86_64 = 'x86_64'
+X86_64_HOSTNAME = "osbs-remote-host-x86-64-1.example.com"
 
 X86_REMOTE_HOST = remote_host.RemoteHost(
-    hostname="osbs-remote-host-x86-64-1.example.com",
+    hostname=X86_64_HOSTNAME,
     username="osbs-podman-dev",
     ssh_keyfile="/workspace/ws-remote-host-auth/remote-host-auth",
     slots=10,
@@ -295,7 +296,7 @@ class TestBinaryBuildTask:
             with pytest.raises(ExceedsImageSizeError, match=err_msg):
                 task.execute()
         else:
-            task.execute()
+            output = task.execute()
 
         assert (
             f"Building for the x86_64 platform from {x86_build_dir.dockerfile_path}" in caplog.text
@@ -308,6 +309,9 @@ class TestBinaryBuildTask:
         assert build_log_file.exists()
         build_logs = build_log_file.read_text().splitlines()
         assert ["output line 1", "output line 2"] == build_logs
+
+        if not fail_image_size_check:
+            assert output == X86_64_HOSTNAME
 
     def test_run_exit_steps_on_failure(
         self, x86_task_params, x86_build_dir, mock_podman_remote, mock_locked_resource, caplog
