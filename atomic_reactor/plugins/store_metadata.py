@@ -153,7 +153,8 @@ class StoreMetadataPlugin(Plugin):
         self.apply_plugin_annotations(annotations)
 
         if self.workflow.annotations_result:
-            annotations_result = {'plugins-metadata': annotations['plugins-metadata']}
+            annotations_result = \
+                {'plugins-metadata': {'errors': annotations['plugins-metadata']['errors']}}
             with open(self.workflow.annotations_result, 'w') as f:
                 f.write(json.dumps(annotations_result))
 
