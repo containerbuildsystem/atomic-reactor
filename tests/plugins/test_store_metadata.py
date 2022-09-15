@@ -273,8 +273,9 @@ def test_metadata_plugin(workflow, source_dir, tmpdir, failed, init_dirs,
     with open(workflow.annotations_result) as f:
         annotations_result = json.loads(f.read())
 
-    # remove store_metadata duration as it isn't there yet when it is writing to result
-    annotations['plugins-metadata']['durations'].pop('store_metadata')
+    # in annotations result are only errors
+    annotations['plugins-metadata'].pop('durations')
+    annotations['plugins-metadata'].pop('timestamps')
     assert annotations['plugins-metadata'] == annotations_result['plugins-metadata']
 
 
@@ -373,8 +374,9 @@ def test_metadata_plugin_source(failed, verify_media_results, expected_media_res
     with open(workflow.annotations_result) as f:
         annotations_result = json.loads(f.read())
 
-    # remove store_metadata duration as it isn't there yet when it is writing to result
-    annotations['plugins-metadata']['durations'].pop('store_metadata')
+    # in annotations result are only errors
+    annotations['plugins-metadata'].pop('durations')
+    annotations['plugins-metadata'].pop('timestamps')
     assert annotations['plugins-metadata'] == annotations_result['plugins-metadata']
 
 
