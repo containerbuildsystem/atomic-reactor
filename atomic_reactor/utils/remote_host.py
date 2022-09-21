@@ -369,7 +369,7 @@ class RemoteHost:
         # so using a normal ssh session is good enough
         with self._ssh_session() as session:
             slot = HostSlot(self, session, slot_id)
-            return slot.is_free
+            return slot.is_free or not slot.is_valid
 
     def prid_in_slot(self, slot_id: int) -> Optional[str]:
         """ Check which prid is in the slot
@@ -560,15 +560,14 @@ class HostSlot:
 
     def lock(self, prid: str) -> bool:
         """ Lock the slot for a pipelinerun """
-        if not self.is_free:
+        if not self.is_free and self.is_valid:
             logger.debug("%s: slot %s is not free, unable to lock it",
                          self.hostname, self.id)
             return False
 
         if not self.is_valid:
-            logger.warning("%s: slot %s contains invalid content, it's probably corrupted, "
-                           "unable to lock it.", self.hostname, self.id)
-            return False
+            logger.warning("%s: slot %s contains invalid content, it's corrupted, "
+                           "will use it.", self.hostname, self.id)
 
         data = SlotData(prid=prid, timestamp=datetime.utcnow().isoformat())
         self._write(data.to_string())
@@ -582,9 +581,10 @@ class HostSlot:
             return True
 
         if not self.is_valid:
-            logger.warning("%s: slot %s contains invalid content, it's probably corrupted, "
-                           "unable to unlock it.", self.hostname, self.id)
-            return False
+            logger.warning("%s: slot %s contains invalid content, it's corrupted, "
+                           "will unlock it.", self.hostname, self.id)
+            self._write()
+            return True
 
         if not self.is_locked_by(prid):
             logger.warning("%s: cannot unlock slot %s, it's not locked by %s",

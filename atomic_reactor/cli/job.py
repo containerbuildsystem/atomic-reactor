@@ -27,6 +27,10 @@ def remote_hosts_unlocking_recovery(job_args: dict) -> None:
             logger.info("Checking occupied slots for platform: %s on host: %s",
                         platform, host.hostname)
 
+            # create slots dir if doesn't exist yet
+            if not host.is_operational:
+                continue
+
             for slot in range(host.slots):
                 prid = host.prid_in_slot(slot)
 
