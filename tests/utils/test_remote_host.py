@@ -184,6 +184,7 @@ def test_check_slot_is_free_with_invalid_id(caplog):
 
 @pytest.mark.parametrize(("cat_stdout", "cat_stderr", "cat_code", "expected_result"), (
     ("", "", 0, True),
+    ("invalid_is_free", "", 0, True),
     ("pr123@2022-02-15T10:22:33.234234", "", 0, False),
 ))
 def test_check_slot_is_free(cat_stdout, cat_stderr, cat_code, expected_result):
@@ -321,6 +322,14 @@ def test_lock_an_invalid_slot(caplog):
         .with_args(read_slot, **cmd_kwargs)
         .and_return(make_ssh_result())  # return empty slot for the first call
         .and_return(make_ssh_result(stdout="invalid_slot_content"))  # return invalid content
+        .and_return(make_ssh_result(stdout="pr123@2022-09-22T13:11:23.512100"))
+    )
+    write_patt = re.compile(r"echo pr123@.*> /home/builder/osbs_slots/slot_2")
+    (
+        flexmock(SSHRetrySession)
+        .should_receive("exec_command")
+        .with_args(write_patt, **cmd_kwargs)
+        .and_return(make_ssh_result())
     )
     flock = "flock --conflict-exit-code 42 --nonblocking /home/builder/osbs_slots/slot_2.lock cat"
     (
@@ -329,13 +338,16 @@ def test_lock_an_invalid_slot(caplog):
         .with_args(flock)
         .and_return(make_flock_ssh_result(stdout="verify lock"))
     )
+
     locked = host.lock(2, "pr123")
-    assert not locked
-    assert "slot 2 contains invalid content, it's probably corrupted" in caplog.text
+    assert locked
+    assert "remote-host-001: slot 2 is locked for pipelinerun pr123" in caplog.text
 
 
 @pytest.mark.parametrize(("slot_content", "expected_log", "expected_result"), (
     ("pr123@2022-02-15T10:22:33.234234", "slot 2 is unlocked for pipelinerun pr123", True),
+    ("", "slot 2 is free, skip unlocking", True),
+    ("invalid_to_unlock", "slot 2 contains invalid content, it's corrupted, will unlock it", True),
     ("pr124@2022-02-15T10:22:33.234234", "failed to unlock slot 2 for pipelinerun pr123", False),
 ))
 def test_unlock_host_slot(slot_content, expected_log, expected_result, caplog):
