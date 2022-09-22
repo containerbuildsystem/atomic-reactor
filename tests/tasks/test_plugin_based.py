@@ -98,7 +98,7 @@ class TestPluginBasedTask:
         flexmock(dirs.RootBuildDir).should_call('init_build_dirs').times(int(call_init_build_dirs))
 
         task.execute(init_build_dirs=call_init_build_dirs)
-        assert r"task finished successfully \o/" in caplog.text
+        assert r"task default finished successfully \o/" in caplog.text
 
     def test_execute_raises_exception(self, task_with_mocked_deps, caplog):
         task, mocked_workflow = task_with_mocked_deps
@@ -109,7 +109,7 @@ class TestPluginBasedTask:
         with pytest.raises(ValueError, match="something went wrong"):
             task.execute()
 
-        assert "task failed: something went wrong" in caplog.text
+        assert "task default failed: something went wrong" in caplog.text
 
     def test_execute_returns_failure(self, task_with_mocked_deps, caplog):
         task, mocked_workflow = task_with_mocked_deps
@@ -120,7 +120,7 @@ class TestPluginBasedTask:
         with pytest.raises(PluginFailedException, match="something is wrong"):
             task.execute()
 
-        assert "task failed: something is wrong" in caplog.text
+        assert "task default failed: something is wrong" in caplog.text
 
 
 @pytest.mark.parametrize(

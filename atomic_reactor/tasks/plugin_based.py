@@ -31,6 +31,7 @@ class PluginBasedTask(Task[ParamsT]):
     #   {"name": "add_filesystem", "args": {...}}
     # Refer to plugins.json schema for the details.
     plugins_conf: ClassVar[List[Dict[str, Any]]] = []
+    task_name = 'default'
 
     def prepare_workflow(self) -> inner.DockerBuildWorkflow:
         """Fully initialize the workflow instance to be used for running the list of plugins."""
@@ -67,10 +68,10 @@ class PluginBasedTask(Task[ParamsT]):
         try:
             workflow.build_docker_image()
         except Exception as e:
-            logger.error("task failed: %s", e)
+            logger.error("task %s failed: %s", self.task_name, e)
             raise
 
         # OSBS2 TBD: OSBS used to log the original Dockerfile after executing the workflow.
         #   It probably doesn't make sense to do that here, but it would be good to log the
         #   Dockerfile somewhere at the end of the build process.
-        logger.info(r"task finished successfully \o/")
+        logger.info(r"task %s finished successfully \o/", self.task_name)
