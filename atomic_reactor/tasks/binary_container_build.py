@@ -59,6 +59,7 @@ class BinaryBuildTask(Task[BinaryBuildTaskParams]):
     # Build tasks run in parallel, saving context data would lead to race conditions
     #   and inconsistencies. Luckily, this task does not make any context data updates.
     autosave_context_data = False
+    task_name = 'binary_container_build'
 
     def execute(self) -> Any:
         """Build a container image for the platform specified in the task parameters.

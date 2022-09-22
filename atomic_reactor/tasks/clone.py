@@ -12,5 +12,7 @@ from atomic_reactor.tasks import common
 class CloneTask(common.Task[common.TaskParams]):
     """Clone task."""
 
+    task_name = 'clone'
+
     def execute(self):
         self._params.source.get()

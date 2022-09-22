@@ -34,6 +34,7 @@ class BinaryExitTaskParams(TaskParams):
 class BinaryPreBuildTask(plugin_based.PluginBasedTask[PreBuildTaskParams]):
     """Binary container pre-build task."""
 
+    task_name = 'binary_container_prebuild'
     plugins_conf = [
         {"name": "distgit_fetch_artefacts"},
         {"name": "check_and_set_platforms"},
@@ -84,6 +85,7 @@ class BinaryPreBuildTask(plugin_based.PluginBasedTask[PreBuildTaskParams]):
 class BinaryPostBuildTask(plugin_based.PluginBasedTask[TaskParams]):
     """Binary container post-build task."""
 
+    task_name = 'binary_container_postbuild'
     plugins_conf = [
         {"name": "fetch_docker_archive"},
         {"name": "flatpak_create_oci"},
@@ -104,6 +106,7 @@ class BinaryPostBuildTask(plugin_based.PluginBasedTask[TaskParams]):
 class BinaryExitTask(plugin_based.PluginBasedTask[BinaryExitTaskParams]):
     """Binary container exit-build task."""
 
+    task_name = 'binary_container_exit'
     keep_plugins_running = True
     ignore_sigterm = True
     plugins_conf = [

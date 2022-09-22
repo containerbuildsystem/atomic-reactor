@@ -51,6 +51,7 @@ class SourceBuildBaseTask(plugin_based.PluginBasedTask[common.ParamsT]):
 class SourceBuildTask(SourceBuildBaseTask):
     """Source container build phases task."""
 
+    task_name = 'source_container_build'
     plugins_conf = [
         {"name": "fetch_sources"},
         {"name": "bump_release"},
@@ -65,6 +66,7 @@ class SourceBuildTask(SourceBuildBaseTask):
 class SourceExitTask(SourceBuildBaseTask):
     """Source container exit task."""
 
+    task_name = 'source_container_exit'
     keep_plugins_running = True
     ignore_sigterm = True
     plugins_conf = [
