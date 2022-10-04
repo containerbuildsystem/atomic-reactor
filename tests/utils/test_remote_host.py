@@ -177,7 +177,8 @@ def test_check_slot_is_free_with_invalid_id(caplog):
     host = RemoteHost(hostname="remote-host-001", username="builder",
                       ssh_keyfile="/path/to/key", slots=3, socket_path=SOCKET_PATH)
     # slot id starts from 0
-    free = host.is_free(3)
+    with host._ssh_session() as session:
+        free = host.is_free(3, session)
     assert "remote-host-001: invalid slot id 3, should be in" in caplog.text
     assert not free
 
@@ -202,7 +203,8 @@ def test_check_slot_is_free(cat_stdout, cat_stderr, cat_code, expected_result):
         .should_receive("exec_command")
         .replace_with(mocked_command)
     )
-    free = host.is_free(2)
+    with host._ssh_session() as session:
+        free = host.is_free(2, session)
     assert free is expected_result
 
 

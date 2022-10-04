@@ -355,21 +355,19 @@ class RemoteHost:
 
         return rpms
 
-    def is_free(self, slot_id: int) -> bool:
+    def is_free(self, slot_id: int, ssh_session: 'SSHRetrySession') -> bool:
         """ Check whether a slot is in free state
 
         :param slot_id: int, slot ID
+        :param ssh_session: SSHRetrySession, ssh connection to the host for checking slots
         :return: True if slot is in free state
         :rtype: bool
         """
         if not self._is_valid_slot_id(slot_id):
             return False
 
-        # We don't need to lock the slot to check whether it's free,
-        # so using a normal ssh session is good enough
-        with self._ssh_session() as session:
-            slot = HostSlot(self, session, slot_id)
-            return slot.is_free or not slot.is_valid
+        slot = HostSlot(self, ssh_session, slot_id)
+        return slot.is_free or not slot.is_valid
 
     def prid_in_slot(self, slot_id: int) -> Optional[str]:
         """ Check which prid is in the slot
@@ -461,11 +459,12 @@ class RemoteHost:
         """ Get slots on host which are in free state """
         logger.debug("%s: retrieve list of available slots", self.hostname)
         available_slots = []
-        for slot_id in range(self.slots):
-            if not self.is_free(slot_id):
-                logger.debug("%s: slot %s is not free", self.hostname, slot_id)
-                continue
-            available_slots.append(slot_id)
+        with self._ssh_session() as ssh_session:
+            for slot_id in range(self.slots):
+                if not self.is_free(slot_id, ssh_session):
+                    logger.debug("%s: slot %s is not free", self.hostname, slot_id)
+                    continue
+                available_slots.append(slot_id)
 
         return available_slots
 
