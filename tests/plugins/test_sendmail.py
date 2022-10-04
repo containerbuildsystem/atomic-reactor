@@ -12,6 +12,7 @@ from atomic_reactor.plugins.store_metadata import StoreMetadataPlugin
 from atomic_reactor.plugins.koji_import import KojiImportPlugin
 from atomic_reactor.utils.koji import get_koji_task_owner
 from atomic_reactor.config import Configuration
+from atomic_reactor.constants import PLUGIN_CHECK_USER_SETTINGS
 from tests.mock_env import MockEnv
 from tests.util import add_koji_map_in_workflow
 from osbs.exceptions import OsbsException
@@ -311,11 +312,13 @@ class TestSendMailPlugin(object):
     @pytest.mark.parametrize('success', (True, False))
     @pytest.mark.parametrize('has_repositories', (True, False))
     @pytest.mark.parametrize(('has_store_metadata_results', 'annotations', 'empty_repositories',
-                              'expect_error'), [
-        (True, True, True, False),
-        (True, True, False, False),
-        (True, False, False, True),
-        (False, False, False, True)
+                              'check_user_settings_fails', 'expect_error'), [
+        (True, True, True, True, False),
+        (True, True, True, False, False),
+        (True, True, False, True, False),
+        (True, True, False, False, False),
+        (True, False, False, False, True),
+        (False, False, False, False, True)
     ])
     @pytest.mark.parametrize('koji_integration', (True, False))
     @pytest.mark.parametrize(('manual_cancel', 'to_koji_submitter'), [
@@ -324,11 +327,10 @@ class TestSendMailPlugin(object):
         (True, False),
         (False, False),
     ])
-    def test_render_mail(self, workflow, source_dir, caplog,
-                         manual_cancel, to_koji_submitter,
-                         koji_integration, success, has_repositories,
-                         has_store_metadata_results, annotations, empty_repositories,
-                         expect_error):
+    def test_render_mail(self, workflow, source_dir, caplog, success, has_repositories,
+                         has_store_metadata_results, annotations, empty_repositories, expect_error,
+                         koji_integration, manual_cancel, to_koji_submitter,
+                         check_user_settings_fails):
         git_source_url = 'git_source_url'
         git_source_ref = '123423431234123'
         VcsInfo = namedtuple('VcsInfo', ['vcs_type', 'vcs_url', 'vcs_ref'])
@@ -355,6 +357,9 @@ class TestSendMailPlugin(object):
         flexmock(workflow.source, get_vcs_info=VcsInfo(vcs_type='git',
                                                        vcs_url=git_source_url,
                                                        vcs_ref=git_source_ref))
+
+        if not check_user_settings_fails:
+            workflow.data.plugins_results[PLUGIN_CHECK_USER_SETTINGS] = 'output'
 
         MockEnv(workflow).mock_build_outcome(failed=True, cancelled=manual_cancel)
 
@@ -409,7 +414,13 @@ class TestSendMailPlugin(object):
         else:
             status = 'Failed'
 
-        if not has_repositories or empty_repositories:
+        if check_user_settings_fails:
+            exp_subject = '%s building image ' % (status)
+            exp_body = [
+                'Image Name: ',
+                'Repositories: ',
+                ]
+        elif not has_repositories or empty_repositories:
             exp_subject = '%s building image %s' % (status, MOCK_NAME_LABEL)
             exp_body = [
                 'Image Name: ' + MOCK_NAME_LABEL,
@@ -425,7 +436,7 @@ class TestSendMailPlugin(object):
             ]
 
         result = workflow.data.plugins_results[StoreMetadataPlugin.key]
-        if 'repositories' not in result['annotations']:
+        if 'repositories' not in result['annotations'] and not check_user_settings_fails:
             assert "repositories is not included in annotations" in caplog.text
 
         common_body = [

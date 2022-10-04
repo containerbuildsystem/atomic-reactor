@@ -8,7 +8,8 @@ of the BSD license. See the LICENSE file for details.
 import json
 
 from atomic_reactor.plugins.fetch_sources import PLUGIN_FETCH_SOURCES_KEY
-from atomic_reactor.constants import PLUGIN_VERIFY_MEDIA_KEY, SCRATCH_FROM
+from atomic_reactor.constants import (PLUGIN_VERIFY_MEDIA_KEY, SCRATCH_FROM,
+                                      PLUGIN_CHECK_USER_SETTINGS)
 from atomic_reactor.plugin import Plugin
 from atomic_reactor.util import get_manifest_digests
 
@@ -95,6 +96,7 @@ class StoreMetadataPlugin(Plugin):
 
         wf_data = self.workflow.data
 
+        baseimage_exists = self.workflow.data.plugins_results.get(PLUGIN_CHECK_USER_SETTINGS)
         failed, cancelled = self.workflow.check_build_outcome()
         success = not failed and not cancelled
         build_dir_initialized = self.workflow.build_dir.has_sources
@@ -117,7 +119,7 @@ class StoreMetadataPlugin(Plugin):
 
             dockerfile_contents = ""
 
-            if build_dir_initialized:
+            if build_dir_initialized and baseimage_exists:
                 try:
                     dockerfile = self.workflow.build_dir.any_platform.dockerfile_with_parent_env(
                         self.workflow.imageutil.base_image_inspect()

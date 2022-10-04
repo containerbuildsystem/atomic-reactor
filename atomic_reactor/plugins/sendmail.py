@@ -18,7 +18,7 @@ from atomic_reactor.plugin import Plugin, PluginFailedException
 from atomic_reactor.plugins.koji_import import KojiImportPlugin
 from atomic_reactor.plugins.store_metadata import StoreMetadataPlugin
 from atomic_reactor.utils.koji import get_koji_task_owner
-from atomic_reactor.constants import PLUGIN_SENDMAIL_KEY
+from atomic_reactor.constants import PLUGIN_SENDMAIL_KEY, PLUGIN_CHECK_USER_SETTINGS
 from atomic_reactor.config import get_koji_session, get_smtp_session
 from osbs.utils import Labels, ImageName
 
@@ -135,6 +135,8 @@ class SendMailPlugin(Plugin):
             else:
                 self.log.info("Koji connection established")
 
+        self.baseimage_exists = self.workflow.data.plugins_results.get(PLUGIN_CHECK_USER_SETTINGS)
+
     def _should_send(self, success, manual_canceled):
         """Return True if any state in `self.send_on` meets given conditions, thus meaning
         that a notification mail should be sent.
@@ -149,7 +151,7 @@ class SendMailPlugin(Plugin):
         return should_send
 
     def _get_image_name_and_repos(self):
-        if not self.workflow.build_dir.has_sources:
+        if not self.workflow.build_dir.has_sources or not self.baseimage_exists:
             return '', []
 
         dockerfile = self.workflow.build_dir.any_platform.dockerfile_with_parent_env(
