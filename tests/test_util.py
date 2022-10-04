@@ -58,7 +58,7 @@ from atomic_reactor.util import (figure_out_build_file,
                                  validate_with_schema,
                                  OSBSLogs,
                                  dump_stacktraces, setup_introspection_signal_handler,
-                                 allow_repo_dir_in_dockerignore,
+                                 allow_path_in_dockerignore,
                                  has_operator_appregistry_manifest,
                                  has_operator_bundle_manifest, DockerfileImages,
                                  terminal_key_paths,
@@ -1609,7 +1609,7 @@ def test_allow_repo_dir_in_dockerignore(tmpdir, dockerignore_exists):
             for line in ignore_content:
                 f.write(line)
 
-    allow_repo_dir_in_dockerignore(tmpdir)
+    allow_path_in_dockerignore(tmpdir, RELATIVE_REPOS_PATH)
 
     if dockerignore_exists:
         with open(docker_ignore_file, "r") as f:

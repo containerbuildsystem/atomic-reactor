@@ -46,7 +46,7 @@ from atomic_reactor.constants import (DOCKERFILE_FILENAME, REPO_CONTAINER_CONFIG
                                       PLUGIN_KOJI_PARENT_KEY,
                                       PARENT_IMAGE_BUILDS_KEY, PARENT_IMAGES_KOJI_BUILDS,
                                       BASE_IMAGE_KOJI_BUILD, BASE_IMAGE_BUILD_ID_KEY,
-                                      PARENT_IMAGES_KEY, SCRATCH_FROM, RELATIVE_REPOS_PATH,
+                                      PARENT_IMAGES_KEY, SCRATCH_FROM,
                                       DOCKERIGNORE, DEFAULT_DOWNLOAD_BLOCK_SIZE,
                                       REPO_CONTENT_SETS_CONFIG,
                                       REPO_FETCH_ARTIFACTS_URL,
@@ -1252,13 +1252,13 @@ def validate_with_schema(data: dict, schema: str, package: str = "atomic_reactor
     osbs_yaml.validate_with_schema(data, schema)
 
 
-def allow_repo_dir_in_dockerignore(build_path):
+def allow_path_in_dockerignore(build_path, allow_path):
     docker_ignore = os.path.join(str(build_path), DOCKERIGNORE)
 
     if os.path.isfile(docker_ignore):
         with open(docker_ignore, "a") as f:
-            f.write("\n!%s\n" % RELATIVE_REPOS_PATH)
-        logger.debug("Allowing %s in %s", RELATIVE_REPOS_PATH, DOCKERIGNORE)
+            f.write(f"\n!{allow_path}\n")
+        logger.debug("Allowing %s in %s", allow_path, DOCKERIGNORE)
 
 
 class LabelFormatter(string.Formatter):

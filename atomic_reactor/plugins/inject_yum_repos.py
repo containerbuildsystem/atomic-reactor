@@ -21,7 +21,7 @@ from atomic_reactor.constants import YUM_REPOS_DIR, RELATIVE_REPOS_PATH, INSPECT
 from atomic_reactor.dirs import BuildDir
 from atomic_reactor.plugin import Plugin
 from atomic_reactor.util import is_scratch_build, map_to_user_params, \
-    allow_repo_dir_in_dockerignore, render_yum_repo, get_platforms
+    allow_path_in_dockerignore, render_yum_repo, get_platforms
 from atomic_reactor.utils.yum import YumRepo
 
 
@@ -204,7 +204,7 @@ class InjectYumReposPlugin(Plugin):
         host_repos_path = build_dir.path / RELATIVE_REPOS_PATH
         self.log.info("creating directory for yum repos: %s", host_repos_path)
         os.mkdir(host_repos_path)
-        allow_repo_dir_in_dockerignore(build_dir.path)
+        allow_path_in_dockerignore(build_dir.path, RELATIVE_REPOS_PATH)
 
         for repo in platform_repos:
             # Update every repo accordingly in a repofile
@@ -239,6 +239,7 @@ class InjectYumReposPlugin(Plugin):
                 f'ADD {self._ca_bundle_pem} /tmp/{self._ca_bundle_pem}',
                 all_stages=True, at_start=True, skip_scratch=True
             )
+            allow_path_in_dockerignore(build_dir.path, self._ca_bundle_pem)
 
         if not self.workflow.data.dockerfile_images.base_from_scratch:
             build_dir.dockerfile.add_lines(*self._cleanup_lines(build_dir.platform))

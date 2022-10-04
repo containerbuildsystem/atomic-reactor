@@ -19,7 +19,7 @@ from dockerfile_parse import DockerfileParser
 from flexmock import flexmock
 
 from atomic_reactor.constants import RELATIVE_REPOS_PATH, INSPECT_CONFIG, DOCKERFILE_FILENAME, \
-    PLUGIN_RESOLVE_COMPOSES_KEY, PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
+    PLUGIN_RESOLVE_COMPOSES_KEY, PLUGIN_CHECK_AND_SET_PLATFORMS_KEY, DOCKERIGNORE
 from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.inject_yum_repos import InjectYumReposPlugin
 from atomic_reactor.source import VcsInfo
@@ -53,6 +53,10 @@ BROKEN_REPO_ID = "3"
 REPO_BROKEN_TAG_RESPONSE = {"id": BROKEN_REPO_ID, "name": KOJI_BROKEN_REPO}
 GET_REPO_RESPONSE = {"id": "2"}
 ROOT = "http://example.com"
+DOCKERIGNORE_CONTENT = """
+Dockerfile*
+*.json
+*.other"""
 
 
 # ClientSession is xmlrpc instance, we need to mock it explicitly
@@ -118,7 +122,7 @@ class MockSource(object):
 
 def prepare(workflow, build_dir, inherited_user='', dockerfile=DEFAULT_DOCKERFILE, scratch=False,
             platforms=None, include_koji_repo=None, yum_proxy=None, koji_ssl_certs=False,
-            root_url=ROOT, yum_repourls=None):
+            root_url=ROOT, yum_repourls=None, dockerignore=False):
     if yum_repourls is None:
         yum_repourls = {}
     if not platforms:
@@ -135,6 +139,8 @@ def prepare(workflow, build_dir, inherited_user='', dockerfile=DEFAULT_DOCKERFIL
     flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return(inspect_data)
     with open(workflow.source.dockerfile_path, 'w') as f:
         f.write(dockerfile)
+    if dockerignore:
+        (Path(workflow.source.path) / DOCKERIGNORE).write_text(DOCKERIGNORE_CONTENT)
     workflow.build_dir.init_build_dirs(platforms, workflow.source)
     df = DockerfileParser(str(build_dir))
     workflow.data.dockerfile_images = DockerfileImages(df.parent_images)
@@ -154,6 +160,24 @@ def prepare(workflow, build_dir, inherited_user='', dockerfile=DEFAULT_DOCKERFIL
         'yum_repourls': yum_repourls,
     }
     return workflow
+
+
+def check_dockerignore(bundle, repos):
+    def check_in_build_dir(build_dir):
+        dockerignore = build_dir.path / DOCKERIGNORE
+        dockerignore_content = dockerignore.read_text()
+
+        final_content = DOCKERIGNORE_CONTENT
+
+        if repos:
+            final_content += f"\n!{RELATIVE_REPOS_PATH}\n"
+            if bundle:
+                bundle_file = os.path.basename(BUILDER_CA_BUNDLE)
+                final_content += f"\n!{bundle_file}\n"
+
+        assert dockerignore_content == final_content
+
+    return check_in_build_dir
 
 
 @pytest.mark.parametrize(('configure_ca_bundle', 'repos'), [
@@ -758,7 +782,7 @@ def test_inject_repos(configure_ca_bundle, inherited_user, include_koji_repo, re
         yum_repourls[platform] = [url for url, _, _ in repos]
     workflow = prepare(workflow, build_dir, inherited_user, dockerfile_content,
                        include_koji_repo=include_koji_repo, platforms=platforms,
-                       yum_repourls=yum_repourls)
+                       yum_repourls=yum_repourls, dockerignore=True)
     workflow.conf.conf['yum_repo_allowed_domains'] = ['odcs.example.com', 'repos.host']
     if configure_ca_bundle:
         workflow.conf.conf['builder_ca_bundle'] = BUILDER_CA_BUNDLE
@@ -790,6 +814,8 @@ def test_inject_repos(configure_ca_bundle, inherited_user, include_koji_repo, re
         repos_path = workflow.build_dir.any_platform.path / RELATIVE_REPOS_PATH / yum_repo.filename
         updated_repos = repos_path.read_text('utf-8')
         assert expected_final_repofile == updated_repos
+
+    workflow.build_dir.for_each_platform(check_dockerignore(configure_ca_bundle, repos))
 
 
 @pytest.mark.parametrize('parent_images', [True, False])
