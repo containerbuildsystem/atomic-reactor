@@ -11,16 +11,28 @@ from typing import Dict, Optional, NamedTuple
 
 from atomic_reactor.plugin import PluginsRunner
 from atomic_reactor.plugins.add_dockerfile import AddDockerfilePlugin
+from atomic_reactor.constants import DOCKERIGNORE, DOCKERFILE_FILENAME
 
 from tests.mock_env import MockEnv
 
 
+DOCKERIGNORE_CONTENT = """
+Dockerfile*
+*.json
+*.other"""
+
+
 def mock_env(
-    workflow, df_content: str, args: Optional[Dict[str, str]] = None
+    workflow, df_content: str, args: Optional[Dict[str, str]] = None,
+    dockerignore: Optional[bool] = False
 ) -> PluginsRunner:
     env = MockEnv(workflow).for_plugin(AddDockerfilePlugin.key, args)
 
     (Path(workflow.source.path) / "Dockerfile").write_text(df_content)
+
+    if dockerignore:
+        (Path(workflow.source.path) / DOCKERIGNORE).write_text(DOCKERIGNORE_CONTENT)
+
     workflow.build_dir.init_build_dirs(["aarch64", "x86_64"], workflow.source)
 
     return env.create_runner()
@@ -39,6 +51,18 @@ def check_outputs(expected_df_content: str, expected_df_copy: Optional[Dockerfil
         if expected_df_copy:
             df_copy_path = build_dir.path / expected_df_copy.name
             assert df_copy_path.read_text() == expected_df_copy.content
+
+    return check_in_build_dir
+
+
+def check_dockerignore(nvr: str):
+    def check_in_build_dir(build_dir):
+        dockerignore = build_dir.path / DOCKERIGNORE
+        dockerignore_content = dockerignore.read_text()
+
+        final_content = DOCKERIGNORE_CONTENT
+        final_content += f"\n!{DOCKERFILE_FILENAME}-{nvr}\n"
+        assert dockerignore_content == final_content
 
     return check_in_build_dir
 
@@ -140,3 +164,19 @@ RUN yum install -y python-django
 ADD Dockerfile /root/buildinfo/Dockerfile-rhel-server-docker-7.1-20
 CMD blabla"""
     workflow.build_dir.for_each_platform(check_outputs(expected_df_content))
+
+
+def test_adddockerfile_plugin_edit_dockerignore(workflow):  # noqa
+    df_content = """
+FROM fedora
+RUN yum install -y python-django
+CMD blabla"""
+
+    nvr = 'rhel-server-docker-7.1-20'
+    runner = mock_env(workflow, df_content, {'nvr': nvr},
+                      dockerignore=True)
+    runner.run()
+
+    assert AddDockerfilePlugin.key is not None
+
+    workflow.build_dir.for_each_platform(check_dockerignore(nvr))

@@ -22,7 +22,8 @@ from atomic_reactor.constants import (IMAGE_BUILD_INFO_DIR, INSPECT_ROOTFS,
 from atomic_reactor.config import get_cachito_session
 from atomic_reactor.dirs import BuildDir
 from atomic_reactor.plugin import Plugin
-from atomic_reactor.util import validate_with_schema, read_content_sets, map_to_user_params
+from atomic_reactor.util import (validate_with_schema, read_content_sets, map_to_user_params,
+                                 allow_path_in_dockerignore)
 from atomic_reactor.utils.pnc import PNCUtil
 
 
@@ -193,6 +194,7 @@ class AddImageContentManifestPlugin(Plugin):
         icm = self.make_icm(build_dir.platform)
         self._write_json_file(icm, build_dir)
         self._add_to_dockerfile(build_dir)
+        allow_path_in_dockerignore(build_dir.path, self.icm_file_name)
         self.log.info('added "%s" to "%s"', self.icm_file_name, self.content_manifests_dir)
 
     def run(self):

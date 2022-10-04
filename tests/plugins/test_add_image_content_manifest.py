@@ -25,6 +25,7 @@ from atomic_reactor.constants import (
     INSPECT_ROOTFS_LAYERS,
     PLUGIN_FETCH_MAVEN_KEY,
     PLUGIN_RESOLVE_REMOTE_SOURCE,
+    DOCKERIGNORE,
 )
 from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.add_image_content_manifest import AddImageContentManifestPlugin
@@ -124,6 +125,12 @@ REMOTE_SOURCES = [{
 }]
 
 
+DOCKERIGNORE_CONTENT = """
+Dockerfile*
+*.json
+*.other"""
+
+
 def setup_function(*args):
     # IMPORTANT: This needs to be done to ensure mocks at the module
     # level are reset between test cases.
@@ -150,7 +157,7 @@ def mock_get_icm(requests_mock):
 
 
 def mock_env(workflow, df_content, base_layers=0, remote_sources=None,
-             r_c_m_override=None, pnc_artifacts=True):
+             r_c_m_override=None, pnc_artifacts=True, dockerignore=False):
 
     if base_layers > 0:
         inspection_data = {
@@ -193,6 +200,8 @@ def mock_env(workflow, df_content, base_layers=0, remote_sources=None,
     flexmock(workflow.imageutil).should_receive('base_image_inspect').and_return(inspection_data)
 
     Path(workflow.source.path, "Dockerfile").write_text(df_content)
+    if dockerignore:
+        (Path(workflow.source.path) / DOCKERIGNORE).write_text(DOCKERIGNORE_CONTENT)
 
     platforms = list(CONTENT_SETS.keys())
     workflow.build_dir.init_build_dirs(platforms, workflow.source)
@@ -212,6 +221,18 @@ def check_icm(expect_filename: str, platform_independent_data: dict, has_content
         actual_data = json.loads(icm_content)
 
         assert actual_data == expect_data
+
+    return check_in_build_dir
+
+
+def check_dockerignore(icm_file: str):
+    def check_in_build_dir(build_dir):
+        dockerignore = build_dir.path / DOCKERIGNORE
+        dockerignore_content = dockerignore.read_text()
+
+        final_content = DOCKERIGNORE_CONTENT
+        final_content += f"\n!{icm_file}\n"
+        assert dockerignore_content == final_content
 
     return check_in_build_dir
 
@@ -381,3 +402,31 @@ def test_no_pnc_artifacts(workflow, requests_mock, content_sets, df_content,
     workflow.build_dir.for_each_platform(
         check_icm(manifest_file, expected_output, has_content_sets=content_sets)
     )
+
+
+@pytest.mark.parametrize(
+    ('df_content, base_layers, manifest_file'), [
+        (
+            dedent("""\
+            FROM base_image
+            CMD build /spam/eggs
+            LABEL com.redhat.component=eggs version=1.0 release=42
+        """),
+            2,
+            'eggs-1.0-42.json',
+        )])
+def test_edit_dockerignore(workflow, requests_mock, df_content, base_layers, manifest_file):
+    mock_get_icm(requests_mock)
+    mock_content_sets_config(workflow.source.path)
+
+    df_content = dedent("""\
+                            FROM base_image
+                            CMD build /spam/eggs
+                            LABEL com.redhat.component=eggs version=1.0 release=42
+                        """)
+    icm_file = 'eggs-1.0-42.json'
+
+    runner = mock_env(workflow, df_content, base_layers, dockerignore=True)
+    runner.run()
+
+    workflow.build_dir.for_each_platform(check_dockerignore(icm_file))
