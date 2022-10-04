@@ -15,7 +15,7 @@ from flexmock import flexmock
 import osbs.conf
 from osbs.utils import ImageName
 
-from atomic_reactor.constants import PLUGIN_FETCH_SOURCES_KEY
+from atomic_reactor.constants import PLUGIN_FETCH_SOURCES_KEY, PLUGIN_CHECK_USER_SETTINGS
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.plugins.add_help import AddHelpPlugin
 from atomic_reactor.plugins.rpmqa import RPMqaPlugin
@@ -125,9 +125,10 @@ def mock_dockerfile(workflow: DockerBuildWorkflow, content: str) -> None:
     (["application/vnd.docker.distribution.manifest.v1+json"],
      ["application/vnd.docker.distribution.manifest.v1+json"]),
 ))
+@pytest.mark.parametrize('check_user_settings_fails', (True, False))
 def test_metadata_plugin(workflow, source_dir, tmpdir, failed, init_dirs,
                          help_results, expected_help_results, base_from_scratch,
-                         verify_media_results, expected_media_results):
+                         verify_media_results, expected_media_results, check_user_settings_fails):
     if base_from_scratch:
         df_content = dedent("""\
             FROM fedora
@@ -162,6 +163,9 @@ def test_metadata_plugin(workflow, source_dir, tmpdir, failed, init_dirs,
         df_images = DockerfileImages(all_parents)
         df_images['fedora'] = "sha256:spamneggs"
 
+    if not check_user_settings_fails:
+        workflow.data.plugins_results[PLUGIN_CHECK_USER_SETTINGS] = 'output'
+
     env = (MockEnv(workflow)
            .for_plugin(StoreMetadataPlugin.key)
            .set_plugin_args({"url": "http://example.com/"})
@@ -192,7 +196,7 @@ def test_metadata_plugin(workflow, source_dir, tmpdir, failed, init_dirs,
     annotations = output[StoreMetadataPlugin.key]["annotations"]
     assert "dockerfile" in annotations
     assert is_string_type(annotations['dockerfile'])
-    if init_dirs:
+    if init_dirs and not check_user_settings_fails:
         assert annotations['dockerfile'] == df_content
     else:
         assert annotations['dockerfile'] == ''
