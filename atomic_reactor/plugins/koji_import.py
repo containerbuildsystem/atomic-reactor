@@ -532,11 +532,14 @@ class KojiImportBase(Plugin):
         if build_id is not None and build_token is not None:
             koji_metadata['build']['build_id'] = build_id
 
+        koji_metadata_str = json.dumps(koji_metadata)
+        koji_metadata_json = json.loads(koji_metadata_str)
+
         try:
             if build_token:
-                build_info = self.session.CGImport(koji_metadata, server_dir, token=build_token)
+                build_info = self.session.CGImport(koji_metadata_json, server_dir, token=build_token)
             else:
-                build_info = self.session.CGImport(koji_metadata, server_dir)
+                build_info = self.session.CGImport(koji_metadata_json, server_dir)
 
         except Exception:
             self.log.debug("metadata: %r", koji_metadata)
