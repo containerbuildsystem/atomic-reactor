@@ -206,3 +206,5 @@ USER_CONFIG_FILES = {
     REPO_FETCH_ARTIFACTS_KOJI: 'schemas/fetch-artifacts-nvr.json',
     REPO_CONTENT_SETS_CONFIG: 'schemas/content_sets.json',
 }
+
+KOJI_METADATA_FILENAME = "metadata.json"

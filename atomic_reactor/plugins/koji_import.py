@@ -57,6 +57,7 @@ from atomic_reactor.constants import (
     KOJI_SUBTYPE_OP_APPREGISTRY,
     KOJI_SUBTYPE_OP_BUNDLE,
     KOJI_SOURCE_ENGINE,
+    KOJI_METADATA_FILENAME,
 )
 from atomic_reactor.util import (get_primary_images,
                                  get_floating_images, get_unique_images,
@@ -476,7 +477,7 @@ class KojiImportBase(Plugin):
         self.log.debug("uploaded %r", path)
         return path
 
-    def upload_scratch_metadata(self, koji_metadata, koji_upload_dir):
+    def upload_metadata(self, koji_metadata, koji_upload_dir, scratch=False):
         metadata_file = NamedTemporaryFile(
             prefix="metadata", suffix=".json", mode='wb', delete=False
         )
@@ -486,7 +487,8 @@ class KojiImportBase(Plugin):
         local_filename = metadata_file.name
         try:
             uploaded_filename = self.upload_file(local_filename, "metadata.json", koji_upload_dir)
-            self.log.info("platform:%s %s", METADATA_TAG, uploaded_filename)
+            if scratch:
+                self.log.info("platform:%s %s", METADATA_TAG, uploaded_filename)
         finally:
             os.unlink(local_filename)
 
@@ -512,7 +514,7 @@ class KojiImportBase(Plugin):
         koji_metadata = self.combine_metadata_fragments()
 
         if is_scratch_build(self.workflow):
-            self.upload_scratch_metadata(koji_metadata, server_dir)
+            self.upload_metadata(koji_metadata, server_dir, scratch=True)
             return
 
         # for all builds which have koji task
@@ -532,12 +534,11 @@ class KojiImportBase(Plugin):
         if build_id is not None and build_token is not None:
             koji_metadata['build']['build_id'] = build_id
 
+        self.upload_metadata(koji_metadata, server_dir)
         try:
-            if build_token:
-                build_info = self.session.CGImport(koji_metadata, server_dir, token=build_token)
-            else:
-                build_info = self.session.CGImport(koji_metadata, server_dir)
-
+            build_info = self.session.CGImport(
+                KOJI_METADATA_FILENAME, server_dir, token=build_token
+            )
         except Exception:
             self.log.debug("metadata: %r", koji_metadata)
             raise

@@ -54,7 +54,7 @@ from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, KOJI_BTYPE_OPER
                                       KOJI_SOURCE_ENGINE,
                                       DOCKERFILE_FILENAME,
                                       REPO_CONTAINER_CONFIG, PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
-                                      PLUGIN_FETCH_MAVEN_KEY)
+                                      PLUGIN_FETCH_MAVEN_KEY, KOJI_METADATA_FILENAME)
 from atomic_reactor.utils.flatpak_util import FlatpakUtil
 from tests.flatpak import (MODULEMD_AVAILABLE,
                            setup_flatpak_composes,
@@ -126,7 +126,9 @@ class MockedClientSession(object):
     def CGImport(self, metadata, server_dir, token=None):
         # metadata cannot be defined in __init__ because tests assume
         # the attribute will not be defined unless this method is called
-        self.metadata = metadata    # pylint: disable=attribute-defined-outside-init
+        self.metadata = json.loads(
+            self.uploaded_files[KOJI_METADATA_FILENAME]
+        )  # pylint: disable=attribute-defined-outside-init
         self.server_dir = server_dir
         return {"id": "123"}
 
@@ -1214,12 +1216,12 @@ class TestKojiImport(object):
         if has_reserved_build:
             (flexmock(session)
                 .should_call('CGImport')
-                .with_args(dict, str, token=build_token)
+                .with_args(KOJI_METADATA_FILENAME, str, token=build_token)
              )
         else:
             (flexmock(session)
                 .should_call('CGImport')
-                .with_args(dict, str)
+                .with_args(KOJI_METADATA_FILENAME, str, token=None)
              )
 
         target = 'images-docker-candidate'
@@ -1321,7 +1323,10 @@ class TestKojiImport(object):
         build_id = runner.plugins_results[KojiImportPlugin.key]
         assert build_id == "123"
 
-        assert set(session.uploaded_files.keys()) == {OSBS_BUILD_LOG_FILENAME}
+        assert set(session.uploaded_files.keys()) == {
+            OSBS_BUILD_LOG_FILENAME,
+            KOJI_METADATA_FILENAME,
+        }
         osbs_build_log = session.uploaded_files[OSBS_BUILD_LOG_FILENAME]
         assert osbs_build_log == b"log message A\nlog message B\nlog message C\n"
         assert workflow.data.annotations['koji-build-id'] == '123'
@@ -1517,7 +1522,7 @@ class TestKojiImport(object):
 
         if is_scratch:
             medata_tag = 'platform:_metadata_'
-            metadata_file = 'metadata.json'
+            metadata_file = KOJI_METADATA_FILENAME
             assert metadata_file in session.uploaded_files
             data = json.loads(session.uploaded_files[metadata_file])
 
@@ -2096,12 +2101,12 @@ class TestKojiImport(object):
         if has_reserved_build:
             (flexmock(session)
                 .should_call('CGImport')
-                .with_args(dict, str, token=build_token)
+                .with_args(KOJI_METADATA_FILENAME, str, token=build_token)
              )
         else:
             (flexmock(session)
                 .should_call('CGImport')
-                .with_args(dict, str)
+                .with_args(KOJI_METADATA_FILENAME, str, token=None)
              )
 
         target = 'images-docker-candidate'
@@ -2230,6 +2235,7 @@ class TestKojiImport(object):
         assert set(session.uploaded_files.keys()) == {
             OSBS_BUILD_LOG_FILENAME,
             uploaded_filename,
+            KOJI_METADATA_FILENAME
         }
         osbs_build_log = session.uploaded_files[OSBS_BUILD_LOG_FILENAME]
         assert osbs_build_log == b"log message A\nlog message B\nlog message C\n"
