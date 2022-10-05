@@ -1446,9 +1446,7 @@ def _has_label_flag(workflow, label) -> bool:
 
     Takes into account parent environment inheritance.
     """
-    dockerfile = workflow.build_dir.any_platform.dockerfile_with_parent_env(
-        workflow.imageutil.base_image_inspect()
-    )
+    dockerfile = workflow.build_dir.any_platform.dockerfile
     labels = Labels(dockerfile.labels)
     try:
         _, value = labels.get_name_and_value(label)

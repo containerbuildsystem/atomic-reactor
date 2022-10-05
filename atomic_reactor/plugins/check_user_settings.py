@@ -65,9 +65,7 @@ class CheckUserSettingsPlugin(Plugin):
         self.log.debug("Running check: %s", msg)
 
         # any_platform: the version label should be equal for all platforms
-        parser = self.workflow.build_dir.any_platform.dockerfile_with_parent_env(
-            self.workflow.imageutil.base_image_inspect()
-        )
+        parser = self.workflow.build_dir.any_platform.dockerfile
         dockerfile_labels = parser.labels
         labels = Labels(parser.labels)
 
