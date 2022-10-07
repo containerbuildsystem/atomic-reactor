@@ -1,5 +1,5 @@
 """
-Copyright (c) 2015, 2019 Red Hat, Inc
+Copyright (c) 2022 Red Hat, Inc
 All rights reserved.
 
 This software may be modified and distributed under the terms
@@ -148,6 +148,9 @@ KOJI_RESERVE_RETRY_DELAY = 2
 KOJI_MAX_RETRIES = 120
 KOJI_RETRY_INTERVAL = 60
 KOJI_OFFLINE_RETRY_INTERVAL = 120
+# max retries for locking remote host slots
+REMOTE_HOST_MAX_RETRIES = 10
+REMOTE_HOST_RETRY_INTERVAL = 5
 # max retries for subprocesses (see utils.retries.run_cmd())
 SUBPROCESS_MAX_RETRIES = 5
 # the factor for the exponential backoff series - 5, 10, 20, 40, 80 seconds of waiting

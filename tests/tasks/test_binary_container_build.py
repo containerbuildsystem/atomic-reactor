@@ -11,6 +11,7 @@ import json
 import re
 import shutil
 import subprocess
+import time
 from copy import deepcopy
 from json import JSONDecodeError
 from pathlib import Path
@@ -27,7 +28,7 @@ from atomic_reactor import dirs
 from atomic_reactor import inner
 from atomic_reactor import util
 from atomic_reactor.config import ReactorConfigKeys
-from atomic_reactor.constants import PLUGIN_CHECK_AND_SET_PLATFORMS_KEY
+from atomic_reactor.constants import PLUGIN_CHECK_AND_SET_PLATFORMS_KEY, REMOTE_HOST_MAX_RETRIES
 from atomic_reactor.tasks.binary_container_build import (
     BinaryBuildTask,
     BinaryBuildTaskParams,
@@ -346,11 +347,12 @@ class TestBinaryBuildTask:
             .once()
             .and_return(pool)
         )
+        (flexmock(time).should_receive('sleep'))
         (
             flexmock(pool)
             .should_receive("lock_resource")
             .with_args(PIPELINE_RUN_NAME)
-            .once()
+            .times(REMOTE_HOST_MAX_RETRIES + 1)
             .and_return(None)
         )
 

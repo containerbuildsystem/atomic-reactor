@@ -654,7 +654,7 @@ class RemoteHostsPool:
 
         platform_config = config.get("pools", {}).get(platform, {})
         if not platform_config:
-            logger.warning("No remote hosts found in config for platform %s", platform)
+            raise RuntimeError("No remote hosts found in config for platform %s" % platform)
 
         hosts = []
         for hostname, attr in platform_config.items():
@@ -674,11 +674,6 @@ class RemoteHostsPool:
 
         :param prid: str, pipelinerun ID
         """
-
-        if not self.hosts:
-            logger.error("There is no available remote host in pool")
-            return None
-
         resources = []
         random.shuffle(self.hosts)
         for host in self.hosts:

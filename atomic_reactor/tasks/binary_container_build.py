@@ -11,6 +11,7 @@ import json
 import logging
 import shutil
 import subprocess
+import time
 from dataclasses import dataclass
 from typing import Any, Dict, Iterator, List, Optional
 from json import JSONDecodeError
@@ -19,6 +20,7 @@ from osbs.utils import ImageName
 
 from atomic_reactor import dirs
 from atomic_reactor import util
+from atomic_reactor.constants import REMOTE_HOST_MAX_RETRIES, REMOTE_HOST_RETRY_INTERVAL
 from atomic_reactor.tasks.common import Task, TaskParams
 from atomic_reactor.utils import retries
 from atomic_reactor.utils import remote_host
@@ -134,7 +136,12 @@ class BinaryBuildTask(Task[BinaryBuildTaskParams]):
         """Lock a build slot on a remote host."""
         logger.info("Acquiring a build slot on a remote host")
         pool = remote_host.RemoteHostsPool.from_config(remote_hosts_config, self._params.platform)
-        resource = pool.lock_resource(prid=self._params.pipeline_run_name)
+        resource = None
+        for _ in range(REMOTE_HOST_MAX_RETRIES + 1):
+            resource = pool.lock_resource(prid=self._params.pipeline_run_name)
+            if resource:
+                break
+            time.sleep(REMOTE_HOST_RETRY_INTERVAL)
         if not resource:
             raise BuildTaskError(
                 "Failed to acquire a build slot on any remote host! See the logs for more details."
