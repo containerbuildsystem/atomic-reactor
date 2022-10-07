@@ -680,6 +680,7 @@ class RemoteHostsPool:
             return None
 
         resources = []
+        random.shuffle(self.hosts)
         for host in self.hosts:
             available_slots = []
             try:
