@@ -1,7 +1,7 @@
 apiVersion: tekton.dev/v1beta1
 kind: Task
 metadata:
-  name: binary-container-build-0-1  # dot is not allowed in the name
+  name: binary-container-build-0-1-mbasti  # dot is not allowed in the name
 spec:
   description: >-
     OSBS build task for building binary container image
@@ -48,6 +48,7 @@ spec:
           memory: 600Mi
           cpu: 395m
       script: >
+        opentelementry-instrument --traces_exporter console --metrics_exporter console
         atomic-reactor -v task
         --user-params='$(params.user-params)'
         --build-dir=$(workspaces.ws-build-dir.path)

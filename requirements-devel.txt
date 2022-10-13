@@ -9,7 +9,9 @@ attrs==21.2.0
     #   jsonschema
     #   pytest
 backoff==1.11.1
-    # via -r requirements.in
+    # via
+    #   -r requirements.in
+    #   opentelemetry-exporter-otlp-proto-http
 bcrypt==3.2.0
     # via paramiko
 certifi==2021.10.8
@@ -32,6 +34,8 @@ cryptography==3.4.8
     #   requests-kerberos
 decorator==5.1.0
     # via gssapi
+deprecated==1.2.13
+    # via opentelemetry-api
 dockerfile-parse==1.2.0
     # via
     #   -r requirements.in
@@ -44,6 +48,8 @@ flatpak-module-tools==0.13.1 ; python_version < "3.9"
     # via -r requirements.in
 flexmock==0.11.1
     # via -r tests/requirements.in
+googleapis-common-protos==1.56.4
+    # via opentelemetry-exporter-otlp-proto-http
 gssapi==1.7.2
     # via
     #   pyspnego
@@ -62,6 +68,35 @@ krb5==0.2.0
     # via pyspnego
 mccabe==0.6.1
     # via flake8
+opentelemetry-api==1.13.0
+    # via
+    #   opentelemetry-distro
+    #   opentelemetry-exporter-otlp-proto-http
+    #   opentelemetry-instrumentation
+    #   opentelemetry-instrumentation-requests
+    #   opentelemetry-sdk
+opentelemetry-distro==0.34b0
+    # via -r requirements.in
+opentelemetry-exporter-otlp-proto-http==1.13.0
+    # via -r requirements.in
+opentelemetry-instrumentation==0.34b0
+    # via
+    #   opentelemetry-distro
+    #   opentelemetry-instrumentation-requests
+opentelemetry-instrumentation-requests==0.34b0
+    # via -r requirements.in
+opentelemetry-proto==1.13.0
+    # via opentelemetry-exporter-otlp-proto-http
+opentelemetry-sdk==1.13.0
+    # via
+    #   opentelemetry-distro
+    #   opentelemetry-exporter-otlp-proto-http
+opentelemetry-semantic-conventions==0.34b0
+    # via
+    #   opentelemetry-instrumentation-requests
+    #   opentelemetry-sdk
+opentelemetry-util-http==0.34b0
+    # via opentelemetry-instrumentation-requests
 osbs-client @ git+https://github.com/containerbuildsystem/osbs-client@f60111429487ab36bd8aaf37b2e9f7d5eab331c8
     # via -r requirements.in
 packaging==21.2
@@ -72,6 +107,10 @@ pep8==1.7.1
     # via -r requirements-devel.in
 pluggy==1.0.0
     # via pytest
+protobuf==3.20.3
+    # via
+    #   googleapis-common-protos
+    #   opentelemetry-proto
 py==1.10.0
     # via
     #   pytest
@@ -130,6 +169,7 @@ requests==2.26.0
     # via
     #   -r requirements.in
     #   koji
+    #   opentelemetry-exporter-otlp-proto-http
     #   osbs-client
     #   requests-gssapi
     #   requests-kerberos
@@ -161,5 +201,14 @@ toml==0.10.2
     # via pytest
 tomli==1.2.2
     # via coverage
+typing-extensions==4.4.0
+    # via opentelemetry-sdk
 urllib3==1.26.7
     # via requests
+wrapt==1.14.1
+    # via
+    #   deprecated
+    #   opentelemetry-instrumentation
+
+# The following packages are considered to be unsafe in a requirements file:
+# setuptools

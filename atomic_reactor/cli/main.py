@@ -12,6 +12,8 @@ import sys
 
 import osbs
 
+from opentelemetry import trace
+
 import atomic_reactor
 from atomic_reactor.cli import parser
 from atomic_reactor.util import setup_introspection_signal_handler
@@ -44,11 +46,14 @@ def run():
     logging.captureWarnings(True)
     setup_introspection_signal_handler()
 
+    tracer = trace.get_tracer(__name__)
+
     args = parser.parse_args()
     task = args.pop("func")
     task_args = _process_global_args(args)
 
-    return task(task_args)
+    with tracer.start_as_current_span(task.__name__):
+        return task(task_args)
 
 
 if __name__ == '__main__':
