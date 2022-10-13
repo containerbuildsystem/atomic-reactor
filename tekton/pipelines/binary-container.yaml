@@ -1,7 +1,7 @@
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
 metadata:
-  name: binary-container-0-1  # dot is not allowed in the name
+  name: binary-container-0-1-mbasti  # dot is not allowed in the name
 spec:
   params:
     - name: osbs-image
@@ -70,7 +70,7 @@ spec:
       runAfter:
         - clone
       taskRef:
-        name: binary-container-prebuild-0-1
+        name: binary-container-prebuild-0-1-mbasti
       workspaces:
         - name: ws-build-dir
           workspace: ws-container
@@ -98,7 +98,7 @@ spec:
       runAfter:
         - binary-container-prebuild
       taskRef:
-        name: binary-container-build-0-1
+        name: binary-container-build-0-1-mbasti
       workspaces:
         - name: ws-build-dir
           workspace: ws-container
@@ -130,7 +130,7 @@ spec:
       runAfter:
         - binary-container-prebuild
       taskRef:
-        name: binary-container-build-0-1
+        name: binary-container-build-0-1-mbasti
       workspaces:
         - name: ws-build-dir
           workspace: ws-container
@@ -162,7 +162,7 @@ spec:
       runAfter:
         - binary-container-prebuild
       taskRef:
-        name: binary-container-build-0-1
+        name: binary-container-build-0-1-mbasti
       workspaces:
         - name: ws-build-dir
           workspace: ws-container
@@ -194,7 +194,7 @@ spec:
       runAfter:
         - binary-container-prebuild
       taskRef:
-        name: binary-container-build-0-1
+        name: binary-container-build-0-1-mbasti
       workspaces:
         - name: ws-build-dir
           workspace: ws-container

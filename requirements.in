@@ -13,3 +13,9 @@ requests
 koji
 PyGObject
 reflink
+opentelemetry-distro
+
+# opentelemetry-* packages which are not directly
+# imported but used by automatic instrumentation
+opentelemetry-exporter-otlp-proto-http
+opentelemetry-instrumentation-requests
