@@ -14,6 +14,7 @@ setuptools<54.0.0
 setuptools_scm
 setuptools_scm[toml]>=3.4
 # pin tomli to avoid issue when building with cachito
-tomli==1.0.1
+tomli
 wheel
 pytest-runner<=5.3.1
+hatchling  # needed for opentelemetry build
