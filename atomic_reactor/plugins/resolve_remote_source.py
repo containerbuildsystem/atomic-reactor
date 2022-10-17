@@ -355,6 +355,7 @@ class ResolveRemoteSourcePlugin(Plugin):
         """
         for config in config_files:
             config_path = dest_dir / config['path']
+            config_path.parent.mkdir(parents=True, exist_ok=True)
             if config['type'] == CFG_TYPE_B64:
                 data = base64.b64decode(config['content'])
                 config_path.write_bytes(data)

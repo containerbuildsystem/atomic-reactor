@@ -218,6 +218,11 @@ CACHITO_CONFIG_FILES = [
         "type": CFG_TYPE_B64,
         "content": base64.b64encode(b"gomod requests don't actually have configs").decode(),
     },
+    {
+        "path": "app/to-be-created-dir/config",
+        "type": CFG_TYPE_B64,
+        "content": base64.b64encode(b"Config file contents").decode()
+    }
 ]
 
 # The response from SECOND_CACHITO_REQUEST_CONFIG_URL
@@ -591,6 +596,7 @@ def test_resolve_remote_source(workflow, scratch, dr_strs, dependency_replacemen
                 "cachito.env": cachito_env_content,
                 "app/README.txt": "Content of remote-source.tar.gz",
                 "app/some-config.txt": "gomod requests don't actually have configs",
+                "app/to-be-created-dir/config": "Config file contents",
             },
         )
     )
@@ -844,6 +850,7 @@ def test_allow_multiple_remote_sources(workflow, allow_multiple_remote_sources):
                     "gomod/cachito.env": first_cachito_env,
                     "gomod/app/README.txt": "Content of remote-source-gomod.tar.gz",
                     "gomod/app/some-config.txt": "gomod requests don't actually have configs",
+                    "gomod/app/to-be-created-dir/config": "Config file contents",
                     "pip/cachito.env": second_cachito_env,
                     "pip/app/README.txt": "Content of remote-source-pip.tar.gz",
                     "pip/app/package-index-ca.pem": "-----BEGIN CERTIFICATE-----",
