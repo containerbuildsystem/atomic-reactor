@@ -81,6 +81,22 @@ ArtifactOutputInfo = Tuple[
 ]
 
 
+def escape_non_printable_chars(koji_metadata: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Escapes non-printable chars in dictionary, except for \n, \t and \r.
+    """
+    def callback(value):
+        if isinstance(value, str):
+            for char in value:
+                if not char.isprintable() and char not in ['\n', '\t', '\r']:
+                    escaped_char = char.encode('unicode-escape').decode('utf-8')
+                    value = value.replace(char, escaped_char)
+        return value
+
+    walker = koji.util.DataWalker(koji_metadata, callback)
+    return walker.walk()
+
+
 @annotation('koji-build-id')
 class KojiImportBase(Plugin):
     """
@@ -481,6 +497,8 @@ class KojiImportBase(Plugin):
         metadata_file = NamedTemporaryFile(
             prefix="metadata", suffix=".json", mode='wb', delete=False
         )
+
+        koji_metadata = escape_non_printable_chars(koji_metadata)
         metadata_file.write(json.dumps(koji_metadata, indent=2).encode('utf-8'))
         metadata_file.close()
 
