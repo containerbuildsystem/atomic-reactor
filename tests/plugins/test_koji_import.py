@@ -20,7 +20,11 @@ import os
 import requests
 
 from atomic_reactor.plugins.gather_builds_metadata import GatherBuildsMetadataPlugin
-from atomic_reactor.plugins.koji_import import KojiImportPlugin, KojiImportSourceContainerPlugin
+from atomic_reactor.plugins.koji_import import (
+    KojiImportPlugin,
+    KojiImportSourceContainerPlugin,
+    escape_non_printable_chars,
+)
 from atomic_reactor.plugins.rpmqa import RPMqaPlugin
 from atomic_reactor.plugins.add_filesystem import AddFilesystemPlugin
 from atomic_reactor.plugins.fetch_sources import PLUGIN_FETCH_SOURCES_KEY
@@ -2446,3 +2450,21 @@ class TestKojiImport(object):
         expected_buildroot_id = session.metadata['buildroots'][0]['id']
         assert expected_buildroot_id == output['buildroot_id']
         assert OPERATOR_MANIFESTS_ARCHIVE in session.uploaded_files
+
+
+@pytest.mark.parametrize(
+    "koji_metadata,expected_metadata",
+    [
+        (
+            {"metadata": {"config": {"env": "\x1F"}}},
+            {"metadata": {"config": {"env": "\\x1f"}}},
+        ),
+        (
+            {"metadata": {"config": {"env": "value\x1Fvalue\x1F\n\r\t\x1F\x03"}}},
+            {"metadata": {"config": {"env": "value\\x1fvalue\\x1f\n\r\t\\x1f\\x03"}}},
+        ),
+    ],
+)
+def test_escape_non_printable_chars(koji_metadata, expected_metadata):
+    actual_metadata = escape_non_printable_chars(koji_metadata)
+    assert expected_metadata == actual_metadata
