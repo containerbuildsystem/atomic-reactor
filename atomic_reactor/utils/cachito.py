@@ -116,6 +116,7 @@ class CachitoAPI(object):
         """
         request_id = self._get_request_id(request)
         url = '{}/api/v1/requests/{}'.format(self.api_url, request_id)
+        log_url = f'{url}/logs'
         logger.info('Waiting for request %s to complete...', request_id)
 
         last_updated_value = None
@@ -135,7 +136,7 @@ class CachitoAPI(object):
                 raise CachitoAPIUnsuccessfulRequest(
                     "Cachito request is in \"{}\" state, reason: {}. "
                     "Request {} ({}) tried to get repo '{}' at reference '{}'.".format(
-                        state, state_reason, request_id, url,
+                        state, state_reason, request_id, log_url,
                         response_json['repo'], response_json['ref']
                     )
                 )
