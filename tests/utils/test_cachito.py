@@ -240,7 +240,7 @@ def test_check_CachitoAPIUnsuccessfulRequest_text(error_state, error_reason, cap
     updated = datetime.utcnow().isoformat()
     expected_total_responses_calls = len(states)
 
-    cachito_request_url = '{}/api/v1/requests/{}'.format(CACHITO_URL, CACHITO_REQUEST_ID)
+    cachito_req_url_logs = '{}/api/v1/requests/{}/logs'.format(CACHITO_URL, CACHITO_REQUEST_ID)
 
     def handle_wait_for_request(http_request):
         state = states.pop(0)
@@ -263,7 +263,7 @@ def test_check_CachitoAPIUnsuccessfulRequest_text(error_state, error_reason, cap
         "Cachito request is in \"{}\" state, reason: {}. "
         "Request {} ({}) tried to get repo '{}' at reference '{}'.".format(
             error_state, error_reason, CACHITO_REQUEST_ID,
-            cachito_request_url, CACHITO_REQUEST_REPO,
+            cachito_req_url_logs, CACHITO_REQUEST_REPO,
             CACHITO_REQUEST_REF)
     )
     with pytest.raises(CachitoAPIUnsuccessfulRequest) as excinfo:
