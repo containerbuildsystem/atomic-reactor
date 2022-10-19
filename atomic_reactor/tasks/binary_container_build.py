@@ -21,6 +21,7 @@ from osbs.utils import ImageName
 from atomic_reactor import dirs
 from atomic_reactor import util
 from atomic_reactor.constants import REMOTE_HOST_MAX_RETRIES, REMOTE_HOST_RETRY_INTERVAL
+
 from atomic_reactor.tasks.common import Task, TaskParams
 from atomic_reactor.utils import retries
 from atomic_reactor.utils import remote_host
@@ -111,6 +112,7 @@ class BinaryBuildTask(Task[BinaryBuildTaskParams]):
                 build_args=self.workflow_data.buildargs,
                 dest_tag=dest_tag,
                 flatpak=flatpak,
+                memory_limit=config.remote_hosts.get("memory_limit"),
             )
             for line in output_lines:
                 logger.info(line.rstrip())
@@ -225,6 +227,7 @@ class PodmanRemote:
         build_args: Dict[str, str],
         dest_tag: ImageName,
         flatpak: bool,
+        memory_limit: Optional[str],
     ) -> Iterator[str]:
         """Build a container image from the specified build directory.
 
@@ -242,6 +245,10 @@ class PodmanRemote:
             "--no-cache",  # make sure the build uses a clean environment
             "--pull-always",  # as above
         ]
+        if memory_limit:
+            # memory limit (format: <number>[<unit>], where unit = b, k, m or g)
+            options.append(f"--memory={memory_limit}")
+
         if flatpak:
             options.append("--squash-all")
             for device in ['null', 'random', 'urandom', 'zero']:

@@ -78,8 +78,10 @@ X86_REMOTE_HOST = remote_host.RemoteHost(
 X86_LOCKED_RESOURCE = remote_host.LockedResource(X86_REMOTE_HOST, X86_64, slot=1,
                                                  prid=PIPELINE_RUN_NAME)
 
+MEMORY_LIMIT = "4g"
 REMOTE_HOST_CONFIG = {
     "slots_dir": X86_REMOTE_HOST.slots_dir,
+    "memory_limit": MEMORY_LIMIT,
     "pools": {
         "x86_64": {
             X86_REMOTE_HOST.hostname: {
@@ -257,12 +259,13 @@ class TestBinaryBuildTask:
             mock_config(REGISTRY_CONFIG, REMOTE_HOST_CONFIG, image_size_limit=1234)
         x86_build_dir.dockerfile_path.write_text(DOCKERFILE_CONTENT)
 
-        def mock_build_container(*, build_dir, build_args, dest_tag, flatpak):
+        def mock_build_container(*, build_dir, build_args, dest_tag, flatpak, memory_limit):
             assert build_dir.path == x86_build_dir.path
             assert build_dir.platform == "x86_64"
             assert build_args == BUILD_ARGS
             assert dest_tag == X86_UNIQUE_IMAGE
             assert flatpak == is_flatpak
+            assert memory_limit == MEMORY_LIMIT
 
             yield from ["output line 1\n", "output line 2\n"]
 
@@ -458,12 +461,15 @@ class TestPodmanRemote:
 
     @pytest.mark.parametrize("authfile", [None, AUTHFILE_PATH])
     @pytest.mark.parametrize('is_flatpak', (True, False))
-    def test_build_container(self, authfile, is_flatpak, x86_build_dir):
+    @pytest.mark.parametrize('memory_limit', ('1g', None))
+    def test_build_container(self, authfile, is_flatpak, x86_build_dir, memory_limit):
         options = [
             f"--tag={X86_UNIQUE_IMAGE}",
             "--no-cache",
             "--pull-always",
         ]
+        if memory_limit:
+            options.append(f"--memory={memory_limit}")
         if is_flatpak:
             options.append("--squash-all")
             for device in ['null', 'random', 'urandom', 'zero']:
@@ -490,7 +496,8 @@ class TestPodmanRemote:
             build_dir=x86_build_dir,
             build_args=BUILD_ARGS,
             dest_tag=X86_UNIQUE_IMAGE,
-            flatpak=is_flatpak
+            flatpak=is_flatpak,
+            memory_limit=memory_limit
         )
 
         assert list(output_lines) == ["starting the build\n", "finished successfully\n"]
@@ -515,6 +522,7 @@ class TestPodmanRemote:
             build_args=BUILD_ARGS,
             dest_tag=X86_UNIQUE_IMAGE,
             flatpak=False,
+            memory_limit="1g",
         )
 
         for expect_line in output_lines:

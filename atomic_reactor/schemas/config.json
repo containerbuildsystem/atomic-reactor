@@ -92,6 +92,11 @@
                 "description": "Remote-host slots directory",
                 "type": "string"
             },
+            "memory_limit": {
+                "description": "Memory limit for podman-remote build",
+                "type": "string",
+                "examples": ["1g", "10m"]
+            },
             "pools": {
                 "description": "Pool of Remote-hosts",
                 "type": "object",
