@@ -663,36 +663,52 @@ class RegistryClient(object):
         media_type = get_manifest_media_type(version)
         try:
             response = query_registry(self._session, image, digest=None, version=version)
+            saved_response = response  # type: ignore[assignment]
         except (HTTPError, RetryError) as ex:
-            if ex.response is None:
-                raise
-            if ex.response.status_code == requests.codes.not_found:
-                saved_not_found = ex
-            # If the registry has a v2 manifest that can't be converted into a v1
-            # manifest, the registry fails with status=400 (BAD_REQUEST), and an error code of
-            # MANIFEST_INVALID. Note that if the registry has v2 manifest and
-            # you ask for an OCI manifest, the registry will try to convert the
-            # v2 manifest into a v1 manifest as the default type, so the same
-            # thing occurs.
-            if version != 'v2' and ex.response.status_code == requests.codes.bad_request:
-                logger.warning('Unable to fetch digest for %s, got error %s',
-                               media_type, ex.response.status_code)
-                return None, saved_not_found
-            # Returned if the manifest could not be retrieved for the given
-            # media type
-            elif (ex.response.status_code == requests.codes.not_found or
-                  ex.response.status_code == requests.codes.not_acceptable):
-                logger.debug("skipping version %s due to status code %s",
-                             version, ex.response.status_code)
-                return None, saved_not_found
+            if ex.response:
+                saved_response = response
+                if ex.response.status_code == requests.codes.not_found:  # 404
+                    msg = (f'Requested parent/base image "{image}" not found'
+                           f' (status code {ex.response.status_code})')
+                    logger.warning(msg)
+                    saved_not_found = ex
+                # Manifest doesn't exist
+                if ex.response.status_code == requests.codes.unauthorized:  # 401
+                    msg = (f'Manifest for requested parent/base image "{image}" does not'
+                           f' exist (status code {ex.response.status_code})')
+                    logger.warning(msg)
+                    saved_not_found = ex
+                # If the registry has a v2 manifest that can't be converted into
+                # a v1 manifest, the registry fails with status=400
+                # (BAD_REQUEST), and an error code of MANIFEST_INVALID. Note
+                # that if the registry has v2 manifest and you ask for an OCI
+                # manifest, the registry will try to convert the v2 manifest
+                # into a v1 manifest as the default type, so the same thing
+                # occurs.
+                if (version != 'v2'
+                        and ex.response.status_code == requests.codes.bad_request):  # 400
+                    msg = (f'Cannot convert to requested manifest type {media_type},'
+                           f' (status code {ex.response.status_code})')
+                    saved_response = None  # type: ignore[assignment]
+                # Returned if the manifest could not be retrieved for the given
+                # media type
+                elif (saved_not_found
+                        or ex.response.status_code == requests.codes.not_acceptable):  # 406
+                    msg = (f'Manifest version "{version}" does not exist for'
+                           f' requested parent/base image "{image}"'
+                           f' (status code {ex.response.status_code})')
+                    saved_response = None  # type: ignore[assignment]
+                else:
+                    raise
             else:
                 raise
-
+            logger.warning(msg)
         if not manifest_is_media_type(response, media_type):
-            logger.warning("content does not match expected media type")
-            return None, saved_not_found
-        logger.debug("content matches expected media type")
-        return response, saved_not_found
+            logger.warning('Content does not match expected media type'
+                           ' (status code %s)', response.status_code)
+            saved_response = None  # type: ignore[assignment]
+        logger.debug('Content matches expected media type')
+        return saved_response, saved_not_found
 
     def get_manifest_digests(self,
                              image,

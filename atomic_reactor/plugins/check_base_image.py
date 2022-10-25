@@ -182,8 +182,8 @@ class CheckBaseImagePlugin(Plugin):
                                  'list')
                 return
             else:
-                raise RuntimeError('Unable to fetch manifest list for base image {}'.format(image))
-
+                raise RuntimeError('Parent/base image does not exist: Unable to'
+                                   f' fetch manifest list for {image}')
         all_manifests = manifest_list.json()['manifests']
         manifest_list_arches = set(
             manifest['platform']['architecture'] for manifest in all_manifests)
