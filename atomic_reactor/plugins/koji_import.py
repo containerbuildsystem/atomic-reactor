@@ -85,12 +85,15 @@ def escape_non_printable_chars(koji_metadata: Dict[str, Any]) -> Dict[str, Any]:
     """
     Escapes non-printable chars in dictionary, except for \n, \t and \r.
     """
+    translation_table = {
+        i: chr(i).encode("unicode-escape").decode("utf-8")
+        for i in range(32)
+        if chr(i) not in ["\n", "\t", "\r"]
+    }
+
     def callback(value):
         if isinstance(value, str):
-            for char in value:
-                if not char.isprintable() and char not in ['\n', '\t', '\r']:
-                    escaped_char = char.encode('unicode-escape').decode('utf-8')
-                    value = value.replace(char, escaped_char)
+            value = value.translate(translation_table)
         return value
 
     walker = koji.util.DataWalker(koji_metadata, callback)
