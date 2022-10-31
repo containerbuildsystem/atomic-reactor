@@ -25,7 +25,6 @@ from atomic_reactor.constants import (
     REMOTE_SOURCE_TARBALL_FILENAME,
 )
 from atomic_reactor.dirs import BuildDir
-from atomic_reactor.metadata import annotation_map
 from atomic_reactor.plugin import Plugin
 from atomic_reactor.util import is_scratch_build, map_to_user_params
 from atomic_reactor.utils.cachito import CFG_TYPE_B64
@@ -64,16 +63,6 @@ class RemoteSource:
             return REMOTE_SOURCE_JSON_FILENAME
 
 
-def transform_results(results):
-    remote_sources_annotations = [
-        {"name": remote_source["name"], "url": remote_source["url"]}
-        for remote_source in results
-    ]
-
-    return remote_sources_annotations
-
-
-@annotation_map('remote_sources', transform_results)
 class ResolveRemoteSourcePlugin(Plugin):
     """Initiate a new Cachito request for sources
 
