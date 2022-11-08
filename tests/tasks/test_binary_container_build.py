@@ -503,16 +503,17 @@ class TestPodmanRemote:
         assert list(output_lines) == ["starting the build\n", "finished successfully\n"]
 
     @pytest.mark.parametrize(
-        "output_lines, expect_err_line",
+        "output_lines, expected_lines, expect_err_line",
         [
-            (["starting the build\n", "failed :(\n"], "failed :("),
-            (["failed and printed an empty line\n", "\n"], "failed and printed an empty line"),
-            ([], "<no output!>"),
-            (["\n"], "<no output!>"),
+            (["starting the build\n", "failed :(\n"], ["starting the build\n"], "failed :("),
+            (["failed and printed an empty line\n", "\n"], ["\n"],
+             "failed and printed an empty line"),
+            ([], [], "<no output!>"),
+            (["\n"], [], "<no output!>"),
         ]
     )
     def test_build_container_fails(
-        self, output_lines, expect_err_line, x86_build_dir
+        self, output_lines, expected_lines, expect_err_line, x86_build_dir
     ):
         mock_popen(1, output_lines)
 
@@ -525,13 +526,14 @@ class TestPodmanRemote:
             memory_limit="1g",
         )
 
-        for expect_line in output_lines:
+        for expect_line in expected_lines:
             assert next(returned_lines) == expect_line
 
         err_msg = rf"Build failed \(rc=1\). {re.escape(expect_err_line)}"
 
         with pytest.raises(BuildProcessError, match=err_msg):
-            next(returned_lines)
+            while True:
+                next(returned_lines)
 
     @pytest.mark.parametrize("authfile", [None, AUTHFILE_PATH])
     @pytest.mark.parametrize("insecure", [True, False])

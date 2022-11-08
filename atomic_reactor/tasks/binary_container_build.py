@@ -228,7 +228,7 @@ class PodmanRemote:
         dest_tag: ImageName,
         flatpak: bool,
         memory_limit: Optional[str],
-    ) -> Iterator[str]:
+    ) -> Iterator[Optional[str]]:
         """Build a container image from the specified build directory.
 
         Pass the specified build arguments as ARG values using --build-arg.
@@ -279,19 +279,30 @@ class PodmanRemote:
         assert build_process.stdout is not None
 
         last_line = None
+        buffer: List[str] = []
 
         while True:
             if line := build_process.stdout.readline():
-                yield line
-                # keep the last non-empty, non-whitespace line for an eventual error message
-                last_line = line.rstrip() or last_line
+                if buffer and buffer[0] != last_line:
+                    yield buffer.pop(0)
+                buffer.append(line)
+                if line.rstrip():
+                    # keep the last non-empty, non-whitespace line for an eventual error message
+                    last_line = line
 
             if (rc := build_process.poll()) is not None:
                 break
 
+        for line in buffer:
+            if line != last_line:
+                yield line
+
         if rc != 0:
+            logger.error(last_line)
             error = last_line if last_line else "<no output!>"
             raise BuildProcessError(f"Build failed (rc={rc}): {error}")
+        else:
+            yield last_line
 
     def get_image_size(self, dest_tag: ImageName) -> int:
         inspect_cmd = [*self._podman_remote_cmd, 'image', 'inspect', str(dest_tag)]
