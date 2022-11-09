@@ -45,10 +45,14 @@ class FlatpakCreateOciPlugin(Plugin):
             self.flatpak_metadata = FLATPAK_METADATA_ANNOTATIONS
 
     def build_flatpak_image(self, source, build_dir: BuildDir) -> Dict[str, Any]:
-        builder = FlatpakBuilder(source, build_dir.path,
-                                 'var/tmp/flatpak-build',
-                                 parse_manifest=parse_rpm_output,
-                                 flatpak_metadata=self.flatpak_metadata)
+        builder = FlatpakBuilder(
+            source,
+            build_dir.path,
+            "var/tmp/flatpak-build",
+            parse_manifest=parse_rpm_output,
+            flatpak_metadata=self.flatpak_metadata,
+            oci_arch=self.workflow.conf.platform_to_goarch_mapping[build_dir.platform],
+        )
 
         df_labels = build_dir.dockerfile_with_parent_env(
             self.workflow.imageutil.base_image_inspect()
