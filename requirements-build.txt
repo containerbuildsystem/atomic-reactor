@@ -167,9 +167,9 @@ typing-extensions==4.0.1 \
     # via
     #   setuptools-rust
     #   setuptools-scm
-wheel==0.37.1 \
-    --hash=sha256:4bdcd7d840138086126cd09254dc6195fb4fc6f01c050a1d7236f2630db1d22a \
-    --hash=sha256:e9a504e793efbca1b8e0e9cb979a249cf4a0a7b5b8c9e8b65a5e39d49529c1c4
+wheel==0.38.3 \
+    --hash=sha256:4066646ef77d0e56cc44004c100381ee1957955cfc3151345dda96886f9896a5 \
+    --hash=sha256:f3c99240da8d26989dca2d67a7a431015eb91fb301eecacc6e452133689d9d59
     # via -r requirements-build.in
 
 # The following packages are considered to be unsafe in a requirements file:
