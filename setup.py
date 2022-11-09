@@ -27,8 +27,7 @@ setup(
     install_requires=[
         'backoff',
         'dockerfile-parse>=0.0.13',
-        'flatpak-module-tools >= 0.11,!=0.13,<=0.13.1;python_version<"3.9"',
-        'flatpak-module-tools >= 0.11;python_version>="3.9"',
+        'flatpak-module-tools>=0.14',
         'jsonschema',
         'paramiko>=2.10.1',
         'PyYAML',
