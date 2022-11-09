@@ -359,6 +359,13 @@ CONFIGS = build_flatpak_test_configs({
     'sdk': SDK_CONFIG,
 })
 
+PLATFORM_DESCRIPTORS = [
+    {'platform': 'x86_64', 'architecture': 'amd64'},
+    {'platform': 'aarch64', 'architecture': 'arm64'},
+    {'platform': 's390x', 'architecture': 's390x'},
+    {'platform': 'ppc64le', 'architecture': 'ppc64le'},
+]
+
 
 def load_labels_and_annotations(metadata):
     def get_path(descriptor):
@@ -517,10 +524,17 @@ def test_flatpak_create_oci(workflow, config_name, flatpak_metadata, breakage):
 
     config = CONFIGS[config_name]
 
-    runner = (MockEnv(workflow)
-              .for_plugin(FlatpakCreateOciPlugin.key)
-              .set_reactor_config({'flatpak': {'metadata': flatpak_metadata}})
-              .create_runner())
+    runner = (
+        MockEnv(workflow)
+        .for_plugin(FlatpakCreateOciPlugin.key)
+        .set_reactor_config(
+            {
+                "flatpak": {"metadata": flatpak_metadata},
+                "platform_descriptors": PLATFORM_DESCRIPTORS,
+            }
+        )
+        .create_runner()
+    )
 
     platforms = ['x86_64', 'aarch64', 's390x', 'ppc64le']
     workflow.user_params['flatpak'] = True
@@ -555,9 +569,15 @@ def test_flatpak_create_oci(workflow, config_name, flatpak_metadata, breakage):
     elif breakage == 'run_cmd_failed':
         for platform in platforms:
             platform_dir = workflow.build_dir.platform_dir(platform)
-            skopeo_cmd = ['skopeo', 'copy', f'oci:{str(platform_dir.path)}'
-                                            f'/flatpak-oci-image:app/org.gnome.eog/x86_64/stable',
-                          '--format=v2s2', f'docker-archive:{platform_dir.exported_squashed_image}']
+            skopeo_cmd = [
+                "skopeo",
+                "copy",
+                f"oci:{str(platform_dir.path)}"
+                f"/flatpak-oci-image:app/org.gnome.eog/{platform}/stable",
+                "--format=v2s2",
+                f"docker-archive:{platform_dir.exported_squashed_image}",
+            ]
+
             cleanup_cmd = ['rm', str(platform_dir.exported_squashed_image)]
             (flexmock(retries).should_receive('run_cmd')
                 .with_args(skopeo_cmd, cleanup_cmd)
