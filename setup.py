@@ -14,7 +14,7 @@ HOMEPAGE = "https://github.com/containerbuildsystem/atomic-reactor"
 
 setup(
     name='atomic-reactor',
-    version='4.1.0',
+    version='4.2.0',
     description=DESCRIPTION,
     author='Red Hat, Inc.',
     author_email='atomic-devel@projectatomic.io',
