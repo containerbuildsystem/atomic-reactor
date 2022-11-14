@@ -26,7 +26,6 @@ DOCKERFILE_MULTISTAGE_CUSTOM_PATH = os.path.join(FILES, 'docker-hello-world-mult
 DOCKERFILE_MULTISTAGE_CUSTOM_BAD_PATH =\
     os.path.join(FILES, 'docker-hello-world-multistage-custom_multiple')
 DOCKERFILE_ERROR_BUILD_PATH = os.path.join(FILES, 'docker-hello-world-error-build')
-SOURCE_CONFIG_ERROR_PATH = os.path.join(FILES, 'docker-hello-world-error-config')
 DOCKERFILE_SUBDIR_PATH = os.path.join(FILES, 'df-in-subdir')
 
 FLATPAK_GIT = "git://pkgs.fedoraproject.org/modules/eog.git"
@@ -124,9 +123,6 @@ platform_descriptors:
 - platform: x86_64
   architecture: amd64
 
-content_versions:
-- v2
-
 registry:
   url: https://container-registry.example.com/v2
 
@@ -137,14 +133,6 @@ source_registry:
 registries_cfg_path: /var/run/secrets/atomic-reactor/v2-registry-dockercfg
 
 sources_command: "fedpkg sources"
-
-required_secrets:
-- kojisecret
-- odcssecret
-- v2-registry-dockercfg
-
-
-prefer_schema1_digest: True
 
 yum_proxy: http://proxy.example.com
 

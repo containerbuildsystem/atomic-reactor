@@ -28,7 +28,6 @@
 
     "buildargs": {"type": "object"},
 
-    "files": {"type": "object"},
     "image_components": {
       "type": ["object", "null"],
       "patternProperties": {
@@ -65,7 +64,7 @@
     "plugins_results",
     "plugins_timestamps", "plugins_durations", "plugins_errors", "task_canceled",
     "reserved_build_id", "reserved_token", "koji_source_nvr", "koji_source_source_url", "koji_source_manifest",
-    "buildargs", "files", "image_components", "all_yum_repourls", "annotations",
+    "buildargs", "image_components", "all_yum_repourls", "annotations",
     "parent_images_digests", "koji_upload_files"
   ],
   "additionalProperties": false,

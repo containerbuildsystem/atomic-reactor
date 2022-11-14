@@ -111,7 +111,6 @@ class MockedClientSession:
 def test_fail_if_no_platform_is_set(workflow):
     runner = (MockEnv(workflow)
               .for_plugin(GatherBuildsMetadataPlugin.key)
-              .set_plugin_args({"koji_upload_dir": "path/to/upload"})
               .create_runner())
     with pytest.raises(PluginFailedException, match="No enabled platforms"):
         runner.run()
@@ -153,7 +152,7 @@ def test_gather_builds_metadata(has_s390x_build_logs, workflow: DockerBuildWorkf
                     'binary-container-build-s390x': {'task_result': json.dumps(S390X_HOST)}}
     flexmock(workflow.osbs).should_receive('get_task_results').and_return(task_results)
 
-    plugin = GatherBuildsMetadataPlugin(workflow, koji_upload_dir="path/to/upload")
+    plugin = GatherBuildsMetadataPlugin(workflow)
 
     with patch("atomic_reactor.plugins.gather_builds_metadata.get_output",
                return_value=([], None)):
@@ -228,7 +227,7 @@ def test_get_build_metadata_fails(task_results, remote_hosts, error_msg,
     flexmock(RemoteHost).should_receive('rpms_installed').and_return(None)
     flexmock(workflow.osbs).should_receive('get_task_results').and_return(task_results)
 
-    plugin = GatherBuildsMetadataPlugin(workflow, koji_upload_dir="path/to/upload")
+    plugin = GatherBuildsMetadataPlugin(workflow)
 
     with patch("atomic_reactor.plugins.gather_builds_metadata.get_output",
                return_value=([], None)):

@@ -199,7 +199,7 @@ def test_workflow_build_image(workflow: DockerBuildWorkflow, caplog):
     fs_watcher.should_receive('finish')
 
     workflow.plugin_files = [this_file]
-    workflow.build_docker_image()
+    workflow.build_container_image()
 
     assert watch_update_maintainer.was_called()
     assert watch_push_image.was_called()
@@ -232,7 +232,7 @@ def test_bad_plugins_conf(plugins_conf: List[Dict[str, Any]], workflow, caplog):
     watcher = [x for x in watchers if x][0]
 
     with pytest.raises(PluginFailedException):
-        workflow.build_docker_image()
+        workflow.build_container_image()
 
     assert not watcher.was_called()
     assert workflow.data.plugins_errors
@@ -269,7 +269,7 @@ def test_good_plugins_conf(plugins_conf: List[Dict[str, Any]], workflow, caplog)
     watchers = [conf.get('args', {}).get('watcher') for conf in plugins_conf]
     watcher = [x for x in watchers if x][0]
 
-    workflow.build_docker_image()
+    workflow.build_container_image()
     assert watcher.was_called()
     assert not workflow.data.plugins_errors
     assert all(record.levelno != logging.ERROR for record in caplog.records)
@@ -329,7 +329,7 @@ def test_show_version(has_version, context_dir, build_dir, workflow: DockerBuild
         **kwargs,
     )
 
-    workflow.build_docker_image()
+    workflow.build_container_image()
     expected_log_message = f"build json was built by osbs-client {version}"
     assert any(
         expected_log_message in record.message

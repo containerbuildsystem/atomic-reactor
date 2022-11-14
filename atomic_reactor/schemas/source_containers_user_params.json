@@ -10,7 +10,6 @@
     "kind": {"type": "string"},
     "koji_target": {"type": "string"},
     "koji_task_id": {"type": "integer"},
-    "platform": {"type": "string"},
     "reactor_config_map": {"type": "string"},
     "scratch": {"type": "boolean"},
     "signing_intent": {"type": "string"},

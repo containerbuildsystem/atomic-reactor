@@ -440,19 +440,6 @@
             "additionalProperties": false
         }
     },
-    "prefer_schema1_digest": {
-        "description": "schema 1 as preferred digest",
-        "type": "boolean",
-        "default": false
-    },
-    "content_versions": {
-        "description": "Produce container image of given version",
-        "type": "array",
-        "items": {
-            "type": "string",
-            "enum": ["v2"]
-        }
-    },
     "registries_organization": {"$ref": "#/definitions/organization"},
     "registries_cfg_path": {
       "description": "Path to directory containing .dockercfg for registries auth",
@@ -537,18 +524,6 @@
         "description": "Allow using multiple remote sources",
         "type": "boolean",
         "default": false
-    },
-    "required_secrets": {
-        "description": "List of OpenShift secrets required by this configuration",
-        "type": "array",
-        "items": {
-            "type": "string"
-        }
-    },
-    "build_image_override": {
-        "description": "Specify different build_image image for platforms",
-        "type": "object",
-        "additionalProperties": {"type": "string"}
     },
     "flatpak": {
         "description": "Flatpak specific properties",
@@ -698,25 +673,6 @@
         },
         "required": ["allowed_registries"],
         "additionalProperties": false
-    },
-    "build_env_vars": {
-      "description": "Variables to propagate to build environment",
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "description": "Name of environment variable",
-            "type": "string"
-          },
-          "value": {
-            "description": "Value of environment variable",
-            "type": "string"
-          }
-        },
-        "additionalProperties": false,
-        "required": ["name", "value"]
-      }
     },
     "image_size_limit": {
       "description": "Define maximum uncompressed image size in bytes for binary image checked before push",

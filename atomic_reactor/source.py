@@ -11,7 +11,6 @@ Code for getting source code to put inside container.
 
 import functools
 import logging
-import copy
 import os
 import shutil
 import tempfile
@@ -242,28 +241,3 @@ class DummySource(Source):
 
     def get(self):
         return self.source_path
-
-
-def get_source_instance_for(source, workdir=None):
-    validate_source_dict_schema(source)
-    klass = None
-    provider = source['provider'].lower()
-    if provider == 'git':
-        klass = GitSource
-    elif provider == 'path':
-        klass = PathSource
-    else:
-        raise ValueError('unknown source provider "{0}"'.format(provider))
-
-    # don't modify original source
-    args = copy.deepcopy(source)
-    args['workdir'] = workdir
-    return klass(**args)
-
-
-def validate_source_dict_schema(sd):
-    if not isinstance(sd, dict):
-        raise ValueError('"source" must be a dict')
-    for k in ['provider', 'uri']:
-        if k not in sd:
-            raise ValueError('"source" must contain "{0}" key'.format(k))
