@@ -666,6 +666,10 @@ class RegistryClient(object):
         except (HTTPError, RetryError) as ex:
             if ex.response is None:
                 raise
+            if ex.response.status_code == requests.codes.unauthorized:
+                logger.warning('Requested parent/base image "%s" not found', image.to_str())
+                raise RuntimeError('Unable to fetch image: "{}"'
+                                   ' (Does the image exist?)'.format(image.to_str())) from ex
             if ex.response.status_code == requests.codes.not_found:
                 saved_not_found = ex
             # If the registry has a v2 manifest that can't be converted into a v1

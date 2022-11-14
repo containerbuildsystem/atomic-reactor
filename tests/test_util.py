@@ -845,6 +845,19 @@ def test_get_manifest_timeout_error(tmpdir, body):
         get_manifest(image, session, 'v2')
 
 
+@responses.activate
+def test_get_manifest_non_existent_image_error(tmpdir):
+    image = ImageName.parse('example.com/spam:latest')
+    registry = 'https://example.com'
+    session = RegistrySession(registry)
+
+    url = 'https://example.com/v2/spam/manifests/latest'
+    responses.add(responses.GET, url, body='', status=401)
+    msg = 'Does the image exist'
+    with pytest.raises(RuntimeError, match=msg):
+        get_manifest(image, session, 'v2')
+
+
 @pytest.mark.parametrize('namespace,repo,explicit,expected', [
     ('foo', 'bar', False, 'foo/bar'),
     ('foo', 'bar', True, 'foo/bar'),
