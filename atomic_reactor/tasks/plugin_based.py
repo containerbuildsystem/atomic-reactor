@@ -66,7 +66,7 @@ class PluginBasedTask(Task[ParamsT]):
             workflow.build_dir.init_build_dirs(get_platforms(workflow.data), workflow.source)
 
         try:
-            workflow.build_docker_image()
+            workflow.build_container_image()
         except Exception as e:
             logger.error("task %s failed: %s", self.task_name, e)
             raise

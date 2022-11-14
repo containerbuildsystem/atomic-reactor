@@ -157,8 +157,6 @@ class ReactorConfigKeys(object):
     OPENSHIFT_KEY = 'openshift'
     GROUP_MANIFESTS_KEY = 'group_manifests'
     PLATFORM_DESCRIPTORS_KEY = 'platform_descriptors'
-    PREFER_SCHEMA1_DIGEST_KEY = 'prefer_schema1_digest'
-    CONTENT_VERSIONS_KEY = 'content_versions'
     REGISTRIES_ORGANIZATION_KEY = 'registries_organization'
     REGISTRY_KEY = 'registry'
     REGISTRIES_CFG_PATH_KEY = 'registries_cfg_path'
@@ -168,8 +166,6 @@ class ReactorConfigKeys(object):
     PULL_REGISTRIES_KEY = 'pull_registries'
     SOURCES_COMMAND_KEY = 'sources_command'
     LIST_RPMS_FROM_SCRATCH_KEY = 'list_rpms_from_scratch'
-    REQUIRED_SECRETS_KEY = 'required_secrets'
-    BUILD_IMAGE_OVERRIDE_KEY = 'build_image_override'
     FLATPAK_KEY = 'flatpak'
     PACKAGE_COMPARISON_EXCEPTIONS_KEY = 'package_comparison_exceptions'
     HIDE_FILES_KEY = 'hide_files'
@@ -382,14 +378,6 @@ class Configuration(object):
         return self._get_value(ReactorConfigKeys.GROUP_MANIFESTS_KEY, fallback=True)
 
     @property
-    def prefer_schema1_digest(self):
-        return self._get_value(ReactorConfigKeys.PREFER_SCHEMA1_DIGEST_KEY, fallback=False)
-
-    @property
-    def content_versions(self):
-        return self._get_value(ReactorConfigKeys.CONTENT_VERSIONS_KEY, fallback=[])
-
-    @property
     def yum_proxy(self):
         return self._get_value(ReactorConfigKeys.YUM_PROXY_KEY, fallback=None)
 
@@ -445,10 +433,6 @@ class Configuration(object):
         return self._get_value(ReactorConfigKeys.SOURCES_COMMAND_KEY, fallback=None)
 
     @property
-    def required_secrets(self):
-        return self._get_value(ReactorConfigKeys.REQUIRED_SECRETS_KEY, fallback=[])
-
-    @property
     def platform_descriptors(self):
         return self._get_value(ReactorConfigKeys.PLATFORM_DESCRIPTORS_KEY, fallback=[])
 
@@ -463,10 +447,6 @@ class Configuration(object):
         return DefaultKeyDict(
             (descriptor['architecture'], descriptor['platform'])
             for descriptor in self.platform_descriptors)
-
-    @property
-    def build_image_override(self):
-        return self._get_value(ReactorConfigKeys.BUILD_IMAGE_OVERRIDE_KEY, fallback={})
 
     @property
     def flatpak(self):

@@ -300,10 +300,6 @@ class ImageBuildWorkflowData(ISerializer):
 
     buildargs: Dict[str, str] = field(default_factory=dict)  # --buildargs for container build
 
-    # mapping of downloaded files; DON'T PUT ANYTHING BIG HERE!
-    # "path/to/file" -> "content"
-    files: Dict[str, str] = field(default_factory=dict)
-
     # Per platform List of RPMs that go into the final result
     # Each RPM inside is a mapping containing the name, version, release and other attributes.
     image_components: Dict[str, List[RpmComponent]] = field(default_factory=dict)
@@ -640,7 +636,7 @@ class DockerBuildWorkflow(object):
         )
         return failed, cancelled
 
-    def build_docker_image(self) -> None:
+    def build_container_image(self) -> None:
         """Start the container build.
 
         In general, all plugins run in order and the execution can be

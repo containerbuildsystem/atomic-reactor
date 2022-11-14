@@ -15,7 +15,6 @@
       "type": "array",
       "items": {"type": "integer"}
     },
-    "filesystem_koji_task_id": {"type": "integer"},
     "flatpak": {"type": "boolean"},
     "git_branch": {"type": "string"},
     "git_commit_depth": {"type": "integer"},
@@ -27,36 +26,8 @@
     "koji_parent_build": {"type": "string"},
     "koji_target": {"type": "string"},
     "koji_task_id": {"type": "integer"},
-    "koji_upload_dir": {"type": "string"},
     "name": {"type": "string"},
-    "parent_images_digests": {
-      "type": "object",
-      "patternProperties": {
-        "^.+:.+$": {
-          "description": "Image with tags",
-          "type": "object",
-          "patternProperties": {
-            "^application/.*json$": {
-              "description": "Manifest digest",
-              "type": "string",
-              "pattern": "^sha256:.+"
-            }
-          },
-          "uniqueItems": true,
-          "additionalProperties": false
-        }
-      },
-      "uniqueItems": true,
-      "additionalProperties": false
-    },
-    "operator_bundle_replacement_pullspecs": {
-      "type": "object",
-      "patternProperties": {
-        ".*": {"type": "string"}
-      }
-    },
     "operator_csv_modifications_url": {"type": "string"},
-    "operator_manifests_extract_platform": {"type": "string"},
     "platform": {"type": "string"},
     "platforms": {
       "type": "array",

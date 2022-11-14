@@ -508,7 +508,7 @@ __init__(self, source, image,
 ```
 
 ```python
-build_docker_image(self)
+build_container_image(self)
 ```
 
 ```text

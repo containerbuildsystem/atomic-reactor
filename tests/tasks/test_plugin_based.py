@@ -83,8 +83,8 @@ class TestPluginBasedTask:
                 keep_plugins_running=False,
             )
         )
-        mocked_workflow.should_receive("build_docker_image").and_raise(
-            AssertionError("you must mock the build_docker_image() workflow method")
+        mocked_workflow.should_receive("build_container_image").and_raise(
+            AssertionError("you must mock the build_container_image() workflow method")
         )
 
         task = plugin_based.PluginBasedTask(task_params)
@@ -94,7 +94,7 @@ class TestPluginBasedTask:
     def test_execute(self, task_with_mocked_deps, caplog, call_init_build_dirs):
         task, mocked_workflow = task_with_mocked_deps
 
-        mocked_workflow.should_receive("build_docker_image").once()
+        mocked_workflow.should_receive("build_container_image").once()
         flexmock(dirs.RootBuildDir).should_call('init_build_dirs').times(int(call_init_build_dirs))
 
         task.execute(init_build_dirs=call_init_build_dirs)
@@ -104,7 +104,7 @@ class TestPluginBasedTask:
         task, mocked_workflow = task_with_mocked_deps
 
         error = ValueError("something went wrong")
-        mocked_workflow.should_receive("build_docker_image").and_raise(error)
+        mocked_workflow.should_receive("build_container_image").and_raise(error)
 
         with pytest.raises(ValueError, match="something went wrong"):
             task.execute()
@@ -115,7 +115,7 @@ class TestPluginBasedTask:
         task, mocked_workflow = task_with_mocked_deps
 
         err = PluginFailedException("something is wrong")
-        mocked_workflow.should_receive("build_docker_image").and_raise(err)
+        mocked_workflow.should_receive("build_container_image").and_raise(err)
 
         with pytest.raises(PluginFailedException, match="something is wrong"):
             task.execute()
@@ -146,14 +146,14 @@ def test_ensure_workflow_data_is_saved_in_various_conditions(
 
     if build_result == "normal_return":
         (flexmock(plugin_based.inner.DockerBuildWorkflow)
-         .should_receive("build_docker_image")
+         .should_receive("build_container_image")
          .once())
 
         task.run()
 
     elif build_result == "error_raised":
         (flexmock(plugin_based.inner.DockerBuildWorkflow)
-         .should_receive("build_docker_image")
+         .should_receive("build_container_image")
          .and_raise(TaskCanceledException))
 
         with pytest.raises(TaskCanceledException):
@@ -163,7 +163,7 @@ def test_ensure_workflow_data_is_saved_in_various_conditions(
         # Start the task.run in a separate process and terminate it.
         # This simulates the Cancel behavior by TERM signal.
 
-        def _build_docker_image(*args, **kwargs):
+        def _build_container_image(*args, **kwargs):
 
             def _cancel_build(*args, **kwargs):
                 raise TaskCanceledException()
@@ -173,8 +173,8 @@ def test_ensure_workflow_data_is_saved_in_various_conditions(
             time.sleep(5)
 
         (flexmock(plugin_based.inner.DockerBuildWorkflow)
-         .should_receive("build_docker_image")
-         .replace_with(_build_docker_image))
+         .should_receive("build_container_image")
+         .replace_with(_build_container_image))
 
         proc = multiprocessing.Process(target=task.run)
         proc.start()
@@ -213,7 +213,7 @@ def test_ensure_workflow_data_is_saved_prebuild_task(
     task = BinaryPreBuildTask(params)
 
     (flexmock(plugin_based.inner.DockerBuildWorkflow)
-     .should_receive("build_docker_image")
+     .should_receive("build_container_image")
      .once())
 
     task.run()
@@ -260,7 +260,7 @@ def test_workflow_data_is_restored_before_starting_to_build(build_dir, dummy_sou
         def __init__(self, build_dir, data=None, **kwargs):
             self.data = data
 
-        def build_docker_image(self):
+        def build_container_image(self):
             assert DockerfileImages(["scratch"]) == self.data.dockerfile_images
 
     (flexmock(plugin_based.inner)

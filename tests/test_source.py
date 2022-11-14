@@ -9,12 +9,9 @@ from atomic_reactor.source import (
     SourceConfig,
     GitSource,
     PathSource,
-    get_source_instance_for,
     DummySource,
 )
 from osbs.exceptions import OsbsValidationException
-
-from tests.constants import SOURCE_CONFIG_ERROR_PATH
 
 
 class TestSource(object):
@@ -61,32 +58,6 @@ class TestPathSource(object):
         # make sure these are the same even on second access to ps.path/ps.get(),
         #  since second (and any subsequent) access does a bit different thing than the first one
         assert ps.get() == path
-
-
-class TestGetSourceInstanceFor(object):
-    @pytest.mark.parametrize('source, expected', [
-        ({'provider': 'git', 'uri': 'foo'}, GitSource),
-        ({'provider': 'path', 'uri': 'foo'}, PathSource),
-    ])
-    def test_recognizes_correct_provider(self, source, expected):
-        assert isinstance(get_source_instance_for(source), expected)
-
-    @pytest.mark.parametrize('source, error', [
-        ({'provider': 'xxx', 'uri': 'foo'}, 'unknown source provider "xxx"'),
-        ({'provider': 'git'}, '"source" must contain "uri" key'),
-        ({'uri': 'path'}, '"source" must contain "provider" key'),
-        (None, '"source" must be a dict'),
-    ])
-    def test_errors(self, source, error):
-        with pytest.raises(ValueError) as ex:
-            get_source_instance_for(source)
-
-        assert str(ex.value) == error
-
-    def test_broken_source_config_file(self):
-        s = get_source_instance_for({'provider': 'path', 'uri': SOURCE_CONFIG_ERROR_PATH})
-        with pytest.raises(OsbsValidationException):
-            s.config    # pylint: disable=pointless-statement; is a property
 
 
 class TestSourceConfigSchemaValidation(object):

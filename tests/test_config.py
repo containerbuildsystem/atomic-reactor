@@ -604,12 +604,10 @@ odcs:
 
     @pytest.mark.parametrize('parse_from', ['env', 'file', 'raw'])
     @pytest.mark.parametrize('method', [
-        'odcs', 'smtp',
-        'artifacts_allowed_domains', 'yum_repo_allowed_domains', 'image_labels',
+        'odcs', 'smtp', 'artifacts_allowed_domains', 'yum_repo_allowed_domains', 'image_labels',
         'image_label_info_url_format', 'image_equal_labels', 'fail_on_digest_mismatch',
-        'openshift', 'group_manifests', 'platform_descriptors', 'prefer_schema1_digest',
-        'content_versions', 'registry', 'yum_proxy', 'source_registry', 'sources_command',
-        'required_secrets', 'hide_files', 'skip_koji_check_for_base_image',
+        'openshift', 'group_manifests', 'platform_descriptors', 'registry', 'yum_proxy',
+        'source_registry', 'sources_command', 'hide_files', 'skip_koji_check_for_base_image',
         'deep_manifest_list_inspection'
     ])
     def test_get_methods(self, parse_from, method, tmpdir, caplog, monkeypatch):
@@ -687,25 +685,6 @@ platform_descriptors:
         for plat, goarch in expect.items():
             assert platform_to_goarch[plat] == goarch
             assert goarch_to_platform[goarch] == plat
-
-    @pytest.mark.parametrize(('config', 'expect'), [
-        ("""\
-build_image_override:
-  ppc64le: registry.example.com/buildroot-ppc64le:latest
-  arm: registry.example.com/buildroot-arm:latest
-         """,
-         {'ppc64le': 'registry.example.com/buildroot-ppc64le:latest',
-          'arm': 'registry.example.com/buildroot-arm:latest'}),
-    ])
-    def test_get_build_image_override(self, config, expect):
-        config += "\n" + REQUIRED_CONFIG
-
-        config_json = read_yaml(config, 'schemas/config.json')
-
-        conf = Configuration(raw_config=config_json)
-
-        build_image_override = conf.build_image_override
-        assert build_image_override == expect
 
     @pytest.mark.parametrize(('config', 'expect'), [
         ("""\
@@ -1395,37 +1374,6 @@ operator_manifests:
         operator_config = conf.operator_manifests
         assert isinstance(operator_config, dict)
         assert "allowed_registries" in operator_config
-
-    @pytest.mark.parametrize('config, valid', [
-        ("""\
-build_env_vars: []
-        """, True),
-        ("""\
-build_env_vars:
-- name: HTTP_PROXY
-  value: example.proxy.net
-- name: NO_PROXY
-  value: localhost
-        """, True),
-        ("""\
-build_env_vars:
-- name: FOO
-  value: 1
-        """, False),  # values must be strings
-        ("""\
-build_env_vars:
-- name: FOO
-        """, False),  # values must be defined
-    ])
-    def test_validate_build_env_vars(self, config, valid):
-        # Only test schema validation, atomic-reactor has no additional support
-        # for build_env_vars (osbs-client does, however)
-        config += "\n" + REQUIRED_CONFIG
-        if valid:
-            read_yaml(config, 'schemas/config.json')
-        else:
-            with pytest.raises(OsbsValidationException):
-                read_yaml(config, 'schemas/config.json')
 
     @pytest.mark.parametrize(('images_exist', 'organization'), [
         (True, None),
