@@ -8,7 +8,7 @@ of the BSD license. See the LICENSE file for details.
 
 Script for building docker image. This is expected to run inside container.
 """
-
+#test
 import functools
 import json
 import logging
