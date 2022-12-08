@@ -8,9 +8,9 @@ attrs==21.2.0 \
     --hash=sha256:149e90d6d8ac20db7a955ad60cf0e6881a3f20d37096140088356da6c716b0b1 \
     --hash=sha256:ef6aaac3ca6cd92904cdd0d83f629a15f18053ec84e6432106f7a4d04ae4f5fb
     # via pytest
-certifi==2021.10.8 \
-    --hash=sha256:78884e7c1d4b00ce3cea67b44566851c4343c120abd683433ce934a68ea58872 \
-    --hash=sha256:d62a0163eb4c2344ac042ab2bdf75399a71a2d8c7d47eac2e2ee91b9d6339569
+certifi==2022.12.7 \
+    --hash=sha256:35824b4c3a97115964b408844d64aa14db1cc518f6562e8d7261699d1350a9e3 \
+    --hash=sha256:4ad3232f5e926d6718ec31cfc1fcadfde020920e278684144551c91769c7bc18
     # via requests
 charset-normalizer==2.0.7 \
     --hash=sha256:e019de665e2bcf9c2b64e2e5aa025fa991da8720daa3c1138cadd2fd1856aed0 \
@@ -71,11 +71,11 @@ execnet==1.9.0 \
 flake8==4.0.1 \
     --hash=sha256:479b1304f72536a55948cb40a32dce8bb0ffe3501e26eaf292c7e60eb5e0428d \
     --hash=sha256:806e034dda44114815e23c16ef92f95c91e4c71100ff52813adf7132a6ad870d
-    # via -r tests/requirements.in
+    # via -r requirements.in
 flexmock==0.11.1 \
     --hash=sha256:1c51371767f968e1d2f505138de72b07704ecebc9b34e0b52ffdeeb510685c3f \
     --hash=sha256:8cdd911f48d0696efd41231dbbd63fb1eb8290b34b0bb691019739d6cd94eadd
-    # via -r tests/requirements.in
+    # via -r requirements.in
 idna==3.3 \
     --hash=sha256:84d9dd047ffa80596e0f246e2eab0b391788b0503584e8945f2368256d2735ff \
     --hash=sha256:9d643ff0a55b762d5cdb124b8eaa99c66322e2157b69160bc32796e824360e6d
@@ -116,12 +116,12 @@ pyparsing==2.4.7 \
     # via packaging
 pypng==0.0.21 \
     --hash=sha256:76f8a1539ec56451da7ab7121f12a361969fe0f2d48d703d198ce2a99d6c5afd
-    # via -r tests/requirements.in
+    # via -r requirements.in
 pytest==6.2.5 \
     --hash=sha256:131b36680866a76e6781d13f101efb86cf674ebb9762eb70d3082b6f29889e89 \
     --hash=sha256:7310f8d27bc79ced999e760ca304d69f6ba6c6649c0b60fb0e04a4a77cacc134
     # via
-    #   -r tests/requirements.in
+    #   -r requirements.in
     #   pytest-cov
     #   pytest-forked
     #   pytest-html
@@ -130,7 +130,7 @@ pytest==6.2.5 \
 pytest-cov==3.0.0 \
     --hash=sha256:578d5d15ac4a25e5f961c938b85a05b09fdaae9deef3bb6de9a6e766622ca7a6 \
     --hash=sha256:e7f0f5b1617d2210a2cabc266dfe2f4c75a8d32fb89eafb7ad9d06f6d076d470
-    # via -r tests/requirements.in
+    # via -r requirements.in
 pytest-forked==1.4.0 \
     --hash=sha256:8b67587c8f98cbbadfdd804539ed5455b6ed03802203485dd2f53c1422d7440e \
     --hash=sha256:bbbb6717efc886b9d64537b41fb1497cfaf3c9601276be8da2cccfea5a3c8ad8
@@ -138,7 +138,7 @@ pytest-forked==1.4.0 \
 pytest-html==3.1.1 \
     --hash=sha256:3ee1cf319c913d19fe53aeb0bc400e7b0bc2dbeb477553733db1dad12eb75ee3 \
     --hash=sha256:b7f82f123936a3f4d2950bc993c2c1ca09ce262c9ae12f9ac763a2401380b455
-    # via -r tests/requirements.in
+    # via -r requirements.in
 pytest-metadata==1.11.0 \
     --hash=sha256:576055b8336dd4a9006dd2a47615f76f2f8c30ab12b1b1c039d99e834583523f \
     --hash=sha256:71b506d49d34e539cc3cfdb7ce2c5f072bea5c953320002c95968e0238f8ecf1
@@ -146,7 +146,7 @@ pytest-metadata==1.11.0 \
 pytest-xdist==2.5.0 \
     --hash=sha256:4580deca3ff04ddb2ac53eba39d76cb5dd5edeac050cb6fbc768b0dd712b4edf \
     --hash=sha256:6fe5c74fec98906deb8f2d2b616b5c782022744978e7bd4695d39c8f42d0ce65
-    # via -r tests/requirements.in
+    # via -r requirements.in
 requests==2.26.0 \
     --hash=sha256:6c1246513ecd5ecd4528a0906f910e8f0f9c6b8ec72030dc9fd154dc1a6efd24 \
     --hash=sha256:b8aa58f8cf793ffd8782d3d8cb19e66ef36f7aba4353eec859e74678b01b07a7
@@ -156,11 +156,11 @@ requests==2.26.0 \
 requests-mock==1.9.3 \
     --hash=sha256:0a2d38a117c08bb78939ec163522976ad59a6b7fdd82b709e23bb98004a44970 \
     --hash=sha256:8d72abe54546c1fc9696fa1516672f1031d72a55a1d66c85184f972a24ba0eba
-    # via -r tests/requirements.in
+    # via -r requirements.in
 responses==0.10.7 \
     --hash=sha256:46d4e546a19fc6106bc7e804edd4551ef04690405e41e7e750ebc295d042623b \
     --hash=sha256:93b1e0f2f960c0f3304ca4436856241d64c33683ef441431b9caf1d05d9d9e23
-    # via -r tests/requirements.in
+    # via -r requirements.in
 six==1.16.0 \
     --hash=sha256:1e61c37477a1626458e36f7b1d82aa5c9b094fa4802892072e49de9c60c4c926 \
     --hash=sha256:8abb2f1d86890a2dfb989f9a77cfcfd3e47c2a354b01111771326f8aa26e0254
