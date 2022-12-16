@@ -9,6 +9,7 @@ of the BSD license. See the LICENSE file for details.
 import backoff
 import pytest
 import re
+import time
 from flexmock import flexmock, Mock
 from functools import wraps
 from typing import Callable, Optional, Tuple
@@ -38,6 +39,8 @@ SOCKET_PATH = "/run/user/2022/podman/podman.sock"
 @pytest.fixture(autouse=True)
 def _mock_ssh_session(request):
     """ Mock the ssh session with things we don't want to test or change """
+    flexmock(time).should_receive('sleep')
+
     if "disable_autouse" in request.keywords:
         yield
     else:

@@ -23,9 +23,11 @@ from atomic_reactor.utils.rpm import rpm_qf_args
 SSH_COMMAND_TIMEOUT = 30
 SLOTS_RELATIVE_PATH = "osbs_slots"
 RETRY_ON_SSH_EXCEPTIONS = (paramiko.ssh_exception.NoValidConnectionsError,
-                           paramiko.ssh_exception.SSHException)
-BACKOFF_FACTOR = 3
-MAX_RETRIES = 3
+                           paramiko.ssh_exception.SSHException, ConnectionError, TimeoutError)
+# wait time is calculated for backoff.expo: factor * 2 ** n
+BACKOFF_FACTOR = 0.5
+# max last wait fime will be 128s
+MAX_RETRIES = 8
 
 logger = logging.getLogger(__name__)
 
