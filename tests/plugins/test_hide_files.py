@@ -175,8 +175,19 @@ class TestHideFilesPlugin(object):
             USER custom_user
             RUN bluh
 
+            FROM scratch
+            ADD filesystem.tar.gz /
+            RUN in_base_stage
+
+            FROM scratch
+            RUN in_scratch
+
             FROM sha256:654321 as unused
             RUN bleh
+
+            FROM scratch
+            ADD filesystem2.tar.gz /
+            RUN in_base_stage2
 
             FROM sha256:123456
             RUN yum install -y python-flask
@@ -189,6 +200,8 @@ class TestHideFilesPlugin(object):
             'sha256:123456',
             'sha256:654321',
         ]
+        workflow.data.dockerfile_images._original_parents = \
+            ['builder', 'koji/image-build', 'scratch', 'unused', 'koji/image-build', 'used']
 
         self.prepare(workflow,
                      df_content,
@@ -215,6 +228,17 @@ class TestHideFilesPlugin(object):
             RUN mv -fZ /tmp/repo_ignore_2.repo /etc/yum.repos.d/repo_ignore_2.repo || :
             USER custom_user
 
+            FROM scratch
+            ADD filesystem.tar.gz /
+            RUN mv -f /etc/yum.repos.d/repo_ignore_1.repo /tmp || :
+            RUN mv -f /etc/yum.repos.d/repo_ignore_2.repo /tmp || :
+            RUN in_base_stage
+            RUN mv -fZ /tmp/repo_ignore_1.repo /etc/yum.repos.d/repo_ignore_1.repo || :
+            RUN mv -fZ /tmp/repo_ignore_2.repo /etc/yum.repos.d/repo_ignore_2.repo || :
+
+            FROM scratch
+            RUN in_scratch
+
             FROM sha256:654321 as unused
             USER root
             RUN mv -f /etc/yum.repos.d/repo_ignore_1.repo /tmp || :
@@ -225,6 +249,14 @@ class TestHideFilesPlugin(object):
             RUN mv -fZ /tmp/repo_ignore_1.repo /etc/yum.repos.d/repo_ignore_1.repo || :
             RUN mv -fZ /tmp/repo_ignore_2.repo /etc/yum.repos.d/repo_ignore_2.repo || :
             USER inherited_user
+
+            FROM scratch
+            ADD filesystem2.tar.gz /
+            RUN mv -f /etc/yum.repos.d/repo_ignore_1.repo /tmp || :
+            RUN mv -f /etc/yum.repos.d/repo_ignore_2.repo /tmp || :
+            RUN in_base_stage2
+            RUN mv -fZ /tmp/repo_ignore_1.repo /etc/yum.repos.d/repo_ignore_1.repo || :
+            RUN mv -fZ /tmp/repo_ignore_2.repo /etc/yum.repos.d/repo_ignore_2.repo || :
 
             FROM sha256:123456
             USER root
