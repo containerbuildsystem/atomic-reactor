@@ -64,6 +64,7 @@ from atomic_reactor.util import (figure_out_build_file,
                                  terminal_key_paths,
                                  map_to_user_params,
                                  create_tar_gz_archive,
+                                 safe_extractall
                                  )
 from tests.constants import MOCK, REACTOR_CONFIG_MAP
 import atomic_reactor.util
@@ -1967,7 +1968,7 @@ def test_create_tar_gz_archive(tmpdir):
         assert len(tar.getnames()) == 1, 'Tar archive does not contain 1 file'
         assert tar.getnames()[0] == test_file, f'Tar archive does not contain {test_file} file'
 
-        tar.extractall(tmpdir_path)
+        safe_extractall(tar, tmpdir_path)
         extracted_file = os.path.join(tmpdir_path, test_file)
 
         with open(extracted_file) as f:
@@ -1975,3 +1976,18 @@ def test_create_tar_gz_archive(tmpdir):
 
     os.remove(extracted_file)
     os.remove(archive_path)
+
+
+def test_safe_extractall_exception(tmpdir):
+    tmpdir_path = str(tmpdir.realpath())
+    # This is probably very fragile
+    abs_path_file = '../../../../../etc/hosts'
+
+    with tempfile.NamedTemporaryFile('wb', suffix='.tar.gz', delete=False) as tar_file:
+        with tarfile.open(fileobj=tar_file, mode='w:gz') as tar_handle:
+            tar_handle.add(abs_path_file)
+
+    with tarfile.open(tar_file.name) as tar_handle:
+        # Specifically, 'Attempted path traversal in tar file'
+        with pytest.raises(tarfile.ExtractError):
+            safe_extractall(tar_handle, tmpdir_path)

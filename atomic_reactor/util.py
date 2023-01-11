@@ -29,6 +29,7 @@ import tarfile
 from collections import namedtuple
 from copy import deepcopy
 from base64 import b64decode
+from pathlib import Path
 from typing import Callable
 
 from urllib.parse import urlparse
@@ -1950,3 +1951,45 @@ def create_tar_gz_archive(file_name: str, file_content: str) -> str:
             tar.addfile(tarinfo=info, fileobj=io.BytesIO(data))
 
     return f.name
+
+
+def safe_extractall(tar: tarfile.TarFile, path: str = '.',
+                    members: List[tarfile.TarInfo] = None,
+                    *, numeric_owner: bool = False):
+    """
+    CVE-2007-4559 replacement for extract() or extractall().
+    By using extract() or extractall() on a tarfile object without sanitizing input,
+    a maliciously crafted .tar file could perform a directory path traversal attack.
+    The patch essentially checks to see if all tarfile members will be
+    extracted safely and throws an exception otherwise.
+    :param tarfile tar: the tarfile to be extracted.
+    :param str path: specifies a different directory to extract to.
+    :param numeric_owner: if True, only the numbers for user/group names are used and not the names.
+    :raise ExtractError: if there is a Traversal Path Attempt in the Tar File.
+    """
+    abs_path = Path(path).resolve()
+    tar_members = tar.getmembers()
+    if members:
+        tar_members = members
+
+    # https://github.com/python/cpython/blob/3.9/Lib/pathlib.py
+    def is_relative_to(this_path, *other_path):
+        """Return True if the path is relative to another path else False.
+        """
+        try:
+            this_path.relative_to(*other_path)
+            return True
+        except ValueError:
+            return False
+
+    def check_path(member):
+        member_path = Path(path).joinpath(member.name)
+        abs_member_path = member_path.resolve()
+
+        if not is_relative_to(abs_member_path, abs_path):
+            raise tarfile.ExtractError('Attempted path traversal in tar file')
+
+    for member in tar_members:
+        check_path(member)
+
+    tar.extractall(path, members=tar_members, numeric_owner=numeric_owner)

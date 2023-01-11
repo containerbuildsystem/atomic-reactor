@@ -27,7 +27,10 @@ from atomic_reactor.constants import (
 from atomic_reactor.dirs import BuildDir
 from atomic_reactor.metadata import annotation_map
 from atomic_reactor.plugin import Plugin
-from atomic_reactor.util import is_scratch_build, map_to_user_params
+from atomic_reactor.util import (is_scratch_build,
+                                 map_to_user_params,
+                                 safe_extractall
+                                 )
 from atomic_reactor.utils.cachito import CFG_TYPE_B64
 from atomic_reactor.utils.koji import get_koji_task_owner
 
@@ -224,8 +227,8 @@ class ResolveRemoteSourcePlugin(Plugin):
             dest_dir.mkdir(parents=True)
             created_dirs.append(dest_dir)
 
-            with tarfile.open(remote_source.tarball_path) as tf:
-                tf.extractall(dest_dir)
+            with tarfile.open(remote_source.tarball_path) as tar:
+                safe_extractall(tar, str(dest_dir))
 
             config_files = self.cachito_session.get_request_config_files(remote_source.id)
             self.generate_cachito_config_files(dest_dir, config_files)

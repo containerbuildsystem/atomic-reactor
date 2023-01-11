@@ -482,9 +482,9 @@ def mock_extract_filesystem(config, src, dest):
 
     filesystem_tar = tmp_dir / 'filesystem.tar'
 
-    with tarfile.TarFile(filesystem_tar, mode='w') as tf:
+    with tarfile.TarFile(filesystem_tar, mode='w') as tar:
         for f in os.listdir(filesystem_dir):
-            tf.add(os.path.join(filesystem_dir, f), f)
+            tar.add(os.path.join(filesystem_dir, f), f)
 
     return 'filesystem.tar'
 

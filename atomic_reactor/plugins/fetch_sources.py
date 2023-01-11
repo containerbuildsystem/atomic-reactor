@@ -21,7 +21,9 @@ from atomic_reactor.constants import (PLUGIN_FETCH_SOURCES_KEY, PNC_SYSTEM_USER,
 from atomic_reactor.config import get_koji_session
 from atomic_reactor.plugin import Plugin
 from atomic_reactor.source import GitSource
-from atomic_reactor.util import get_retrying_requests_session, map_to_user_params
+from atomic_reactor.util import (get_retrying_requests_session,
+                                 map_to_user_params,
+                                 safe_extractall)
 from atomic_reactor.download import download_url
 from atomic_reactor.utils.pnc import PNCUtil
 
@@ -789,8 +791,8 @@ class FetchSourcesPlugin(Plugin):
         for remote_archive, remote_json in full_remote_sources_map.items():
             unpack_dir = remote_archive + '_unpacked'
 
-            with tarfile.open(remote_archive) as tf:
-                tf.extractall(unpack_dir)
+            with tarfile.open(remote_archive) as tar:
+                safe_extractall(tar, unpack_dir)
 
             delete_app = self._check_if_package_excluded(remote_json['packages'], denylist_sources,
                                                          remote_archive)

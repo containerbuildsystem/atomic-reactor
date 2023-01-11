@@ -166,9 +166,9 @@ def test_running_build(workflow, caplog,
     if not export_failed:
         export_tar = workflow.build_dir.any_platform.exported_squashed_image
         with open(export_tar, "wb") as f:
-            with tarfile.TarFile(mode="w", fileobj=f) as tf:
+            with tarfile.TarFile(mode="w", fileobj=f) as tar:
                 for f in os.listdir(temp_image_output_dir):
-                    tf.add(str(temp_image_output_dir / f), f)
+                    tar.add(str(temp_image_output_dir / f), f)
         expected_exported_image_metadata = get_exported_image_metadata(str(export_tar),
                                                                        IMAGE_TYPE_DOCKER_ARCHIVE)
 
