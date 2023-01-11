@@ -46,14 +46,14 @@ def test_inspectable(image, is_inspectable):
 
 
 def mock_tarball(tarball_path, files):
-    with tarfile.open(tarball_path, 'w:gz') as tf:
+    with tarfile.open(tarball_path, 'w:gz') as tar:
         for filename, file_data in files.items():
             file = tarfile.TarInfo(filename)
             file.size = file_data['size']
             if file_data['content']:
-                tf.addfile(file, io.BytesIO(file_data['content']))
+                tar.addfile(file, io.BytesIO(file_data['content']))
             else:
-                tf.addfile(file, io.BytesIO(os.urandom(file.size)))
+                tar.addfile(file, io.BytesIO(os.urandom(file.size)))
 
 
 class TestImageUtil:

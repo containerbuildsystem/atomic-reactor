@@ -216,6 +216,6 @@ class ImageUtil:
                 raise ValueError(f'Tarball at {src_path} has more than 1 layer')
 
             layer_file = tar.getmember(layers[0])
-            tar.extract(layer_file, dst_path)
+            util.safe_extractall(tar, dst_path, [layer_file])
 
         return layers[0]

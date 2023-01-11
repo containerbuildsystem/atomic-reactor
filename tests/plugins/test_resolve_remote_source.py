@@ -323,8 +323,8 @@ def mock_cachito_tarball(create_at_path) -> str:
     readme = tarfile.TarInfo("app/README.txt")
     readme.size = len(file_content)
 
-    with tarfile.open(create_at_path, 'w:gz') as tf:
-        tf.addfile(readme, io.BytesIO(file_content))
+    with tarfile.open(create_at_path, 'w:gz') as tar:
+        tar.addfile(readme, io.BytesIO(file_content))
 
     return str(create_at_path)
 
