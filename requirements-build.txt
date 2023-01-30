@@ -108,9 +108,9 @@ packaging==21.2 \
     # via
     #   -r requirements-build.in
     #   setuptools-scm
-poetry-core==1.4.0 \
-    --hash=sha256:514bd33c30e0bf56b0ed44ee15e120d7e47b61ad908b2b1011da68c48a84ada9 \
-    --hash=sha256:5559ab80384ac021db329ef317086417e140ee1176bcfcb3a3838b544e213c8e
+poetry-core==1.5.0 \
+    --hash=sha256:253521bb7104e1df81f64d7b49ea1825057c91fa156d7d0bd752fefdad6f8c7a \
+    --hash=sha256:e216b70f013c47b82a72540d34347632c5bfe59fd54f5fe5d51f6a68b19aaf84
     # via -r requirements-build.in
 pycairo==1.20.1 \
     --hash=sha256:0d7a6754d410d911a46f00396bee4be96500ccd3d178e7e98aef1140e3dd67ae \
@@ -147,6 +147,13 @@ semantic-version==2.10.0 \
     # via
     #   -r requirements-build.in
     #   setuptools-rust
+setuptools==53.1.0 \
+    --hash=sha256:487f7a3e5040445b687f1eadcebcbbd11e83da95cad5e755304e38a3b7a93207 \
+    --hash=sha256:8181c4625cd58fa7817761e0fa60f6fa3adc4c437f5c25377b1aefa861ca15a2
+    # via
+    #   -r requirements-build.in
+    #   setuptools-rust
+    #   setuptools-scm
 setuptools-rust==1.2.0 \
     --hash=sha256:0a4ada479e8c7e3d8bd7cb56e1a29acc2b2bb98c2325051b0cdcb57d7f056de8 \
     --hash=sha256:decc6bdf4aef0ff3c323ba85e2fcabed8c77044443cd239ea01b67ca9b1d777e
@@ -169,12 +176,3 @@ wheel==0.38.4 \
     --hash=sha256:965f5259b566725405b05e7cf774052044b1ed30119b5d586b2703aafe8719ac \
     --hash=sha256:b60533f3f5d530e971d6737ca6d58681ee434818fab630c83a734bb10c083ce8
     # via -r requirements-build.in
-
-# The following packages are considered to be unsafe in a requirements file:
-setuptools==53.1.0 \
-    --hash=sha256:487f7a3e5040445b687f1eadcebcbbd11e83da95cad5e755304e38a3b7a93207 \
-    --hash=sha256:8181c4625cd58fa7817761e0fa60f6fa3adc4c437f5c25377b1aefa861ca15a2
-    # via
-    #   -r requirements-build.in
-    #   setuptools-rust
-    #   setuptools-scm
