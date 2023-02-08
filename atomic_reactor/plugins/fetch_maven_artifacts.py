@@ -58,6 +58,7 @@ class FetchMavenArtifactsPlugin(Plugin):
         self._pnc_util = None
         self.no_source_artifacts = []
         self.source_url_to_artifacts = {}
+        self.sbom_components = []
 
     @property
     def pnc_util(self):
@@ -226,6 +227,19 @@ class FetchMavenArtifactsPlugin(Plugin):
                          dest_filename=dest_filename, expected_checksums=download.checksums)
             yield dest_path
 
+    def generate_sbom_components_for_pnc(self, pnc_artifact_ids: List[int]):
+        purl_specs = self.pnc_util.get_artifact_purl_specs(pnc_artifact_ids)
+
+        for purl in purl_specs:
+            comp_name, version_part = purl.split('/', 1)[1].split('@', 1)
+            comp_version = version_part.split('?', 1)[0]
+
+            sbom_comp = {'type': 'library', 'name': comp_name, 'version': comp_version,
+                         'purl': purl}
+
+            if sbom_comp not in self.sbom_components:
+                self.sbom_components.append(sbom_comp)
+
     def run(self):
         self.session = get_koji_session(self.workflow.conf)
 
@@ -246,6 +260,9 @@ class FetchMavenArtifactsPlugin(Plugin):
         download_to_build_dir = functools.partial(self.download_files, download_queue)
         self.workflow.build_dir.for_all_platforms_copy(download_to_build_dir)
 
+        if pnc_artifact_ids:
+            self.generate_sbom_components_for_pnc(pnc_artifact_ids)
+
         return {
             'components': components,
             'download_queue': [dataclasses.asdict(download) for download in download_queue],
@@ -254,4 +271,5 @@ class FetchMavenArtifactsPlugin(Plugin):
             'pnc_build_metadata': pnc_build_metadata,
             'source_download_queue': source_download_queue,
             'source_url_to_artifacts': self.source_url_to_artifacts,
+            'sbom_components': self.sbom_components,
         }
