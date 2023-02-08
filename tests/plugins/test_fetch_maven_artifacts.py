@@ -257,19 +257,22 @@ ARTIFACT_MULTI_HASH = {
 RESPONSE_MD5 = {
     'id': '122',
     'publicUrl': FILER_ROOT + '/md5.jar',
-    'md5': '900150983cd24fb0d6963f7d28e17f72'
+    'md5': '900150983cd24fb0d6963f7d28e17f72',
+    'purl': 'pkg:maven/org.example.artifact/artifact-md5@0.0.1.redhat-00001?type=jar',
 }
 
 RESPONSE_SHA1 = {
     'id': '123',
     'publicUrl': FILER_ROOT + '/sha1.jar',
-    'sha1': 'a9993e364706816aba3e25717850c26c9cd0d89d'
+    'sha1': 'a9993e364706816aba3e25717850c26c9cd0d89d',
+    'purl': 'pkg:maven/org.example.artifact/some/artifact-sha1@0.0.2.redhat-00002?type=jar',
 }
 
 RESPONSE_SHA256 = {
     'id': '124',
     'publicUrl': FILER_ROOT + '/sha256.jar',
-    'sha256': 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'
+    'sha256': 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
+    'purl': 'pkg:maven/artifact/artifact-sha256@0.0.3.redhat-00003?type=jar&cl=update',
 }
 
 RESPONSE_MULTI_HASH = {
@@ -277,7 +280,8 @@ RESPONSE_MULTI_HASH = {
     'publicUrl': FILER_ROOT + '/multi-hash.jar',
     'sha256': 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
     'sha1': 'a9993e364706816aba3e25717850c26c9cd0d89d',
-    'md5': '900150983cd24fb0d6963f7d28e17f72'
+    'md5': '900150983cd24fb0d6963f7d28e17f72',
+    'purl': 'pkg:maven/org.example.artifact/artifact-multi@0.0.4.redhat-00004?type=jar',
 }
 
 DEFAULT_PNC_ARTIFACTS = {'builds': [ARTIFACT_MD5, ARTIFACT_SHA1, ARTIFACT_SHA256,
@@ -289,6 +293,26 @@ DEFAULT_PNC_RESPONSES = {
     RESPONSE_SHA256['id']: RESPONSE_SHA256,
     RESPONSE_MULTI_HASH['id']: RESPONSE_MULTI_HASH
 }
+
+DEFAULT_PNC_ARTIFACT_IDS = [RESPONSE_MD5['id'], RESPONSE_SHA1['id'], RESPONSE_SHA256['id'],
+                            RESPONSE_MULTI_HASH['id']]
+
+DEFAULT_PNC_SBOM_COMPONENTS = [
+    {'type': 'library', 'name': 'org.example.artifact/artifact-md5',
+     'version': '0.0.1.redhat-00001',
+     'purl': 'pkg:maven/org.example.artifact/artifact-md5@0.0.1.redhat-00001?type=jar'},
+
+    {'type': 'library', 'name': 'org.example.artifact/some/artifact-sha1',
+     'version': '0.0.2.redhat-00002',
+     'purl': 'pkg:maven/org.example.artifact/some/artifact-sha1@0.0.2.redhat-00002?type=jar'},
+
+    {'type': 'library', 'name': 'artifact/artifact-sha256',
+     'version': '0.0.3.redhat-00003',
+     'purl': 'pkg:maven/artifact/artifact-sha256@0.0.3.redhat-00003?type=jar&cl=update'},
+
+    {'type': 'library', 'name': 'org.example.artifact/artifact-multi',
+     'version': '0.0.4.redhat-00004',
+     'purl': 'pkg:maven/org.example.artifact/artifact-multi@0.0.4.redhat-00004?type=jar'}]
 
 
 class X(object):
@@ -492,6 +516,7 @@ def test_fetch_maven_artifacts(workflow, source_path):
     assert len(plugin_result['download_queue']) == (len(DEFAULT_ARCHIVES) + len(
         DEFAULT_REMOTE_FILES) + len(DEFAULT_PNC_ARTIFACTS['builds']))
     assert len(plugin_result['pnc_artifact_ids']) == len(DEFAULT_PNC_ARTIFACTS['builds'])
+    assert plugin_result['pnc_artifact_ids'] == DEFAULT_PNC_ARTIFACT_IDS
 
     workflow.build_dir.for_each_platform(check_downloads_exist(plugin_result))
 
@@ -517,6 +542,43 @@ def test_fetch_maven_artifacts(workflow, source_path):
         found_build_ids.add(build['id'])
 
     assert expected_build_ids == found_build_ids
+
+    assert 'sbom_components' in plugin_result
+    assert plugin_result['sbom_components'] == DEFAULT_PNC_SBOM_COMPONENTS
+
+
+@responses.activate  # noqa
+@pytest.mark.parametrize('artifact_type', ['nvr', 'url', 'pnc'])
+def test_fetch_maven_artifacts_sbom_components(workflow, source_path, artifact_type):
+    mock_koji_session()
+
+    if artifact_type == 'nvr':
+        mock_fetch_artifacts_by_nvr(source_path)
+        mock_nvr_downloads()
+
+    if artifact_type == 'url':
+        mock_fetch_artifacts_by_url(source_path)
+        mock_url_downloads()
+
+    if artifact_type == 'pnc':
+        mock_fetch_artifacts_from_pnc(source_path)
+        mock_pnc_downloads()
+
+    results = mock_env(workflow).create_runner().run()
+
+    plugin_result = results[FetchMavenArtifactsPlugin.key]
+
+    workflow.build_dir.for_each_platform(check_downloads_exist(plugin_result))
+
+    if artifact_type == 'pnc':
+        assert plugin_result['pnc_artifact_ids'] == DEFAULT_PNC_ARTIFACT_IDS
+        assert plugin_result['pnc_build_metadata']
+        assert plugin_result['sbom_components'] == DEFAULT_PNC_SBOM_COMPONENTS
+
+    else:
+        assert not plugin_result['pnc_artifact_ids']
+        assert not plugin_result['pnc_build_metadata']
+        assert not plugin_result['sbom_components']
 
 
 @pytest.mark.parametrize(('nvr_requests', 'expected'), (  # noqa
