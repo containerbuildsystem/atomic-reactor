@@ -366,3 +366,36 @@ def test_non_json_data_for_get_request_config_files():
     session = CachitoAPI(CACHITO_URL)
     with pytest.raises(ValueError, match=r'JSON data.*something wrong'):
         session.get_request_config_files(CACHITO_REQUEST_ID)
+
+
+@responses.activate
+def test_get_sbom():
+    sbom = {
+        "bomFormat": "CycloneDX",
+        "specVersion": "1.4",
+        "version": 1,
+        "components": [{"name": "comp_name", "version": "comp_version",
+                        "type": "library", "purl": "pkg:golang/comp_name@comp_version"}],
+    }
+    responses.add(
+        responses.GET,
+        f'{CACHITO_URL}/api/v1/sbom?requests={CACHITO_REQUEST_ID},2,3',
+        json=sbom,
+    )
+
+    session = CachitoAPI(CACHITO_URL)
+    assert sbom == session.get_sbom([CACHITO_REQUEST_ID, 2, 3])
+
+
+@responses.activate
+def test_get_sbom_raises():
+    responses.add(
+        responses.GET,
+        f'{CACHITO_URL}/api/v1/sbom?requests={CACHITO_REQUEST_ID}',
+    )
+
+    session = CachitoAPI(CACHITO_URL)
+    with pytest.raises(Exception) as exc:
+        session.get_sbom([CACHITO_REQUEST_ID])
+
+    assert "JSON data is expected from Cachito endpoint" in str(exc.value)
