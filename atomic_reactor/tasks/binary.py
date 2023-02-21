@@ -98,6 +98,7 @@ class BinaryPostBuildTask(plugin_based.PluginBasedTask[TaskParams]):
         {"name": "maven_url_sources_metadata"},
         {"name": "verify_media", "required": False},
         {"name": "push_floating_tags"},
+        {"name": "generate_sbom"},
         {"name": "koji_import"},
         {"name": "koji_tag_build"},
     ]

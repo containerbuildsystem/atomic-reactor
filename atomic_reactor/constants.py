@@ -108,6 +108,8 @@ PLUGIN_PUSH_FLOATING_TAGS_KEY = 'push_floating_tags'
 PLUGIN_ADD_IMAGE_CONTENT_MANIFEST = 'add_image_content_manifest'
 PLUGIN_CANCEL_BUILD_RESERVATION = 'cancel_build_reservation'
 PLUGIN_FLATPAK_CREATE_OCI = 'flatpak_create_oci'
+PLUGIN_GENERATE_SBOM = 'generate_sbom'
+PLUGIN_RPMQA = 'all_rpm_packages'
 
 # some shared dict keys for build metadata that gets recorded with koji.
 # for consistency of metadata in historical builds, these values basically cannot change.
@@ -181,6 +183,7 @@ KOJI_BTYPE_IMAGE = 'image'
 KOJI_BTYPE_OPERATOR_MANIFESTS = 'operator-manifests'
 KOJI_BTYPE_REMOTE_SOURCES = 'remote-sources'
 KOJI_BTYPE_REMOTE_SOURCE_FILE = 'remote-source-file'
+KOJI_BTYPE_ICM = 'icm'
 
 # Path to where the remote source bundle is copied to during the build process
 REMOTE_SOURCE_DIR = '/remote-source'
@@ -188,6 +191,7 @@ REMOTE_SOURCE_DIR = '/remote-source'
 # Name of downloaded remote sources tarball
 REMOTE_SOURCE_TARBALL_FILENAME = 'remote-source.tar.gz'
 REMOTE_SOURCE_JSON_FILENAME = 'remote-source.json'
+ICM_JSON_FILENAME = 'icm.json'
 
 # koji osbs_build metadata
 KOJI_KIND_IMAGE_BUILD = 'container_build'
@@ -211,3 +215,6 @@ USER_CONFIG_FILES = {
 }
 
 KOJI_METADATA_FILENAME = "metadata.json"
+
+# https://raw.githubusercontent.com/CycloneDX/specification/1.4/schema/bom-1.4.schema.json
+SBOM_SCHEMA_PATH = 'schemas/sbom-1.4.schema.json'
