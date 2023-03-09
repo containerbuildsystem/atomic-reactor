@@ -4,3 +4,7 @@
 #
 #    pip-compile --allow-unsafe --generate-hashes --output-file=requirements-pip.txt requirements-pip.in
 #
+pip==23.0 \
+    --hash=sha256:aee438284e82c8def684b0bcc50b1f6ed5e941af97fa940e83e2e8ef1a59da9b \
+    --hash=sha256:b5f88adff801f5ef052bcdef3daa31b55eb67b0fccd6d0106c206fa248e0463c
+    # via -r requirements-pip.in
