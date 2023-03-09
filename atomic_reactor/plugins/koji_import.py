@@ -41,6 +41,7 @@ from atomic_reactor.constants import (
     PLUGIN_KOJI_IMPORT_SOURCE_CONTAINER_PLUGIN_KEY,
     PLUGIN_FETCH_MAVEN_KEY,
     PLUGIN_GATHER_BUILDS_METADATA_KEY,
+    PLUGIN_GENERATE_SBOM,
     PLUGIN_MAVEN_URL_SOURCES_METADATA_KEY,
     PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_RESOLVE_COMPOSES_KEY,
     PLUGIN_VERIFY_MEDIA_KEY,
@@ -49,6 +50,8 @@ from atomic_reactor.constants import (
     PLUGIN_RESOLVE_REMOTE_SOURCE,
     REPO_CONTAINER_CONFIG,
     METADATA_TAG, OPERATOR_MANIFESTS_ARCHIVE,
+    ICM_JSON_FILENAME,
+    KOJI_BTYPE_ICM,
     KOJI_BTYPE_REMOTE_SOURCE_FILE,
     KOJI_BTYPE_REMOTE_SOURCES,
     KOJI_BTYPE_OPERATOR_MANIFESTS,
@@ -354,6 +357,14 @@ class KojiImportBase(Plugin):
                 r_s_f_typeinfo[KOJI_BTYPE_REMOTE_SOURCE_FILE]['no_source'] = no_source_artifacts
             extra.setdefault('typeinfo', {}).update(r_s_f_typeinfo)
 
+    def set_icm_metadata(self, extra: Dict[str, Any]) -> None:
+        icm_typeinfo_metadata = {"name": KOJI_BTYPE_ICM, "archives": [ICM_JSON_FILENAME]}
+
+        icm_typeinfo = {
+            KOJI_BTYPE_ICM: icm_typeinfo_metadata,
+        }
+        extra.setdefault("typeinfo", {}).update(icm_typeinfo)
+
     def set_group_manifest_info(self, extra):
         version_release = None
         primary_images = get_primary_images(self.workflow)
@@ -634,6 +645,17 @@ class KojiImportPlugin(KojiImportBase):
             metadata = remote_source_file['metadata']
             yield remote_source_file['file'], metadata['filename'], '', metadata
 
+    def _collect_sbom_metadata(self) -> Iterable[ArtifactOutputInfo]:
+        wf_data = self.workflow.data
+        sbom_result = wf_data.plugins_results[PLUGIN_GENERATE_SBOM]
+
+        tmpdir = tempfile.mkdtemp()
+        file_path = os.path.join(tmpdir, ICM_JSON_FILENAME)
+
+        with open(file_path, 'w') as f:
+            json.dump(sbom_result, f, indent=4, sort_keys=True)
+        yield (file_path, ICM_JSON_FILENAME, KOJI_BTYPE_ICM, None)
+
     def get_output(self, buildroot_id: str) -> List[Dict[str, Any]]:
         """Assemble outputs specific to a binary build.
 
@@ -665,6 +687,7 @@ class KojiImportPlugin(KojiImportBase):
             self._collect_exported_operator_manifests(),
             self._collect_remote_sources(),
             self._collect_maven_metadata(),
+            self._collect_sbom_metadata(),
         ):
             # Maven metadata has been generated already, use it directly.
             if metadata is None:
@@ -739,6 +762,7 @@ class KojiImportPlugin(KojiImportBase):
         self.set_pnc_build_metadata(extra)
         self.set_remote_sources_metadata(extra)
         self.set_remote_source_file_metadata(extra)
+        self.set_icm_metadata(extra)
 
         self.set_go_metadata(extra)
         self.set_group_manifest_info(extra)

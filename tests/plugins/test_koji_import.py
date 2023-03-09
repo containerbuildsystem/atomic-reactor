@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Dict
 from atomic_reactor.plugins.fetch_docker_archive import FetchDockerArchivePlugin
 from atomic_reactor.plugins.add_help import AddHelpPlugin
+from atomic_reactor.plugins.generate_sbom import GenerateSbomPlugin
 
 import koji
 import koji_cli.lib
@@ -58,7 +59,8 @@ from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, KOJI_BTYPE_OPER
                                       KOJI_SOURCE_ENGINE,
                                       DOCKERFILE_FILENAME,
                                       REPO_CONTAINER_CONFIG, PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
-                                      PLUGIN_FETCH_MAVEN_KEY, KOJI_METADATA_FILENAME)
+                                      PLUGIN_FETCH_MAVEN_KEY, KOJI_METADATA_FILENAME,
+                                      PLUGIN_GENERATE_SBOM, ICM_JSON_FILENAME, KOJI_BTYPE_ICM)
 from atomic_reactor.utils.flatpak_util import FlatpakUtil
 from tests.flatpak import (MODULEMD_AVAILABLE,
                            setup_flatpak_composes,
@@ -595,6 +597,8 @@ def mock_environment(workflow: DockerBuildWorkflow, source_dir: Path,
         workflow.data.plugins_results[PLUGIN_PUSH_OPERATOR_MANIFESTS_KEY] = \
             PUSH_OPERATOR_MANIFESTS_RESULTS
 
+    workflow.data.plugins_results[PLUGIN_GENERATE_SBOM] = GenerateSbomPlugin.minimal_sbom
+
 
 @pytest.fixture
 def workflow(workflow):
@@ -942,9 +946,6 @@ class TestKojiImport(object):
         assert is_string_type(output['filename'])
         assert 'filesize' in output
         assert int(output['filesize']) > 0
-        assert 'arch' in output
-        assert output['arch']
-        assert is_string_type(output['arch'])
         assert 'checksum' in output
         assert output['checksum']
         assert is_string_type(output['checksum'])
@@ -963,6 +964,17 @@ class TestKojiImport(object):
                 'type',
             }
             assert output['arch'] == 'noarch'
+        elif output['type'] == KOJI_BTYPE_ICM:
+            assert set(output.keys()) == {
+                'buildroot_id',
+                'filename',
+                'filesize',
+                'checksum',
+                'checksum_type',
+                'type',
+                'extra',
+            }
+            assert output['filename'] == ICM_JSON_FILENAME
         else:
             assert set(output.keys()) == {
                 'buildroot_id',
@@ -1300,6 +1312,12 @@ class TestKojiImport(object):
         assert 'engine' in osbs_build
         assert osbs_build['engine'] == 'podman'
 
+        assert 'typeinfo' in extra
+        assert isinstance(extra['typeinfo'], dict)
+        assert KOJI_BTYPE_ICM in extra['typeinfo']
+        icm_typeinfo = extra['typeinfo'][KOJI_BTYPE_ICM]
+        assert icm_typeinfo == {'archives': [ICM_JSON_FILENAME], 'name': KOJI_BTYPE_ICM}
+
         assert 'image' in extra
         image = extra['image']
         assert isinstance(image, dict)
@@ -1330,6 +1348,7 @@ class TestKojiImport(object):
         assert set(session.uploaded_files.keys()) == {
             OSBS_BUILD_LOG_FILENAME,
             KOJI_METADATA_FILENAME,
+            ICM_JSON_FILENAME,
         }
         osbs_build_log = session.uploaded_files[OSBS_BUILD_LOG_FILENAME]
         assert osbs_build_log == b"log message A\nlog message B\nlog message C\n"
@@ -1582,7 +1601,7 @@ class TestKojiImport(object):
             assert 'index' not in image.keys()
             assert 'output' in data
             for output in data['output']:
-                if output['type'] == 'log':
+                if output['type'] in ('log', KOJI_BTYPE_ICM):
                     continue
                 assert 'extra' in output
                 extra = output['extra']
@@ -1796,20 +1815,19 @@ class TestKojiImport(object):
 
         assert isinstance(extra, dict)
         assert 'osbs_build' in extra
+        assert 'typeinfo' in extra
         osbs_build = extra['osbs_build']
         if has_appregistry_manifests or has_bundle_manifests:
             assert 'operator_manifests_archive' in extra
             operator_manifests = extra['operator_manifests_archive']
             assert isinstance(operator_manifests, str)
             assert operator_manifests == OPERATOR_MANIFESTS_ARCHIVE
-            assert 'typeinfo' in extra
             assert 'operator-manifests' in extra['typeinfo']
             operator_typeinfo = extra['typeinfo']['operator-manifests']
             assert isinstance(operator_typeinfo, dict)
             assert operator_typeinfo['archive'] == OPERATOR_MANIFESTS_ARCHIVE
         else:
             assert 'operator_manifests_archive' not in extra
-            assert 'typeinfo' not in extra
 
         # having manifests pushed without extraction cannot happen, but plugins handles
         # results independently so test it this way
@@ -1962,6 +1980,7 @@ class TestKojiImport(object):
         assert isinstance(build, dict)
         assert 'extra' in build
         extra = build['extra']
+        assert 'typeinfo' in extra
         assert isinstance(extra, dict)
         # https://github.com/PyCQA/pylint/issues/2186
         # pylint: disable=W1655
@@ -1973,7 +1992,6 @@ class TestKojiImport(object):
                         'url': 'https://cachito.com/api/v1/requests/21048',
                     }
                 ]
-                assert 'typeinfo' in extra
                 assert 'remote-sources' in extra['typeinfo']
                 assert extra['typeinfo']['remote-sources'] == [
                     {
@@ -1997,7 +2015,6 @@ class TestKojiImport(object):
 
         else:
             assert 'remote_source_url' not in extra['image']
-            assert 'typeinfo' not in extra
             assert REMOTE_SOURCE_TARBALL_FILENAME not in session.uploaded_files.keys()
             assert REMOTE_SOURCE_JSON_FILENAME not in session.uploaded_files.keys()
 
@@ -2017,15 +2034,14 @@ class TestKojiImport(object):
         assert isinstance(build, dict)
         assert 'extra' in build
         extra = build['extra']
+        assert 'typeinfo' in extra
         assert isinstance(extra, dict)
         # https://github.com/PyCQA/pylint/issues/2186
         # pylint: disable=W1655
         if has_remote_source_file:
-            assert 'typeinfo' in extra
             assert 'remote-source-file' in extra['typeinfo']
             assert REMOTE_SOURCE_FILE_FILENAME in session.uploaded_files.keys()
         else:
-            assert 'typeinfo' not in extra
             assert REMOTE_SOURCE_FILE_FILENAME not in session.uploaded_files.keys()
 
     @pytest.mark.parametrize('has_pnc_build_metadata', [True, False])
@@ -2413,19 +2429,18 @@ class TestKojiImport(object):
         assert isinstance(extra, dict)
         assert 'osbs_build' in extra
         osbs_build = extra['osbs_build']
+        assert 'typeinfo' in extra
         if has_op_appregistry_manifests or has_op_bundle_manifests:
             assert 'operator_manifests_archive' in extra
             operator_manifests = extra['operator_manifests_archive']
             assert isinstance(operator_manifests, str)
             assert operator_manifests == OPERATOR_MANIFESTS_ARCHIVE
-            assert 'typeinfo' in extra
             assert 'operator-manifests' in extra['typeinfo']
             operator_typeinfo = extra['typeinfo']['operator-manifests']
             assert isinstance(operator_typeinfo, dict)
             assert operator_typeinfo['archive'] == OPERATOR_MANIFESTS_ARCHIVE
         else:
             assert 'operator_manifests_archive' not in extra
-            assert 'typeinfo' not in extra
 
         assert osbs_build['subtypes'] == [
             stype for yes, stype in [
