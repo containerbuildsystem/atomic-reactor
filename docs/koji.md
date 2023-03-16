@@ -175,6 +175,11 @@ entries are maps containing the following keys:
 
 - `archives` (str list): names of remote-sources archives
 
+The `build.extra.typeinfo.icm` entry is map containing the following keys:
+
+- `name` (str): name of icm
+- `archives` (str list): names of icm json
+
 For operator builds, the operator manifests metadata is placed in
 `build.extra.typeinfo.operator-manifests`. If this is present, the data in
 `build.extra.image` will also be appended into `build.extra.typeinfo.image` by
