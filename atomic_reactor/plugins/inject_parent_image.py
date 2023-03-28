@@ -61,8 +61,8 @@ class InjectParentImage(Plugin):
             return
 
         if self.workflow.data.dockerfile_images.base_from_scratch:
-            self.log.info("from scratch can't inject parent image")
-            return
+            raise RuntimeError("from scratch can't inject parent image")
+
         if self.workflow.data.dockerfile_images.custom_base_image:
             self.log.info("custom base image builds can't inject parent image")
             return
