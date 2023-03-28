@@ -92,13 +92,19 @@ class TestKojiParent(object):
 
         previous_parent_image = wf_data.dockerfile_images.base_image
 
-        self.run_plugin_with_args(workflow, base_from_scratch=base_from_scratch,
-                                  custom_base_image=custom_base_image)
+        if base_from_scratch:
+            with pytest.raises(PluginFailedException) as exc_info:
+                self.run_plugin_with_args(workflow, base_from_scratch=base_from_scratch,
+                                          custom_base_image=custom_base_image)
+        else:
+            self.run_plugin_with_args(workflow, base_from_scratch=base_from_scratch,
+                                      custom_base_image=custom_base_image)
+
         if base_from_scratch:
             assert str(previous_parent_image) == str(wf_data.dockerfile_images.base_image)
 
             log_msg = "from scratch can't inject parent image"
-            assert log_msg in caplog.text
+            assert log_msg in str(exc_info.value)
         elif custom_base_image:
             assert str(previous_parent_image) == str(wf_data.dockerfile_images.base_image)
 

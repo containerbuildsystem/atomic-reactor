@@ -278,39 +278,3 @@ class TestValidateUserConfigFiles(object):
         runner = mock_env(workflow, source_dir)
         with pytest.raises(PluginFailedException, match="validating 'pattern' has failed"):
             runner.run()
-
-
-class TestIsolatedBuildChecks(object):
-    """Test isolated_build_checks"""
-
-    @pytest.mark.parametrize(
-        'isolated,bundle,from_scratch,expected_fail',
-        [
-            (True, True, True, False),
-            # (True, True, False, True),  # invalid, bundle must be FROM scratch
-            (True, False, True, True),
-            (True, False, False, False),
-            (False, True, True, False),
-            # (False, True, False, False), # invalid, bundle must be FROM scratch
-            (False, False, True, False),
-            (False, False, False, False),
-        ]
-    )
-    def test_isolated_from_scratch_build(
-        self, workflow, source_dir, isolated, bundle, from_scratch, expected_fail
-    ):
-        """Test if isolated FROM scratch builds are prohibited except
-        operator bundle builds"""
-        labels = ['com.redhat.delivery.operator.bundle=true'] if bundle else []
-
-        dockerfile_f = partial(mock_dockerfile, from_scratch=from_scratch)
-
-        runner = mock_env(workflow, source_dir,
-                          dockerfile_f=dockerfile_f, labels=labels, isolated=isolated)
-        if expected_fail:
-            with pytest.raises(PluginFailedException) as exc_info:
-                runner.run()
-
-            assert '"FROM scratch" image build cannot be isolated ' in str(exc_info.value)
-        else:
-            runner.run()
