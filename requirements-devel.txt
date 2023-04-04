@@ -12,7 +12,7 @@ backoff==1.11.1
     # via -r requirements.in
 bcrypt==3.2.0
     # via paramiko
-certifi==2021.10.8
+certifi==2022.12.7
     # via requests
 cffi==1.15.0
     # via
