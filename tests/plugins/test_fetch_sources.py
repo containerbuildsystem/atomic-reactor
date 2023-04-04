@@ -52,6 +52,11 @@ RS_TYPEINFO_NO_2 = [{'name': 'first', 'url': 'first_url',
                     {'name': 'second', 'url': 'second_url',
                      'archives': ['remote-source-second.tar.gz']}]
 
+KOJI_BUILD_GO_RPMS = {'build_id': 100, 'nvr': 'go_image-1-1', 'name': 'go_image', 'version': 1,
+                      'release': 1,
+                      'extra': {'image': {'parent_build_id': 200},
+                                'operator-manifests': {}},
+                      'source': 'registry.com/repo#ref'}
 KOJI_BUILD_WO_RS = {'build_id': 1, 'nvr': 'foobar-1-1', 'name': 'foobar', 'version': 1,
                     'release': 1,
                     'extra': {'image': {'parent_build_id': 10,
@@ -74,6 +79,11 @@ KOJI_BUILD_MRS = {'build_id': 1, 'nvr': 'foobar-1-1', 'name': 'foobar', 'version
                             'typeinfo': {'remote-sources': RS_TYPEINFO}},
                   'source': 'registry.com/repo#ref'}
 
+KOJI_BUILD_GO_RPMS_PARENT = {'build_id': 200, 'nvr': 'go_image_parent-1-1',
+                             'name': 'go_image_parent', 'version': 1,
+                             'release': 1,
+                             'extra': {'image': {},
+                                       'operator-manifests': {}}}
 KOJI_PARENT_BUILD_WO_RS = {'build_id': 10, 'nvr': 'parent-1-1', 'name': 'parent', 'version': 1,
                            'release': 1,
                            'extra': {'image': {},
@@ -87,6 +97,106 @@ KOJI_PARENT_BUILD_MRS = {'build_id': 10, 'nvr': 'parent-1-1', 'name': 'parent', 
                          'extra': {'image': {'remote_sources': []},
                                    'operator-manifests': {},
                                    'typeinfo': {'remote-sources': RS_TYPEINFO}}}
+
+RPM1 = {'id': 1000,
+        'build_id': 1000,
+        'nvr': 'rpm1-1-1',
+        'arch': 'x86_64',
+        'external_repo_name': 'INTERNAL'}
+RPM2 = {'id': 2000,
+        'build_id': 2000,
+        'nvr': 'rpm2-1-1',
+        'arch': 'x86_64',
+        'external_repo_name': 'INTERNAL'}
+RPM3 = {'id': 3000,
+        'build_id': 3000,
+        'nvr': 'golang-test-1-1',
+        'arch': 'x86_64',
+        'external_repo_name': 'INTERNAL'}
+
+RPM_BUILD1 = {'id': 1000,
+              'build_id': 1000,
+              'nvr': 'rpm1-1-1',
+              'name': 'rpm1',
+              'version': '1',
+              'release': '1'}
+RPM_BUILD2 = {'id': 2000,
+              'build_id': 2000,
+              'nvr': 'rpm2-1-1',
+              'name': 'rpm2',
+              'version': '1',
+              'release': '1'}
+RPM_BUILD3 = {'id': 3000,
+              'build_id': 3000,
+              'nvr': 'golang-test-1-1',
+              'name': 'golang-test',
+              'version': '1',
+              'release': '1'}
+GO_RPM_BUILD1 = {'id': 4000,
+                 'build_id': 4000,
+                 'nvr': 'golang-some1-1-1',
+                 'name': 'golang-some1',
+                 'version': '1',
+                 'release': '1'}
+GO_RPM_BUILD2 = {'id': 4001,
+                 'build_id': 4001,
+                 'nvr': 'golang-another1-1-1',
+                 'name': 'golang-another1',
+                 'version': '1',
+                 'release': '1'}
+GO_RPM_BUILD3 = {'id': 5000,
+                 'build_id': 5000,
+                 'nvr': 'golang-some2-1-1',
+                 'name': 'golang-some2',
+                 'version': '1',
+                 'release': '1'}
+GO_RPM_BUILD4 = {'id': 5001,
+                 'build_id': 5001,
+                 'nvr': 'golang-another2-1-1',
+                 'name': 'golang-another2',
+                 'version': '1',
+                 'release': '1'}
+ALL_RPM_BUILDS = [RPM_BUILD1, RPM_BUILD2, RPM_BUILD3,
+                  GO_RPM_BUILD1, GO_RPM_BUILD2, GO_RPM_BUILD3, GO_RPM_BUILD4]
+
+GO_BUILD_RPMS = [{'build_id': 3001, 'nvr': 'golang-tests-1-1', 'arch': 'x86_64',
+                  'buildroot_id': 3001},
+                 {'build_id': 3002, 'nvr': 'golang-tests-1-1', 'arch': 's390x',
+                  'buildroot_id': 3002}]
+
+GO_BUILDROOT1 = [{'id': 4000,
+                  'build_id': 4000,
+                  'nvr': 'golang-some1-1-1',
+                  'arch': 'x86_64',
+                  'external_repo_name': 'INTERNAL'},
+                 {'id': 4001,
+                  'build_id': 4001,
+                  'nvr': 'golang-another1-1-1',
+                  'arch': 'x86_64',
+                  'external_repo_name': 'INTERNAL'},
+                 {'id': 4002,
+                  'build_id': 4002,
+                  'nvr': 'random_rpm1-1-1',
+                  'arch': 'x86_64',
+                  'external_repo_name': 'INTERNAL'}]
+GO_BUILDROOT2 = [{'id': 5000,
+                  'build_id': 5000,
+                  'nvr': 'golang-some2-1-1',
+                  'arch': 's390x',
+                  'external_repo_name': 'INTERNAL'},
+                 {'id': 5001,
+                  'build_id': 5001,
+                  'nvr': 'golang-another2-1-1',
+                  'arch': 's390x',
+                  'external_repo_name': 'INTERNAL'},
+                 {'id': 5002,
+                  'build_id': 5002,
+                  'nvr': 'random_rpm2-1-1',
+                  'arch': 's390x',
+                  'external_repo_name': 'INTERNAL'}]
+
+ALL_RPMS = [RPM1, RPM2, RPM3, GO_BUILDROOT1[0], GO_BUILDROOT1[1], GO_BUILDROOT1[2],
+            GO_BUILDROOT2[0], GO_BUILDROOT2[1], GO_BUILDROOT2[2]]
 
 KOJI_PNC_BUILD = {'build_id': 25, 'nvr': 'foobar-1-1', 'name': 'foobar', 'version': 1, 'release': 1,
                   'extra': {'image': {'parent_build_id': 10}, 'operator-manifests': {},
@@ -273,6 +383,78 @@ def koji_session():
      .should_receive('getBuild')
      .with_args(KOJI_MEAD_BUILD['build_id'], strict=True)
      .and_return(KOJI_MEAD_BUILD))
+
+    (flexmock(session)
+     .should_receive('getBuild')
+     .with_args(KOJI_BUILD_GO_RPMS['nvr'], strict=True)
+     .and_return(KOJI_BUILD_GO_RPMS))
+    (flexmock(session)
+     .should_receive('getBuild')
+     .with_args(KOJI_BUILD_GO_RPMS_PARENT['build_id'], strict=True)
+     .and_return(KOJI_BUILD_GO_RPMS_PARENT))
+    (flexmock(session)
+     .should_receive('listArchives')
+     .with_args(KOJI_BUILD_GO_RPMS['build_id'], type='image')
+     .and_return([{'id': 100}, {'id': 200}, {'id': 300}]))
+    (flexmock(session)
+     .should_receive('listArchives')
+     .with_args(KOJI_BUILD_GO_RPMS_PARENT['build_id'], type='image')
+     .and_return([{'id': 100}, {'id': 200}, {'id': 300}]))
+    (flexmock(session)
+     .should_receive('listArchives')
+     .with_args(KOJI_BUILD_GO_RPMS['build_id'], type='remote-sources')
+     .and_return([]))
+    (flexmock(session)
+     .should_receive('listArchives')
+     .with_args(KOJI_BUILD_GO_RPMS_PARENT['build_id'], type='remote-sources')
+     .and_return([]))
+    (flexmock(session)
+     .should_receive('listArchives')
+     .with_args(KOJI_BUILD_GO_RPMS['build_id'], type='remote-source-file')
+     .and_return([]))
+    (flexmock(session)
+     .should_receive('listArchives')
+     .with_args(KOJI_BUILD_GO_RPMS_PARENT['build_id'], type='remote-source-file')
+     .and_return([]))
+    (flexmock(session)
+     .should_receive('listArchives')
+     .with_args(imageID=100, type='maven')
+     .and_return([]))
+    (flexmock(session)
+     .should_receive('listArchives')
+     .with_args(imageID=200, type='maven')
+     .and_return([]))
+    (flexmock(session)
+     .should_receive('listArchives')
+     .with_args(imageID=300, type='maven')
+     .and_return([]))
+    flexmock(session).should_receive('listRPMs').with_args(imageID=100).and_return([RPM1])
+    flexmock(session).should_receive('listRPMs').with_args(imageID=200).and_return([RPM2])
+    flexmock(session).should_receive('listRPMs').with_args(imageID=300).and_return([RPM3])
+    (flexmock(session)
+     .should_receive('listRPMs')
+     .with_args(RPM3['build_id'])
+     .and_return(GO_BUILD_RPMS))
+    (flexmock(session)
+     .should_receive('listRPMs')
+     .with_args(componentBuildrootID=GO_BUILD_RPMS[0]['buildroot_id'])
+     .and_return(GO_BUILDROOT1))
+    (flexmock(session)
+     .should_receive('listRPMs')
+     .with_args(componentBuildrootID=GO_BUILD_RPMS[1]['buildroot_id'])
+     .and_return(GO_BUILDROOT2))
+
+    for rpmb in ALL_RPM_BUILDS:
+        (flexmock(session)
+         .should_receive('getBuild')
+         .with_args(rpmb['build_id'], strict=True)
+         .and_return(rpmb))
+    for rpm in ALL_RPMS:
+        (flexmock(session)
+         .should_receive('getRPMHeaders')
+         .with_args(rpm['id'], headers=['SOURCERPM'])
+         .and_return({'SOURCERPM': f"{rpm['nvr']}.src.rpm"}))
+
     flexmock(session).should_receive('krb_login').and_return(True)
     flexmock(koji).should_receive('ClientSession').and_return(session)
     return session
@@ -372,16 +554,25 @@ def mock_koji_manifest_download(source_dir: Path, requests_mock,
     bad_keys = ['notUsed']
     urls = [get_srpm_url(k) for k in sign_keys]
 
+    def body_callback_srpm(request, context):
+        f = MockBytesIO(b"Source RPM")
+        return f
+
     for url in urls:
         if any(k in url for k in bad_keys):
             requests_mock.register_uri('HEAD', url, text='Not Found', status_code=404)
         else:
             requests_mock.register_uri('HEAD', url, content=b'')
+            requests_mock.register_uri('GET', url, body=body_callback_srpm)
 
-            def body_callback(request, context):
-                f = MockBytesIO(b"Source RPM")
-                return f
-            requests_mock.register_uri('GET', url, body=body_callback)
+    for rpm in ALL_RPM_BUILDS:
+        srpm_url = '{}/packages/{}/{}/{}/src/{}.src.rpm'.format(KOJI_ROOT,
+                                                                rpm['name'],
+                                                                rpm['version'],
+                                                                rpm['release'],
+                                                                rpm['nvr'])
+        requests_mock.register_uri('HEAD', srpm_url, content=b'')
+        requests_mock.register_uri('GET', srpm_url, body=body_callback_srpm)
 
     def body_remote_callback(request, context):
         f = MockBytesIO(targz_bytes)
@@ -529,6 +720,18 @@ class TestFetchSources(object):
             if custom_rcm:
                 assert get_srpm_url() in caplog.text
                 assert get_srpm_url('usedKey') not in caplog.text
+
+    def test_go_sources(self, requests_mock, koji_session, workflow, source_dir):
+        mock_koji_manifest_download(source_dir, requests_mock)
+        runner = mock_env(workflow, source_dir, koji_build_nvr=KOJI_BUILD_GO_RPMS['nvr'])
+        result = runner.run()
+        sources_dir = result[constants.PLUGIN_FETCH_SOURCES_KEY]['image_sources_dir']
+        sources_list = os.listdir(sources_dir)
+        assert len(sources_list) == len(ALL_RPM_BUILDS)
+
+        for rpm in ALL_RPM_BUILDS:
+            with open(os.path.join(sources_dir, f"{rpm['nvr']}.src.rpm"), 'rb') as f:
+                assert f.read() == b'Source RPM'
 
     @pytest.mark.parametrize('typeinfo_rs', (RS_TYPEINFO, RS_TYPEINFO_NO_JSON, RS_TYPEINFO_NO_2))
     @pytest.mark.parametrize('archives_in_koji', (4, 3, 5))
