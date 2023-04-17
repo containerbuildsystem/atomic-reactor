@@ -91,6 +91,7 @@ PUSH_OPERATOR_MANIFESTS_RESULTS = {
     "release": 'test_release',
 }
 TIME = '2022-05-27T01:46:50Z'
+PLATFORMS = ['x86_64', 's390x']
 
 
 class MockedClientSession(object):
@@ -272,8 +273,7 @@ def mock_environment(workflow: DockerBuildWorkflow, source_dir: Path,
     if source is None:
         source = GitSource('git', 'git://hostname/path')
 
-    platforms = ['x86_64']
-    workflow.data.plugins_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = platforms
+    workflow.data.plugins_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = PLATFORMS
     workflow.data.plugins_results[PLUGIN_RESOLVE_COMPOSES_KEY] = {'composes': []}
 
     mock_reactor_config(workflow)
@@ -338,7 +338,7 @@ def mock_environment(workflow: DockerBuildWorkflow, source_dir: Path,
     setattr(workflow, 'source', source)
     flexmock(workflow.source).should_receive('commit_id').and_return('123456')
 
-    workflow.build_dir.init_build_dirs(platforms, workflow.source)
+    workflow.build_dir.init_build_dirs(PLATFORMS, workflow.source)
 
     def custom_get(method, url, headers, **kwargs):
         if url == manifest_url:
@@ -597,7 +597,8 @@ def mock_environment(workflow: DockerBuildWorkflow, source_dir: Path,
         workflow.data.plugins_results[PLUGIN_PUSH_OPERATOR_MANIFESTS_KEY] = \
             PUSH_OPERATOR_MANIFESTS_RESULTS
 
-    workflow.data.plugins_results[PLUGIN_GENERATE_SBOM] = GenerateSbomPlugin.minimal_sbom
+    sbom_results = {plat: GenerateSbomPlugin.minimal_sbom for plat in PLATFORMS}
+    workflow.data.plugins_results[PLUGIN_GENERATE_SBOM] = sbom_results
 
 
 @pytest.fixture
@@ -974,7 +975,8 @@ class TestKojiImport(object):
                 'type',
                 'extra',
             }
-            assert output['filename'] == ICM_JSON_FILENAME
+            icm_files = [ICM_JSON_FILENAME.format(platform) for platform in PLATFORMS]
+            assert output['filename'] in icm_files
         else:
             assert set(output.keys()) == {
                 'buildroot_id',
@@ -1316,7 +1318,8 @@ class TestKojiImport(object):
         assert isinstance(extra['typeinfo'], dict)
         assert KOJI_BTYPE_ICM in extra['typeinfo']
         icm_typeinfo = extra['typeinfo'][KOJI_BTYPE_ICM]
-        assert icm_typeinfo == {'archives': [ICM_JSON_FILENAME], 'name': KOJI_BTYPE_ICM}
+        archives = [ICM_JSON_FILENAME.format(platform) for platform in PLATFORMS]
+        assert icm_typeinfo == {'archives': archives, 'name': KOJI_BTYPE_ICM}
 
         assert 'image' in extra
         image = extra['image']
@@ -1345,11 +1348,14 @@ class TestKojiImport(object):
         build_id = runner.plugins_results[KojiImportPlugin.key]
         assert build_id == "123"
 
-        assert set(session.uploaded_files.keys()) == {
+        expected_files = {
             OSBS_BUILD_LOG_FILENAME,
             KOJI_METADATA_FILENAME,
-            ICM_JSON_FILENAME,
         }
+        for platform in PLATFORMS:
+            expected_files.add(ICM_JSON_FILENAME.format(platform))
+
+        assert set(session.uploaded_files.keys()) == expected_files
         osbs_build_log = session.uploaded_files[OSBS_BUILD_LOG_FILENAME]
         assert osbs_build_log == b"log message A\nlog message B\nlog message C\n"
         assert workflow.data.annotations['koji-build-id'] == '123'

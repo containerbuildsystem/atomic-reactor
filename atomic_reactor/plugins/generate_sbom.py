@@ -22,7 +22,7 @@ from atomic_reactor.utils.cachito import CachitoAPI
 from atomic_reactor.plugin import Plugin
 from atomic_reactor.util import (read_fetch_artifacts_url, read_fetch_artifacts_koji,
                                  base_image_is_custom, get_retrying_requests_session,
-                                 validate_with_schema)
+                                 validate_with_schema, get_platforms)
 
 from osbs.utils import Labels
 import koji
@@ -88,7 +88,7 @@ class GenerateSbomPlugin(Plugin):
         remote_source_results = wf_data.plugins_results.get(PLUGIN_RESOLVE_REMOTE_SOURCE) or []
         self.remote_source_ids = [remote_source['id'] for remote_source in remote_source_results]
 
-        self.rpm_components = wf_data.plugins_results.get(PLUGIN_RPMQA) or []
+        self.rpm_components = wf_data.plugins_results.get(PLUGIN_RPMQA) or {}
 
         fetch_maven_results = wf_data.plugins_results.get(PLUGIN_FETCH_MAVEN_KEY) or {}
         self.pnc_components = fetch_maven_results.get('sbom_components') or []
@@ -101,6 +101,8 @@ class GenerateSbomPlugin(Plugin):
 
         self.req_session = get_retrying_requests_session()
         self.df_images = self.workflow.data.dockerfile_images
+
+        self.all_platforms = get_platforms(self.workflow.data)
 
     @property
     def cachito_session(self) -> CachitoAPI:
@@ -181,16 +183,25 @@ class GenerateSbomPlugin(Plugin):
                    f'but the response contains: {resp.content}.')
             raise ValueError(msg) from exc
 
-    def get_sbom_url_from_build(self, build: Dict[str, Any]) -> Optional[str]:
-        sbom_url = None
+    def get_sbom_urls_from_build(self, build: Dict[str, Any]) -> Dict[Any, str]:
+        sbom_urls = {}
 
         archives = self.koji_session.listArchives(build['build_id'], type=KOJI_BTYPE_ICM)
         sbom_path = self.pathinfo.typedir(build, btype=KOJI_BTYPE_ICM)
+
+        icm_filenames = {ICM_JSON_FILENAME.format(plat): plat for plat in self.all_platforms}
         for archive in archives:
-            if archive['filename'] == ICM_JSON_FILENAME:
-                sbom_url = os.path.join(sbom_path, ICM_JSON_FILENAME)
-                break
-        return sbom_url
+            if archive['filename'] in icm_filenames:
+                platform = icm_filenames[archive['filename']]
+                sbom_urls[platform] = os.path.join(sbom_path, archive['filename'])
+
+        if sbom_urls:
+            if set(self.all_platforms) != set(sbom_urls.keys()):
+                msg = f"build '{build['build_id']}', doesn't have icm for all " \
+                      f"platforms '{self.all_platforms}'"
+                raise RuntimeError(msg)
+
+        return sbom_urls
 
     def get_parent_images_nvr(self) -> List[Optional[str]]:
         parent_images_nvr = []
@@ -203,46 +214,66 @@ class GenerateSbomPlugin(Plugin):
             parent_images_nvr.append(nvr)
         return parent_images_nvr
 
-    def get_parent_image_components(self, nvr: Optional[str]) -> List[Dict[str, Any]]:
-        parent_components = []
+    def get_parent_image_components(self, nvr: Optional[str]) -> Dict[Any, Any]:
+        parent_components = {}
 
         if not nvr:
             self.incompleteness_reasons.add('parent build is missing SBOM')
-            return []
+            return {}
 
         build = self.koji_session.getBuild(nvr)
 
         if self.check_build_state(build, nvr):
-            sbom_url = self.get_sbom_url_from_build(build)
-            if sbom_url:
-                parent_image_sbom_json = self.get_sbom_json(sbom_url)
-                parent_components = parent_image_sbom_json['components']
+            sbom_urls = self.get_sbom_urls_from_build(build)
 
-                # add reasons from parent images
-                if 'incompleteness_reasons' in parent_image_sbom_json:
-                    for reason in parent_image_sbom_json['incompleteness_reasons']:
+            if sbom_urls:
+                for platform in self.all_platforms:
+                    parent_image_sbom_json = self.get_sbom_json(sbom_urls[platform])
+                    parent_components[platform] = parent_image_sbom_json['components']
+
+                    # add reasons from parent images
+                    for reason in parent_image_sbom_json.get('incompleteness_reasons', {}):
                         self.incompleteness_reasons.add(reason.get('description'))
             else:
                 self.add_parent_missing_sbom_reason(nvr)
 
-        for component in parent_components:
-            component.pop('build_dependency', None)
+        if not parent_components:
+            return parent_components
+
+        for platform in self.all_platforms:
+            for component in parent_components[platform]:
+                component.pop('build_dependency', None)
 
         return parent_components
 
     def get_parents_unique_components(
-            self, parent_images_nvrs: List[Optional[str]]) -> List[Dict[str, Any]]:
-        parents_components = []
+            self, parent_images_nvrs: List[Optional[str]]) -> Dict[Any, List[Dict[str, Any]]]:
+        all_parents_components: Dict[Any, List[Dict[str, Any]]] = {}
+        for platform in self.all_platforms:
+            all_parents_components[platform] = []
+
         for nvr in set(parent_images_nvrs):
-            parents_components.extend(self.get_parent_image_components(nvr))
+            parents_components = self.get_parent_image_components(nvr)
+
+            if parents_components:
+                for platform in self.all_platforms:
+                    all_parents_components[platform].extend(parents_components[platform])
 
         # sort indirect components and add build_dependency True
-        return self.get_unique_and_sorted_components(parents_components, True)
+        for platform in self.all_platforms:
+            unique_components = \
+                self.get_unique_and_sorted_components(all_parents_components[platform], True)
+            all_parents_components[platform] = unique_components
+
+        return all_parents_components
 
     def get_unique_and_sorted_components(
             self, components: List[Dict[str, Any]],
             build_dependency: Optional[bool] = None) -> List[Dict[str, Any]]:
         unique_components: List[Dict[str, Any]] = []
+
+        if not components:
+            return unique_components
 
         components.sort(key=lambda c: (c["purl"], c["name"], c.get("version")))
 
@@ -266,10 +297,12 @@ class GenerateSbomPlugin(Plugin):
             remote_souces_components = remote_sources_sbom['components']
 
         # add components from cachito, rpms, pnc
-        self.sbom = deepcopy(self.minimal_sbom)
-        self.sbom['components'].extend(remote_souces_components)
-        self.sbom['components'].extend(self.rpm_components)
-        self.sbom['components'].extend(self.pnc_components)
+        for platform in self.all_platforms:
+            self.sbom[platform] = deepcopy(self.minimal_sbom)
+            self.sbom[platform]['components'].extend(deepcopy(remote_souces_components))
+            if self.rpm_components:
+                self.sbom[platform]['components'].extend(deepcopy(self.rpm_components[platform]))
+            self.sbom[platform]['components'].extend(deepcopy(self.pnc_components))
 
         # get nvrs for all parent images
         parent_images_nvrs = self.get_parent_images_nvr()
@@ -283,31 +316,38 @@ class GenerateSbomPlugin(Plugin):
 
         # add components from base image
         if base_image_components:
-            self.sbom['components'].extend(base_image_components)
+            for platform in self.all_platforms:
+                self.sbom[platform]['components'].extend(base_image_components[platform])
 
         # sort direct components, we need this to make components unique to pass validation
-        unique_components = self.get_unique_and_sorted_components(self.sbom['components'], None)
-        self.sbom['components'] = unique_components
+        for platform in self.all_platforms:
+            unique_components = \
+                self.get_unique_and_sorted_components(self.sbom[platform]['components'], None)
+            self.sbom[platform]['components'] = unique_components
 
-        # validate sbom with schema
-        # validating only what we got new, because sboms from parent images were already
-        # verified during their builds
-        validate_with_schema(self.sbom, SBOM_SCHEMA_PATH)
+            # validate sbom with schema
+            # validating only what we got new, because sboms from parent images were already
+            # verified during their builds
+            validate_with_schema(self.sbom[platform], SBOM_SCHEMA_PATH)
 
-        # sort direct components and add build_dependency False
-        unique_components = self.get_unique_and_sorted_components(self.sbom['components'], False)
-        self.sbom['components'] = unique_components
+            # sort direct components and add build_dependency False
+            unique_components2 = \
+                self.get_unique_and_sorted_components(self.sbom[platform]['components'], False)
+            self.sbom[platform]['components'] = unique_components2
 
         # get components for all parent images but base image
         parent_unique_components = self.get_parents_unique_components(parent_images_nvrs)
 
-        self.sbom['components'].extend(parent_unique_components)
+        for platform in self.all_platforms:
+            self.sbom[platform]['components'].extend(parent_unique_components[platform])
 
         # create unique and sorted incompleteness reasons
         incompleteness_reasons_full = [
             {"type": "other", "description": reason}
             for reason in sorted(self.incompleteness_reasons)
         ]
-        self.sbom['incompleteness_reasons'] = incompleteness_reasons_full
+
+        for platform in self.all_platforms:
+            self.sbom[platform]['incompleteness_reasons'] = incompleteness_reasons_full
 
         return self.sbom
