@@ -26,6 +26,7 @@ from atomic_reactor.constants import (
     KOJI_BTYPE_ICM,
     REPO_FETCH_ARTIFACTS_KOJI,
     REPO_FETCH_ARTIFACTS_URL,
+    PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
 )
 from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.generate_sbom import GenerateSbomPlugin
@@ -74,16 +75,35 @@ PNC_SBOM_COMPONENTS = [
      'purl': 'pkg:maven/org.example.artifact/artifact-multi@0.0.4.redhat-00004?type=jar'}
 ]
 
-RPM_SBOM_COMPONENTS = [
-    {'type': 'library', 'name': 'vim-minimal', 'version': '9.0.803-1.fc36',
-     'purl': 'pkg:rpm/vim-minimal@9.0.803-1.fc36?arch=x86_64'},
+RPM_SBOM_COMPONENTS = {
+    'x86_64': [
+        {
+            'type': 'library', 'name': 'vim-minimal', 'version': '9.0.803-1.fc36',
+            'purl': 'pkg:rpm/vim-minimal@9.0.803-1.fc36?arch=x86_64'},
 
-    {'type': 'library', 'name': 'yum', 'version': '4.14.0-1.fc36',
-     'purl': 'pkg:rpm/yum@4.14.0-1.fc36?arch=noarch'},
+        {
+            'type': 'library', 'name': 'yum', 'version': '4.14.0-1.fc36',
+            'purl': 'pkg:rpm/yum@4.14.0-1.fc36?arch=noarch'},
 
-    {'type': 'library', 'name': 'kernel-core', 'version': '6.0.5-200.fc36',
-     'purl': 'pkg:rpm/kernel-core@6.0.5-200.fc36?arch=x86_64&epoch=3'}
-]
+        {
+            'type': 'library', 'name': 'kernel-core', 'version': '6.0.5-200.fc36',
+            'purl': 'pkg:rpm/kernel-core@6.0.5-200.fc36?arch=x86_64&epoch=3'}
+    ],
+
+    's390x': [
+        {
+            'type': 'library', 'name': 'vim-minimal', 'version': '9.0.803-1.fc36',
+            'purl': 'pkg:rpm/vim-minimal@9.0.803-1.fc36?arch=s390x'},
+
+        {
+            'type': 'library', 'name': 'yum', 'version': '4.14.0-1.fc36',
+            'purl': 'pkg:rpm/yum@4.14.0-1.fc36?arch=noarch'},
+
+        {
+            'type': 'library', 'name': 'kernel-core', 'version': '6.0.5-200.fc36',
+            'purl': 'pkg:rpm/kernel-core@6.0.5-200.fc36?arch=s390x&epoch=3'}
+    ]
+}
 
 FETCH_KOJI_NVR = {'nvr': 'com.sun.xml.bind.mvn-jaxb-parent-2.2.11.4-1'}
 FETCH_KOJI_URL = {
@@ -93,303 +113,605 @@ FETCH_KOJI_URL = {
     'source-md5': '5d1ab5ae2a84b0f910a0ec549fd9e22b',
 }
 
-DEFAULT_COMPONENTS = [
-    {
-        'name': 'npm-without-deps',
-        'type': 'library',
-        'version': '1.0.0',
-        'purl': 'pkg:github/testing/npm-without-deps@2f0ce1d7b1f8b35572d919428b965285a69583f6',
-        'build_dependency': False,
-    },
-    {
-        'name': 'yarn-without-deps',
-        'type': 'library',
-        'version': '1.0.0',
-        'purl': 'pkg:github/testing/yarn-without-deps@da0a2888aa7aab37fec34c0b36d9e44560d2cf3e',
-        'build_dependency': False,
-    },
-    {
-        'name': 'fmt',
-        'type': 'library',
-        'purl': 'pkg:golang/fmt',
-        'build_dependency': False,
-    },
-    {
-        'name': 'artifact/artifact-sha256',
-        'type': 'library',
-        'version': '0.0.3.redhat-00003',
-        'purl': 'pkg:maven/artifact/artifact-sha256@0.0.3.redhat-00003?type=jar&cl=update',
-        'build_dependency': False,
-    },
-    {
-        'name': 'org.example.artifact/artifact-multi',
-        'type': 'library',
-        'version': '0.0.4.redhat-00004',
-        'purl': 'pkg:maven/org.example.artifact/artifact-multi@0.0.4.redhat-00004?type=jar',
-        'build_dependency': False,
-    },
-    {
-        'type': 'library',
-        'name': 'kernel-core',
-        'version': '6.0.5-200.fc36',
-        'purl': 'pkg:rpm/kernel-core@6.0.5-200.fc36?arch=x86_64&epoch=3',
-        'build_dependency': False,
-    },
-    {
-        'name': 'vim-minimal',
-        'type': 'library',
-        'version': '9.0.803-1.fc36',
-        'purl': 'pkg:rpm/vim-minimal@9.0.803-1.fc36?arch=x86_64',
-        'build_dependency': False,
-    },
-    {
-        'type': 'library',
-        'name': 'yum',
-        'version': '4.14.0-1.fc36',
-        'purl': 'pkg:rpm/yum@4.14.0-1.fc36?arch=noarch',
-        'build_dependency': False,
-    },
-]
+DEFAULT_COMPONENTS = {
+    'x86_64': [
+        {
+            'name': 'npm-without-deps',
+            'type': 'library',
+            'version': '1.0.0',
+            'purl': 'pkg:github/testing/npm-without-deps@2f0ce1d7b1f8b35572d919428b965285a69583f6',
+            'build_dependency': False,
+        },
+        {
+            'name': 'yarn-without-deps',
+            'type': 'library',
+            'version': '1.0.0',
+            'purl': 'pkg:github/testing/yarn-without-deps@da0a2888aa7aab37fec34c0b36d9e44560d2cf3e',
+            'build_dependency': False,
+        },
+        {
+            'name': 'fmt',
+            'type': 'library',
+            'purl': 'pkg:golang/fmt',
+            'build_dependency': False,
+        },
+        {
+            'name': 'artifact/artifact-sha256',
+            'type': 'library',
+            'version': '0.0.3.redhat-00003',
+            'purl': 'pkg:maven/artifact/artifact-sha256@0.0.3.redhat-00003?type=jar&cl=update',
+            'build_dependency': False,
+        },
+        {
+            'name': 'org.example.artifact/artifact-multi',
+            'type': 'library',
+            'version': '0.0.4.redhat-00004',
+            'purl': 'pkg:maven/org.example.artifact/artifact-multi@0.0.4.redhat-00004?type=jar',
+            'build_dependency': False,
+        },
+        {
+            'name': 'kernel-core',
+            'type': 'library',
+            'version': '6.0.5-200.fc36',
+            'purl': 'pkg:rpm/kernel-core@6.0.5-200.fc36?arch=x86_64&epoch=3',
+            'build_dependency': False,
+        },
+        {
+            'name': 'vim-minimal',
+            'type': 'library',
+            'version': '9.0.803-1.fc36',
+            'purl': 'pkg:rpm/vim-minimal@9.0.803-1.fc36?arch=x86_64',
+            'build_dependency': False,
+        },
+        {
+            'name': 'yum',
+            'type': 'library',
+            'version': '4.14.0-1.fc36',
+            'purl': 'pkg:rpm/yum@4.14.0-1.fc36?arch=noarch',
+            'build_dependency': False,
+        },
+    ],
+    's390x': [
+        {
+            'name': 'npm-without-deps',
+            'type': 'library',
+            'version': '1.0.0',
+            'purl': 'pkg:github/testing/npm-without-deps@2f0ce1d7b1f8b35572d919428b965285a69583f6',
+            'build_dependency': False,
+        },
+        {
+            'name': 'yarn-without-deps',
+            'type': 'library',
+            'version': '1.0.0',
+            'purl': 'pkg:github/testing/yarn-without-deps@da0a2888aa7aab37fec34c0b36d9e44560d2cf3e',
+            'build_dependency': False,
+        },
+        {
+            'name': 'fmt',
+            'type': 'library',
+            'purl': 'pkg:golang/fmt',
+            'build_dependency': False,
+        },
+        {
+            'name': 'artifact/artifact-sha256',
+            'type': 'library',
+            'version': '0.0.3.redhat-00003',
+            'purl': 'pkg:maven/artifact/artifact-sha256@0.0.3.redhat-00003?type=jar&cl=update',
+            'build_dependency': False,
+        },
+        {
+            'name': 'org.example.artifact/artifact-multi',
+            'type': 'library',
+            'version': '0.0.4.redhat-00004',
+            'purl': 'pkg:maven/org.example.artifact/artifact-multi@0.0.4.redhat-00004?type=jar',
+            'build_dependency': False,
+        },
+        {
+            'name': 'kernel-core',
+            'type': 'library',
+            'version': '6.0.5-200.fc36',
+            'purl': 'pkg:rpm/kernel-core@6.0.5-200.fc36?arch=s390x&epoch=3',
+            'build_dependency': False,
+        },
+        {
+            'name': 'vim-minimal',
+            'type': 'library',
+            'version': '9.0.803-1.fc36',
+            'purl': 'pkg:rpm/vim-minimal@9.0.803-1.fc36?arch=s390x',
+            'build_dependency': False,
+        },
+        {
+            'name': 'yum',
+            'type': 'library',
+            'version': '4.14.0-1.fc36',
+            'purl': 'pkg:rpm/yum@4.14.0-1.fc36?arch=noarch',
+            'build_dependency': False,
+        },
+    ],
+}
 
-DEFAULT_AND_BASE_COMPONENTS = [
-    {
-        'name': 'npm-without-deps',
-        'type': 'library',
-        'version': '1.0.0',
-        'purl': 'pkg:github/testing/npm-without-deps@2f0ce1d7b1f8b35572d919428b965285a69583f6',
-        'build_dependency': False,
-    },
-    {
-        'name': 'yarn-without-deps',
-        'type': 'library',
-        'version': '1.0.0',
-        'purl': 'pkg:github/testing/yarn-without-deps@da0a2888aa7aab37fec34c0b36d9e44560d2cf3e',
-        'build_dependency': False,
-    },
-    {
-        'name': 'fmt',
-        'type': 'library',
-        'purl': 'pkg:golang/fmt',
-        'build_dependency': False,
-    },
-    {
-        'name': 'somego',
-        'type': 'library',
-        'purl': 'pkg:golang/somego',
-        'build_dependency': False,
-    },
-    {
-        'name': 'artifact/artifact-sha256',
-        'type': 'library',
-        'version': '0.0.3.redhat-00003',
-        'purl': 'pkg:maven/artifact/artifact-sha256@0.0.3.redhat-00003?type=jar&cl=update',
-        'build_dependency': False,
-    },
-    {
-        'name': 'org.example.artifact/artifact-multi',
-        'type': 'library',
-        'version': '0.0.4.redhat-00004',
-        'purl': 'pkg:maven/org.example.artifact/artifact-multi@0.0.4.redhat-00004?type=jar',
-        'build_dependency': False,
-    },
-    {
-        'type': 'library',
-        'name': 'kernel-core',
-        'version': '6.0.5-200.fc36',
-        'purl': 'pkg:rpm/kernel-core@6.0.5-200.fc36?arch=x86_64&epoch=3',
-        'build_dependency': False,
-    },
-    {
-        'name': 'some_rpm',
-        'type': 'library',
-        'version': '1.0',
-        'purl': 'pkg:rpm/some_rpm@1.0?arch=x86_64',
-        'build_dependency': False,
-    },
-    {
-        'name': 'vim-minimal',
-        'type': 'library',
-        'version': '9.0.803-1.fc36',
-        'purl': 'pkg:rpm/vim-minimal@9.0.803-1.fc36?arch=x86_64',
-        'build_dependency': False,
-    },
-    {
-        'type': 'library',
-        'name': 'yum',
-        'version': '4.14.0-1.fc36',
-        'purl': 'pkg:rpm/yum@4.14.0-1.fc36?arch=noarch',
-        'build_dependency': False,
-    },
-]
+DEFAULT_AND_BASE_COMPONENTS = {
+    'x86_64': [
+        {
+            'name': 'npm-without-deps',
+            'type': 'library',
+            'version': '1.0.0',
+            'purl': 'pkg:github/testing/npm-without-deps@2f0ce1d7b1f8b35572d919428b965285a69583f6',
+            'build_dependency': False,
+        },
+        {
+            'name': 'yarn-without-deps',
+            'type': 'library',
+            'version': '1.0.0',
+            'purl': 'pkg:github/testing/yarn-without-deps@da0a2888aa7aab37fec34c0b36d9e44560d2cf3e',
+            'build_dependency': False,
+        },
+        {
+            'name': 'fmt',
+            'type': 'library',
+            'purl': 'pkg:golang/fmt',
+            'build_dependency': False,
+        },
+        {
+            'name': 'somego',
+            'type': 'library',
+            'purl': 'pkg:golang/somego',
+            'build_dependency': False,
+        },
+        {
+            'name': 'artifact/artifact-sha256',
+            'type': 'library',
+            'version': '0.0.3.redhat-00003',
+            'purl': 'pkg:maven/artifact/artifact-sha256@0.0.3.redhat-00003?type=jar&cl=update',
+            'build_dependency': False,
+        },
+        {
+            'name': 'org.example.artifact/artifact-multi',
+            'type': 'library',
+            'version': '0.0.4.redhat-00004',
+            'purl': 'pkg:maven/org.example.artifact/artifact-multi@0.0.4.redhat-00004?type=jar',
+            'build_dependency': False,
+        },
+        {
+            'name': 'kernel-core',
+            'type': 'library',
+            'version': '6.0.5-200.fc36',
+            'purl': 'pkg:rpm/kernel-core@6.0.5-200.fc36?arch=x86_64&epoch=3',
+            'build_dependency': False,
+        },
+        {
+            'name': 'some_rpm',
+            'type': 'library',
+            'version': '1.0',
+            'purl': 'pkg:rpm/some_rpm@1.0?arch=x86_64',
+            'build_dependency': False,
+        },
+        {
+            'name': 'vim-minimal',
+            'type': 'library',
+            'version': '9.0.803-1.fc36',
+            'purl': 'pkg:rpm/vim-minimal@9.0.803-1.fc36?arch=x86_64',
+            'build_dependency': False,
+        },
+        {
+            'name': 'yum',
+            'type': 'library',
+            'version': '4.14.0-1.fc36',
+            'purl': 'pkg:rpm/yum@4.14.0-1.fc36?arch=noarch',
+            'build_dependency': False,
+        },
+    ],
+    's390x': [
+        {
+            'name': 'npm-without-deps',
+            'type': 'library',
+            'version': '1.0.0',
+            'purl': 'pkg:github/testing/npm-without-deps@2f0ce1d7b1f8b35572d919428b965285a69583f6',
+            'build_dependency': False,
+        },
+        {
+            'name': 'yarn-without-deps',
+            'type': 'library',
+            'version': '1.0.0',
+            'purl': 'pkg:github/testing/yarn-without-deps@da0a2888aa7aab37fec34c0b36d9e44560d2cf3e',
+            'build_dependency': False,
+        },
+        {
+            'name': 'fmt',
+            'type': 'library',
+            'purl': 'pkg:golang/fmt',
+            'build_dependency': False,
+        },
+        {
+            'name': 'somego',
+            'type': 'library',
+            'purl': 'pkg:golang/somego',
+            'build_dependency': False,
+        },
+        {
+            'name': 'artifact/artifact-sha256',
+            'type': 'library',
+            'version': '0.0.3.redhat-00003',
+            'purl': 'pkg:maven/artifact/artifact-sha256@0.0.3.redhat-00003?type=jar&cl=update',
+            'build_dependency': False,
+        },
+        {
+            'name': 'org.example.artifact/artifact-multi',
+            'type': 'library',
+            'version': '0.0.4.redhat-00004',
+            'purl': 'pkg:maven/org.example.artifact/artifact-multi@0.0.4.redhat-00004?type=jar',
+            'build_dependency': False,
+        },
+        {
+            'name': 'kernel-core',
+            'type': 'library',
+            'version': '6.0.5-200.fc36',
+            'purl': 'pkg:rpm/kernel-core@6.0.5-200.fc36?arch=s390x&epoch=3',
+            'build_dependency': False,
+        },
+        {
+            'name': 'some_rpm',
+            'type': 'library',
+            'version': '1.0',
+            'purl': 'pkg:rpm/some_rpm@1.0?arch=s390x',
+            'build_dependency': False,
+        },
+        {
+            'name': 'vim-minimal',
+            'type': 'library',
+            'version': '9.0.803-1.fc36',
+            'purl': 'pkg:rpm/vim-minimal@9.0.803-1.fc36?arch=s390x',
+            'build_dependency': False,
+        },
+        {
+            'name': 'yum',
+            'type': 'library',
+            'version': '4.14.0-1.fc36',
+            'purl': 'pkg:rpm/yum@4.14.0-1.fc36?arch=noarch',
+            'build_dependency': False,
+        },
+    ],
+}
 
-DEFAULT_AND_PARENT_COMPONENTS = [
-    {
-        'name': 'npm-without-deps',
-        'type': 'library',
-        'version': '1.0.0',
-        'purl': 'pkg:github/testing/npm-without-deps@2f0ce1d7b1f8b35572d919428b965285a69583f6',
-        'build_dependency': False,
-    },
-    {
-        'name': 'yarn-without-deps',
-        'type': 'library',
-        'version': '1.0.0',
-        'purl': 'pkg:github/testing/yarn-without-deps@da0a2888aa7aab37fec34c0b36d9e44560d2cf3e',
-        'build_dependency': False,
-    },
-    {
-        'name': 'fmt',
-        'type': 'library',
-        'purl': 'pkg:golang/fmt',
-        'build_dependency': False,
-    },
-    {
-        'name': 'artifact/artifact-sha256',
-        'type': 'library',
-        'version': '0.0.3.redhat-00003',
-        'purl': 'pkg:maven/artifact/artifact-sha256@0.0.3.redhat-00003?type=jar&cl=update',
-        'build_dependency': False,
-    },
-    {
-        'name': 'org.example.artifact/artifact-multi',
-        'type': 'library',
-        'version': '0.0.4.redhat-00004',
-        'purl': 'pkg:maven/org.example.artifact/artifact-multi@0.0.4.redhat-00004?type=jar',
-        'build_dependency': False,
-    },
-    {
-        'type': 'library',
-        'name': 'kernel-core',
-        'version': '6.0.5-200.fc36',
-        'purl': 'pkg:rpm/kernel-core@6.0.5-200.fc36?arch=x86_64&epoch=3',
-        'build_dependency': False,
-    },
-    {
-        'name': 'vim-minimal',
-        'type': 'library',
-        'version': '9.0.803-1.fc36',
-        'purl': 'pkg:rpm/vim-minimal@9.0.803-1.fc36?arch=x86_64',
-        'build_dependency': False,
-    },
-    {
-        'type': 'library',
-        'name': 'yum',
-        'version': '4.14.0-1.fc36',
-        'purl': 'pkg:rpm/yum@4.14.0-1.fc36?arch=noarch',
-        'build_dependency': False,
-    },
-    {
-        'name': 'parentgo',
-        'type': 'library',
-        'purl': 'pkg:golang/parentgo',
-        'build_dependency': True,
-    },
-    {
-        'name': 'parent_rpm',
-        'type': 'library',
-        'version': '1.0',
-        'purl': 'pkg:rpm/parent_rpm@1.0?arch=x86_64',
-        'build_dependency': True,
-    },
-    {
-        'name': 'vim-minimal',
-        'type': 'library',
-        'version': '9.0.803-1.fc36',
-        'purl': 'pkg:rpm/vim-minimal@9.0.803-1.fc36?arch=x86_64',
-        'build_dependency': True,
-    },
-]
+DEFAULT_AND_PARENT_COMPONENTS = {
+    'x86_64': [
+        {
+            'name': 'npm-without-deps',
+            'type': 'library',
+            'version': '1.0.0',
+            'purl': 'pkg:github/testing/npm-without-deps@2f0ce1d7b1f8b35572d919428b965285a69583f6',
+            'build_dependency': False,
+        },
+        {
+            'name': 'yarn-without-deps',
+            'type': 'library',
+            'version': '1.0.0',
+            'purl': 'pkg:github/testing/yarn-without-deps@da0a2888aa7aab37fec34c0b36d9e44560d2cf3e',
+            'build_dependency': False,
+        },
+        {
+            'name': 'fmt',
+            'type': 'library',
+            'purl': 'pkg:golang/fmt',
+            'build_dependency': False,
+        },
+        {
+            'name': 'artifact/artifact-sha256',
+            'type': 'library',
+            'version': '0.0.3.redhat-00003',
+            'purl': 'pkg:maven/artifact/artifact-sha256@0.0.3.redhat-00003?type=jar&cl=update',
+            'build_dependency': False,
+        },
+        {
+            'name': 'org.example.artifact/artifact-multi',
+            'type': 'library',
+            'version': '0.0.4.redhat-00004',
+            'purl': 'pkg:maven/org.example.artifact/artifact-multi@0.0.4.redhat-00004?type=jar',
+            'build_dependency': False,
+        },
+        {
+            'name': 'kernel-core',
+            'type': 'library',
+            'version': '6.0.5-200.fc36',
+            'purl': 'pkg:rpm/kernel-core@6.0.5-200.fc36?arch=x86_64&epoch=3',
+            'build_dependency': False,
+        },
+        {
+            'name': 'vim-minimal',
+            'type': 'library',
+            'version': '9.0.803-1.fc36',
+            'purl': 'pkg:rpm/vim-minimal@9.0.803-1.fc36?arch=x86_64',
+            'build_dependency': False,
+        },
+        {
+            'name': 'yum',
+            'type': 'library',
+            'version': '4.14.0-1.fc36',
+            'purl': 'pkg:rpm/yum@4.14.0-1.fc36?arch=noarch',
+            'build_dependency': False,
+        },
+        {
+            'name': 'parentgo',
+            'type': 'library',
+            'purl': 'pkg:golang/parentgo',
+            'build_dependency': True,
+        },
+        {
+            'name': 'parent_rpm',
+            'type': 'library',
+            'version': '1.0',
+            'purl': 'pkg:rpm/parent_rpm@1.0?arch=x86_64',
+            'build_dependency': True,
+        },
+        {
+            'name': 'yum',
+            'type': 'library',
+            'version': '4.14.0-1.fc36',
+            'purl': 'pkg:rpm/yum@4.14.0-1.fc36?arch=noarch',
+            'build_dependency': True,
+        },
+    ],
+    's390x': [
+        {
+            'name': 'npm-without-deps',
+            'type': 'library',
+            'version': '1.0.0',
+            'purl': 'pkg:github/testing/npm-without-deps@2f0ce1d7b1f8b35572d919428b965285a69583f6',
+            'build_dependency': False,
+        },
+        {
+            'name': 'yarn-without-deps',
+            'type': 'library',
+            'version': '1.0.0',
+            'purl': 'pkg:github/testing/yarn-without-deps@da0a2888aa7aab37fec34c0b36d9e44560d2cf3e',
+            'build_dependency': False,
+        },
+        {
+            'name': 'fmt',
+            'type': 'library',
+            'purl': 'pkg:golang/fmt',
+            'build_dependency': False,
+        },
+        {
+            'name': 'artifact/artifact-sha256',
+            'type': 'library',
+            'version': '0.0.3.redhat-00003',
+            'purl': 'pkg:maven/artifact/artifact-sha256@0.0.3.redhat-00003?type=jar&cl=update',
+            'build_dependency': False,
+        },
+        {
+            'name': 'org.example.artifact/artifact-multi',
+            'type': 'library',
+            'version': '0.0.4.redhat-00004',
+            'purl': 'pkg:maven/org.example.artifact/artifact-multi@0.0.4.redhat-00004?type=jar',
+            'build_dependency': False,
+        },
+        {
+            'name': 'kernel-core',
+            'type': 'library',
+            'version': '6.0.5-200.fc36',
+            'purl': 'pkg:rpm/kernel-core@6.0.5-200.fc36?arch=s390x&epoch=3',
+            'build_dependency': False,
+        },
+        {
+            'name': 'vim-minimal',
+            'type': 'library',
+            'version': '9.0.803-1.fc36',
+            'purl': 'pkg:rpm/vim-minimal@9.0.803-1.fc36?arch=s390x',
+            'build_dependency': False,
+        },
+        {
+            'name': 'yum',
+            'type': 'library',
+            'version': '4.14.0-1.fc36',
+            'purl': 'pkg:rpm/yum@4.14.0-1.fc36?arch=noarch',
+            'build_dependency': False,
+        },
+        {
+            'name': 'parentgo',
+            'type': 'library',
+            'purl': 'pkg:golang/parentgo',
+            'build_dependency': True,
+        },
+        {
+            'name': 'parent_rpm',
+            'type': 'library',
+            'version': '1.0',
+            'purl': 'pkg:rpm/parent_rpm@1.0?arch=s390x',
+            'build_dependency': True,
+        },
+        {
+            'name': 'yum',
+            'type': 'library',
+            'version': '4.14.0-1.fc36',
+            'purl': 'pkg:rpm/yum@4.14.0-1.fc36?arch=noarch',
+            'build_dependency': True,
+        },
+    ],
+}
 
-DEFAULT_AND_BASE_AND_PARENT_COMPONENTS = [
-    {
-        'name': 'npm-without-deps',
-        'type': 'library',
-        'version': '1.0.0',
-        'purl': 'pkg:github/testing/npm-without-deps@2f0ce1d7b1f8b35572d919428b965285a69583f6',
-        'build_dependency': False,
-    },
-    {
-        'name': 'yarn-without-deps',
-        'type': 'library',
-        'version': '1.0.0',
-        'purl': 'pkg:github/testing/yarn-without-deps@da0a2888aa7aab37fec34c0b36d9e44560d2cf3e',
-        'build_dependency': False,
-    },
-    {
-        'name': 'fmt',
-        'type': 'library',
-        'purl': 'pkg:golang/fmt',
-        'build_dependency': False,
-    },
-    {
-        'name': 'somego',
-        'type': 'library',
-        'purl': 'pkg:golang/somego',
-        'build_dependency': False,
-    },
-    {
-        'name': 'artifact/artifact-sha256',
-        'type': 'library',
-        'version': '0.0.3.redhat-00003',
-        'purl': 'pkg:maven/artifact/artifact-sha256@0.0.3.redhat-00003?type=jar&cl=update',
-        'build_dependency': False,
-    },
-    {
-        'name': 'org.example.artifact/artifact-multi',
-        'type': 'library',
-        'version': '0.0.4.redhat-00004',
-        'purl': 'pkg:maven/org.example.artifact/artifact-multi@0.0.4.redhat-00004?type=jar',
-        'build_dependency': False,
-    },
-    {
-        'type': 'library',
-        'name': 'kernel-core',
-        'version': '6.0.5-200.fc36',
-        'purl': 'pkg:rpm/kernel-core@6.0.5-200.fc36?arch=x86_64&epoch=3',
-        'build_dependency': False,
-    },
-    {
-        'name': 'some_rpm',
-        'type': 'library',
-        'version': '1.0',
-        'purl': 'pkg:rpm/some_rpm@1.0?arch=x86_64',
-        'build_dependency': False,
-    },
-    {
-        'name': 'vim-minimal',
-        'type': 'library',
-        'version': '9.0.803-1.fc36',
-        'purl': 'pkg:rpm/vim-minimal@9.0.803-1.fc36?arch=x86_64',
-        'build_dependency': False,
-    },
-    {
-        'type': 'library',
-        'name': 'yum',
-        'version': '4.14.0-1.fc36',
-        'purl': 'pkg:rpm/yum@4.14.0-1.fc36?arch=noarch',
-        'build_dependency': False,
-    },
-    {
-        'name': 'parentgo',
-        'type': 'library',
-        'purl': 'pkg:golang/parentgo',
-        'build_dependency': True,
-    },
-    {
-        'name': 'parent_rpm',
-        'type': 'library',
-        'version': '1.0',
-        'purl': 'pkg:rpm/parent_rpm@1.0?arch=x86_64',
-        'build_dependency': True,
-    },
-    {
-        'name': 'vim-minimal',
-        'type': 'library',
-        'version': '9.0.803-1.fc36',
-        'purl': 'pkg:rpm/vim-minimal@9.0.803-1.fc36?arch=x86_64',
-        'build_dependency': True,
-    },
-]
+DEFAULT_AND_BASE_AND_PARENT_COMPONENTS = {
+    'x86_64': [
+        {
+            'name': 'npm-without-deps',
+            'type': 'library',
+            'version': '1.0.0',
+            'purl': 'pkg:github/testing/npm-without-deps@2f0ce1d7b1f8b35572d919428b965285a69583f6',
+            'build_dependency': False,
+        },
+        {
+            'name': 'yarn-without-deps',
+            'type': 'library',
+            'version': '1.0.0',
+            'purl': 'pkg:github/testing/yarn-without-deps@da0a2888aa7aab37fec34c0b36d9e44560d2cf3e',
+            'build_dependency': False,
+        },
+        {
+            'name': 'fmt',
+            'type': 'library',
+            'purl': 'pkg:golang/fmt',
+            'build_dependency': False,
+        },
+        {
+            'name': 'somego',
+            'type': 'library',
+            'purl': 'pkg:golang/somego',
+            'build_dependency': False,
+        },
+        {
+            'name': 'artifact/artifact-sha256',
+            'type': 'library',
+            'version': '0.0.3.redhat-00003',
+            'purl': 'pkg:maven/artifact/artifact-sha256@0.0.3.redhat-00003?type=jar&cl=update',
+            'build_dependency': False,
+        },
+        {
+            'name': 'org.example.artifact/artifact-multi',
+            'type': 'library',
+            'version': '0.0.4.redhat-00004',
+            'purl': 'pkg:maven/org.example.artifact/artifact-multi@0.0.4.redhat-00004?type=jar',
+            'build_dependency': False,
+        },
+        {
+            'type': 'library',
+            'name': 'kernel-core',
+            'version': '6.0.5-200.fc36',
+            'purl': 'pkg:rpm/kernel-core@6.0.5-200.fc36?arch=x86_64&epoch=3',
+            'build_dependency': False,
+        },
+        {
+            'name': 'some_rpm',
+            'type': 'library',
+            'version': '1.0',
+            'purl': 'pkg:rpm/some_rpm@1.0?arch=x86_64',
+            'build_dependency': False,
+        },
+        {
+            'name': 'vim-minimal',
+            'type': 'library',
+            'version': '9.0.803-1.fc36',
+            'purl': 'pkg:rpm/vim-minimal@9.0.803-1.fc36?arch=x86_64',
+            'build_dependency': False,
+        },
+        {
+            'type': 'library',
+            'name': 'yum',
+            'version': '4.14.0-1.fc36',
+            'purl': 'pkg:rpm/yum@4.14.0-1.fc36?arch=noarch',
+            'build_dependency': False,
+        },
+        {
+            'name': 'parentgo',
+            'type': 'library',
+            'purl': 'pkg:golang/parentgo',
+            'build_dependency': True,
+        },
+        {
+            'name': 'parent_rpm',
+            'type': 'library',
+            'version': '1.0',
+            'purl': 'pkg:rpm/parent_rpm@1.0?arch=x86_64',
+            'build_dependency': True,
+        },
+        {
+            'type': 'library',
+            'name': 'yum',
+            'version': '4.14.0-1.fc36',
+            'purl': 'pkg:rpm/yum@4.14.0-1.fc36?arch=noarch',
+            'build_dependency': True,
+        },
+    ],
+    's390x': [
+        {
+            'name': 'npm-without-deps',
+            'type': 'library',
+            'version': '1.0.0',
+            'purl': 'pkg:github/testing/npm-without-deps@2f0ce1d7b1f8b35572d919428b965285a69583f6',
+            'build_dependency': False,
+        },
+        {
+            'name': 'yarn-without-deps',
+            'type': 'library',
+            'version': '1.0.0',
+            'purl': 'pkg:github/testing/yarn-without-deps@da0a2888aa7aab37fec34c0b36d9e44560d2cf3e',
+            'build_dependency': False,
+        },
+        {
+            'name': 'fmt',
+            'type': 'library',
+            'purl': 'pkg:golang/fmt',
+            'build_dependency': False,
+        },
+        {
+            'name': 'somego',
+            'type': 'library',
+            'purl': 'pkg:golang/somego',
+            'build_dependency': False,
+        },
+        {
+            'name': 'artifact/artifact-sha256',
+            'type': 'library',
+            'version': '0.0.3.redhat-00003',
+            'purl': 'pkg:maven/artifact/artifact-sha256@0.0.3.redhat-00003?type=jar&cl=update',
+            'build_dependency': False,
+        },
+        {
+            'name': 'org.example.artifact/artifact-multi',
+            'type': 'library',
+            'version': '0.0.4.redhat-00004',
+            'purl': 'pkg:maven/org.example.artifact/artifact-multi@0.0.4.redhat-00004?type=jar',
+            'build_dependency': False,
+        },
+        {
+            'type': 'library',
+            'name': 'kernel-core',
+            'version': '6.0.5-200.fc36',
+            'purl': 'pkg:rpm/kernel-core@6.0.5-200.fc36?arch=s390x&epoch=3',
+            'build_dependency': False,
+        },
+        {
+            'name': 'some_rpm',
+            'type': 'library',
+            'version': '1.0',
+            'purl': 'pkg:rpm/some_rpm@1.0?arch=s390x',
+            'build_dependency': False,
+        },
+        {
+            'name': 'vim-minimal',
+            'type': 'library',
+            'version': '9.0.803-1.fc36',
+            'purl': 'pkg:rpm/vim-minimal@9.0.803-1.fc36?arch=s390x',
+            'build_dependency': False,
+        },
+        {
+            'type': 'library',
+            'name': 'yum',
+            'version': '4.14.0-1.fc36',
+            'purl': 'pkg:rpm/yum@4.14.0-1.fc36?arch=noarch',
+            'build_dependency': False,
+        },
+        {
+            'name': 'parentgo',
+            'type': 'library',
+            'purl': 'pkg:golang/parentgo',
+            'build_dependency': True,
+        },
+        {
+            'name': 'parent_rpm',
+            'type': 'library',
+            'version': '1.0',
+            'purl': 'pkg:rpm/parent_rpm@1.0?arch=s390x',
+            'build_dependency': True,
+        },
+        {
+            'type': 'library',
+            'name': 'yum',
+            'version': '4.14.0-1.fc36',
+            'purl': 'pkg:rpm/yum@4.14.0-1.fc36?arch=noarch',
+            'build_dependency': True,
+        },
+    ],
+}
 
 # image is missing required label
 MISSING_LABEL_IMAGE_NAME = 'registry/missing_labels_image:latest'
@@ -434,11 +756,15 @@ EMPTY_SBOM_KOJI_BUILD = {
     'version': EMPTY_SBOM_IMAGE_LABELS['version'],
     'release': EMPTY_SBOM_IMAGE_LABELS['release'],
 }
-EMPTY_SBOM_BUILD_SBOM_JSON = {
+EMPTY_SBOM_JSON = {
     'bomFormat': 'CycloneDX',
     'specVersion': '1.4',
     'version': 1,
     'components': [],
+}
+EMPTY_SBOM_BUILD_SBOM_JSON = {
+    'x86_64': deepcopy(EMPTY_SBOM_JSON),
+    's390x': deepcopy(EMPTY_SBOM_JSON),
 }
 
 # base image with sbom with some components
@@ -460,32 +786,62 @@ BASE_WITH_SBOM_KOJI_BUILD = {
     'release': BASE_WITH_SBOM_IMAGE_LABELS['release'],
 }
 BASE_WITH_SBOM_BUILD_SBOM_JSON = {
-    'bomFormat': 'CycloneDX',
-    'specVersion': '1.4',
-    'version': 1,
-    'components': [
-        {
-            'name': 'somego',
-            'type': 'library',
-            'purl': 'pkg:golang/somego',
-            'build_dependency': True,
-        },
-        {
-            'name': 'some_rpm',
-            'type': 'library',
-            'version': '1.0',
-            'purl': 'pkg:rpm/some_rpm@1.0?arch=x86_64',
-            'build_dependency': False,
-        },
-        # same component as in default components
-        {
-            'name': 'vim-minimal',
-            'type': 'library',
-            'version': '9.0.803-1.fc36',
-            'purl': 'pkg:rpm/vim-minimal@9.0.803-1.fc36?arch=x86_64',
-            'build_dependency': False,
-        },
-    ],
+    'x86_64': {
+        'bomFormat': 'CycloneDX',
+        'specVersion': '1.4',
+        'version': 1,
+        'components': [
+            {
+                'name': 'somego',
+                'type': 'library',
+                'purl': 'pkg:golang/somego',
+                'build_dependency': True,
+            },
+            {
+                'name': 'some_rpm',
+                'type': 'library',
+                'version': '1.0',
+                'purl': 'pkg:rpm/some_rpm@1.0?arch=x86_64',
+                'build_dependency': False,
+            },
+            # same component as in default components
+            {
+                'name': 'yum',
+                'type': 'library',
+                'version': '4.14.0-1.fc36',
+                'purl': 'pkg:rpm/yum@4.14.0-1.fc36?arch=noarch',
+                'build_dependency': False,
+            },
+        ],
+    },
+    's390x': {
+        'bomFormat': 'CycloneDX',
+        'specVersion': '1.4',
+        'version': 1,
+        'components': [
+            {
+                'name': 'somego',
+                'type': 'library',
+                'purl': 'pkg:golang/somego',
+                'build_dependency': True,
+            },
+            {
+                'name': 'some_rpm',
+                'type': 'library',
+                'version': '1.0',
+                'purl': 'pkg:rpm/some_rpm@1.0?arch=s390x',
+                'build_dependency': False,
+            },
+            # same component as in default components
+            {
+                'name': 'yum',
+                'type': 'library',
+                'version': '4.14.0-1.fc36',
+                'purl': 'pkg:rpm/yum@4.14.0-1.fc36?arch=noarch',
+                'build_dependency': False,
+            },
+        ],
+    },
 }
 
 # base image with sbom with some components and incompleteness reasons
@@ -506,8 +862,12 @@ BASE_WITH_SBOM_INC_KOJI_BUILD = {
     'version': BASE_WITH_SBOM_INC_IMAGE_LABELS['version'],
     'release': BASE_WITH_SBOM_INC_IMAGE_LABELS['release'],
 }
-BASE_WITH_SBOM_INC_BUILD_SBOM_JSON = BASE_WITH_SBOM_BUILD_SBOM_JSON.copy()
-BASE_WITH_SBOM_INC_BUILD_SBOM_JSON['incompleteness_reasons'] = [
+BASE_WITH_SBOM_INC_BUILD_SBOM_JSON = deepcopy(BASE_WITH_SBOM_BUILD_SBOM_JSON)
+BASE_WITH_SBOM_INC_BUILD_SBOM_JSON['x86_64']['incompleteness_reasons'] = [
+    {'type': 'other', 'description': 'fetch koji is used'},
+    {'type': 'other', 'description': 'fetch url is used'},
+]
+BASE_WITH_SBOM_INC_BUILD_SBOM_JSON['s390x']['incompleteness_reasons'] = [
     {'type': 'other', 'description': 'fetch koji is used'},
     {'type': 'other', 'description': 'fetch url is used'},
 ]
@@ -561,32 +921,62 @@ PARENT_WITH_SBOM_KOJI_BUILD = {
     'release': PARENT_WITH_SBOM_IMAGE_LABELS['release'],
 }
 PARENT_WITH_SBOM_BUILD_SBOM_JSON = {
-    'bomFormat': 'CycloneDX',
-    'specVersion': '1.4',
-    'version': 1,
-    'components': [
-        {
-            'name': 'parentgo',
-            'type': 'library',
-            'purl': 'pkg:golang/parentgo',
-            'build_dependency': False,
-        },
-        {
-            'name': 'parent_rpm',
-            'type': 'library',
-            'version': '1.0',
-            'purl': 'pkg:rpm/parent_rpm@1.0?arch=x86_64',
-            'build_dependency': True,
-        },
-        # same component as in default components
-        {
-            'name': 'vim-minimal',
-            'type': 'library',
-            'version': '9.0.803-1.fc36',
-            'purl': 'pkg:rpm/vim-minimal@9.0.803-1.fc36?arch=x86_64',
-            'build_dependency': True,
-        },
-    ],
+    'x86_64': {
+        'bomFormat': 'CycloneDX',
+        'specVersion': '1.4',
+        'version': 1,
+        'components': [
+            {
+                'name': 'parentgo',
+                'type': 'library',
+                'purl': 'pkg:golang/parentgo',
+                'build_dependency': False,
+            },
+            {
+                'name': 'parent_rpm',
+                'type': 'library',
+                'version': '1.0',
+                'purl': 'pkg:rpm/parent_rpm@1.0?arch=x86_64',
+                'build_dependency': True,
+            },
+            # same component as in default components
+            {
+                'name': 'yum',
+                'type': 'library',
+                'version': '4.14.0-1.fc36',
+                'purl': 'pkg:rpm/yum@4.14.0-1.fc36?arch=noarch',
+                'build_dependency': True,
+            },
+        ],
+    },
+    's390x': {
+        'bomFormat': 'CycloneDX',
+        'specVersion': '1.4',
+        'version': 1,
+        'components': [
+            {
+                'name': 'parentgo',
+                'type': 'library',
+                'purl': 'pkg:golang/parentgo',
+                'build_dependency': False,
+            },
+            {
+                'name': 'parent_rpm',
+                'type': 'library',
+                'version': '1.0',
+                'purl': 'pkg:rpm/parent_rpm@1.0?arch=s390x',
+                'build_dependency': True,
+            },
+            # same component as in default components
+            {
+                'name': 'yum',
+                'type': 'library',
+                'version': '4.14.0-1.fc36',
+                'purl': 'pkg:rpm/yum@4.14.0-1.fc36?arch=noarch',
+                'build_dependency': True,
+            },
+        ],
+    },
 }
 
 # parent image with sbom with some components and incompleteness reasons
@@ -607,8 +997,11 @@ PARENT_WITH_SBOM_INC_KOJI_BUILD = {
     'version': PARENT_WITH_SBOM_INC_IMAGE_LABELS['version'],
     'release': PARENT_WITH_SBOM_INC_IMAGE_LABELS['release'],
 }
-PARENT_WITH_SBOM_INC_BUILD_SBOM_JSON = PARENT_WITH_SBOM_BUILD_SBOM_JSON.copy()
-PARENT_WITH_SBOM_INC_BUILD_SBOM_JSON['incompleteness_reasons'] = [
+PARENT_WITH_SBOM_INC_BUILD_SBOM_JSON = deepcopy(PARENT_WITH_SBOM_BUILD_SBOM_JSON)
+PARENT_WITH_SBOM_INC_BUILD_SBOM_JSON['x86_64']['incompleteness_reasons'] = [
+    {'type': 'other', 'description': 'lookaside cache is used'},
+]
+PARENT_WITH_SBOM_INC_BUILD_SBOM_JSON['s390x']['incompleteness_reasons'] = [
     {'type': 'other', 'description': 'lookaside cache is used'},
 ]
 
@@ -650,6 +1043,7 @@ INCOMPLETE_MISSING_KOJI = [
     {'type': 'other', 'description':
         f"parent build '{PARENT_WITHOUT_KOJI_BUILD_NVR}' is missing SBOM"},
 ]
+PLATFORMS = ['x86_64', 's390x']
 
 
 def setup_function(*args):
@@ -713,6 +1107,7 @@ def mock_env(workflow, df_images):
          .with_args(image=ImageName.parse(imagename))
          .and_return(inspect))
 
+    workflow.data.plugins_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = PLATFORMS
     return env.create_runner()
 
 
@@ -727,20 +1122,21 @@ def mock_build_icm_urls(requests_mock):
                  (PARENT_WITH_SBOM_KOJI_BUILD, PARENT_WITH_SBOM_BUILD_SBOM_JSON),
                  (PARENT_WITH_SBOM_INC_KOJI_BUILD, PARENT_WITH_SBOM_INC_BUILD_SBOM_JSON)]
 
-    for build, sbom_json in all_sboms:
-        sbom_url = get_build_icm_url(build)
-        requests_mock.register_uri('GET', sbom_url,
-                                   json=sbom_json)
+    for platform in PLATFORMS:
+        for build, sbom_json in all_sboms:
+            sbom_url = get_build_icm_url(build, platform)
+            requests_mock.register_uri('GET', sbom_url,
+                                       json=sbom_json[platform])
 
-    # sbom isn't valid json
-    sbom_url = get_build_icm_url(NOJSON_SBOM_KOJI_BUILD)
-    requests_mock.register_uri('GET', sbom_url, json=None)
+        # sbom isn't valid json
+        sbom_url = get_build_icm_url(NOJSON_SBOM_KOJI_BUILD, platform)
+        requests_mock.register_uri('GET', sbom_url, json=None)
 
 
-def get_build_icm_url(koji_build):
+def get_build_icm_url(koji_build, platform):
     base = '{}/packages/{}/{}/{}'.format(KOJI_ROOT, koji_build['name'], koji_build['version'],
                                          koji_build['release'])
-    return '{}/files/{}/{}'.format(base, KOJI_BTYPE_ICM, ICM_JSON_FILENAME)
+    return '{}/files/{}/{}'.format(base, KOJI_BTYPE_ICM, ICM_JSON_FILENAME.format(platform))
 
 
 @pytest.fixture()
@@ -765,10 +1161,14 @@ def koji_session():
          .with_args(build_nvr)
          .and_return(koji_build))
 
+    icm_archives = []
+    for platform in PLATFORMS:
+        icm_archives.append({'id': 1, 'type_name': 'json',
+                             'filename': ICM_JSON_FILENAME.format(platform)})
     (flexmock(session)
      .should_receive('listArchives')
      .with_args(1, type=KOJI_BTYPE_ICM)
-     .and_return([{'id': 1, 'type_name': 'json', 'filename': ICM_JSON_FILENAME}]))
+     .and_return(icm_archives))
 
     (flexmock(session)
      .should_receive('listArchives')
@@ -924,11 +1324,14 @@ def test_sbom(workflow, requests_mock, koji_session, df_images, use_cache, use_f
     all_results = runner.run()
     plugin_result = all_results[GenerateSbomPlugin.key]
 
-    expected_sbom = deepcopy(EMPTY_SBOM_BUILD_SBOM_JSON)
-    expected_sbom['components'].extend(expected_components)
+    expected_sbom = deepcopy(EMPTY_SBOM_JSON)
     expected_sbom['incompleteness_reasons'] = expected_incomplete
+    expected_result = {plat: deepcopy(expected_sbom) for plat in PLATFORMS}
 
-    assert plugin_result == expected_sbom
+    for plat in PLATFORMS:
+        expected_result[plat]['components'].extend(deepcopy(expected_components[plat]))
+
+    assert plugin_result == expected_result
 
 
 @pytest.mark.parametrize(('df_images, err_msg'), [

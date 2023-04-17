@@ -158,6 +158,8 @@ class KojiImportBase(Plugin):
                 # Why pass 1 to exc_info originally?
                 self.log.error("invalid task ID %r", koji_task_id, exc_info=1)
 
+        self.all_platforms = get_platforms(self.workflow.data)
+
     @cached_property
     def _builds_metadatas(self) -> Dict[str, Any]:
         """Get builds metadata returned from gather_builds_metadata plugin.
@@ -201,7 +203,7 @@ class KojiImportBase(Plugin):
         # Both binary and source build have log files.
         outputs: List[Dict[str, Any]] = []
         koji_upload_files = self.workflow.data.koji_upload_files
-        osbs_logs = OSBSLogs(self.log, get_platforms(self.workflow.data))
+        osbs_logs = OSBSLogs(self.log, self.all_platforms)
         log_files_outputs = osbs_logs.get_log_files(
             self.workflow.osbs, self.workflow.pipeline_run_name
         )
@@ -358,7 +360,10 @@ class KojiImportBase(Plugin):
             extra.setdefault('typeinfo', {}).update(r_s_f_typeinfo)
 
     def set_icm_metadata(self, extra: Dict[str, Any]) -> None:
-        icm_typeinfo_metadata = {"name": KOJI_BTYPE_ICM, "archives": [ICM_JSON_FILENAME]}
+        archives = []
+        for platform in self.all_platforms:
+            archives.append(ICM_JSON_FILENAME.format(platform))
+        icm_typeinfo_metadata = {"name": KOJI_BTYPE_ICM, "archives": archives}
 
         icm_typeinfo = {
             KOJI_BTYPE_ICM: icm_typeinfo_metadata,
@@ -647,14 +652,15 @@ class KojiImportPlugin(KojiImportBase):
 
     def _collect_sbom_metadata(self) -> Iterable[ArtifactOutputInfo]:
         wf_data = self.workflow.data
-        sbom_result = wf_data.plugins_results[PLUGIN_GENERATE_SBOM]
+        sbom_results = wf_data.plugins_results[PLUGIN_GENERATE_SBOM]
 
         tmpdir = tempfile.mkdtemp()
-        file_path = os.path.join(tmpdir, ICM_JSON_FILENAME)
+        for platform in self.all_platforms:
+            file_path = os.path.join(tmpdir, ICM_JSON_FILENAME.format(platform))
 
-        with open(file_path, 'w') as f:
-            json.dump(sbom_result, f, indent=4, sort_keys=True)
-        yield (file_path, ICM_JSON_FILENAME, KOJI_BTYPE_ICM, None)
+            with open(file_path, 'w') as f:
+                json.dump(sbom_results[platform], f, indent=4, sort_keys=True)
+            yield (file_path, ICM_JSON_FILENAME.format(platform), KOJI_BTYPE_ICM, None)
 
     def get_output(self, buildroot_id: str) -> List[Dict[str, Any]]:
         """Assemble outputs specific to a binary build.

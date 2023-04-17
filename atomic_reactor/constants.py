@@ -191,7 +191,7 @@ REMOTE_SOURCE_DIR = '/remote-source'
 # Name of downloaded remote sources tarball
 REMOTE_SOURCE_TARBALL_FILENAME = 'remote-source.tar.gz'
 REMOTE_SOURCE_JSON_FILENAME = 'remote-source.json'
-ICM_JSON_FILENAME = 'icm.json'
+ICM_JSON_FILENAME = 'icm-{}.json'
 
 # koji osbs_build metadata
 KOJI_KIND_IMAGE_BUILD = 'container_build'

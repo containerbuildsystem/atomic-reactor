@@ -163,7 +163,8 @@ def test_rpmqa_plugin_return_sbom(caplog, workflow, build_dir):
      .create_runner()
      .run())
 
-    assert workflow.data.plugins_results[RPMqaPlugin.key] == SBOM_COMPONENTS
+    expected_sbom_components = {plat: SBOM_COMPONENTS for plat in platforms}
+    assert workflow.data.plugins_results[RPMqaPlugin.key] == expected_sbom_components
 
 
 @pytest.mark.parametrize('base_from_scratch', [
