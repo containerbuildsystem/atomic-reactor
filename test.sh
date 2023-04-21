@@ -69,7 +69,7 @@ function setup_osbs() {
   $RUN $PKG install -y $PIP_PKG
 
   # Upgrade pip to provide latest features for successful installation
-  $RUN "${PIP_INST[@]}" --upgrade pip
+  $RUN "${PIP_INST[@]}" --upgrade "pip<23.1"
 
   if [[ $OS == centos ]]; then
     # Pip install/upgrade setuptools. Older versions of setuptools don't understand
