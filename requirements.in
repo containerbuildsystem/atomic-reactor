@@ -5,7 +5,7 @@ jsonschema
 paramiko>=2.10.1
 PyYAML
 ruamel.yaml
-git+https://github.com/containerbuildsystem/osbs-client@a183187d8858c816ba35dd451d0dc07f2da030a5#egg=osbs-client
+git+https://github.com/containerbuildsystem/osbs-client@3db33db62280d5b0d2f13993596d882c5deba54c#egg=osbs-client
 # cannot build cryptography with rust for version >= 3.5
 cryptography < 3.5
 requests
