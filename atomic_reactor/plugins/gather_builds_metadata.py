@@ -6,7 +6,6 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 from typing import Any, Dict, Optional
-import json
 
 from atomic_reactor.plugin import Plugin
 from atomic_reactor.constants import PLUGIN_GATHER_BUILDS_METADATA_KEY
@@ -68,7 +67,7 @@ class GatherBuildsMetadataPlugin(Plugin):
             if 'task_result' not in task_results[task_name]:
                 raise RuntimeError(f"task_results is missing from: {task_name}")
 
-            return json.loads(task_results[task_name]['task_result'])
+            return task_results[task_name]['task_result']
 
         except StopIteration:
             # pylint: disable=W0707

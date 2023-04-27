@@ -19,7 +19,6 @@ from atomic_reactor.utils.rpm import parse_rpm_output
 
 import pytest
 from flexmock import flexmock
-import json
 
 from tests.mock_env import MockEnv
 
@@ -148,8 +147,8 @@ def test_gather_builds_metadata(has_s390x_build_logs, workflow: DockerBuildWorkf
 
     flexmock(RemoteHost).should_receive('rpms_installed').and_return(package_list)
 
-    task_results = {'binary-container-build-x86-64': {'task_result': json.dumps(X86_64_HOST)},
-                    'binary-container-build-s390x': {'task_result': json.dumps(S390X_HOST)}}
+    task_results = {'binary-container-build-x86-64': {'task_result': X86_64_HOST},
+                    'binary-container-build-s390x': {'task_result': S390X_HOST}}
     flexmock(workflow.osbs).should_receive('get_task_results').and_return(task_results)
 
     plugin = GatherBuildsMetadataPlugin(workflow)
@@ -201,19 +200,23 @@ def test_gather_builds_metadata(has_s390x_build_logs, workflow: DockerBuildWorkf
 
 
 @pytest.mark.parametrize(("task_results", "remote_hosts", "error_msg"), (
-    ({'binary-container-build-x86-64': {'task_result': json.dumps(X86_64_HOST)}},
+    ({'binary-container-build-x86-64': {'task_result': X86_64_HOST}},
      REMOTE_HOST_CONFIG,
      f"unable to obtain installed rpms on: {X86_64_HOST}"),
-    ({'binary-container-build-x86-64': {'some_result': json.dumps('some')}},
+
+    ({'binary-container-build-x86-64': {'some_result': 'some'}},
      REMOTE_HOST_CONFIG,
      "task_results is missing from: binary-container-build-x86-64"),
-    ({'some-container-build-x86-64': {'some_result': json.dumps('some')}},
+
+    ({'some-container-build-x86-64': {'some_result': 'some'}},
      REMOTE_HOST_CONFIG,
      "unable to find build host for platform: x86_64"),
-    ({'binary-container-build-x86-64': {'task_result': json.dumps(X86_64_HOST)}},
+
+    ({'binary-container-build-x86-64': {'task_result': X86_64_HOST}},
      REMOTE_HOST_CONFIG_MISSING_X86_64,
      "unable to find remote hosts for platform: x86_64"),
-    ({'binary-container-build-x86-64': {'task_result': json.dumps(X86_64_HOST)}},
+
+    ({'binary-container-build-x86-64': {'task_result': X86_64_HOST}},
      REMOTE_HOST_CONFIG_MISSING_SPECIFIC_X86_64,
      f"unable to get remote host instance: {X86_64_HOST}"),
 ))
