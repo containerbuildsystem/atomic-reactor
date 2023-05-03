@@ -16,7 +16,6 @@ spec:
   results:
     - name: repositories
     - name: koji-build-id
-    - name: remote_sources
 
   steps:
     - name: binary-container-set-results
@@ -30,5 +29,4 @@ spec:
           cpu: 395m
       script: |
         jq -c '.annotations.repositories' $(workspaces.ws-context-dir.path)/workflow.json >$(results.repositories.path)
-        jq -c '.annotations.remote_sources' $(workspaces.ws-context-dir.path)/workflow.json >$(results.remote_sources.path)
         jq -c '.annotations["koji-build-id"]' $(workspaces.ws-context-dir.path)/workflow.json >$(results.koji-build-id.path)
