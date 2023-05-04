@@ -167,7 +167,7 @@ def test_check_and_set_platforms(workflow, source_dir, caplog, tmpdir,
 
         with open(workflow.platforms_result) as f:
             platforms_result = json.loads(f.read())
-        assert plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] == platforms_result
+        assert {'platforms': plugin_result[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY]} == platforms_result
 
     else:
         with pytest.raises(Exception):
