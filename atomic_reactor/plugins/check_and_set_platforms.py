@@ -130,6 +130,6 @@ class CheckAndSetPlatformsPlugin(Plugin):
 
         if self.workflow.platforms_result:
             with open(self.workflow.platforms_result, 'w') as f:
-                f.write(json.dumps(final_defined))
+                f.write(json.dumps({'platforms': final_defined}))
 
         return final_defined
