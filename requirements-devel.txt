@@ -62,7 +62,7 @@ krb5==0.2.0
     # via pyspnego
 mccabe==0.6.1
     # via flake8
-osbs-client @ git+https://github.com/containerbuildsystem/osbs-client@3db33db62280d5b0d2f13993596d882c5deba54c
+osbs-client @ git+https://github.com/containerbuildsystem/osbs-client@2bd03f4e0e5edc474b6236c5c128620d988f79a3
     # via -r requirements.in
 packaging==21.2
     # via pytest
