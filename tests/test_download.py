@@ -18,6 +18,7 @@ from flexmock import flexmock
 
 from atomic_reactor.util import get_retrying_requests_session
 from atomic_reactor.download import download_url
+from atomic_reactor.constants import CACHITO_ALG_STR
 
 
 class TestDownloadUrl(object):
@@ -33,6 +34,36 @@ class TestDownloadUrl(object):
         assert os.path.basename(result) == 'file'
         with open(result, 'rb') as f:
             assert f.read() == content
+
+    @responses.activate
+    def test_cachito_download_digest_matches(self):
+        url = 'https://example.com/path/file'
+        dest_dir = tempfile.mkdtemp()
+        content = b'abc'
+        digest = 'ungWv48Bz+pBQUDeXa4iI7ADYaOWF3qctBD/YfIAFa0='
+        digest_str = f'{CACHITO_ALG_STR}={digest}'
+
+        reader = BufferedReader(BytesIO(content), buffer_size=1)
+        responses.add(responses.GET, url, body=reader, headers={'Digest': digest_str})
+        result = download_url(url, dest_dir, verify_cachito_digest=True)
+
+        assert os.path.basename(result) == 'file'
+        with open(result, 'rb') as f:
+            assert f.read() == content
+
+    @responses.activate
+    def test_cachito_download_digest_mismatches(self):
+        url = 'https://example.com/path/file'
+        dest_dir = tempfile.mkdtemp()
+        content = b'abc'
+        digest = 'wrong'
+        digest_str = f'{CACHITO_ALG_STR}={digest}'
+
+        reader = BufferedReader(BytesIO(content), buffer_size=1)
+        responses.add(responses.GET, url, body=reader, headers={'Digest': digest_str})
+
+        with pytest.raises(ValueError, match='does not match expected digest'):
+            download_url(url, dest_dir, verify_cachito_digest=True)
 
     def test_connection_failure(self):
         url = 'https://example.com/path/file'
