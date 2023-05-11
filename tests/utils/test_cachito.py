@@ -20,6 +20,7 @@ import time
 from datetime import datetime
 from textwrap import dedent
 
+from atomic_reactor.constants import CACHITO_ALG_STR
 
 CACHITO_URL = 'http://cachito.example.com'
 CACHITO_REQUEST_ID = 123
@@ -278,24 +279,34 @@ def test_wait_for_request_bad_request_type():
 
 
 @responses.activate
-@pytest.mark.parametrize('cachito_request', (
-    CACHITO_REQUEST_ID,
-    {'id': CACHITO_REQUEST_ID},
+@pytest.mark.parametrize(('cachito_request', 'digest_match'), (
+    (CACHITO_REQUEST_ID, True),
+    ({'id': CACHITO_REQUEST_ID}, False)
 ))
-def test_download_sources(tmpdir, cachito_request):
+def test_download_sources(tmpdir, cachito_request, digest_match):
     blob = 'glop-glop-I\'m-a-blob'
     expected_dest_path = os.path.join(str(tmpdir), 'remote-source.tar.gz')
+
+    if digest_match:
+        digest = 'XrN1l765qbGhErVrxe8Cj6+zCfwhqZoldJxOSYrpUlo='
+    else:
+        digest = 'wrong'
+    digest_str = f'{CACHITO_ALG_STR}={digest}'
 
     responses.add(
         responses.GET,
         '{}/api/v1/requests/{}/download'.format(CACHITO_URL, CACHITO_REQUEST_ID),
-        body=blob)
+        body=blob, headers={'Digest': digest_str})
 
-    dest_path = CachitoAPI(CACHITO_URL).download_sources(cachito_request, str(tmpdir))
+    if digest_match:
+        dest_path = CachitoAPI(CACHITO_URL).download_sources(cachito_request, str(tmpdir))
 
-    assert dest_path == expected_dest_path
-    with open(dest_path) as f:
-        assert f.read() == blob
+        assert dest_path == expected_dest_path
+        with open(dest_path) as f:
+            assert f.read() == blob
+    else:
+        with pytest.raises(ValueError, match='does not match expected digest'):
+            CachitoAPI(CACHITO_URL).download_sources(cachito_request, str(tmpdir))
 
 
 def test_download_sources_bad_request_type(tmpdir):

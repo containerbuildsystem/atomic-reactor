@@ -183,7 +183,7 @@ class CachitoAPI(object):
         url = self.assemble_download_url(request_id)
         dest_path = download_url(
             url, dest_dir=dest_dir, insecure=not self.session.verify, session=self.session,
-            dest_filename=dest_filename)
+            dest_filename=dest_filename, verify_cachito_digest=True)
         logger.debug('Sources bundle for request %d downloaded to %s', request_id, dest_path)
         return dest_path
 

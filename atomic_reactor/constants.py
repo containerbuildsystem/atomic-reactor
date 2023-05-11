@@ -218,3 +218,8 @@ KOJI_METADATA_FILENAME = "metadata.json"
 
 # https://raw.githubusercontent.com/CycloneDX/specification/1.4/schema/bom-1.4.schema.json
 SBOM_SCHEMA_PATH = 'schemas/sbom-1.4.schema.json'
+
+# algorithm used for hash of cachito archive
+CACHITO_HASH_ALG = 'sha256'
+# string used in response header in Digest
+CACHITO_ALG_STR = 'sha-256'

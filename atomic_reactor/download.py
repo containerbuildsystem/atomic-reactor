@@ -5,6 +5,7 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
+import base64
 import hashlib
 import logging
 import os
@@ -17,6 +18,8 @@ from atomic_reactor.constants import (
     DEFAULT_DOWNLOAD_BLOCK_SIZE,
     HTTP_BACKOFF_FACTOR,
     HTTP_MAX_RETRIES,
+    CACHITO_HASH_ALG,
+    CACHITO_ALG_STR,
 )
 
 
@@ -24,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 def download_url(url, dest_dir, insecure=False, session=None, dest_filename=None,
-                 expected_checksums=None):
+                 expected_checksums=None, verify_cachito_digest=False):
     """Download file from URL, handling retries
 
     To download to a temporary directory, use:
@@ -37,6 +40,7 @@ def download_url(url, dest_dir, insecure=False, session=None, dest_filename=None
     :param dest_filename: optional filename for downloaded file
     :param expected_checksums: optional dictionary of checksum_type and
                                checksum to verify downloaded files
+    :param verify_cachito_digest: bool, verify sha digest for cachito archive
     :return: str, path of downloaded file
     """
 
@@ -52,6 +56,7 @@ def download_url(url, dest_dir, insecure=False, session=None, dest_filename=None
     logger.debug('downloading %s', url)
 
     checksums = {algo: hashlib.new(algo) for algo in expected_checksums}
+    cachito_hasher = hashlib.new(CACHITO_HASH_ALG)
 
     for attempt in range(HTTP_MAX_RETRIES + 1):
         response = session.get(url, stream=True, verify=not insecure)
@@ -62,11 +67,30 @@ def download_url(url, dest_dir, insecure=False, session=None, dest_filename=None
                     f.write(chunk)
                     for checksum in checksums.values():
                         checksum.update(chunk)
+
+                    if verify_cachito_digest:
+                        cachito_hasher.update(chunk)
+
             for algo, checksum in checksums.items():
                 if checksum.hexdigest() != expected_checksums[algo]:
                     raise ValueError(
                         'Computed {} checksum, {}, does not match expected checksum, {}'
                         .format(algo, checksum.hexdigest(), expected_checksums[algo]))
+
+            if verify_cachito_digest:
+                logger.info('will verify cachito digest')
+                if 'Digest' in response.headers:
+                    logger.info('digest is in cachito response header')
+
+                    digest = base64.b64encode(cachito_hasher.digest()).decode("utf-8")
+                    digest_str = f'{CACHITO_ALG_STR}={digest}'
+                    if digest_str != response.headers['Digest']:
+                        raise ValueError(
+                            'Cachito archive digest "{}" does not match expected digest "{}"'
+                            .format(digest_str, response.headers['Digest']))
+                    else:
+                        logger.info('digest for cachito archive is correct')
+
             break
         except requests.exceptions.RequestException:
             if attempt < HTTP_MAX_RETRIES:
