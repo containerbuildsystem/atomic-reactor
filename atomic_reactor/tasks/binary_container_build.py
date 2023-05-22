@@ -113,6 +113,7 @@ class BinaryBuildTask(Task[BinaryBuildTaskParams]):
                 dest_tag=dest_tag,
                 flatpak=flatpak,
                 memory_limit=config.remote_hosts.get("memory_limit"),
+                podman_capabilities=config.remote_hosts.get("podman_capabilities")
             )
             for line in output_lines:
                 logger.info(line.rstrip())
@@ -228,6 +229,7 @@ class PodmanRemote:
         dest_tag: ImageName,
         flatpak: bool,
         memory_limit: Optional[str],
+        podman_capabilities: Optional[List[str]],
     ) -> Iterator[Optional[str]]:
         """Build a container image from the specified build directory.
 
@@ -248,6 +250,10 @@ class PodmanRemote:
         if memory_limit:
             # memory limit (format: <number>[<unit>], where unit = b, k, m or g)
             options.append(f"--memory={memory_limit}")
+
+        if podman_capabilities:
+            for capability in podman_capabilities:
+                options.append(f"--cap-add={capability}")
 
         if flatpak:
             options.append("--squash-all")
