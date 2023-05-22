@@ -97,6 +97,14 @@
                 "type": "string",
                 "examples": ["1g", "10m"]
             },
+            "podman_capabilities": {
+                "description": "Use additional podman capabilities",
+                "type": ["array", "null"],
+                "items": {
+                  "type": "string"
+                },
+                "examples": [null, ["CAP_SYS_CHROOT", "CAP_AUDIT_WRITE", "CAP_MKNOD"]]
+            },
             "pools": {
                 "description": "Pool of Remote-hosts",
                 "type": "object",

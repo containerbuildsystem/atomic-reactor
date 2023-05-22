@@ -79,9 +79,11 @@ X86_LOCKED_RESOURCE = remote_host.LockedResource(X86_REMOTE_HOST, X86_64, slot=1
                                                  prid=PIPELINE_RUN_NAME)
 
 MEMORY_LIMIT = "4g"
+PODMAN_CAPABILITIES = ["CAP_SYS_CHROOT", "CAP_MKNOD"]
 REMOTE_HOST_CONFIG = {
     "slots_dir": X86_REMOTE_HOST.slots_dir,
     "memory_limit": MEMORY_LIMIT,
+    "podman_capabilities": PODMAN_CAPABILITIES,
     "pools": {
         "x86_64": {
             X86_REMOTE_HOST.hostname: {
@@ -259,13 +261,15 @@ class TestBinaryBuildTask:
             mock_config(REGISTRY_CONFIG, REMOTE_HOST_CONFIG, image_size_limit=1234)
         x86_build_dir.dockerfile_path.write_text(DOCKERFILE_CONTENT)
 
-        def mock_build_container(*, build_dir, build_args, dest_tag, flatpak, memory_limit):
+        def mock_build_container(*, build_dir, build_args, dest_tag, flatpak, memory_limit,
+                                 podman_capabilities):
             assert build_dir.path == x86_build_dir.path
             assert build_dir.platform == "x86_64"
             assert build_args == BUILD_ARGS
             assert dest_tag == X86_UNIQUE_IMAGE
             assert flatpak == is_flatpak
             assert memory_limit == MEMORY_LIMIT
+            assert podman_capabilities == PODMAN_CAPABILITIES
 
             yield from ["output line 1\n", "output line 2\n"]
 
@@ -462,7 +466,9 @@ class TestPodmanRemote:
     @pytest.mark.parametrize("authfile", [None, AUTHFILE_PATH])
     @pytest.mark.parametrize('is_flatpak', (True, False))
     @pytest.mark.parametrize('memory_limit', ('1g', None))
-    def test_build_container(self, authfile, is_flatpak, x86_build_dir, memory_limit):
+    @pytest.mark.parametrize('podman_capabilities', (PODMAN_CAPABILITIES, None))
+    def test_build_container(self, authfile, is_flatpak, x86_build_dir, memory_limit,
+                             podman_capabilities):
         options = [
             f"--tag={X86_UNIQUE_IMAGE}",
             "--no-cache",
@@ -470,6 +476,9 @@ class TestPodmanRemote:
         ]
         if memory_limit:
             options.append(f"--memory={memory_limit}")
+        if podman_capabilities:
+            for capability in podman_capabilities:
+                options.append(f"--cap-add={capability}")
         if is_flatpak:
             options.append("--squash-all")
             for device in ['null', 'random', 'urandom', 'zero']:
@@ -497,7 +506,8 @@ class TestPodmanRemote:
             build_args=BUILD_ARGS,
             dest_tag=X86_UNIQUE_IMAGE,
             flatpak=is_flatpak,
-            memory_limit=memory_limit
+            memory_limit=memory_limit,
+            podman_capabilities=podman_capabilities
         )
 
         assert list(output_lines) == ["starting the build\n", "finished successfully\n"]
@@ -524,6 +534,7 @@ class TestPodmanRemote:
             dest_tag=X86_UNIQUE_IMAGE,
             flatpak=False,
             memory_limit="1g",
+            podman_capabilities=PODMAN_CAPABILITIES
         )
 
         for expect_line in expected_lines:
