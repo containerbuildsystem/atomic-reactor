@@ -47,13 +47,6 @@ spec:
         limits:
           memory: 600Mi
           cpu: 395m
-      script: >
-        atomic-reactor -v task
-        --user-params='$(params.user-params)'
-        --build-dir=$(workspaces.ws-build-dir.path)
-        --context-dir=$(workspaces.ws-context-dir.path)
-        --config-file=$(workspaces.ws-reactor-config-map.path)/config.yaml
-        --namespace=$(context.taskRun.namespace)
-        --pipeline-run-name="$(params.pipeline-run-name)"
-        --task-result=$(results.task_result.path)
-        binary-container-build --platform="$(params.platform)"
+      script: |
+        set -x
+        atomic-reactor -v task --user-params='$(params.user-params)' --build-dir=$(workspaces.ws-build-dir.path) --context-dir=$(workspaces.ws-context-dir.path) --config-file=$(workspaces.ws-reactor-config-map.path)/config.yaml --namespace=$(context.taskRun.namespace) --pipeline-run-name="$(params.pipeline-run-name)" --task-result=$(results.task_result.path) binary-container-build --platform="$(params.platform)"
