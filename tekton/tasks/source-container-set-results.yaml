@@ -28,5 +28,6 @@ spec:
           memory: 600Mi
           cpu: 395m
       script: |
+        set -x
         jq -c '.annotations.repositories' $(workspaces.ws-context-dir.path)/workflow.json >$(results.repositories.path)
         jq -c '.annotations["koji-build-id"]' $(workspaces.ws-context-dir.path)/workflow.json >$(results.koji-build-id.path)
