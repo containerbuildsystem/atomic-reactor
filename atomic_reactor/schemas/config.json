@@ -200,6 +200,16 @@
                         },
                         "additionalProperties": false,
                         "required": ["openidc_dir"]
+                    },
+                    {
+                        "properties": {
+                            "krb_keytab_path": {
+                                "description": "Location of Kerberos keytab, e.g. FILE:<absolute_path>",
+                                "type": "string"
+                            }
+                        },
+                        "additionalProperties": false,
+                        "required": ["krb_keytab_path"]
                     }
                 ]
             },

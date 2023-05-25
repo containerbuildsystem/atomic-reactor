@@ -31,23 +31,28 @@ SOURCE_TYPE_ENUM = {
     'module': 2,
 }
 
+KERBEROS_AUTH = flexmock()
+
 
 @pytest.fixture(params=(
-    (False, None, None),
-    (False, 'green_eggs_and_ham', None),
-    (True, 'green_eggs_and_ham', None),
-    (False, None, 'spam_cert'),
-    (True, None, 'spam_cert'),
+    (False, None, None, None),
+    (False, 'green_eggs_and_ham', None, None),
+    (True, 'green_eggs_and_ham', None, None),
+    (False, None, 'spam_cert', None),
+    (True, None, 'spam_cert', None),
+    (False, None, None, KERBEROS_AUTH),
 ))
 def odcs_client(tmpdir, request):
-    insecure, token, cert = request.param
+    insecure, token, cert, kerberos_auth = request.param
 
     mock_get_retry_session()
 
-    odcs_client = ODCSClient(ODCS_URL, insecure=insecure, token=token, cert=cert)
+    odcs_client = ODCSClient(ODCS_URL, insecure=insecure, token=token, cert=cert,
+                             kerberos_auth=kerberos_auth)
 
     assert odcs_client.session.verify == (not insecure)
     assert odcs_client.session.cert == cert
+    assert odcs_client.session.auth == kerberos_auth
 
     if token:
         expected_token_header = 'Bearer {}'.format(token)
