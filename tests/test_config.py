@@ -13,6 +13,7 @@ import pytest
 from textwrap import dedent
 import yaml
 import smtplib
+import requests_gssapi
 
 import atomic_reactor
 import koji
@@ -1032,6 +1033,62 @@ odcs:
         else:
             with pytest.raises(KeyError):
                 get_odcs_session(conf)
+
+    def test_get_odcs_session_krb_keytab_path(self, tmp_path):
+        keytab = tmp_path / "keytab"
+        keytab.write_text("fake keytab")
+
+        config = dedent(f"""
+        odcs:
+          api_url: https://odcs.example.com/api/1
+          auth:
+            krb_keytab_path: {keytab}
+          signing_intents:
+          - name: release
+            keys: [R123]
+          default_signing_intent: default
+          timeout: 3600
+         \n""") + REQUIRED_CONFIG
+
+        config_json = read_yaml(config, 'schemas/config.json')
+        conf = Configuration(raw_config=config_json)
+
+        mock = flexmock()
+        flexmock(requests_gssapi).should_receive("HTTPSPNEGOAuth").and_return(mock)
+
+        expected_client_kwargs = {
+            'insecure': config_json['odcs'].get('insecure', False),
+            'timeout': config_json['odcs'].get('timeout', None),
+            'kerberos_auth': mock
+        }
+
+        (flexmock(atomic_reactor.utils.odcs.ODCSClient)
+         .should_receive('__init__')
+         .with_args(config_json['odcs']['api_url'], **expected_client_kwargs)
+         .once()
+         .and_return(None))
+
+        get_odcs_session(conf)
+        assert os.getenv('KRB5_CLIENT_KTNAME') == str(keytab)
+
+    def test_get_odcs_session_krb_keytab_path_nonexistent_keytab(self, tmp_path):
+        config = dedent("""
+        odcs:
+          api_url: https://odcs.example.com/api/1
+          auth:
+            krb_keytab_path: /tmp/nonexistent_keytab
+          signing_intents:
+          - name: release
+            keys: [R123]
+          default_signing_intent: default
+          timeout: 3600
+         \n""") + REQUIRED_CONFIG
+
+        config_json = read_yaml(config, 'schemas/config.json')
+        conf = Configuration(raw_config=config_json)
+
+        with pytest.raises(KeyError, match="ODCS krb_keytab_path doesn't exist"):
+            get_odcs_session(conf)
 
     @pytest.mark.parametrize(('config', 'raise_error'), [
         ("""\

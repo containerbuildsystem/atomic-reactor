@@ -13,7 +13,6 @@ import json
 import logging
 import time
 
-
 logger = logging.getLogger(__name__)
 MULTILIB_METHOD_DEFAULT = ['devel', 'runtime']
 
@@ -49,12 +48,13 @@ class ODCSClient(object):
     OIDC_TOKEN_HEADER = 'Authorization'
     OIDC_TOKEN_TYPE = 'Bearer'
 
-    def __init__(self, url, insecure=False, token=None, cert=None, timeout=None):
+    def __init__(self, url, insecure=False, token=None, cert=None,
+                 kerberos_auth=None, timeout=None):
         self.url = url
         self.timeout = self.DEFAULT_WAIT_TIMEOUT if timeout is None else timeout
-        self._setup_session(insecure=insecure, token=token, cert=cert)
+        self._setup_session(insecure=insecure, token=token, cert=cert, kerberos_auth=kerberos_auth)
 
-    def _setup_session(self, insecure, token, cert):
+    def _setup_session(self, insecure, token, cert, kerberos_auth):
         # method_whitelist=False allows retrying non-idempotent methods like POST
         session = get_retrying_requests_session(method_whitelist=False)
 
@@ -65,6 +65,9 @@ class ODCSClient(object):
 
         if cert:
             session.cert = cert
+
+        if kerberos_auth:
+            session.auth = kerberos_auth
 
         self.session = session
 

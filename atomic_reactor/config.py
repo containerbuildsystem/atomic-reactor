@@ -22,6 +22,9 @@ from osbs.utils import RegistryURI
 import logging
 import os
 
+import requests_gssapi
+
+
 NO_FALLBACK = object()
 
 logger = logging.getLogger(__name__)
@@ -63,6 +66,14 @@ def get_odcs_session(config):
             client_kwargs['cert'] = cert_path
         else:
             raise KeyError("ODCS ssl_certs_dir doesn't exist")
+
+    krb_keytab_path = config.odcs['auth'].get('krb_keytab_path')
+    if krb_keytab_path:
+        if os.path.exists(krb_keytab_path):
+            os.environ["KRB5_CLIENT_KTNAME"] = krb_keytab_path
+            client_kwargs['kerberos_auth'] = requests_gssapi.HTTPSPNEGOAuth()
+        else:
+            raise KeyError("ODCS krb_keytab_path doesn't exist")
 
     return ODCSClient(config.odcs['api_url'], **client_kwargs)
 
