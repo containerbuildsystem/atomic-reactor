@@ -5,7 +5,11 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
+import json
+import os
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from copy import deepcopy
 
@@ -14,6 +18,7 @@ import yaml
 from flexmock import flexmock
 import koji
 
+from tests.constants import LOCALHOST_REGISTRY
 from tests.mock_env import MockEnv
 from tests.utils.test_cachito import CACHITO_URL
 
@@ -31,6 +36,7 @@ from atomic_reactor.constants import (
 from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.generate_sbom import GenerateSbomPlugin
 from atomic_reactor.util import base_image_is_custom, base_image_is_scratch
+from atomic_reactor.utils import retries
 from osbs.utils import ImageName
 
 pytestmark = pytest.mark.usefixtures('user_params')
@@ -1044,6 +1050,7 @@ INCOMPLETE_MISSING_KOJI = [
         f"parent build '{PARENT_WITHOUT_KOJI_BUILD_NVR}' is missing SBOM"},
 ]
 PLATFORMS = ['x86_64', 's390x']
+UNIQUE_IMAGE = f'{LOCALHOST_REGISTRY}/namespace/some_image:1.0'
 
 
 def setup_function(*args):
@@ -1059,6 +1066,14 @@ def teardown_function(*args):
 
 
 def mock_env(workflow, df_images):
+    tmp_dir = tempfile.mkdtemp()
+    dockerconfig_contents = {"auths": {LOCALHOST_REGISTRY: {"username": "user",
+                                                            "email": "test@example.com",
+                                                            "password": "mypassword"}}}
+    with open(os.path.join(tmp_dir, ".dockerconfigjson"), "w") as f:
+        f.write(json.dumps(dockerconfig_contents))
+        f.flush()
+
     r_c_m = {
         'version': 1,
         'koji': {
@@ -1076,7 +1091,8 @@ def mock_env(workflow, df_images):
         },
         'source_registry': {
             'url': 'registry',
-        }
+        },
+        'registries_cfg_path': tmp_dir,
     }
 
     env = (MockEnv(workflow)
@@ -1301,6 +1317,28 @@ def test_sbom(workflow, requests_mock, koji_session, df_images, use_cache, use_f
     mock_build_icm_urls(requests_mock)
 
     runner = mock_env(workflow, df_images)
+    workflow.data.tag_conf.add_unique_image(UNIQUE_IMAGE)
+
+    def check_cosign_run(args):
+        matches = False
+        for platform in PLATFORMS:
+            exp_cmd = ['cosign', 'attach', 'sbom',
+                       f'{UNIQUE_IMAGE}-{platform}', '--type=cyclonedx']
+            exp_sbom = f'icm-{platform}.json'
+
+            if exp_cmd == args[:-1]:
+                assert args[-1].startswith('--sbom=')
+
+                if args[-1].endswith(exp_sbom):
+                    matches = True
+
+        assert matches
+        return ''
+
+    (flexmock(retries)
+     .should_receive('run_cmd')
+     .times(len(PLATFORMS))
+     .replace_with(check_cosign_run))
 
     source_path = Path(workflow.source.path)
 
@@ -1351,3 +1389,24 @@ def test_sbom_raises(workflow, requests_mock, koji_session, df_images, err_msg):
         runner.run()
 
     assert err_msg in str(exc.value)
+
+
+@pytest.mark.parametrize(('df_images, err_msg'), [
+    (['scratch'], f'SBOM push for platform {PLATFORMS[0]} failed with output:'),
+])
+def test_sbom_raises_cosign(workflow, requests_mock, koji_session, df_images, err_msg, caplog):
+    mock_get_sbom_cachito(requests_mock)
+    mock_build_icm_urls(requests_mock)
+
+    runner = mock_env(workflow, df_images)
+    workflow.data.tag_conf.add_unique_image(UNIQUE_IMAGE)
+
+    (flexmock(retries)
+     .should_receive('run_cmd')
+     .times(1)
+     .and_raise(subprocess.CalledProcessError(1, 'cosign', output=b'something went wrong')))
+
+    with pytest.raises(PluginFailedException):
+        runner.run()
+
+    assert err_msg in caplog.text
