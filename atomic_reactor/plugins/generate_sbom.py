@@ -5,7 +5,10 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
+import json
 import os
+import subprocess
+import tempfile
 from copy import deepcopy
 from typing import Any, Dict, List, Optional
 
@@ -18,6 +21,7 @@ from atomic_reactor.constants import (PLUGIN_GENERATE_SBOM,
                                       KOJI_BTYPE_ICM,
                                       ICM_JSON_FILENAME)
 from atomic_reactor.config import get_cachito_session, get_koji_session
+from atomic_reactor.utils import retries
 from atomic_reactor.utils.cachito import CachitoAPI
 from atomic_reactor.plugin import Plugin
 from atomic_reactor.util import (read_fetch_artifacts_url, read_fetch_artifacts_koji,
@@ -285,6 +289,38 @@ class GenerateSbomPlugin(Plugin):
 
         return unique_components
 
+    def push_sboms_to_registry(self):
+        docker_config = os.path.join(self.workflow.conf.registries_cfg_path, '.dockerconfigjson')
+
+        if not os.path.exists(docker_config):
+            self.log.warning("Dockerconfig json doesn't exist in : '%s'",  docker_config)
+            return
+
+        tmpdir = tempfile.mkdtemp()
+        os.environ["DOCKER_CONFIG"] = tmpdir
+        sbom_type = '--type=cyclonedx'
+        dest_config = os.path.join(tmpdir, 'config.json')
+        # cosign requires docker config named exactly 'config.json'
+        os.symlink(docker_config, dest_config)
+
+        for platform in self.all_platforms:
+            image = self.workflow.data.tag_conf.get_unique_images_with_platform(platform)[0]
+            sbom_file_path = os.path.join(tmpdir, f"icm-{platform}.json")
+            sbom_param = f"--sbom={sbom_file_path}"
+            cmd = ["cosign", "attach", "sbom", image.to_str(), sbom_type,  sbom_param]
+
+            with open(sbom_file_path, 'w') as outfile:
+                json.dump(self.sbom[platform], outfile, indent=4, sort_keys=True)
+            self.log.debug('SBOM JSON saved to: %s', sbom_file_path)
+
+            try:
+                self.log.info('pushing SBOM for platform %s to registry', platform)
+                retries.run_cmd(cmd)
+            except subprocess.CalledProcessError as e:
+                self.log.error("SBOM push for platform %s failed with output:\n%s",
+                               platform, e.output)
+                raise
+
     def run(self) -> Dict[str, Any]:
         """Run the plugin."""
         self.lookaside_cache_check()
@@ -349,5 +385,7 @@ class GenerateSbomPlugin(Plugin):
 
         for platform in self.all_platforms:
             self.sbom[platform]['incompleteness_reasons'] = incompleteness_reasons_full
+
+        self.push_sboms_to_registry()
 
         return self.sbom
