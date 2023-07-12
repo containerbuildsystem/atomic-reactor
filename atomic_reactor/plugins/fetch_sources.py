@@ -27,6 +27,11 @@ from atomic_reactor.util import (get_retrying_requests_session,
 from atomic_reactor.download import download_url
 from atomic_reactor.utils.pnc import PNCUtil
 
+try:
+    from urlparse import urlparse
+except ImportError:
+    from urllib.parse import urlparse
+
 
 class FetchSourcesPlugin(Plugin):
     """Download sources that may be used in further steps to compose Source Containers"""
@@ -201,7 +206,15 @@ class FetchSourcesPlugin(Plugin):
 
     def check_lookaside_cache_usage(self):
         """Check usage of lookaside cache, and fail if used"""
+        src_config = self.workflow.conf.source_container
+        rh_git_url = src_config.get('rh_git_url')
         git_uri, git_commit = self.koji_build['source'].split('#')
+
+        if rh_git_url:
+            parsed = urlparse(git_uri)
+            if parsed.scheme == 'git':
+                new_path = '/git' + parsed.path
+                git_uri = parsed._replace(path=new_path, scheme='https').geturl()
 
         source = GitSource('git', git_uri, provider_params={'git_commit': git_commit})
         source_path = source.get()

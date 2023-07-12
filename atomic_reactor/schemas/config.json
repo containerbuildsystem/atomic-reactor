@@ -606,6 +606,11 @@
               "description": "Openshift memory request for build",
               "type": "string",
               "examples": ["1Gi", "3Gi"]
+          },
+          "rh_git_url": {
+              "description": "Convert binary build git url to RH one",
+              "type": "boolean",
+              "default": false
           }
         },
         "additionalProperties": false
