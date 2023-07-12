@@ -70,7 +70,7 @@ KOJI_BUILD_RS = {'build_id': 1, 'nvr': 'foobar-1-1', 'name': 'foobar', 'version'
                                      'remote_source_url': 'remote_url'},
                            'operator-manifests': {},
                            'container_koji_task_id': 1},
-                 'source': 'registry.com/repo#ref'}
+                 'source': 'git://registry.com/repo#ref'}
 KOJI_BUILD_MRS = {'build_id': 1, 'nvr': 'foobar-1-1', 'name': 'foobar', 'version': 1, 'release': 1,
                   'extra': {'image': {'parent_build_id': 10,
                                       'pnc': {'builds': [{'id': 1234}]},
@@ -1128,8 +1128,10 @@ class TestFetchSources(object):
          [],
          'foobar', 'target1', False)])
     @pytest.mark.parametrize('use_cache', [True, False, None])
+    @pytest.mark.parametrize('rh_git_url', [True, False, None])
     def test_lookaside_cache(self, caplog, requests_mock, koji_session, workflow, source_dir,
-                             allowlist_url, allowlist_json, component, target, in_list, use_cache):
+                             allowlist_url, allowlist_json, component, target, in_list, use_cache,
+                             rh_git_url):
         mock_koji_manifest_download(source_dir, requests_mock)
         koji_build_nvr = f'{component}-1-1'
 
@@ -1141,8 +1143,11 @@ class TestFetchSources(object):
         rcm_json = yaml.safe_load(BASE_CONFIG_MAP)
         rcm_json['source_container'] = {}
 
+        if rh_git_url is not None:
+            rcm_json['source_container']['rh_git_url'] = rh_git_url
+
         if allowlist_url:
-            rcm_json['source_container'] = {'lookaside_cache_allowlist': allowlist_url}
+            rcm_json['source_container']['lookaside_cache_allowlist'] = allowlist_url
 
         if allowlist_url and not allowlist_json:
             requests_mock.register_uri('GET', allowlist_url,
@@ -1160,6 +1165,14 @@ class TestFetchSources(object):
 
         runner = mock_env(workflow, source_dir, koji_build_nvr=koji_build_nvr,
                           config_map=yaml.safe_dump(rcm_json))
+
+        source_repo = 'git://registry.com/repo'
+        if rh_git_url:
+            source_repo = 'https://registry.com/git/repo'
+
+        (flexmock(atomic_reactor.source.GitSource)
+         .should_call("__init__")
+         .with_args('git', source_repo, provider_params=dict))
 
         err_msg = 'Repository is using lookaside cache, which is not allowed ' \
                   'for source container builds'
