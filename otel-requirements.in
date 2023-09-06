@@ -1,0 +1,8 @@
+calver
+hatchling
+opentelemetry-api
+opentelemetry-exporter-otlp
+opentelemetry-instrumentation-requests
+opentelemetry-sdk
+otel-extensions
+urllib3 < 2.0

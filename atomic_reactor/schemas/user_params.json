@@ -28,6 +28,14 @@
     "koji_task_id": {"type": "integer"},
     "name": {"type": "string"},
     "operator_csv_modifications_url": {"type": "string"},
+    "opentelemetry_info": {
+      "type":  "object",
+      "properties": {
+        "traceparent": {"type":  ["string", "null"]},
+        "otel_url": {"type":  ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
     "platform": {"type": "string"},
     "platforms": {
       "type": "array",
