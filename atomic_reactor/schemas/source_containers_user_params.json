@@ -10,6 +10,14 @@
     "kind": {"type": "string"},
     "koji_target": {"type": "string"},
     "koji_task_id": {"type": "integer"},
+    "opentelemetry_info": {
+      "type":  "object",
+      "properties": {
+        "traceparent": {"type":  ["string", "null"]},
+        "otel_url": {"type":  ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
     "reactor_config_map": {"type": "string"},
     "scratch": {"type": "boolean"},
     "signing_intent": {"type": "string"},

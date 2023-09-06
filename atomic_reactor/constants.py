@@ -76,6 +76,8 @@ IMAGE_TYPE_DOCKER_ARCHIVE = 'docker-archive'
 IMAGE_TYPE_OCI = 'oci'
 IMAGE_TYPE_OCI_TAR = 'oci-tar'
 
+OTEL_SERVICE_NAME = 'osbs'
+
 PLUGIN_KOJI_PROMOTE_PLUGIN_KEY = 'koji_promote'
 PLUGIN_KOJI_IMPORT_PLUGIN_KEY = 'koji_import'
 PLUGIN_KOJI_IMPORT_SOURCE_CONTAINER_PLUGIN_KEY = 'koji_import_source_container'

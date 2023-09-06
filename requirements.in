@@ -1,3 +1,4 @@
+-r otel-requirements.in
 backoff
 dockerfile-parse>=0.0.13
 flatpak-module-tools>=0.14
@@ -12,3 +13,4 @@ requests
 koji
 PyGObject
 reflink
+urllib3 < 2.0

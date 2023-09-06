@@ -9,9 +9,14 @@ attrs==21.2.0
     #   jsonschema
     #   pytest
 backoff==1.11.1
-    # via -r requirements.in
+    # via
+    #   -r requirements.in
+    #   opentelemetry-exporter-otlp-proto-grpc
+    #   opentelemetry-exporter-otlp-proto-http
 bcrypt==3.2.0
     # via paramiko
+calver==2022.6.26
+    # via -r otel-requirements.in
 certifi==2022.12.7
     # via requests
 cffi==1.15.0
@@ -32,10 +37,17 @@ cryptography==3.4.8
     #   requests-kerberos
 decorator==5.1.0
     # via gssapi
+deprecated==1.2.14
+    # via
+    #   opentelemetry-api
+    #   opentelemetry-exporter-otlp-proto-grpc
+    #   opentelemetry-exporter-otlp-proto-http
 dockerfile-parse==1.2.0
     # via
     #   -r requirements.in
     #   osbs-client
+editables==0.5
+    # via hatchling
 execnet==1.9.0
     # via pytest-xdist
 flake8==4.0.1
@@ -44,12 +56,22 @@ flatpak-module-tools==0.14
     # via -r requirements.in
 flexmock==0.11.1
     # via -r tests/requirements.in
+googleapis-common-protos==1.60.0
+    # via
+    #   opentelemetry-exporter-otlp-proto-grpc
+    #   opentelemetry-exporter-otlp-proto-http
+grpcio==1.57.0
+    # via opentelemetry-exporter-otlp-proto-grpc
 gssapi==1.7.2
     # via
     #   pyspnego
     #   requests-gssapi
+hatchling==1.18.0
+    # via -r otel-requirements.in
 idna==3.3
     # via requests
+importlib-metadata==6.8.0
+    # via opentelemetry-api
 iniconfig==1.1.1
     # via pytest
 jsonschema==4.1.2
@@ -62,16 +84,68 @@ krb5==0.2.0
     # via pyspnego
 mccabe==0.6.1
     # via flake8
+opentelemetry-api==1.19.0
+    # via
+    #   -r otel-requirements.in
+    #   opentelemetry-exporter-otlp-proto-grpc
+    #   opentelemetry-exporter-otlp-proto-http
+    #   opentelemetry-instrumentation
+    #   opentelemetry-instrumentation-requests
+    #   opentelemetry-sdk
+    #   otel-extensions
+opentelemetry-exporter-otlp==1.19.0
+    # via -r otel-requirements.in
+opentelemetry-exporter-otlp-proto-common==1.19.0
+    # via
+    #   opentelemetry-exporter-otlp-proto-grpc
+    #   opentelemetry-exporter-otlp-proto-http
+opentelemetry-exporter-otlp-proto-grpc==1.19.0
+    # via opentelemetry-exporter-otlp
+opentelemetry-exporter-otlp-proto-http==1.19.0
+    # via opentelemetry-exporter-otlp
+opentelemetry-instrumentation==0.40b0
+    # via opentelemetry-instrumentation-requests
+opentelemetry-instrumentation-requests==0.40b0
+    # via -r otel-requirements.in
+opentelemetry-proto==1.19.0
+    # via
+    #   opentelemetry-exporter-otlp-proto-common
+    #   opentelemetry-exporter-otlp-proto-grpc
+    #   opentelemetry-exporter-otlp-proto-http
+opentelemetry-sdk==1.19.0
+    # via
+    #   -r otel-requirements.in
+    #   opentelemetry-exporter-otlp-proto-grpc
+    #   opentelemetry-exporter-otlp-proto-http
+    #   otel-extensions
+opentelemetry-semantic-conventions==0.40b0
+    # via
+    #   opentelemetry-instrumentation-requests
+    #   opentelemetry-sdk
+opentelemetry-util-http==0.40b0
+    # via opentelemetry-instrumentation-requests
 osbs-client @ git+https://github.com/containerbuildsystem/osbs-client@2bd03f4e0e5edc474b6236c5c128620d988f79a3
     # via -r requirements.in
-packaging==21.2
-    # via pytest
+otel-extensions==0.2.5
+    # via -r otel-requirements.in
+packaging==23.1
+    # via
+    #   hatchling
+    #   pytest
 paramiko==2.10.3
     # via -r requirements.in
+pathspec==0.11.2
+    # via hatchling
 pep8==1.7.1
     # via -r requirements-devel.in
 pluggy==1.0.0
-    # via pytest
+    # via
+    #   hatchling
+    #   pytest
+protobuf==4.24.2
+    # via
+    #   googleapis-common-protos
+    #   opentelemetry-proto
 py==1.10.0
     # via
     #   pytest
@@ -82,6 +156,8 @@ pycodestyle==2.8.0
     # via flake8
 pycparser==2.20
     # via cffi
+pydantic==1.10.12
+    # via otel-extensions
 pyflakes==2.4.0
     # via
     #   -r requirements-devel.in
@@ -90,8 +166,6 @@ pygobject==3.42.0
     # via -r requirements.in
 pynacl==1.5.0
     # via paramiko
-pyparsing==2.4.7
-    # via packaging
 pypng==0.0.21
     # via -r tests/requirements.in
 pyrsistent==0.18.0
@@ -130,6 +204,7 @@ requests==2.26.0
     # via
     #   -r requirements.in
     #   koji
+    #   opentelemetry-exporter-otlp-proto-http
     #   osbs-client
     #   requests-gssapi
     #   requests-kerberos
@@ -160,6 +235,26 @@ six==1.16.0
 toml==0.10.2
     # via pytest
 tomli==1.2.2
-    # via coverage
+    # via
+    #   coverage
+    #   hatchling
+trove-classifiers==2023.8.7
+    # via hatchling
+typing-extensions==4.7.1
+    # via
+    #   opentelemetry-sdk
+    #   pydantic
 urllib3==1.26.7
-    # via requests
+    # via
+    #   -r otel-requirements.in
+    #   -r requirements.in
+    #   requests
+wrapt==1.15.0
+    # via
+    #   deprecated
+    #   opentelemetry-instrumentation
+zipp==3.16.2
+    # via importlib-metadata
+
+# The following packages are considered to be unsafe in a requirements file:
+# setuptools

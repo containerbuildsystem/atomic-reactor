@@ -7,19 +7,27 @@ of the BSD license. See the LICENSE file for details.
 """
 
 import abc
-import signal
 import json
+import logging
+import os
+import signal
 from dataclasses import dataclass
+from functools import cached_property
 from pathlib import Path
 from typing import Dict, Any, ClassVar, Generic, TypeVar, Optional
-from functools import cached_property
+
+from opentelemetry.instrumentation.requests import RequestsInstrumentor
+from otel_extensions import TelemetryOptions, init_telemetry_provider, get_tracer
 
 from atomic_reactor import config
 from atomic_reactor import dirs
 from atomic_reactor import inner
 from atomic_reactor import source
 from atomic_reactor import util
+from atomic_reactor.constants import OTEL_SERVICE_NAME
 from atomic_reactor.plugin import TaskCanceledException
+
+logger = logging.getLogger(__name__)
 
 
 def write_task_result(output_file, msg):
@@ -88,6 +96,7 @@ class Task(abc.ABC, Generic[ParamsT]):
     ignore_sigterm: ClassVar[bool] = False
     # Automatically save context data before exiting? (Note: do not use for parallel tasks)
     autosave_context_data: ClassVar[bool] = True
+    task_name = 'default'
 
     def __init__(self, params: ParamsT):
         """Initialize a Task."""
@@ -122,7 +131,35 @@ class Task(abc.ABC, Generic[ParamsT]):
             else:
                 signal.signal(signal.SIGTERM, self.throw_task_canceled_exception)
 
-            result = self.execute(*args, **kwargs)
+            opentelemetry_info = self._params.user_params.get('opentelemetry_info', {})
+            traceparent = opentelemetry_info.get('traceparent', None)
+            otel_url = opentelemetry_info.get('otel_url', None)
+
+            span_exporter = ''
+            otel_protocol = 'http/protobuf'
+            if not otel_url:
+                otel_protocol = 'custom'
+                span_exporter = '"opentelemetry.sdk.trace.export.ConsoleSpanExporter"'
+
+            if traceparent:
+                os.environ['TRACEPARENT'] = traceparent
+            logger.info('traceparent is set to %s', traceparent)
+            otel_options = TelemetryOptions(
+                OTEL_SERVICE_NAME=OTEL_SERVICE_NAME,
+                OTEL_EXPORTER_CUSTOM_SPAN_EXPORTER_TYPE=span_exporter,
+                OTEL_EXPORTER_OTLP_ENDPOINT=otel_url,
+                OTEL_EXPORTER_OTLP_PROTOCOL=otel_protocol,
+            )
+            init_telemetry_provider(otel_options)
+
+            RequestsInstrumentor().instrument()
+
+            span_name = self.task_name
+            if hasattr(self._params, 'platform'):
+                span_name += '_' + self._params.platform
+            tracer = get_tracer(module_name=span_name, service_name=OTEL_SERVICE_NAME)
+            with tracer.start_as_current_span(span_name):
+                result = self.execute(*args, **kwargs)
             if self._params.task_result:
                 write_task_result(self._params.task_result, json.dumps(result))
 

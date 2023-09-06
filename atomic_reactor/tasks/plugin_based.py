@@ -31,7 +31,6 @@ class PluginBasedTask(Task[ParamsT]):
     #   {"name": "add_filesystem", "args": {...}}
     # Refer to plugins.json schema for the details.
     plugins_conf: ClassVar[List[Dict[str, Any]]] = []
-    task_name = 'default'
 
     def prepare_workflow(self) -> inner.DockerBuildWorkflow:
         """Fully initialize the workflow instance to be used for running the list of plugins."""
