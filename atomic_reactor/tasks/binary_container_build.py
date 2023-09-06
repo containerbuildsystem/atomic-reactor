@@ -17,11 +17,12 @@ from typing import Any, Dict, Iterator, List, Optional
 from json import JSONDecodeError
 
 from osbs.utils import ImageName
+from otel_extensions import instrumented, get_tracer
 
 from atomic_reactor import dirs
 from atomic_reactor import util
-from atomic_reactor.constants import REMOTE_HOST_MAX_RETRIES, REMOTE_HOST_RETRY_INTERVAL
-
+from atomic_reactor.constants import (REMOTE_HOST_MAX_RETRIES, REMOTE_HOST_RETRY_INTERVAL,
+                                      OTEL_SERVICE_NAME)
 from atomic_reactor.tasks.common import Task, TaskParams
 from atomic_reactor.utils import retries
 from atomic_reactor.utils import remote_host
@@ -103,23 +104,32 @@ class BinaryBuildTask(Task[BinaryBuildTaskParams]):
             podman_remote = PodmanRemote.setup_for(
                 remote_resource, registries_authfile=get_authfile_path(config.registry)
             )
+            module_name = self.task_name + '_' + platform
+            tracer = get_tracer(module_name=module_name, service_name=OTEL_SERVICE_NAME)
+            with tracer.start_as_current_span("build_container") as span:
+                span.set_attribute('git_ref', self._params.user_params.get('git_ref'))
+                span.set_attribute('git_uri', self._params.user_params.get('git_uri'))
+                span.set_attribute('git_commit',
+                                   self._params.source.provider_params.get('git_commit', None))
+                koji_task_id = self._params.user_params.get('koji_task_id', None)
+                if koji_task_id:
+                    span.set_attribute('koji_task_id', koji_task_id)
+                # log the image+host for auditing purposes
+                logger.info("Building image=%s on host=%s", dest_tag, remote_resource.host.hostname)
 
-            # log the image+host for auditing purposes
-            logger.info("Building image=%s on host=%s", dest_tag, remote_resource.host.hostname)
+                output_lines = podman_remote.build_container(
+                    build_dir=build_dir,
+                    build_args=self.workflow_data.buildargs,
+                    dest_tag=dest_tag,
+                    flatpak=flatpak,
+                    memory_limit=config.remote_hosts.get("memory_limit"),
+                    podman_capabilities=config.remote_hosts.get("podman_capabilities")
+                )
+                for line in output_lines:
+                    logger.info(line.rstrip())
+                    build_log_file.write(line)
 
-            output_lines = podman_remote.build_container(
-                build_dir=build_dir,
-                build_args=self.workflow_data.buildargs,
-                dest_tag=dest_tag,
-                flatpak=flatpak,
-                memory_limit=config.remote_hosts.get("memory_limit"),
-                podman_capabilities=config.remote_hosts.get("podman_capabilities")
-            )
-            for line in output_lines:
-                logger.info(line.rstrip())
-                build_log_file.write(line)
-
-            logger.info("Build finished successfully! Pushing image to %s", dest_tag)
+                logger.info("Build finished successfully! Pushing image to %s", dest_tag)
 
             image_size_limit = config.image_size_limit['binary_image']
             image_size = podman_remote.get_image_size(dest_tag)
@@ -135,6 +145,7 @@ class BinaryBuildTask(Task[BinaryBuildTaskParams]):
 
             return remote_resource.host.hostname
 
+    @instrumented
     def acquire_remote_resource(self, remote_hosts_config: dict) -> remote_host.LockedResource:
         """Lock a build slot on a remote host."""
         logger.info("Acquiring a build slot on a remote host")
@@ -310,6 +321,7 @@ class PodmanRemote:
         else:
             yield last_line
 
+    @instrumented
     def get_image_size(self, dest_tag: ImageName) -> int:
         inspect_cmd = [*self._podman_remote_cmd, 'image', 'inspect', str(dest_tag)]
         try:
@@ -328,6 +340,7 @@ class PodmanRemote:
                                f"{str(dest_tag)}") from e
         return image_size
 
+    @instrumented
     def push_container(self, dest_tag: ImageName, *, insecure: bool = False) -> None:
         """Push the built container (named dest_tag) to the registry (as dest_tag).
 

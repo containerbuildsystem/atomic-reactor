@@ -116,7 +116,7 @@ def base_task_params(build_dir: Path, context_dir: Path) -> Dict[str, Any]:
         "config_file": CONFIG_PATH,
         "namespace": NAMESPACE,
         "pipeline_run_name": PIPELINE_RUN_NAME,
-        "user_params": {},
+        "user_params": {'git_uri': 'http://example.com/test.git'},
         "task_result": None,
     }
 
