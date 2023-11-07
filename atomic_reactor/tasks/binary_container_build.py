@@ -257,6 +257,8 @@ class PodmanRemote:
             f"--tag={dest_tag}",
             "--no-cache",  # make sure the build uses a clean environment
             "--pull-always",  # as above
+            # ensure that Dockerfile is always used even when Containerfile exists
+            "--file=Dockerfile",
         ]
         if memory_limit:
             # memory limit (format: <number>[<unit>], where unit = b, k, m or g)

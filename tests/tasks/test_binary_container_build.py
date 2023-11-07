@@ -473,6 +473,7 @@ class TestPodmanRemote:
             f"--tag={X86_UNIQUE_IMAGE}",
             "--no-cache",
             "--pull-always",
+            "--file=Dockerfile",
         ]
         if memory_limit:
             options.append(f"--memory={memory_limit}")
