@@ -5,6 +5,7 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
+import json
 from typing import Any, Dict, Optional
 
 from atomic_reactor.plugin import Plugin
@@ -110,7 +111,7 @@ class GatherBuildsMetadataPlugin(Plugin):
         """
         pullspec_image = self._determine_image_pullspec(platform)
         buildroot = get_buildroot(platform)
-        build_host = self._get_hostname_for_platform(platform)
+        build_host = json.loads(self._get_hostname_for_platform(platform))
         output_files, _ = get_output(workflow=self.workflow, buildroot_id=build_host,
                                      pullspec=pullspec_image, platform=platform,
                                      source_build=False)

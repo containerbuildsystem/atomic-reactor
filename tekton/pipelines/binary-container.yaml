@@ -36,7 +36,7 @@ spec:
     - name: platforms_result
       value: $(tasks.binary-container-prebuild.results.platforms_result)
     - name: annotations
-      value: $(tasks.binary-container-exit.results.annotations)
+      value: $(finally.binary-container-exit.results.annotations)
 
   tasks:
     - name: clone
