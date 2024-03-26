@@ -20,6 +20,7 @@ image_component_rpm_tags = [
     'SIZE',
     'SIGMD5',
     'BUILDTIME',
+    'RPMTAG_MODULARITYLABEL',
     'SIGPGP:pgpsig',
     'SIGGPG:pgpsig',
     'DSAHEADER:pgpsig',
@@ -107,6 +108,7 @@ def parse_rpm_output(output, tags=None, separator=';') -> List[RpmComponent]:
             'arch': field('ARCH'),
             'sigmd5': field('SIGMD5'),
             'signature': signature,
+            'module': field('RPMTAG_MODULARITYLABEL'),
         }
 
         # Special handling for epoch as it must be an integer or None
