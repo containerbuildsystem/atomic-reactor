@@ -16,7 +16,7 @@ FAKE_SIGNATURE = "RSA/SHA256, Tue 30 Aug 2016 00:00:00, Key ID 01234567890abc"
 
 @pytest.mark.parametrize(('tags', 'separator', 'expected'), [
     (None, None,
-     r"-qa --qf '%{NAME};%{VERSION};%{RELEASE};%{ARCH};%{EPOCH};%{SIZE};%{SIGMD5};%{BUILDTIME};%{SIGPGP:pgpsig};%{SIGGPG:pgpsig};%{DSAHEADER:pgpsig};%{RSAHEADER:pgpsig}\n'"),  # noqa
+     r"-qa --qf '%{NAME};%{VERSION};%{RELEASE};%{ARCH};%{EPOCH};%{SIZE};%{SIGMD5};%{BUILDTIME};%{RPMTAG_MODULARITYLABEL};%{SIGPGP:pgpsig};%{SIGGPG:pgpsig};%{DSAHEADER:pgpsig};%{RSAHEADER:pgpsig}\n'"),  # noqa
     (['NAME', 'VERSION'], "|",
      r"-qa --qf '%{NAME}|%{VERSION}\n'"),
 ])
@@ -40,8 +40,9 @@ def test_parse_rpm_output():
         size = "2000"
         sigmd5 = FAKE_SIGMD5.decode()
         buildtime = "23000"
+        module = "some_module"
         return (
-            f"{name};{version};{release};{arch};{epoch};{size};{sigmd5};{buildtime}"
+            f"{name};{version};{release};{arch};{epoch};{size};{sigmd5};{buildtime};{module}"
             f";{pgp};{gpg};{dsa};{rsa}"
         )
 
@@ -66,6 +67,7 @@ def test_parse_rpm_output():
         'epoch': 0,
         'sigmd5': FAKE_SIGMD5.decode(),
         'signature': "01234567890abc",
+        'module': "some_module",
     }
     assert res == [
         {
@@ -115,5 +117,6 @@ def test_parse_rpm_output():
             'epoch': None,
             'sigmd5': None,
             'signature': None,
+            'module': None,
         }
     ]
