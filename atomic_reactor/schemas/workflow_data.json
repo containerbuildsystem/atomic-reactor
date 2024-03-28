@@ -90,9 +90,10 @@
         "arch": {"type": "string"},
         "sigmd5": {"type": "string"},
         "signature": {"type": ["string", "null"]},
-        "epoch": {"type": ["integer", "null"], "minimum": 0}
+        "epoch": {"type": ["integer", "null"], "minimum": 0},
+        "module": {"type": ["string", "null"]}
       },
-      "required": ["type", "name", "version", "release", "arch", "sigmd5", "signature", "epoch"],
+      "required": ["type", "name", "version", "release", "arch", "sigmd5", "signature", "epoch", "module"],
       "additionalProperties": false
     },
     "dockerfile_images": {
