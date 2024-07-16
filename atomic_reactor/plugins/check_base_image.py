@@ -149,9 +149,12 @@ class CheckBaseImagePlugin(Plugin):
 
             try:
                 config_blob = reg_client.get_config_from_registry(image, image.tag)
-            except (HTTPError, RetryError, Timeout) as ex:
+            except (HTTPError) as ex:
                 self.log.warning('Unable to fetch config for %s, got error %s',
                                  image, ex.response.status_code)
+                raise RuntimeError('Unable to fetch config for base image') from ex
+            except (Timeout, RetryError) as ex:
+                self.log.warning('Unable to fetch config for %s', image)
                 raise RuntimeError('Unable to fetch config for base image') from ex
 
             release = config_blob['config']['Labels']['release']
