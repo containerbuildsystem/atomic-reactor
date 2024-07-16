@@ -107,7 +107,7 @@ case ${ACTION} in
   ;;
 "bandit")
   setup_osbs
-  $RUN "${PIP_INST[@]}" bandit
+  $RUN "${PIP_INST[@]}" bandit[baseline]
   TEST_CMD="bandit-baseline -r atomic_reactor -ll -ii"
   ;;
 *)
