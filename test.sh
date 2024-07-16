@@ -3,17 +3,12 @@ set -eux
 
 # Prepare env vars
 ENGINE=${ENGINE:="podman"}
-OS=${OS:="centos"}
+OS=${OS:="rockylinux"}
 OS_VERSION=${OS_VERSION:="8"}
 PYTHON_VERSION=${PYTHON_VERSION:="3.8"}
 ACTION=${ACTION:="test"}
 CONTAINER_NAME="atomic-reactor-$OS-$OS_VERSION-py$PYTHON_VERSION"
-
-if [[ "$OS" == centos ]]; then
-    IMAGE="quay.io/centos/centos:stream$OS_VERSION"
-else
-    IMAGE="$OS:$OS_VERSION"
-fi
+IMAGE="$OS:$OS_VERSION"
 
 # Use arrays to prevent globbing and word splitting
 engine_mounts=(-v "$PWD":"$PWD":z)
@@ -40,8 +35,8 @@ function setup_osbs() {
   PIP_PKG="$PY_PKG-pip"
   PIP="pip$PYTHON_VERSION"
   PKG="dnf"
-  PKG_EXTRA=(flatpak libmodulemd skopeo "$PYTHON" python3-pylint)
-  if [[ $OS == "centos" ]]; then
+  PKG_EXTRA=(flatpak libmodulemd skopeo "$PYTHON")
+  if [[ $OS == "rockylinux" ]]; then
     ENABLE_REPO=
   else
     PKG_EXTRA+=(python3-libmodulemd)
@@ -55,13 +50,6 @@ function setup_osbs() {
 
   PIP_INST=("$PIP" install --index-url "${PYPI_INDEX:-https://pypi.org/simple}")
 
-  if [[ $OS == "centos" ]]; then
-    # Don't let builddep enable *-source repos since they give 404 errors
-    $RUN rm -f /etc/yum.repos.d/CentOS-Sources.repo
-    # This has to run *before* we try installing anything from EPEL
-    $RUN $PKG $ENABLE_REPO install -y epel-release
-  fi
-
   # RPM install basic dependencies
   $RUN $PKG $ENABLE_REPO install -y "${PKG_EXTRA[@]}"
 
@@ -71,9 +59,9 @@ function setup_osbs() {
   # Upgrade pip to provide latest features for successful installation
   $RUN "${PIP_INST[@]}" --upgrade "pip<23.1"
 
-  if [[ $OS == centos ]]; then
+  if [[ $OS == rockylinux ]]; then
     # Pip install/upgrade setuptools. Older versions of setuptools don't understand
-    # environment markers, also CentOS needs to have setuptools updates to make
+    # environment markers, also rockylinux needs to have setuptools updates to make
     # pytest-cov work
     $RUN "${PIP_INST[@]}" --upgrade setuptools
     # install with RPM_PY_SYS=true to avoid error caused by installing on system python
@@ -102,6 +90,7 @@ case ${ACTION} in
   ;;
 "pylint")
   setup_osbs
+  $RUN "${PIP_INST[@]}" 'pylint==2.9.*'
   PACKAGES='atomic_reactor tests'
   TEST_CMD="${PYTHON} -m pylint ${PACKAGES}"
   ;;
