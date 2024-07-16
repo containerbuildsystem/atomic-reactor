@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - name: centos
+          - name: rockylinux
             version: 8
             python: "3.8"
             engine: docker
