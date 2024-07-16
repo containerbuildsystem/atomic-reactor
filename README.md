@@ -124,6 +124,3 @@ You can either get the build image from Dockerhub or create it yourself.
 [unittests status link]: https://github.com/containerbuildsystem/atomic-reactor/actions?query=event%3Apush+branch%3Amaster+workflow%3A%22Unittests%22
 [koji]: https://github.com/containerbuildsystem/atomic-reactor/blob/master/docs/koji.md
 [fedora packaging system]: http://fedoraproject.org/wiki/Package_maintenance_guide
-[docker-py]: https://github.com/docker/docker-py
-[koji plugin]: https://github.com/containerbuildsystem/atomic-reactor/blob/master/atomic_reactor/plugins/pre_koji.py
-[images]: https://github.com/containerbuildsystem/atomic-reactor/tree/master/images
