@@ -26,7 +26,7 @@ cffi==1.15.0
     #   reflink
 charset-normalizer==2.0.7
     # via requests
-cryptography==3.4.8
+cryptography==42.0.8
     # via
     #   -r requirements.in
     #   paramiko
