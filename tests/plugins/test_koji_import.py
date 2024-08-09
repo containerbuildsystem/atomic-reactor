@@ -49,6 +49,8 @@ from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, KOJI_BTYPE_OPER
                                       PARENT_IMAGES_KEY, OPERATOR_MANIFESTS_ARCHIVE,
                                       REMOTE_SOURCE_TARBALL_FILENAME,
                                       REMOTE_SOURCE_JSON_FILENAME,
+                                      REMOTE_SOURCE_JSON_CONFIG_FILENAME,
+                                      REMOTE_SOURCE_JSON_ENV_FILENAME,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
                                       KOJI_BTYPE_REMOTE_SOURCE_FILE,
@@ -532,6 +534,14 @@ def mock_environment(workflow: DockerBuildWorkflow, source_dir: Path,
                 "remote_source_json": {
                     "filename": REMOTE_SOURCE_JSON_FILENAME,
                     "json": {"stub": "data"},
+                },
+                "remote_source_json_config": {
+                    "filename": REMOTE_SOURCE_JSON_CONFIG_FILENAME,
+                    "json": [{"stub": "data"}],
+                },
+                "remote_source_json_env": {
+                    "filename": REMOTE_SOURCE_JSON_ENV_FILENAME,
+                    "json": {"var": {"stub": "data"}},
                 },
                 "remote_source_tarball": {
                     "filename": REMOTE_SOURCE_TARBALL_FILENAME,
@@ -2003,7 +2013,10 @@ class TestKojiImport(object):
                     {
                         'name': None,
                         'url': 'https://cachito.com/api/v1/requests/21048',
-                        'archives': ['remote-source.json', 'remote-source.tar.gz'],
+                        'archives': [
+                            'remote-source.json', 'remote-source.tar.gz',
+                            'remote-source.env.json', 'remote-source.config.json'
+                        ],
                     }
                 ]
                 assert REMOTE_SOURCE_TARBALL_FILENAME in session.uploaded_files.keys()

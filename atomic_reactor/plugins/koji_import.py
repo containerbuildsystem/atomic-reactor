@@ -322,6 +322,8 @@ class KojiImportBase(Plugin):
                         "archives": [
                             remote_source["remote_source_json"]["filename"],
                             remote_source["remote_source_tarball"]["filename"],
+                            remote_source["remote_source_json_env"]["filename"],
+                            remote_source["remote_source_json_config"]["filename"],
                         ],
                     }
                     for remote_source in remote_source_result
@@ -622,15 +624,18 @@ class KojiImportPlugin(KojiImportBase):
             dest_filename = remote_source_tarball['filename']
             yield local_filename, dest_filename, KOJI_BTYPE_REMOTE_SOURCES, None
 
-            remote_source_json = remote_source['remote_source_json']
-            remote_source_json_filename = remote_source_json['filename']
-            file_path = os.path.join(tmpdir, remote_source_json_filename)
-            with open(file_path, 'w') as f:
-                json.dump(remote_source_json['json'], f, indent=4, sort_keys=True)
-            yield (file_path,
-                   remote_source_json_filename,
-                   KOJI_BTYPE_REMOTE_SOURCES,
-                   None)
+            for source_key in (
+                "remote_source_json", "remote_source_json_env", "remote_source_json_config",
+            ):
+                data_json = remote_source[source_key]
+                data_json_filename = data_json['filename']
+                file_path = os.path.join(tmpdir, data_json_filename)
+                with open(file_path, 'w') as f:
+                    json.dump(data_json['json'], f, indent=4, sort_keys=True)
+                yield (file_path,
+                       data_json_filename,
+                       KOJI_BTYPE_REMOTE_SOURCES,
+                       None)
 
     def _collect_exported_operator_manifests(self) -> Iterable[ArtifactOutputInfo]:
         wf_data = self.workflow.data
