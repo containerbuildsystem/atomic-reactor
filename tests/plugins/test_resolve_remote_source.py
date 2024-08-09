@@ -29,6 +29,8 @@ from atomic_reactor.constants import (
     REMOTE_SOURCE_DIR,
     REMOTE_SOURCE_TARBALL_FILENAME,
     REMOTE_SOURCE_JSON_FILENAME,
+    REMOTE_SOURCE_JSON_CONFIG_FILENAME,
+    REMOTE_SOURCE_JSON_ENV_FILENAME,
 )
 from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.resolve_remote_source import (
@@ -393,6 +395,14 @@ def mock_cachito_api_multiple_remote_sources(workflow, user=KOJI_TASK_OWNER):
 
     (
         flexmock(CachitoAPI)
+        .should_receive("get_request_config_files")
+        .with_args(CACHITO_SOURCE_REQUEST["id"])
+        .and_return(CACHITO_CONFIG_FILES)
+        .ordered()
+    )
+
+    (
+        flexmock(CachitoAPI)
         .should_receive("download_sources")
         .with_args(
             SECOND_CACHITO_SOURCE_REQUEST,
@@ -408,14 +418,6 @@ def mock_cachito_api_multiple_remote_sources(workflow, user=KOJI_TASK_OWNER):
         .should_receive("get_request_env_vars")
         .with_args(SECOND_CACHITO_SOURCE_REQUEST["id"])
         .and_return(SECOND_CACHITO_ENV_VARS_JSON)
-        .ordered()
-    )
-
-    (
-        flexmock(CachitoAPI)
-        .should_receive("get_request_config_files")
-        .with_args(CACHITO_SOURCE_REQUEST["id"])
-        .and_return(CACHITO_CONFIG_FILES)
         .ordered()
     )
 
@@ -564,6 +566,14 @@ def test_resolve_remote_source(workflow, scratch, dr_strs, dependency_replacemen
                 "json": REMOTE_SOURCE_JSON,
                 "filename": REMOTE_SOURCE_JSON_FILENAME,
             },
+            "remote_source_json_config": {
+                "json": CACHITO_CONFIG_FILES,
+                "filename": REMOTE_SOURCE_JSON_CONFIG_FILENAME,
+            },
+            "remote_source_json_env": {
+                "json": CACHITO_ENV_VARS_JSON,
+                "filename": REMOTE_SOURCE_JSON_ENV_FILENAME,
+            },
             "remote_source_tarball": {
                 "filename": REMOTE_SOURCE_TARBALL_FILENAME,
                 "path": expected_dowload_path(workflow),
@@ -653,6 +663,14 @@ def test_no_koji_user(workflow, caplog):
                 "json": REMOTE_SOURCE_JSON,
                 "filename": REMOTE_SOURCE_JSON_FILENAME,
             },
+            "remote_source_json_config": {
+                "json": CACHITO_CONFIG_FILES,
+                "filename": REMOTE_SOURCE_JSON_CONFIG_FILENAME,
+            },
+            "remote_source_json_env": {
+                "json": CACHITO_ENV_VARS_JSON,
+                "filename": REMOTE_SOURCE_JSON_ENV_FILENAME,
+            },
             "remote_source_tarball": {
                 "filename": REMOTE_SOURCE_TARBALL_FILENAME,
                 "path": expected_dowload_path(workflow),
@@ -732,6 +750,14 @@ def test_bad_build_metadata(workflow, task_id, log_entry, caplog):
                 "json": REMOTE_SOURCE_JSON,
                 "filename": REMOTE_SOURCE_JSON_FILENAME,
             },
+            "remote_source_json_config": {
+                "json": CACHITO_CONFIG_FILES,
+                "filename": REMOTE_SOURCE_JSON_CONFIG_FILENAME,
+            },
+            "remote_source_json_env": {
+                "json": CACHITO_ENV_VARS_JSON,
+                "filename": REMOTE_SOURCE_JSON_ENV_FILENAME,
+            },
             "remote_source_tarball": {
                 "filename": REMOTE_SOURCE_TARBALL_FILENAME,
                 "path": expected_dowload_path(workflow),
@@ -749,9 +775,13 @@ def test_allow_multiple_remote_sources(workflow, allow_multiple_remote_sources):
     first_remote_source_name = 'gomod'
     first_remote_tarball_filename = 'remote-source-gomod.tar.gz'
     first_remote_json_filename = 'remote-source-gomod.json'
+    first_remote_json_config_filename = 'remote-source-gomod.config.json'
+    first_remote_json_env_filename = 'remote-source-gomod.env.json'
     second_remote_source_name = 'pip'
     second_remote_tarball_filename = 'remote-source-pip.tar.gz'
     second_remote_json_filename = 'remote-source-pip.json'
+    second_remote_json_config_filename = 'remote-source-pip.config.json'
+    second_remote_json_env_filename = 'remote-source-pip.env.json'
 
     container_yaml_config = dedent(
         """\
@@ -806,6 +836,14 @@ def test_allow_multiple_remote_sources(workflow, allow_multiple_remote_sources):
                     "json": REMOTE_SOURCE_JSON,
                     "filename": first_remote_json_filename,
                 },
+                "remote_source_json_config": {
+                    "json": CACHITO_CONFIG_FILES,
+                    "filename": first_remote_json_config_filename,
+                },
+                "remote_source_json_env": {
+                    "json": CACHITO_ENV_VARS_JSON,
+                    "filename": first_remote_json_env_filename,
+                },
                 "remote_source_tarball": {
                     "filename": first_remote_tarball_filename,
                     "path": expected_dowload_path(workflow, "gomod"),
@@ -818,6 +856,14 @@ def test_allow_multiple_remote_sources(workflow, allow_multiple_remote_sources):
                 "remote_source_json": {
                     "json": SECOND_REMOTE_SOURCE_JSON,
                     "filename": second_remote_json_filename,
+                },
+                "remote_source_json_config": {
+                    "json": SECOND_CACHITO_CONFIG_FILES,
+                    "filename": second_remote_json_config_filename,
+                },
+                "remote_source_json_env": {
+                    "json": SECOND_CACHITO_ENV_VARS_JSON,
+                    "filename": second_remote_json_env_filename,
                 },
                 "remote_source_tarball": {
                     "filename": second_remote_tarball_filename,
@@ -932,6 +978,8 @@ def test_inject_remote_sources_dest_already_exists(workflow):
             id=CACHITO_REQUEST_ID,
             name=None,
             json_data={},
+            json_env_data={},
+            json_config_data={},
             build_args={},
             tarball_path=Path("/does/not/matter"),
         ),

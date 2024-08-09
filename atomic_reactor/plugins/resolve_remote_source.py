@@ -23,6 +23,8 @@ from atomic_reactor.constants import (
     REMOTE_SOURCE_DIR,
     REMOTE_SOURCE_JSON_FILENAME,
     REMOTE_SOURCE_TARBALL_FILENAME,
+    REMOTE_SOURCE_JSON_CONFIG_FILENAME,
+    REMOTE_SOURCE_JSON_ENV_FILENAME,
 )
 from atomic_reactor.dirs import BuildDir
 from atomic_reactor.plugin import Plugin
@@ -48,6 +50,8 @@ class RemoteSource:
     id: int
     name: Optional[str]
     json_data: dict
+    json_env_data: Dict[str, Dict[str, str]]
+    json_config_data: List[Dict[str, str]]
     build_args: Dict[str, str]
     tarball_path: Path
 
@@ -64,6 +68,20 @@ class RemoteSource:
             return f"remote-source-{name}.json"
         else:
             return REMOTE_SOURCE_JSON_FILENAME
+
+    @classmethod
+    def json_config_filename(cls, name: Optional[str]):
+        if name:
+            return f"remote-source-{name}.config.json"
+        else:
+            return REMOTE_SOURCE_JSON_CONFIG_FILENAME
+
+    @classmethod
+    def json_env_filename(cls, name: Optional[str]):
+        if name:
+            return f"remote-source-{name}.env.json"
+        else:
+            return REMOTE_SOURCE_JSON_ENV_FILENAME
 
 
 class ResolveRemoteSourcePlugin(Plugin):
@@ -219,17 +237,18 @@ class ResolveRemoteSourcePlugin(Plugin):
             with tarfile.open(remote_source.tarball_path) as tar:
                 safe_extractall(tar, str(dest_dir))
 
-            config_files = self.cachito_session.get_request_config_files(remote_source.id)
-            self.generate_cachito_config_files(dest_dir, config_files)
+            self.generate_cachito_config_files(dest_dir, remote_source.json_config_data)
 
             # Create cachito.env file with environment variables received from cachito request
             self.generate_cachito_env_file(dest_dir, remote_source.build_args)
 
         return created_dirs
 
-    def get_buildargs(self, request_id: int, remote_source_name: Optional[str]) -> Dict[str, str]:
+    def get_buildargs(
+            self, env_vars: Dict[str, Dict[str, str]],
+            remote_source_name: Optional[str]
+    ) -> Dict[str, str]:
         build_args = {}
-        env_vars = self.cachito_session.get_request_env_vars(request_id)
 
         for env_var, value_info in env_vars.items():
             build_arg_value = value_info['value']
@@ -309,12 +328,15 @@ class ResolveRemoteSourcePlugin(Plugin):
             dest_filename=tarball_filename,
         )
 
-        build_args = self.get_buildargs(source_request["id"], name)
+        env_vars = self.cachito_session.get_request_env_vars(source_request["id"])
+        build_args = self.get_buildargs(env_vars, name)
 
         remote_source = RemoteSource(
             id=source_request["id"],
             name=name,
             json_data=self.source_request_to_json(source_request),
+            json_env_data=env_vars,
+            json_config_data=self.cachito_session.get_request_config_files(source_request["id"]),
             build_args=build_args,
             tarball_path=Path(tarball_dest_path),
         )
@@ -323,7 +345,6 @@ class ResolveRemoteSourcePlugin(Plugin):
     def remote_source_to_output(self, remote_source: RemoteSource) -> Dict[str, Any]:
         """Convert a processed remote source to a dict to be used as output of this plugin."""
         download_url = self.cachito_session.assemble_download_url(remote_source.id)
-        json_filename = RemoteSource.json_filename(remote_source.name)
 
         return {
             "id": remote_source.id,
@@ -331,7 +352,15 @@ class ResolveRemoteSourcePlugin(Plugin):
             "url": download_url,
             "remote_source_json": {
                 "json": remote_source.json_data,
-                "filename": json_filename,
+                "filename": RemoteSource.json_filename(remote_source.name),
+            },
+            "remote_source_json_env": {
+                "json": remote_source.json_env_data,
+                "filename": RemoteSource.json_env_filename(remote_source.name),
+            },
+            "remote_source_json_config": {
+                "json": remote_source.json_config_data,
+                "filename": RemoteSource.json_config_filename(remote_source.name),
             },
             "remote_source_tarball": {
                 "filename": remote_source.tarball_path.name,
