@@ -980,7 +980,6 @@ def test_inject_remote_sources_dest_already_exists(workflow):
             json_data={},
             json_env_data={},
             json_config_data={},
-            build_args={},
             tarball_path=Path("/does/not/matter"),
         ),
     ]

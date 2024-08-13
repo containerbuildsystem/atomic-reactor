@@ -52,7 +52,6 @@ class RemoteSource:
     json_data: dict
     json_env_data: Dict[str, Dict[str, str]]
     json_config_data: List[Dict[str, str]]
-    build_args: Dict[str, str]
     tarball_path: Path
 
     @classmethod
@@ -82,6 +81,24 @@ class RemoteSource:
             return f"remote-source-{name}.env.json"
         else:
             return REMOTE_SOURCE_JSON_ENV_FILENAME
+
+    @property
+    def build_args(self) -> Dict[str, str]:
+        build_args = {}
+
+        for env_var, value_info in self.json_env_data.items():
+            build_arg_value = value_info['value']
+            kind = value_info['kind']
+            if kind == 'path':
+                name = self.name or ''
+                build_arg_value = os.path.join(REMOTE_SOURCE_DIR, name, value_info['value'])
+                build_args[env_var] = build_arg_value
+            elif kind == 'literal':
+                build_args[env_var] = build_arg_value
+            else:
+                raise RuntimeError(f'Unknown kind {kind} got from Cachito.')
+
+        return build_args
 
 
 class ResolveRemoteSourcePlugin(Plugin):
@@ -244,36 +261,6 @@ class ResolveRemoteSourcePlugin(Plugin):
 
         return created_dirs
 
-    def get_buildargs(
-            self, env_vars: Dict[str, Dict[str, str]],
-            remote_source_name: Optional[str]
-    ) -> Dict[str, str]:
-        build_args = {}
-
-        for env_var, value_info in env_vars.items():
-            build_arg_value = value_info['value']
-            kind = value_info['kind']
-            if kind == 'path':
-                name = remote_source_name or ''
-                build_arg_value = os.path.join(REMOTE_SOURCE_DIR, name, value_info['value'])
-                self.log.debug(
-                    'Setting the Cachito environment variable "%s" to the absolute path "%s"',
-                    env_var,
-                    build_arg_value,
-                )
-                build_args[env_var] = build_arg_value
-            elif kind == 'literal':
-                self.log.debug(
-                    'Setting the Cachito environment variable "%s" to a literal value "%s"',
-                    env_var,
-                    build_arg_value,
-                )
-                build_args[env_var] = build_arg_value
-            else:
-                raise RuntimeError(f'Unknown kind {kind} got from Cachito.')
-
-        return build_args
-
     def source_request_to_json(self, source_request):
         """Create a relevant representation of the source request"""
         required = ('packages', 'ref', 'repo')
@@ -329,7 +316,6 @@ class ResolveRemoteSourcePlugin(Plugin):
         )
 
         env_vars = self.cachito_session.get_request_env_vars(source_request["id"])
-        build_args = self.get_buildargs(env_vars, name)
 
         remote_source = RemoteSource(
             id=source_request["id"],
@@ -337,7 +323,6 @@ class ResolveRemoteSourcePlugin(Plugin):
             json_data=self.source_request_to_json(source_request),
             json_env_data=env_vars,
             json_config_data=self.cachito_session.get_request_config_files(source_request["id"]),
-            build_args=build_args,
             tarball_path=Path(tarball_dest_path),
         )
         return remote_source
