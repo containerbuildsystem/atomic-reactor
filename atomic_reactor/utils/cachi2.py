@@ -44,3 +44,27 @@ def remote_source_to_cachi2(remote_source: Dict[str, Any]) -> Dict[str, Any]:
             cachi2_packages.append({"type": pkg_manager, **pkg})
 
     return {"packages": cachi2_packages, "flags": cachi2_flags}
+
+
+def convert_SBOM_to_ICM(sbom: Dict[str, Any]) -> Dict[str, Any]:
+    """Function converts cachi2 SBOM into ICM
+
+    Unfortunately cachi2 doesn't provide all details about dependencies
+    and sources, so the ICM can contain only flat structure of everything
+    """
+    icm = {
+        "metadata": {
+            "icm_spec": (
+                "https://raw.githubusercontent.com/containerbuildsystem/atomic-reactor/"
+                "f4abcfdaf8247a6b074f94fa84f3846f82d781c6/atomic_reactor/schemas/"
+                "content_manifest.json"
+            ),
+            "icm_version": 1,
+            "image_layer_index": -1
+        },
+        "image_contents": [],
+    }
+    icm["image_contents"] = [
+        {"purl": comp["purl"]} for comp in sbom["components"]  # type: ignore
+    ]
+    return icm
