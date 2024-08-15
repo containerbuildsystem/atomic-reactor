@@ -6,7 +6,10 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
-from atomic_reactor.utils.cachi2 import remote_source_to_cachi2
+from atomic_reactor.utils.cachi2 import (
+    convert_SBOM_to_ICM,
+    remote_source_to_cachi2
+)
 
 import pytest
 
@@ -83,3 +86,47 @@ def test_remote_source_to_cachi2_conversion(input_remote_source, expected_cachi2
     """Test conversion of remote_source (cachito) configuration from container yaml
     into cachi2 params"""
     assert remote_source_to_cachi2(input_remote_source) == expected_cachi2
+
+
+@pytest.mark.parametrize(('sbom', 'expected_icm'), [
+    pytest.param(
+        {
+            "bomFormat": "CycloneDX",
+            "components": [{
+                "name": "unsafe",
+                "purl": "pkg:golang/unsafe?type=package",
+                "properties": [{
+                    "name": "cachi2:found_by",
+                    "value": "cachi2",
+                }],
+                "type": "library",
+            }],
+            "metadata": {
+                "tools": [{
+                    "vendor": "red hat",
+                    "name": "cachi2"
+                }]
+            },
+            "specVersion": "1.4",
+            "version": 1
+        },
+        {
+            "image_contents": [
+                {"purl": "pkg:golang/unsafe?type=package"},
+            ],
+            "metadata": {
+                "icm_spec": (
+                    "https://raw.githubusercontent.com/containerbuildsystem/atomic-reactor/"
+                    "f4abcfdaf8247a6b074f94fa84f3846f82d781c6/atomic_reactor/"
+                    "schemas/content_manifest.json"
+                ),
+                "icm_version": 1,
+                "image_layer_index": -1
+            }
+        },
+        id="easy",
+    ),
+])
+def test_convert_SBOM_to_ICM(sbom, expected_icm):
+    """Test conversion from cachi2 SBOM into ICM format"""
+    assert convert_SBOM_to_ICM(sbom) == expected_icm
