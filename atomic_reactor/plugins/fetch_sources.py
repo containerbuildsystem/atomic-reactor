@@ -313,55 +313,52 @@ class FetchSourcesPlugin(Plugin):
         remote_json_map = {}
         remote_sources = koji_build['extra']['typeinfo']['remote-sources']
         wrong_archives = False
-        all_archives = []
+
+        koji_archives = {archive['filename'] for archive in archives}
+        metadata_archives = set()
 
         for remote_s in remote_sources:
             remote_archive = None
             remote_json = None
 
-            if len(remote_s['archives']) != 2:
-                self.log.error('remote source "%s" does not contain 2 archives, but "%s"',
-                               remote_s['name'], remote_s['archives'])
-                wrong_archives = True
-            else:
-                for archive in remote_s['archives']:
-                    if archive.endswith('.json'):
-                        remote_json = archive
-                    else:
-                        remote_archive = archive
+            for archive in remote_s['archives']:
+                # ignore .env.json and .config.json
+                suffixes = Path(archive).suffixes
+                if suffixes == ['.json']:
+                    remote_json = archive
+                elif suffixes == ['.tar', '.gz']:
+                    remote_archive = archive
 
-                if not remote_json:
-                    self.log.error('remote source json, for remote source "%s" not found '
-                                   'in archives "%s"', remote_s['name'], remote_s['archives'])
-                    wrong_archives = True
-                else:
-                    remote_source = {}
-                    remote_source['url'] = os.path.join(remote_sources_path, remote_archive)
-                    remote_source['dest'] = '-'.join([koji_build['nvr'], remote_archive])
-                    remote_sources_urls.append(remote_source)
-                    cachito_json_url = os.path.join(remote_sources_path, remote_json)
-                    remote_json_map[remote_source['dest']] = cachito_json_url
-                    all_archives.append(remote_archive)
-                    all_archives.append(remote_json)
+            if not remote_json:
+                self.log.error('remote source json, for remote source "%s" not found '
+                               'in archives "%s"', remote_s['name'], remote_s['archives'])
+                wrong_archives = True
+
+            if not remote_archive:
+                self.log.error('remote source archive tar.gz, for remote source "%s" not found '
+                               'in archives "%s"', remote_s['name'], remote_s['archives'])
+                wrong_archives = True
+
+            if wrong_archives:
+                continue
+
+            remote_source = {}
+            remote_source['url'] = os.path.join(remote_sources_path, remote_archive)
+            remote_source['dest'] = '-'.join([koji_build['nvr'], remote_archive])
+            remote_sources_urls.append(remote_source)
+            cachito_json_url = os.path.join(remote_sources_path, remote_json)
+            remote_json_map[remote_source['dest']] = cachito_json_url
+            metadata_archives.add(remote_archive)
+            metadata_archives.add(remote_json)
 
         if wrong_archives:
             raise RuntimeError('Problems with archives in remote sources: {}'.
                                format(remote_sources))
 
-        extra_archives = []
-        for archive in archives:
-            if archive['filename'] in all_archives:
-                all_archives.remove(archive['filename'])
-            else:
-                extra_archives.append(archive['filename'])
-
-        if all_archives:
+        missing_archives = metadata_archives - koji_archives
+        if missing_archives:
             raise RuntimeError('Remote source files from metadata missing in koji '
-                               'archives: {}'.format(all_archives))
-
-        if extra_archives:
-            raise RuntimeError('Remote source archives in koji missing from '
-                               'metadata: {}'.format(extra_archives))
+                               'archives: {}'.format(sorted(missing_archives)))
 
         return remote_sources_urls, remote_json_map
 

@@ -40,17 +40,22 @@ KOJI_UPLOAD_TEST_WORKDIR = 'temp_workdir'
 ALL_ARCHIVE_NAMES = ['remote-source-first.json', 'remote-source-first.tar.gz',
                      'remote-source-second.json', 'remote-source-second.tar.gz']
 RS_TYPEINFO = [{'name': 'first', 'url': 'first_url',
+                # compat with older builds, only 2 archives
                 'archives': ['remote-source-first.json', 'remote-source-first.tar.gz']},
                {'name': 'second', 'url': 'second_url',
-                'archives': ['remote-source-second.json', 'remote-source-second.tar.gz']}]
+                'archives': ['remote-source-second.json', 'remote-source-second.tar.gz',
+                             'remote-source-second.config.json', 'remote-source-second.env.json']}]
 RS_TYPEINFO_NO_JSON = [{'name': 'first', 'url': 'first_url',
                         'archives': ['remote-source-first.wrong', 'remote-source-first.tar.gz']},
                        {'name': 'second', 'url': 'second_url',
                         'archives': ['remote-source-second.bad', 'remote-source-second.tar.gz']}]
-RS_TYPEINFO_NO_2 = [{'name': 'first', 'url': 'first_url',
-                     'archives': ['remote-source-first.tar.gz']},
-                    {'name': 'second', 'url': 'second_url',
-                     'archives': ['remote-source-second.tar.gz']}]
+RS_TYPEINFO_NO_TAR_GZ = [{'name': 'first', 'url': 'first_url',
+                         'archives': ['remote-source-first.json', 'remote-source-first.config.json',
+                                      'remote-source-first.env.json']},
+                         {'name': 'second', 'url': 'second_url',
+                         'archives': ['remote-source-second.json',
+                                      'remote-source-second.config.json',
+                                      'remote-source-second.env.json']}]
 
 KOJI_BUILD_GO_RPMS = {'build_id': 100, 'nvr': 'go_image-1-1', 'name': 'go_image', 'version': 1,
                       'release': 1,
@@ -733,7 +738,9 @@ class TestFetchSources(object):
             with open(os.path.join(sources_dir, f"{rpm['nvr']}.src.rpm"), 'rb') as f:
                 assert f.read() == b'Source RPM'
 
-    @pytest.mark.parametrize('typeinfo_rs', (RS_TYPEINFO, RS_TYPEINFO_NO_JSON, RS_TYPEINFO_NO_2))
+    @pytest.mark.parametrize('typeinfo_rs', (
+        RS_TYPEINFO, RS_TYPEINFO_NO_JSON, RS_TYPEINFO_NO_TAR_GZ
+    ))
     @pytest.mark.parametrize('archives_in_koji', (4, 3, 5))
     def test_fetch_sources_multiple_remote_sources(self, typeinfo_rs, archives_in_koji,
                                                    workflow, source_dir, caplog,
@@ -744,7 +751,7 @@ class TestFetchSources(object):
         extra_archive = None
         all_archives = deepcopy(ALL_ARCHIVE_NAMES)
         should_fail = True
-        if typeinfo_rs == RS_TYPEINFO and archives_in_koji == 4:
+        if typeinfo_rs == RS_TYPEINFO and archives_in_koji >= 4:
             should_fail = False
 
         if archives_in_koji == 3:
@@ -770,22 +777,17 @@ class TestFetchSources(object):
 
         exc_message = ""
         caplog_message = ""
-        if typeinfo_rs == RS_TYPEINFO_NO_2:
+        if typeinfo_rs == RS_TYPEINFO_NO_TAR_GZ:
             exc_message = 'Problems with archives in remote sources: {}'.format(typeinfo_rs)
-            caplog_message = ' does not contain 2 archives, but '
+            caplog_message = 'remote source archive tar.gz, for remote source '
 
         elif typeinfo_rs == RS_TYPEINFO_NO_JSON:
             exc_message = 'Problems with archives in remote sources: {}'.format(typeinfo_rs)
             caplog_message = 'remote source json, for remote source '
 
-        else:
-            if archives_in_koji == 5:
-                exc_message = 'Remote source archives in koji missing from ' \
-                              'metadata: {}'.format([extra_archive])
-
-            elif archives_in_koji == 3:
-                exc_message = 'Remote source files from metadata missing in koji ' \
-                              'archives: {}'.format([missing_archive])
+        elif archives_in_koji == 3:
+            exc_message = 'Remote source files from metadata missing in koji ' \
+                          'archives: {}'.format([missing_archive])
 
         if should_fail:
             with pytest.raises(PluginFailedException) as exc:
