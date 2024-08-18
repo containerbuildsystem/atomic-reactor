@@ -17,7 +17,7 @@ bcrypt==3.2.0
     # via paramiko
 calver==2022.6.26
     # via -r otel-requirements.in
-certifi==2022.12.7
+certifi==2024.7.4
     # via requests
 cffi==1.15.0
     # via

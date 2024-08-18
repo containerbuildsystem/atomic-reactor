@@ -10,7 +10,7 @@ backoff==2.2.1
     #   opentelemetry-exporter-otlp-proto-http
 calver==2022.6.26
     # via -r otel-requirements.in
-certifi==2023.7.22
+certifi==2024.7.4
     # via requests
 charset-normalizer==3.2.0
     # via requests
