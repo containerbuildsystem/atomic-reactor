@@ -87,7 +87,7 @@ protobuf==4.24.2
     #   opentelemetry-proto
 pydantic==1.10.12
     # via otel-extensions
-requests==2.31.0
+requests==2.32.3
     # via opentelemetry-exporter-otlp-proto-http
 tomli==2.0.1
     # via hatchling
@@ -97,7 +97,7 @@ typing-extensions==4.7.1
     # via
     #   opentelemetry-sdk
     #   pydantic
-urllib3==1.26.16
+urllib3==1.26.19
     # via
     #   -r otel-requirements.in
     #   requests
