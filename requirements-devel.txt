@@ -200,7 +200,7 @@ pyyaml==6.0
     #   osbs-client
 reflink==0.2.1
     # via -r requirements.in
-requests==2.26.0
+requests==2.32.3
     # via
     #   -r requirements.in
     #   koji
@@ -244,7 +244,7 @@ typing-extensions==4.7.1
     # via
     #   opentelemetry-sdk
     #   pydantic
-urllib3==1.26.7
+urllib3==1.26.19
     # via
     #   -r otel-requirements.in
     #   -r requirements.in
