@@ -8,7 +8,9 @@ of the BSD license. See the LICENSE file for details.
 
 from atomic_reactor.utils.cachi2 import (
     convert_SBOM_to_ICM,
-    remote_source_to_cachi2
+    remote_source_to_cachi2,
+    gen_dependency_from_sbom_component,
+    generate_request_json,
 )
 
 import pytest
@@ -130,3 +132,292 @@ def test_remote_source_to_cachi2_conversion(input_remote_source, expected_cachi2
 def test_convert_SBOM_to_ICM(sbom, expected_icm):
     """Test conversion from cachi2 SBOM into ICM format"""
     assert convert_SBOM_to_ICM(sbom) == expected_icm
+
+
+@pytest.mark.parametrize(("sbom_comp", "expected"), [
+    pytest.param(
+        {
+            "name": "github.com/cachito-testing/testmodule",
+            "version": "v1.0.0",
+            "purl": "pkg:golang/github.com/cachito-testing/testmodule@v1.0.0?type=module",
+            "type": "library"
+        },
+        {
+            "name": "github.com/cachito-testing/testmodule",
+            "replaces": None,
+            "type": "gomod",
+            "version": "v1.0.0"
+        },
+        id="type_gomod"
+    ),
+    pytest.param(
+        {
+            "name": "github.com/cachito-testing",
+            "version": "v1.0.0",
+            "purl": "pkg:golang/github.com/cachito-testing@v1.0.0",
+            "type": "library"
+        },
+        {
+            "name": "github.com/cachito-testing",
+            "replaces": None,
+            "type": "go-package",
+            "version": "v1.0.0"
+        },
+        id="type_go-package"
+    ),
+    pytest.param(
+        {
+            "name": "cachito-npm-without-deps",
+            "purl": ("pkg:npm/cachito-npm-without-deps?"
+                     "vcs_url=git%2Bhttps://github.com/cachito-testing/"
+                     "cachito-npm-without-deps.git%402f0ce1d7b1f8b35572d919428b965285a69583f6"),
+            "type": "library"
+        },
+        {
+            "name": "cachito-npm-without-deps",
+            "replaces": None,
+            "type": "npm",
+            "version": (
+                "git+https://github.com/cachito-testing/cachito-npm-without-deps.git@"
+                "2f0ce1d7b1f8b35572d919428b965285a69583f6"),
+        },
+        id="type_npm"
+    ),
+    pytest.param(
+        {
+            "name": "aiowsgi",
+            "version": "0.8",
+            "purl": "pkg:pypi/aiowsgi@0.8",
+            "type": "library"
+        },
+        {
+            "name": "aiowsgi",
+            "replaces": None,
+            "type": "pip",
+            "version": "0.8"
+        },
+        id="type_pip"
+    ),
+    pytest.param(
+        {
+            "name": "validate_url",
+            "version": "1.0.5",
+            "purl": "pkg:gem/validate_url@1.0.5",
+            "type": "library"
+        },
+        {
+            "name": "validate_url",
+            "replaces": None,
+            "type": "rubygems",
+            "version": "1.0.5"
+        },
+        id="type_rubygem"
+    ),
+    pytest.param(
+        {
+            "name": "cachito-testing",
+            "version": "1.0.0-5",
+            "purl": "pkg:rpm/cachito-testing@1.0.0-5",
+            "type": "library"
+        },
+        {
+            "name": "cachito-testing",
+            "replaces": None,
+            "type": "rpm",
+            "version": "1.0.0-5"
+        },
+        id="type_rpm"
+    ),
+    pytest.param(
+        {
+            "name": "github.com/cachito-testing",
+            "version": "v1.0.0",
+            "purl": "pkg:somethingnew/github.com/cachito-testing@v1.0.0",
+            "type": "library"
+        },
+        {
+            "name": "github.com/cachito-testing",
+            "replaces": None,
+            "type": "somethingnew",
+            "version": "v1.0.0"
+        },
+        id="type_somethingnew"
+    ),
+    pytest.param(
+        {
+            "name": "github.com/cachito-testing",
+            "version": "v1.0.0",
+            "purl": "pkg:golang/github.com/cachito-testing#path",
+            "type": "library"
+        },
+        {
+            "name": "github.com/cachito-testing",
+            "replaces": None,
+            "type": "go-package",
+            "version": "./path"
+        },
+        id="version_golang_path"
+    ),
+    pytest.param(
+        {
+            # vcs_url has priority
+            "name": "cachito-npm-without-deps",
+            "purl": ("pkg:npm/cachito-npm-without-deps?"
+                     "vcs_url=git%2Bhttps://github.com/cachito-testing/"
+                     "cachito-npm-without-deps.git%402f0ce1d7b1f8b35572d919428b965285a69583f6&"
+                     "download_url=https://example.com/pkg#path"),
+            "type": "library",
+            "version": "1.2.3"
+        },
+        {
+            "name": "cachito-npm-without-deps",
+            "replaces": None,
+            "type": "npm",
+            "version": (
+                "git+https://github.com/cachito-testing/cachito-npm-without-deps.git@"
+                "2f0ce1d7b1f8b35572d919428b965285a69583f6"),
+        },
+        id="version_vsc_url"
+    ),
+    pytest.param(
+        {
+            # download_url has priority
+            "name": "cachito-npm-without-deps",
+            "purl": ("pkg:npm/cachito-npm-without-deps?"
+                     "download_url=https://example.com/pkg#path"),
+            "type": "library",
+            "version": "1.2.3"
+        },
+        {
+            "name": "cachito-npm-without-deps",
+            "replaces": None,
+            "type": "npm",
+            "version": "https://example.com/pkg",
+        },
+        id="version_download_url"
+    ),
+    pytest.param(
+        {
+            # path has priority
+            "name": "cachito-npm-without-deps",
+            "purl": "pkg:npm/cachito-npm-without-deps#path",
+            "type": "library",
+            "version": "1.0.0"
+        },
+        {
+            "name": "cachito-npm-without-deps",
+            "replaces": None,
+            "type": "npm",
+            "version": "file:path",
+        },
+        id="version_path"
+    ),
+    pytest.param(
+        {
+            "name": "cachito-npm-without-deps",
+            "purl": "pkg:npm/cachito-npm-without-deps",
+            "type": "library",
+            "version": "1.0.0"
+        },
+        {
+            "name": "cachito-npm-without-deps",
+            "replaces": None,
+            "type": "npm",
+            "version": "1.0.0",
+        },
+        id="version_version"
+    ),
+    pytest.param(
+        {
+            "name": "cachito-npm-without-deps",
+            "purl": "pkg:npm/cachito-npm-without-deps",
+            "type": "library",
+        },
+        {
+            "name": "cachito-npm-without-deps",
+            "replaces": None,
+            "type": "npm",
+            "version": None,
+        },
+        id="version_missing"
+    ),
+    pytest.param(
+        {
+            "name": "cachito-npm-without-deps",
+            "purl": "pkg:npm/cachito-npm-without-deps",
+            "type": "library",
+            "properties": [
+                {
+                    "name": "cdx:npm:package:development",
+                    "value": "true"
+                }
+            ],
+        },
+        {
+            "name": "cachito-npm-without-deps",
+            "replaces": None,
+            "type": "npm",
+            "version": None,
+            "dev": True,
+        },
+        id="npm_dev"
+    ),
+])
+def test_gen_dependency_from_sbom_component(sbom_comp, expected):
+    """Test generating request.json dependency from sbom component"""
+    assert gen_dependency_from_sbom_component(sbom_comp) == expected
+
+
+def test_generate_request_json():
+    """Test generating request.json from cachi2 SBOM and OSBS metadata"""
+    remote_source = {
+        "repo": "https://example.com/org/repo.git",
+        "ref": "7d669deedc3fd0e9199213e1f66056bb9f388394",
+        "pkg_managers": ["gomod"],
+        "flags": ["gomod-vendor-check"]
+    }
+
+    remote_source_sbom = {
+        "bomFormat": "CycloneDX",
+        "components": [
+            {
+                "name": "bytes",
+                "purl": "pkg:golang/bytes?type=package",
+                "properties": [
+                    {
+                        "name": "cachi2:found_by",
+                        "value": "cachi2"
+                    }
+                ],
+                "type": "library"
+            },
+        ],
+    }
+
+    remote_source_env_json = {
+        "GOCACHE": {
+            "kind": "path",
+            "value": "deps/gomod"
+        },
+    }
+
+    expected = {
+        "dependencies": [
+            {
+                "name": "bytes",
+                "replaces": None,
+                "type": "go-package",
+                "version": None,
+            },
+        ],
+        "pkg_managers": ["gomod"],
+        "repo": "https://example.com/org/repo.git",
+        "ref": "7d669deedc3fd0e9199213e1f66056bb9f388394",
+        "environment_variables": {"GOCACHE": "deps/gomod"},
+        "flags": ["gomod-vendor-check"],
+        "packages": [],
+    }
+
+    assert generate_request_json(
+        remote_source, remote_source_sbom, remote_source_env_json
+    ) == expected
