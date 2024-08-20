@@ -128,6 +128,8 @@ osbs-client @ git+https://github.com/containerbuildsystem/osbs-client@d0e1e394fe
     # via -r requirements.in
 otel-extensions==0.2.5
     # via -r otel-requirements.in
+packageurl-python==0.15.6
+    # via -r requirements.in
 packaging==23.1
     # via
     #   hatchling
