@@ -3,7 +3,7 @@ backoff
 dockerfile-parse>=0.0.13
 flatpak-module-tools>=0.14
 jsonschema
-paramiko>=2.10.1
+paramiko>=3.4.0
 PyYAML
 ruamel.yaml
 git+https://github.com/containerbuildsystem/osbs-client@d0e1e394fe044fae6ade98d640c51a75fa69b9af#egg=osbs-client
