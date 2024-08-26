@@ -59,7 +59,7 @@ gssapi==1.7.2
     #   requests-gssapi
 hatchling==1.18.0
     # via -r otel-requirements.in
-idna==3.3
+idna==3.7
     # via requests
 importlib-metadata==6.8.0
     # via opentelemetry-api
@@ -117,7 +117,7 @@ otel-extensions==0.2.5
     # via -r otel-requirements.in
 packaging==23.1
     # via hatchling
-paramiko==2.10.3
+paramiko==3.4.1
     # via -r requirements.in
 pathspec==0.11.2
     # via hatchling
@@ -131,7 +131,7 @@ pycairo==1.20.1
     # via pygobject
 pycparser==2.20
     # via cffi
-pydantic==1.10.12
+pydantic==1.10.13
     # via otel-extensions
 pygobject==3.42.0
     # via -r requirements.in
@@ -173,7 +173,6 @@ six==1.16.0
     #   dockerfile-parse
     #   koji
     #   osbs-client
-    #   paramiko
     #   python-dateutil
 tomli==2.0.1
     # via hatchling
@@ -192,7 +191,7 @@ wrapt==1.15.0
     # via
     #   deprecated
     #   opentelemetry-instrumentation
-zipp==3.16.2
+zipp==3.19.1
     # via importlib-metadata
 
 # The following packages are considered to be unsafe in a requirements file:

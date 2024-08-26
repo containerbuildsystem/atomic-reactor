@@ -29,7 +29,7 @@ grpcio==1.57.0
     # via opentelemetry-exporter-otlp-proto-grpc
 hatchling==1.18.0
     # via -r otel-requirements.in
-idna==3.4
+idna==3.7
     # via requests
 importlib-metadata==6.8.0
     # via opentelemetry-api
@@ -85,7 +85,7 @@ protobuf==4.24.2
     # via
     #   googleapis-common-protos
     #   opentelemetry-proto
-pydantic==1.10.12
+pydantic==1.10.13
     # via otel-extensions
 requests==2.32.3
     # via opentelemetry-exporter-otlp-proto-http
@@ -105,7 +105,7 @@ wrapt==1.15.0
     # via
     #   deprecated
     #   opentelemetry-instrumentation
-zipp==3.16.2
+zipp==3.19.1
     # via importlib-metadata
 
 # The following packages are considered to be unsafe in a requirements file:
