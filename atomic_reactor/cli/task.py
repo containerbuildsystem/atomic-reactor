@@ -6,7 +6,7 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 from atomic_reactor.tasks.binary import (BinaryExitTask, BinaryPostBuildTask, BinaryPreBuildTask,
-                                         BinaryInitTask,
+                                         BinaryInitTask, BinaryCachitoTask,
                                          InitTaskParams, BinaryExitTaskParams)
 from atomic_reactor.tasks.binary_container_build import BinaryBuildTask, BinaryBuildTaskParams
 from atomic_reactor.tasks.clone import CloneTask
@@ -53,6 +53,16 @@ def binary_container_init(task_args: dict):
     params = InitTaskParams.from_cli_args(task_args)
     task = BinaryInitTask(params)
     return task.run()
+
+
+def binary_container_cachito(task_args: dict):
+    """Run binary container Cachito steps.
+
+    :param task_args: CLI arguments for a binary-container-cachito task
+    """
+    params = TaskParams.from_cli_args(task_args)
+    task = BinaryCachitoTask(params)
+    return task.run(init_build_dirs=True)
 
 
 def binary_container_prebuild(task_args: dict):
