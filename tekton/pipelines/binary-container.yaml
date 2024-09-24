@@ -1,7 +1,7 @@
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
 metadata:
-  name: binary-container-0-1  # dot is not allowed in the name
+  name: binary-container-0-2  # dot is not allowed in the name
 spec:
   params:
     - name: osbs-image
@@ -34,7 +34,7 @@ spec:
     - name: task_build_result_aarch64
       value: $(tasks.binary-container-build-aarch64.results.task_result)
     - name: platforms_result
-      value: $(tasks.binary-container-prebuild.results.platforms_result)
+      value: $(tasks.binary-container-init.results.platforms_result)
     - name: annotations
       value: $(finally.binary-container-exit.results.annotations)
 
@@ -66,11 +66,42 @@ spec:
           value: '$(params.user-params)'
       timeout: "0"
 
-    - name: binary-container-prebuild
+    - name: binary-container-init
       runAfter:
         - clone
       taskRef:
-        name: binary-container-prebuild-0-1
+        name: binary-container-init-0-1
+      workspaces:
+        - name: ws-build-dir
+          workspace: ws-container
+          subPath: build-dir
+        - name: ws-context-dir
+          workspace: ws-container
+          subPath: context-dir
+        - name: ws-home-dir
+          workspace: ws-home-dir
+        - name: ws-registries-secret
+          workspace: ws-registries-secret
+        - name: ws-koji-secret
+          workspace: ws-koji-secret
+        - name: ws-reactor-config-map
+          workspace: ws-reactor-config-map
+        - name: ws-autobot-keytab
+          workspace: ws-autobot-keytab
+      params:
+        - name: osbs-image
+          value: "$(params.osbs-image)"
+        - name: pipeline-run-name
+          value: "$(context.pipelineRun.name)"
+        - name: user-params
+          value: '$(params.user-params)'
+      timeout: "0"
+
+    - name: binary-container-prebuild
+      runAfter:
+        - binary-container-init
+      taskRef:
+        name: binary-container-prebuild-0-2
       workspaces:
         - name: ws-build-dir
           workspace: ws-container

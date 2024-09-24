@@ -17,7 +17,7 @@ import pytest
 from atomic_reactor.inner import ImageBuildWorkflowData
 from atomic_reactor.plugin import TaskCanceledException, PluginFailedException
 from atomic_reactor.tasks.common import TaskParams
-from atomic_reactor.tasks.binary import PreBuildTaskParams, BinaryPreBuildTask
+from atomic_reactor.tasks.binary import InitTaskParams, BinaryPreBuildTask, BinaryInitTask
 from atomic_reactor.util import DockerfileImages
 
 from atomic_reactor import inner, dirs
@@ -194,18 +194,51 @@ def test_ensure_workflow_data_is_saved_in_various_conditions(
     assert {} == wf_data.plugins_results
 
 
+def test_ensure_workflow_data_is_saved_init_task(
+    build_dir, dummy_source, tmpdir
+):
+    context_dir = tmpdir.join("context_dir").mkdir()
+    params = InitTaskParams(build_dir=str(build_dir),
+                            config_file="config.yaml",
+                            context_dir=str(context_dir),
+                            namespace="test-namespace",
+                            pipeline_run_name='test-pipeline-run',
+                            user_params={},
+                            task_result='results',
+                            platforms_result='platforms_result')
+    (flexmock(params)
+     .should_receive("source")
+     .and_return(dummy_source))
+
+    task = BinaryInitTask(params)
+
+    (flexmock(plugin_based.inner.DockerBuildWorkflow)
+     .should_receive("build_container_image")
+     .once())
+
+    task.run()
+    time.sleep(1)
+    assert context_dir.join("workflow.json").exists()
+
+    wf_data = ImageBuildWorkflowData()
+    wf_data.load_from_dir(ContextDir(Path(context_dir)))
+    # As long as the data is loaded successfully, just check some
+    # attributes to check the data.
+    assert DockerfileImages() == wf_data.dockerfile_images
+    assert {} == wf_data.plugins_results
+
+
 def test_ensure_workflow_data_is_saved_prebuild_task(
     build_dir, dummy_source, tmpdir
 ):
     context_dir = tmpdir.join("context_dir").mkdir()
-    params = PreBuildTaskParams(build_dir=str(build_dir),
-                                config_file="config.yaml",
-                                context_dir=str(context_dir),
-                                namespace="test-namespace",
-                                pipeline_run_name='test-pipeline-run',
-                                user_params={},
-                                task_result='results',
-                                platforms_result='platforms_result')
+    params = TaskParams(build_dir=str(build_dir),
+                        config_file="config.yaml",
+                        context_dir=str(context_dir),
+                        namespace="test-namespace",
+                        pipeline_run_name='test-pipeline-run',
+                        user_params={},
+                        task_result='results')
     (flexmock(params)
      .should_receive("source")
      .and_return(dummy_source))
