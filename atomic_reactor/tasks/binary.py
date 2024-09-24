@@ -68,6 +68,15 @@ class BinaryInitTask(plugin_based.PluginBasedTask[InitTaskParams]):
         return workflow
 
 
+class BinaryCachitoTask(plugin_based.PluginBasedTask[TaskParams]):
+    """Binary container Cachito task."""
+
+    task_name = 'binary_container_cachito'
+    plugins_conf = [
+        {"name": "resolve_remote_source"},
+    ]
+
+
 class BinaryPreBuildTask(plugin_based.PluginBasedTask[TaskParams]):
     """Binary container pre-build task."""
 
@@ -77,7 +86,6 @@ class BinaryPreBuildTask(plugin_based.PluginBasedTask[TaskParams]):
         {"name": "bump_release"},
         {"name": "add_flatpak_labels"},
         {"name": "add_labels_in_dockerfile"},
-        {"name": "resolve_remote_source"},
         {"name": "add_help"},
         {"name": "add_image_content_manifest"},
         {"name": "add_dockerfile"},

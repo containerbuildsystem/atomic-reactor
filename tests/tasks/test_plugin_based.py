@@ -17,7 +17,9 @@ import pytest
 from atomic_reactor.inner import ImageBuildWorkflowData
 from atomic_reactor.plugin import TaskCanceledException, PluginFailedException
 from atomic_reactor.tasks.common import TaskParams
-from atomic_reactor.tasks.binary import InitTaskParams, BinaryPreBuildTask, BinaryInitTask
+from atomic_reactor.tasks.binary import (
+    InitTaskParams, BinaryPreBuildTask, BinaryInitTask, BinaryCachitoTask,
+)
 from atomic_reactor.util import DockerfileImages
 
 from atomic_reactor import inner, dirs
@@ -228,8 +230,9 @@ def test_ensure_workflow_data_is_saved_init_task(
     assert {} == wf_data.plugins_results
 
 
-def test_ensure_workflow_data_is_saved_prebuild_task(
-    build_dir, dummy_source, tmpdir
+@pytest.mark.parametrize("taskfunc", [BinaryCachitoTask, BinaryPreBuildTask])
+def test_ensure_workflow_data_is_saved_standard_task(
+    build_dir, dummy_source, tmpdir, taskfunc
 ):
     context_dir = tmpdir.join("context_dir").mkdir()
     params = TaskParams(build_dir=str(build_dir),
@@ -243,7 +246,7 @@ def test_ensure_workflow_data_is_saved_prebuild_task(
      .should_receive("source")
      .and_return(dummy_source))
 
-    task = BinaryPreBuildTask(params)
+    task = taskfunc(params)
 
     (flexmock(plugin_based.inner.DockerBuildWorkflow)
      .should_receive("build_container_image")
