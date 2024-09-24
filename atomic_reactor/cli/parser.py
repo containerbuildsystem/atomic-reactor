@@ -78,14 +78,21 @@ def parse_args(args: Optional[Sequence[str]] = None) -> dict:
     )
     clone.set_defaults(func=task.clone)
 
+    binary_container_init = tasks.add_parser(
+        "binary-container-init",
+        help="binary container pre-build step",
+        description="Execute binary container pre-build steps.",
+    )
+    binary_container_init.set_defaults(func=task.binary_container_init)
+    binary_container_init.add_argument("--platforms-result", metavar="FILE", default=None,
+                                       help="file to write final platforms result")
+
     binary_container_prebuild = tasks.add_parser(
         "binary-container-prebuild",
         help="binary container pre-build step",
         description="Execute binary container pre-build steps.",
     )
     binary_container_prebuild.set_defaults(func=task.binary_container_prebuild)
-    binary_container_prebuild.add_argument("--platforms-result", metavar="FILE", default=None,
-                                           help="file to write final platforms result")
 
     binary_container_build = tasks.add_parser(
         "binary-container-build",
