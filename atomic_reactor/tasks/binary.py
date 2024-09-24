@@ -20,8 +20,8 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
-class PreBuildTaskParams(TaskParams):
-    """Binary container prebuild task parameters"""
+class InitTaskParams(TaskParams):
+    """Binary container init task parameters"""
     platforms_result: Optional[str]
 
 
@@ -31,10 +31,10 @@ class BinaryExitTaskParams(TaskParams):
     annotations_result: Optional[str]
 
 
-class BinaryPreBuildTask(plugin_based.PluginBasedTask[PreBuildTaskParams]):
+class BinaryInitTask(plugin_based.PluginBasedTask[InitTaskParams]):
     """Binary container pre-build task."""
 
-    task_name = 'binary_container_prebuild'
+    task_name = 'binary_container_init_build'
     plugins_conf = [
         {"name": "distgit_fetch_artefacts"},
         {"name": "check_and_set_platforms"},
@@ -44,23 +44,9 @@ class BinaryPreBuildTask(plugin_based.PluginBasedTask[PreBuildTaskParams]):
         {"name": "check_base_image"},
         {"name": "koji_parent"},
         {"name": "resolve_composes"},
-        {"name": "flatpak_update_dockerfile"},
-        {"name": "bump_release"},
-        {"name": "add_flatpak_labels"},
-        {"name": "add_labels_in_dockerfile"},
-        {"name": "resolve_remote_source"},
         {"name": "pin_operator_digest"},
-        {"name": "add_help"},
         {"name": "fetch_maven_artifacts"},
-        {"name": "add_image_content_manifest"},
-        {"name": "add_dockerfile"},
-        {"name": "inject_yum_repos"},
-        {"name": "add_filesystem"},
-        {"name": "change_from_in_dockerfile"},
-        {"name": "hide_files"},
-        {"name": "distribution_scope"},
-        {"name": "add_buildargs_in_dockerfile"},
-        {"name": "tag_from_config"},
+
     ]
 
     def prepare_workflow(self) -> inner.DockerBuildWorkflow:
@@ -80,6 +66,29 @@ class BinaryPreBuildTask(plugin_based.PluginBasedTask[PreBuildTaskParams]):
             platforms_result=self._params.platforms_result,
         )
         return workflow
+
+
+class BinaryPreBuildTask(plugin_based.PluginBasedTask[TaskParams]):
+    """Binary container pre-build task."""
+
+    task_name = 'binary_container_prebuild'
+    plugins_conf = [
+        {"name": "flatpak_update_dockerfile"},
+        {"name": "bump_release"},
+        {"name": "add_flatpak_labels"},
+        {"name": "add_labels_in_dockerfile"},
+        {"name": "resolve_remote_source"},
+        {"name": "add_help"},
+        {"name": "add_image_content_manifest"},
+        {"name": "add_dockerfile"},
+        {"name": "inject_yum_repos"},
+        {"name": "add_filesystem"},
+        {"name": "change_from_in_dockerfile"},
+        {"name": "hide_files"},
+        {"name": "distribution_scope"},
+        {"name": "add_buildargs_in_dockerfile"},
+        {"name": "tag_from_config"},
+    ]
 
 
 class BinaryPostBuildTask(plugin_based.PluginBasedTask[TaskParams]):

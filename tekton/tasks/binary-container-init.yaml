@@ -1,10 +1,10 @@
 apiVersion: tekton.dev/v1beta1
 kind: Task
 metadata:
-  name: binary-container-prebuild-0-2  # dot is not allowed in the name
+  name: binary-container-init-0-1  # dot is not allowed in the name
 spec:
   description: >-
-    OSBS prebuild task for building binary container image
+    OSBS init task for building binary container image
   params:
     - name: osbs-image
       description: The location of the OSBS builder image (FQDN pullspec)
@@ -25,13 +25,16 @@ spec:
     - name: ws-reactor-config-map
     - name: ws-autobot-keytab
 
+  results:
+    - name: platforms_result
+
   stepTemplate:
     env:
       - name: HOME
         value: $(workspaces.ws-home-dir.path)
 
   steps:
-    - name: binary-container-prebuild
+    - name: binary-container-init
       image: $(params.osbs-image)
       workingDir: $(workspaces.ws-home-dir.path)
       resources:
@@ -43,4 +46,4 @@ spec:
           cpu: 395m
       script: |
         set -x
-        atomic-reactor -v task --user-params='$(params.user-params)' --build-dir=$(workspaces.ws-build-dir.path) --context-dir=$(workspaces.ws-context-dir.path) --config-file=$(workspaces.ws-reactor-config-map.path)/config.yaml --namespace=$(context.taskRun.namespace) --pipeline-run-name="$(params.pipeline-run-name)" binary-container-prebuild
+        atomic-reactor -v task --user-params='$(params.user-params)' --build-dir=$(workspaces.ws-build-dir.path) --context-dir=$(workspaces.ws-context-dir.path) --config-file=$(workspaces.ws-reactor-config-map.path)/config.yaml --namespace=$(context.taskRun.namespace) --pipeline-run-name="$(params.pipeline-run-name)" binary-container-init --platforms-result=$(results.platforms_result.path)
