@@ -1,0 +1,46 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: binary-container-cachito-0-1  # dot is not allowed in the name
+spec:
+  description: >-
+    OSBS cachito task for building binary container image
+  params:
+    - name: osbs-image
+      description: The location of the OSBS builder image (FQDN pullspec)
+      type: string
+    - name: pipeline-run-name
+      type: string
+      description: PipelineRun name to reference current PipelineRun
+    - name: user-params
+      type: string
+      description: User parameters in JSON format
+
+  workspaces:
+    - name: ws-build-dir
+    - name: ws-context-dir
+    - name: ws-home-dir
+    - name: ws-registries-secret  # access with $(workspaces.ws-registries-secret.path)/token
+    - name: ws-koji-secret  # access with $(workspaces.ws-koji-secret.path)/token
+    - name: ws-reactor-config-map
+    - name: ws-autobot-keytab
+
+  stepTemplate:
+    env:
+      - name: HOME
+        value: $(workspaces.ws-home-dir.path)
+
+  steps:
+    - name: binary-container-cachito
+      image: $(params.osbs-image)
+      workingDir: $(workspaces.ws-home-dir.path)
+      resources:
+        requests:
+          memory: 512Mi
+          cpu: 250m
+        limits:
+          memory: 1Gi
+          cpu: 395m
+      script: |
+        set -x
+        atomic-reactor -v task --user-params='$(params.user-params)' --build-dir=$(workspaces.ws-build-dir.path) --context-dir=$(workspaces.ws-context-dir.path) --config-file=$(workspaces.ws-reactor-config-map.path)/config.yaml --namespace=$(context.taskRun.namespace) --pipeline-run-name="$(params.pipeline-run-name)" binary-container-cachito

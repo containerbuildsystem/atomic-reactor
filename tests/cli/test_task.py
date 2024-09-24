@@ -65,6 +65,11 @@ def test_binary_container_init():
     assert task.binary_container_init(INIT_TASK_ARGS) == TASK_RESULT
 
 
+def test_binary_container_cachito():
+    mock(binary.BinaryCachitoTask, task_args=TASK_ARGS)
+    assert task.binary_container_cachito(TASK_ARGS) == TASK_RESULT
+
+
 def test_binary_container_prebuild():
     mock(binary.BinaryPreBuildTask, task_args=TASK_ARGS)
     assert task.binary_container_prebuild(TASK_ARGS) == TASK_RESULT

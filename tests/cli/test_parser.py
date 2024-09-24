@@ -84,6 +84,10 @@ def test_parse_args_version(capsys):
             {**EXPECTED_ARGS_CONTAINER_INIT, "func": task.binary_container_init},
         ),
         (
+            ["task", *REQUIRED_COMMON_ARGS, "binary-container-cachito"],
+            {**EXPECTED_ARGS, "func": task.binary_container_cachito},
+        ),
+        (
             ["task", *REQUIRED_COMMON_ARGS, "binary-container-prebuild"],
             {**EXPECTED_ARGS, "func": task.binary_container_prebuild},
         ),
@@ -116,6 +120,12 @@ def test_parse_args_version(capsys):
              "binary-container-init"],
             {**EXPECTED_ARGS_CONTAINER_INIT, "config_file": "config.yaml",
              "func": task.binary_container_init},
+        ),
+        (
+            ["task", *REQUIRED_COMMON_ARGS, "--config-file=config.yaml",
+             "binary-container-cachito"],
+            {**EXPECTED_ARGS, "config_file": "config.yaml",
+             "func": task.binary_container_cachito},
         ),
         (
             ["task", *REQUIRED_COMMON_ARGS, "--config-file=config.yaml",

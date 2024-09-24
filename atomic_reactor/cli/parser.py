@@ -87,6 +87,13 @@ def parse_args(args: Optional[Sequence[str]] = None) -> dict:
     binary_container_init.add_argument("--platforms-result", metavar="FILE", default=None,
                                        help="file to write final platforms result")
 
+    binary_container_cachito = tasks.add_parser(
+        "binary-container-cachito",
+        help="binary container cachito step",
+        description="Execute binary container cachito steps.",
+    )
+    binary_container_cachito.set_defaults(func=task.binary_container_cachito)
+
     binary_container_prebuild = tasks.add_parser(
         "binary-container-prebuild",
         help="binary container pre-build step",
