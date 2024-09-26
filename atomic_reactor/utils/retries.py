@@ -58,7 +58,7 @@ def hook_log_error_response_content(response, *args, **kwargs):
 
 def get_retrying_requests_session(client_statuses=HTTP_CLIENT_STATUS_RETRY,
                                   times=HTTP_MAX_RETRIES, delay=HTTP_BACKOFF_FACTOR,
-                                  method_whitelist=None, raise_on_status=True):
+                                  allowed_methods=None, raise_on_status=True):
     if _http_retries_disabled():
         times = 0
 
@@ -66,7 +66,7 @@ def get_retrying_requests_session(client_statuses=HTTP_CLIENT_STATUS_RETRY,
         total=int(times),
         backoff_factor=delay,
         status_forcelist=client_statuses,
-        method_whitelist=method_whitelist
+        allowed_methods=allowed_methods
     )
 
     # raise_on_status was added later to Retry, adding compatibility to work

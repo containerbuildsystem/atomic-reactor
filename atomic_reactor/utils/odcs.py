@@ -55,8 +55,8 @@ class ODCSClient(object):
         self._setup_session(insecure=insecure, token=token, cert=cert, kerberos_auth=kerberos_auth)
 
     def _setup_session(self, insecure, token, cert, kerberos_auth):
-        # method_whitelist=False allows retrying non-idempotent methods like POST
-        session = get_retrying_requests_session(method_whitelist=False)
+        # allowed_methods=False allows retrying non-idempotent methods like POST
+        session = get_retrying_requests_session(allowed_methods=False)
 
         session.verify = not insecure
 
