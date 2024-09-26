@@ -47,8 +47,8 @@ class CachitoAPI(object):
         self.timeout = 3600 if timeout is None else timeout
 
     def _make_session(self, insecure, cert):
-        # method_whitelist=False allows retrying non-idempotent methods like POST
-        session = get_retrying_requests_session(method_whitelist=False)
+        # allowed_methods=False allows retrying non-idempotent methods like POST
+        session = get_retrying_requests_session(allowed_methods=False)
         session.verify = not insecure
         if cert:
             session.cert = cert
