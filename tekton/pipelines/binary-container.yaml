@@ -70,7 +70,14 @@ spec:
       runAfter:
         - clone
       taskRef:
-        name: binary-container-init-0-1
+        resolver: git
+        params:
+        - name: url
+          value: https://github.com/containerbuildsystem/atomic-reactor.git
+        - name: revision
+          value: feature_cachi2
+        - name: pathInRepo
+          value: tekton/tasks/binary-container-init.yaml
       workspaces:
         - name: ws-build-dir
           workspace: ws-container
@@ -101,7 +108,14 @@ spec:
       runAfter:
         - binary-container-init
       taskRef:
-        name: binary-container-cachito-0-1
+        resolver: git
+        params:
+        - name: url
+          value: https://github.com/containerbuildsystem/atomic-reactor.git
+        - name: revision
+          value: feature_cachi2
+        - name: pathInRepo
+          value: tekton/tasks/binary-container-cachito.yaml
       workspaces:
         - name: ws-build-dir
           workspace: ws-container
@@ -132,7 +146,14 @@ spec:
       runAfter:
         - binary-container-cachito
       taskRef:
-        name: binary-container-prebuild-0-2
+        resolver: git
+        params:
+        - name: url
+          value: https://github.com/containerbuildsystem/atomic-reactor.git
+        - name: revision
+          value: feature_cachi2
+        - name: pathInRepo
+          value: tekton/tasks/binary-container-prebuild.yaml
       workspaces:
         - name: ws-build-dir
           workspace: ws-container
