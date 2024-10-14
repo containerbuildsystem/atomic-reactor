@@ -9,12 +9,18 @@ spec:
     - name: osbs-image
       description: The location of the OSBS builder image (FQDN pullspec)
       type: string
+    - name: cachi2-image
+      description: The location of the Cachi2 image (FQDN pullspec)
+      type: string
     - name: pipeline-run-name
       type: string
       description: PipelineRun name to reference current PipelineRun
     - name: user-params
       type: string
       description: User parameters in JSON format
+    - name: log-level
+      description: Set cachi2 log level (debug, info, warning, error)
+      default: "info"
 
   workspaces:
     - name: ws-build-dir
@@ -54,3 +60,67 @@ spec:
           --namespace="$(context.taskRun.namespace)" \
           --pipeline-run-name="$(params.pipeline-run-name)" \
           binary-container-cachi2-init
+    - name: binary-container-cachi2-run
+      image: $(params.cachi2-image)
+      env:
+        - name: LOG_LEVEL
+          value: $(params.log-level)
+      workingDir: $(workspaces.ws-home-dir.path)
+      resources:
+        requests:
+          memory: 512Mi
+          cpu: 250m
+        limits:
+          memory: 1Gi
+          cpu: 395m
+      script: |
+        #!/usr/bin/bash
+        set -eux
+        CACHI2_DIR="$(workspaces.ws-build-dir.path)/_cachi2_remote_sources"
+
+        if [ ! -d "$CACHI2_DIR" ]; then
+          echo "Skipping step: remote sources not found"
+          exit 0
+        fi
+
+        SBOMS=()
+
+        # Process each remote source
+        for REMOTE_SOURCE_PATH in "${CACHI2_DIR}"/*
+        do
+
+          pushd "${REMOTE_SOURCE_PATH}"
+
+          FOR_OUTPUT_DIR="$(cat cachi2_for_output_dir_opt.txt)"
+
+          cachi2 --log-level="$LOG_LEVEL" fetch-deps \
+            --source="${REMOTE_SOURCE_PATH}/app/" \
+            --output="${REMOTE_SOURCE_PATH}" \
+            "$(cat cachi2_pkg_options.json)"
+
+          SBOMS+=("${REMOTE_SOURCE_PATH}/bom.json")
+
+          cachi2 --log-level="$LOG_LEVEL" generate-env "${REMOTE_SOURCE_PATH}" \
+            --format json \
+            --for-output-dir="${FOR_OUTPUT_DIR}" \
+            --output "${REMOTE_SOURCE_PATH}/cachi2.env.json"
+
+          rm -fr app/.git/   # remove git directory
+
+          # create source archive before injecting files
+          tar -czf remote-source.tar.gz app/ deps/
+
+          cachi2 --log-level="$LOG_LEVEL" inject-files "${REMOTE_SOURCE_PATH}" \
+            --for-output-dir="${FOR_OUTPUT_DIR}"
+
+          popd
+        done
+
+        if [ "${#SBOMS[@]}" -gt 1 ]; then
+          # merge multiple sboms into single one
+          cachi2 --log-level="$LOG_LEVEL" merge-sboms "${SBOMS[@]}" \
+            --output "${CACHI2_DIR}/bom.json"
+        else
+          # single SBOM is the final SBOM
+          cp "${SBOMS[0]}" "${CACHI2_DIR}/bom.json"
+        fi
