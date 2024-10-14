@@ -93,6 +93,11 @@ import pytest
         {"flags": [], "packages": []},
         id="unsupported_git_submodule",
     ),
+    pytest.param(
+        {"pkg_managers": []},
+        {"flags": [], "packages": []},
+        id="empty_package_managers",
+    ),
 ])
 def test_remote_source_to_cachi2_conversion(input_remote_source, expected_cachi2):
     """Test conversion of remote_source (cachito) configuration from container yaml

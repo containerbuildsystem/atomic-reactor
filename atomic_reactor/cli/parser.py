@@ -94,6 +94,13 @@ def parse_args(args: Optional[Sequence[str]] = None) -> dict:
     )
     binary_container_cachito.set_defaults(func=task.binary_container_cachito)
 
+    binary_container_cachi2_init = tasks.add_parser(
+        "binary-container-cachi2-init",
+        help="binary container cachi2 init step",
+        description="Execute binary container cachi2 init step.",
+    )
+    binary_container_cachi2_init.set_defaults(func=task.binary_container_cachi2_init)
+
     binary_container_prebuild = tasks.add_parser(
         "binary-container-prebuild",
         help="binary container pre-build step",

@@ -112,6 +112,7 @@ PLUGIN_CANCEL_BUILD_RESERVATION = 'cancel_build_reservation'
 PLUGIN_FLATPAK_CREATE_OCI = 'flatpak_create_oci'
 PLUGIN_GENERATE_SBOM = 'generate_sbom'
 PLUGIN_RPMQA = 'all_rpm_packages'
+PLUGIN_CACHI2_INIT = "cachi2_init"
 
 # some shared dict keys for build metadata that gets recorded with koji.
 # for consistency of metadata in historical builds, these values basically cannot change.
@@ -196,6 +197,13 @@ REMOTE_SOURCE_JSON_FILENAME = 'remote-source.json'
 REMOTE_SOURCE_JSON_CONFIG_FILENAME = 'remote-source.config.json'
 REMOTE_SOURCE_JSON_ENV_FILENAME = 'remote-source.env.json'
 ICM_JSON_FILENAME = 'icm-{}.json'
+
+# Cachi2 constants
+CACHI2_BUILD_DIR = "_cachi2_remote_sources"
+CACHI2_BUILD_APP_DIR = "app"
+CACHI2_PKG_OPTIONS_FILE = "cachi2_pkg_options.json"
+CACHI2_FOR_OUTPUT_DIR_OPT_FILE = "cachi2_for_output_dir_opt.txt"
+CACHI2_SINGLE_REMOTE_SOURCE_NAME = "remote-source"
 
 # koji osbs_build metadata
 KOJI_KIND_IMAGE_BUILD = 'container_build'
