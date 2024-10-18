@@ -12,7 +12,11 @@ from typing import Optional
 from dataclasses import dataclass
 
 from atomic_reactor import inner
-from atomic_reactor.constants import DOCKERFILE_FILENAME
+from atomic_reactor.constants import (
+    PLUGIN_CACHI2_INIT,
+    PLUGIN_CACHI2_POSTPROCESS,
+    DOCKERFILE_FILENAME,
+)
 from atomic_reactor.tasks import plugin_based
 from atomic_reactor.tasks.common import TaskParams
 
@@ -74,6 +78,24 @@ class BinaryCachitoTask(plugin_based.PluginBasedTask[TaskParams]):
     task_name = 'binary_container_cachito'
     plugins_conf = [
         {"name": "resolve_remote_source"},
+    ]
+
+
+class BinaryCachi2InitTask(plugin_based.PluginBasedTask[TaskParams]):
+    """Binary container Cachi2 init task."""
+
+    task_name = 'binary_container_cachi2_init'
+    plugins_conf = [
+        {"name": PLUGIN_CACHI2_INIT},
+    ]
+
+
+class BinaryCachi2PostprocessTask(plugin_based.PluginBasedTask[TaskParams]):
+    """Binary container Cachi2 postprocess task."""
+
+    task_name = 'binary_container_cachi2_postprocess'
+    plugins_conf = [
+        {"name": PLUGIN_CACHI2_POSTPROCESS},
     ]
 
 

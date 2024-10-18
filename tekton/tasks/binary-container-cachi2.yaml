@@ -1,0 +1,139 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: binary-container-cachi2-0-1  # dot is not allowed in the name
+spec:
+  description: >-
+    OSBS cachi2 task for building binary container image
+  params:
+    - name: osbs-image
+      description: The location of the OSBS builder image (FQDN pullspec)
+      type: string
+    - name: pipeline-run-name
+      type: string
+      description: PipelineRun name to reference current PipelineRun
+    - name: user-params
+      type: string
+      description: User parameters in JSON format
+    - name: log-level
+      description: Set cachi2 log level (debug, info, warning, error)
+      default: "info"
+
+  workspaces:
+    - name: ws-build-dir
+    - name: ws-context-dir
+    - name: ws-home-dir
+    - name: ws-registries-secret  # access with $(workspaces.ws-registries-secret.path)/token
+    - name: ws-koji-secret  # access with $(workspaces.ws-koji-secret.path)/token
+    - name: ws-reactor-config-map
+    - name: ws-autobot-keytab
+
+  stepTemplate:
+    env:
+      - name: HOME
+        value: $(workspaces.ws-home-dir.path)
+
+  steps:
+    - name: binary-container-cachi2-init
+      image: $(params.osbs-image)
+      workingDir: $(workspaces.ws-home-dir.path)
+      resources:
+        requests:
+          memory: 512Mi
+          cpu: 250m
+        limits:
+          memory: 1Gi
+          cpu: 395m
+      script: |
+        set -x
+        atomic-reactor -v task \
+          --user-params='$(params.user-params)' \
+          --build-dir=$(workspaces.ws-build-dir.path) \
+          --context-dir=$(workspaces.ws-context-dir.path) \
+          --config-file=$(workspaces.ws-reactor-config-map.path)/config.yaml \
+          --namespace=$(context.taskRun.namespace) \
+          --pipeline-run-name="$(params.pipeline-run-name)" \
+          binary-container-cachi2-init
+    - name: binary-container-cachi2-run
+      image: "quay.io/redhat-appstudio/cachi2:latest"  # TODO: configurable image
+      env:
+        - name: LOG_LEVEL
+          value: $(params.log-level)
+      workingDir: $(workspaces.ws-home-dir.path)
+      resources:
+        requests:
+          memory: 512Mi
+          cpu: 250m
+        limits:
+          memory: 1Gi
+          cpu: 395m
+      script: |
+        #!/usr/bin/bash
+        set -eux
+        CACHI2_DIR="$(workspaces.ws-build-dir.path)/_cachi2_remote_sources"
+
+        if [ ! -d "$CACHI2_DIR" ]; then
+          echo "Skipping step: remote sources not found"
+          exit 0
+        fi
+
+        SBOMS=()
+
+        # Process each remote source
+        for SOURCE_DIR in "${CACHI2_DIR}/*/"
+        do
+          pushd "${SOURCE_DIR}"
+
+          FOR_OUTPUT_DIR="$(cat cachi2_for_output_dir_opt.txt)"
+
+          cachi2 --log-level="$LOG_LEVEL" fetch-deps \
+            --source="app/" \
+            --output="deps/" \
+            "$(cat cachi2_pkg_options.json)"
+
+          SBOMS+=("${SOURCE_DIR}/deps/bom.json")
+
+          cachi2 --log-level="$LOG_LEVEL" generate-env "deps/" \
+            --format json \
+            --for-output-dir="${FOR_OUTPUT_DIR}" \
+            --output "cachi2.env.json"
+
+          rm -fr app/.git/   # remove git directory
+
+          # create source archive before injecting files
+          tar -czf remote-source.tar.gz app/ deps/
+
+          cachi2 --log-level="$LOG_LEVEL" inject-files "deps/" \
+            --for-output-dir="${FOR_OUTPUT_DIR}"
+
+          popd
+        done
+
+        if [ "${#SBOMS[@]}" -gt 1 ]; then
+          # merge multiple sboms into single one
+          cachi2 --log-level="$LOG_LEVEL" merge-sboms ${SBOMS[@]} \
+            --output "${CACHI2_DIR}/bom.json"
+        else
+          # single SBOM is the final SBOM
+          cp "${SBOMS[0]}" "${CACHI2_DIR}/bom.json"
+        fi
+ - name: binary-container-cachi2-postprocess
+      image: $(params.osbs-image)
+      workingDir: $(workspaces.ws-home-dir.path)
+      resources:
+        requests:
+          memory: 512Mi
+          cpu: 250m
+        limits:
+          memory: 1Gi
+          cpu: 395m
+      script: |
+        set -x
+        atomic-reactor -v task \
+          --user-params='$(params.user-params)' \
+          --build-dir=$(workspaces.ws-build-dir.path) \
+          --context-dir=$(workspaces.ws-context-dir.path) \
+          --config-file=$(workspaces.ws-reactor-config-map.path)/config.yaml \
+          --namespace=$(context.taskRun.namespace) \
+          --pipeline-run-name="$(params.pipeline-run-name)" \
+          binary-container-cachi2-postprocess

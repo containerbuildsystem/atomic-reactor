@@ -104,18 +104,18 @@ spec:
           value: '$(params.user-params)'
       timeout: "0"
 
-    - name: binary-container-cachito
+    - name: binary-container-cachi2
       runAfter:
         - binary-container-init
       taskRef:
         resolver: git
         params:
         - name: url
-          value: https://github.com/containerbuildsystem/atomic-reactor.git
+          value: https://github.com/MartinBasti/atomic-reactor.git
         - name: revision
-          value: feature_cachi2
+          value: cachito2-init
         - name: pathInRepo
-          value: tekton/tasks/binary-container-cachito.yaml
+          value: tekton/tasks/binary-container-cachi2.yaml
       workspaces:
         - name: ws-build-dir
           workspace: ws-container
@@ -144,7 +144,7 @@ spec:
 
     - name: binary-container-prebuild
       runAfter:
-        - binary-container-cachito
+        - binary-container-cachi2
       taskRef:
         resolver: git
         params:

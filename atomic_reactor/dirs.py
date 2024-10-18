@@ -7,6 +7,7 @@ of the BSD license. See the LICENSE file for details.
 """
 import logging
 import reflink
+import re
 
 from pathlib import Path
 import shutil
@@ -337,3 +338,4 @@ class ContextDir:
     def get_platform_build_log(self, platform: str) -> Path:
         """Get platform-specific build log file."""
         return self._path / f"{platform}-build.log"
+
