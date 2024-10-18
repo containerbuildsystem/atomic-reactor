@@ -113,6 +113,7 @@ PLUGIN_FLATPAK_CREATE_OCI = 'flatpak_create_oci'
 PLUGIN_GENERATE_SBOM = 'generate_sbom'
 PLUGIN_RPMQA = 'all_rpm_packages'
 PLUGIN_CACHI2_INIT = "cachi2_init"
+PLUGIN_CACHI2_POSTPROCESS = "cachi2_postprocess"
 
 # some shared dict keys for build metadata that gets recorded with koji.
 # for consistency of metadata in historical builds, these values basically cannot change.

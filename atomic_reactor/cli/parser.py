@@ -101,6 +101,13 @@ def parse_args(args: Optional[Sequence[str]] = None) -> dict:
     )
     binary_container_cachi2_init.set_defaults(func=task.binary_container_cachi2_init)
 
+    binary_container_cachi2_postprocess = tasks.add_parser(
+        "binary-container-cachi2-postprocess",
+        help="binary container cachi2 init step",
+        description="Execute binary container cachi2 postprocess step.",
+    )
+    binary_container_cachi2_postprocess.set_defaults(func=task.binary_container_cachi2_postprocess)
+
     binary_container_prebuild = tasks.add_parser(
         "binary-container-prebuild",
         help="binary container pre-build step",
