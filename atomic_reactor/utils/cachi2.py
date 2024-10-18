@@ -8,7 +8,7 @@
 Utils to help to integrate with cachi2 CLI tool
 """
 
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple, List
 
 from packageurl import PackageURL
 
@@ -140,7 +140,7 @@ def gen_dependency_from_sbom_component(sbom_dep: Dict[str, Any]) -> Dict[str, Op
 
 def generate_request_json(
     remote_source: Dict[str, Any], remote_source_sbom: Dict[str, Any],
-    remote_source_env_json: Dict[str, Dict[str, str]],
+    remote_source_env_json: List[Dict[str, str]],
 ) -> Dict[str, Any]:
     """Generates Cachito like request.json
 
@@ -156,7 +156,7 @@ def generate_request_json(
         "pkg_managers": remote_source.get("pkg_managers", []),
         "ref": remote_source["ref"],
         "repo": remote_source["repo"],
-        "environment_variables": {key: val["value"] for key, val in remote_source_env_json.items()},
+        "environment_variables": {env['name']: env["value"] for env in remote_source_env_json},
         "flags": remote_source.get("flags", []),
         "packages": [],  # this will be always empty cachi2 doesn't provide nested deps
     }
