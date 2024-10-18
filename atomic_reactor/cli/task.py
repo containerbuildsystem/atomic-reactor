@@ -7,7 +7,7 @@ of the BSD license. See the LICENSE file for details.
 """
 from atomic_reactor.tasks.binary import (BinaryExitTask, BinaryPostBuildTask, BinaryPreBuildTask,
                                          BinaryInitTask, BinaryCachitoTask,
-                                         BinaryCachi2InitTask,
+                                         BinaryCachi2InitTask, BinaryCachi2PostprocessTask,
                                          InitTaskParams, BinaryExitTaskParams)
 from atomic_reactor.tasks.binary_container_build import BinaryBuildTask, BinaryBuildTaskParams
 from atomic_reactor.tasks.clone import CloneTask
@@ -73,6 +73,16 @@ def binary_container_cachi2_init(task_args: dict):
     """
     params = TaskParams.from_cli_args(task_args)
     task = BinaryCachi2InitTask(params)
+    return task.run(init_build_dirs=True)
+
+
+def binary_container_cachi2_postprocess(task_args: dict):
+    """Run binary container Cachi2 postprocess step.
+
+    :param task_args: CLI arguments for a binary-container-cachi2-postprocess task
+    """
+    params = TaskParams.from_cli_args(task_args)
+    task = BinaryCachi2PostprocessTask(params)
     return task.run(init_build_dirs=True)
 
 
