@@ -92,6 +92,10 @@ def test_parse_args_version(capsys):
             {**EXPECTED_ARGS, "func": task.binary_container_cachi2_init},
         ),
         (
+            ["task", *REQUIRED_COMMON_ARGS, "binary-container-cachi2-postprocess"],
+            {**EXPECTED_ARGS, "func": task.binary_container_cachi2_postprocess},
+        ),
+        (
             ["task", *REQUIRED_COMMON_ARGS, "binary-container-prebuild"],
             {**EXPECTED_ARGS, "func": task.binary_container_prebuild},
         ),

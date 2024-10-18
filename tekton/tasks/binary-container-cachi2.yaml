@@ -124,3 +124,26 @@ spec:
           # single SBOM is the final SBOM
           cp "${SBOMS[0]}" "${CACHI2_DIR}/bom.json"
         fi
+    - name: binary-container-cachi2-postprocess
+      image: $(params.osbs-image)
+      env:
+        - name: USER_PARAMS
+          value: $(params.user-params)
+      workingDir: $(workspaces.ws-home-dir.path)
+      resources:
+        requests:
+          memory: 512Mi
+          cpu: 250m
+        limits:
+          memory: 1Gi
+          cpu: 395m
+      script: |
+        set -x
+        atomic-reactor -v task \
+          --user-params="${USER_PARAMS}" \
+          --build-dir="$(workspaces.ws-build-dir.path)" \
+          --context-dir="$(workspaces.ws-context-dir.path)" \
+          --config-file="$(workspaces.ws-reactor-config-map.path)/config.yaml" \
+          --namespace="$(context.taskRun.namespace)" \
+          --pipeline-run-name="$(params.pipeline-run-name)" \
+          binary-container-cachi2-postprocess
