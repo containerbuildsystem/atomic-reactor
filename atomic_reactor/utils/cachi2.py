@@ -144,7 +144,7 @@ def generate_request_json(
         "pkg_managers": remote_source.get("pkg_managers", []),
         "ref": remote_source["ref"],
         "repo": remote_source["repo"],
-        "environment_variables": {key: val["value"] for key, val in remote_source_env_json.items()},
+        "environment_variables": {env['name']: env["value"] for env in remote_source_env_json},
         "flags": remote_source.get("flags", []),
         "packages": [],  # this will be always empty cachi2 doesn't provide nested deps
     }
