@@ -409,12 +409,12 @@ def test_generate_request_json():
         ],
     }
 
-    remote_source_env_json = {
-        "GOCACHE": {
-            "kind": "path",
-            "value": "deps/gomod"
+    remote_source_env_json = [
+        {
+          "name": "GOCACHE",
+          "value": "deps/gomod",
         },
-    }
+    ]
 
     expected = {
         "dependencies": [
