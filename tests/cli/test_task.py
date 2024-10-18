@@ -75,6 +75,11 @@ def test_binary_container_cachi2_init():
     assert task.binary_container_cachi2_init(TASK_ARGS) == TASK_RESULT
 
 
+def test_binary_container_cachi2_postprocess():
+    mock(binary.BinaryCachi2PostprocessTask, task_args=TASK_ARGS)
+    assert task.binary_container_cachi2_postprocess(TASK_ARGS) == TASK_RESULT
+
+
 def test_binary_container_prebuild():
     mock(binary.BinaryPreBuildTask, task_args=TASK_ARGS)
     assert task.binary_container_prebuild(TASK_ARGS) == TASK_RESULT
