@@ -143,6 +143,11 @@ class CheckBaseImagePlugin(Plugin):
         reg_client = self._get_registry_client(image.registry)
 
         manifest_list = reg_client.get_manifest_list(image)
+
+        if not manifest_list:
+            self.log.info('manifest list not found trying to get image index')
+            manifest_list = reg_client.get_manifest_index(image)
+
         if '@sha256:' in str(image) and not manifest_list:
             # we want to adjust the tag only for manifest list fetching
             image = image.copy()

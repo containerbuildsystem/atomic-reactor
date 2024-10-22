@@ -141,15 +141,26 @@ class TestKojiParent(object):
         plugin_args = {'koji_ssl_certs_dir': str(tmpdir)}
         self.run_plugin_with_args(workflow, plugin_args)
 
-    def test_koji_build_not_found(self, workflow, koji_session):  # noqa
+    @pytest.mark.parametrize('external', [True, False])
+    def test_koji_build_not_found(self, caplog, workflow, koji_session, external):  # noqa
         (flexmock(koji_session)
             .should_receive('getBuild')
             .with_args(KOJI_BUILD_NVR)
             .and_return(None))
 
-        with pytest.raises(PluginFailedException) as exc_info:
-            self.run_plugin_with_args(workflow, {'poll_timeout': 0.01})
-        assert 'KojiParentBuildMissing' in str(exc_info.value)
+        if external:
+            result = {
+                PARENT_IMAGES_KOJI_BUILDS: {
+                    ImageName.parse('base').to_str(): None,
+                }
+            }
+            self.run_plugin_with_args(workflow, expect_result=result,
+                                      external_base=external)
+            assert 'Parent image Koji build NOT found for' in caplog.text
+        else:
+            with pytest.raises(PluginFailedException) as exc_info:
+                self.run_plugin_with_args(workflow, {'poll_timeout': 0.01}, external_base=external)
+            assert 'KojiParentBuildMissing' in str(exc_info.value)
 
     def test_koji_build_deleted(self, workflow, koji_session):  # noqa
         (flexmock(koji_session)

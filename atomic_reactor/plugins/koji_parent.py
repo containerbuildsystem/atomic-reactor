@@ -23,7 +23,7 @@ import koji
 import time
 
 
-DEFAULT_POLL_TIMEOUT = 60 * 10  # 10 minutes
+DEFAULT_POLL_TIMEOUT = 60 * 3  # 3 minutes
 DEFAULT_POLL_INTERVAL = 10  # 10 seconds
 
 
@@ -273,7 +273,7 @@ class KojiParentPlugin(Plugin):
 
         return '-'.join(label_values)
 
-    def wait_for_parent_image_build(self, nvr: str) -> Dict[str, Any]:
+    def wait_for_parent_image_build(self, nvr: str) -> Optional[Dict[str, Any]]:
         """
         Given image NVR, wait for the build that produced it to show up in koji.
         If it doesn't within the timeout, raise an error.
@@ -295,7 +295,12 @@ class KojiParentPlugin(Plugin):
                     exc_msg = ('Parent image Koji build {} state is {}, not COMPLETE.')
                     raise KojiParentBuildMissing(exc_msg.format(nvr, build_state))
             time.sleep(self.poll_interval)
-        raise KojiParentBuildMissing('Parent image Koji build NOT found for {}!'.format(nvr))
+
+        if not self.workflow.conf.skip_koji_check_for_base_image:
+            raise KojiParentBuildMissing('Parent image Koji build NOT found for {}!'.format(nvr))
+
+        self.log.warning("Parent image Koji build NOT found for %s!", nvr)
+        return None
 
     def make_result(self) -> Optional[Dict[str, Any]]:
         """Construct the result dict to be preserved in the build metadata."""

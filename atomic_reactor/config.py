@@ -483,7 +483,7 @@ class Configuration(object):
     @property
     def skip_koji_check_for_base_image(self):
         return self._get_value(ReactorConfigKeys.SKIP_KOJI_CHECK_FOR_BASE_IMAGE_KEY,
-                               fallback=False)
+                               fallback=True)
 
     @property
     def deep_manifest_list_inspection(self):

@@ -148,7 +148,10 @@ class ResolveComposesPlugin(Plugin):
         if not self.plugin_result:
             return
 
-        build_info = self.plugin_result[BASE_IMAGE_KOJI_BUILD]
+        build_info = self.plugin_result.get(BASE_IMAGE_KOJI_BUILD)
+        if not build_info:
+            self.log.warning('Parent koji build does not exist can not inherit from the parent')
+            return
         parent_repourls = []
 
         try:
@@ -218,7 +221,11 @@ class ResolveComposesPlugin(Plugin):
                            PLUGIN_KOJI_PARENT_KEY)
             return
 
-        build_info = self.plugin_result[BASE_IMAGE_KOJI_BUILD]
+        build_info = self.plugin_result.get(BASE_IMAGE_KOJI_BUILD)
+        if not build_info:
+            self.log.warning('Parent koji build does not exist can not adjust '
+                             'signing intent from the parent')
+            return
 
         try:
             parent_signing_intent_name = build_info['extra']['image']['odcs']['signing_intent']

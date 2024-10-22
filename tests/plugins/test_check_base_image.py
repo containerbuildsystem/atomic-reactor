@@ -343,7 +343,7 @@ class TestValidateBaseImage(object):
                                      workflow_callback=workflow_callback)
         assert log_message in caplog.text
 
-    @pytest.mark.parametrize('has_manifest_list', (True, False))
+    @pytest.mark.parametrize('has_manifest_list', ("list", "index", None))
     @pytest.mark.parametrize('has_v2s2_manifest', (True, False))
     def test_single_platform_build(self, caplog, workflow, has_manifest_list, has_v2s2_manifest):
 
@@ -351,15 +351,24 @@ class TestValidateBaseImage(object):
             content = b'stubContent'
 
         def workflow_callback(workflow):
-            if has_manifest_list:
-                workflow = self.prepare(workflow, mock_get_manifest_list=True)
+            if has_manifest_list == "list":
+                workflow = self.prepare(workflow, mock_get_manifest_list=True,
+                                        mock_get_manifest_index=False)
+            elif has_manifest_list == "index":
+                workflow = self.prepare(workflow, mock_get_manifest_list=False,
+                                        mock_get_manifest_index=True)
             else:
-                workflow = self.prepare(workflow, mock_get_manifest_list=False)
+                workflow = self.prepare(workflow, mock_get_manifest_list=False,
+                                        mock_get_manifest_index=False)
             workflow.data.plugins_results[PLUGIN_CHECK_AND_SET_PLATFORMS_KEY] = {'x86_64'}
-            if not has_manifest_list:
+
+            if has_manifest_list is None:
                 resp = {'v2': StubResponse()} if has_v2s2_manifest else {}
                 (flexmock(atomic_reactor.util.RegistryClient)
                  .should_receive('get_manifest_list')
+                 .and_return(None))
+                (flexmock(atomic_reactor.util.RegistryClient)
+                 .should_receive('get_manifest_index')
                  .and_return(None))
                 (flexmock(atomic_reactor.util.RegistryClient)
                  .should_receive('get_all_manifests')
@@ -398,6 +407,9 @@ class TestValidateBaseImage(object):
             workflow = self.prepare(workflow, mock_get_manifest_list=False)
             (flexmock(atomic_reactor.util.RegistryClient)
              .should_receive('get_manifest_list')
+             .and_return(None))
+            (flexmock(atomic_reactor.util.RegistryClient)
+             .should_receive('get_manifest_index')
              .and_return(None))
             return workflow
 
@@ -462,6 +474,11 @@ class TestValidateBaseImage(object):
              .with_args(manifest_image)
              .and_return(None)
              .once())
+            (flexmock(atomic_reactor.util.RegistryClient)
+             .should_receive('get_manifest_index')
+             .with_args(manifest_image)
+             .and_return(None)
+             .once())
             return workflow
 
         with pytest.raises(PluginFailedException) as exc_info:
@@ -506,6 +523,11 @@ class TestValidateBaseImage(object):
             else:
                 (flexmock(atomic_reactor.util.RegistryClient)
                  .should_receive('get_manifest_list')
+                 .with_args(manifest_image_original)
+                 .and_return(None)
+                 .times(2))
+                (flexmock(atomic_reactor.util.RegistryClient)
+                 .should_receive('get_manifest_index')
                  .with_args(manifest_image_original)
                  .and_return(None)
                  .times(2))
@@ -594,7 +616,7 @@ class TestValidateBaseImage(object):
             builder_digests_dict = test_vals['workflow'].data.parent_images_digests
             assert builder_digests_dict == test_vals['expected_digest']
 
-    def prepare(self, workflow, mock_get_manifest_list=False):
+    def prepare(self, workflow, mock_get_manifest_list=False, mock_get_manifest_index=False):
         # Setup expected platforms
         env = (
             MockEnv(workflow)
@@ -607,17 +629,29 @@ class TestValidateBaseImage(object):
             )
         )
 
+        manifest_list = {
+            'manifests': [
+                {'platform': {'architecture': 'amd64'}, 'digest': 'sha256:123456'},
+                {'platform': {'architecture': 'ppc64le'}, 'digest': 'sha256:654321'},
+            ]
+        }
+
         if mock_get_manifest_list:
             # Setup multi-arch manifest list
-            manifest_list = {
-                'manifests': [
-                    {'platform': {'architecture': 'amd64'}, 'digest': 'sha256:123456'},
-                    {'platform': {'architecture': 'ppc64le'}, 'digest': 'sha256:654321'},
-                ]
-            }
             (flexmock(atomic_reactor.util.RegistryClient)
              .should_receive('get_manifest_list')
              .and_return(flexmock(json=lambda: manifest_list,
                                   content=json.dumps(manifest_list).encode('utf-8'))))
+
+        if mock_get_manifest_index:
+            # Setup multi-arch oci index
+            (flexmock(atomic_reactor.util.RegistryClient)
+             .should_receive('get_manifest_index')
+             .and_return(flexmock(json=lambda: manifest_list,
+                                  content=json.dumps(manifest_list).encode('utf-8'))))
+
+            (flexmock(atomic_reactor.util.RegistryClient)
+             .should_receive('get_manifest_list')
+             .and_return(None))
 
         return env.workflow
