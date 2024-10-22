@@ -1205,7 +1205,9 @@ class TestFetchSources(object):
                 assert log_msg in caplog.text
 
     @pytest.mark.parametrize('reason', ['external', 'other'])
-    def test_missing_srpm_header(self, koji_session, workflow, source_dir, reason):
+    def test_missing_srpm_header(self, caplog, requests_mock, koji_session, workflow,
+                                 source_dir, reason):
+        mock_koji_manifest_download(source_dir, requests_mock)
         (flexmock(koji_session)
             .should_receive('listArchives')
             .with_args(object, type='image')
@@ -1225,13 +1227,15 @@ class TestFetchSources(object):
             .and_return({}))
 
         runner = mock_env(workflow, source_dir, koji_build_nvr='foobar-1-1')
-        with pytest.raises(PluginFailedException) as exc_info:
-            runner.run()
 
-        if reason == 'external':
-            assert 'RPM comes from an external repo' in str(exc_info.value)
-        else:
+        if reason != 'external':
+            with pytest.raises(PluginFailedException) as exc_info:
+                runner.run()
             assert 'Missing SOURCERPM header' in str(exc_info.value)
+
+        else:
+            runner.run()
+            assert 'RPM comes from an external repo' in caplog.text
 
     def test_no_srpms_and_remote_sources(self, koji_session, workflow, source_dir):
         set_no_remote_source_in_koji_build(koji_session)

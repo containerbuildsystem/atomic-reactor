@@ -762,6 +762,17 @@ class RegistryClient(object):
         response, _ = self.get_manifest(image, version)
         return response
 
+    def get_manifest_index(self, image: ImageName) -> Optional[requests.Response]:
+        """Return manifest index for image.
+
+        :param image: ImageName, the remote image to inspect
+
+        :return: response, or None, with manifest list
+        """
+        version = 'oci_index'
+        response, _ = self.get_manifest(image, version)
+        return response
+
     def get_manifest_list_digest(self, image):
         """Return manifest list digest for image
 
@@ -775,7 +786,7 @@ class RegistryClient(object):
         return 'sha256:{}'.format(digest_dict['sha256sum'])
 
     def get_all_manifests(
-        self, image: ImageName, versions: Sequence[str] = ('v1', 'v2', 'v2_list')
+        self, image: ImageName, versions: Sequence[str] = ('v1', 'v2', 'v2_list', 'oci_index')
     ) -> Dict[str, requests.Response]:
         """Return manifest digests for image.
 
@@ -812,6 +823,11 @@ class RegistryClient(object):
         # we have manifest list
         if 'v2_list' in all_man_digests:
             manifest_list = all_man_digests['v2_list'].json()
+            blob_config, config_digest = self._config_and_id_from_manifest_list(
+                image, manifest_list, arch
+            )
+        elif 'oci_index' in all_man_digests:
+            manifest_list = all_man_digests['oci_index'].json()
             blob_config, config_digest = self._config_and_id_from_manifest_list(
                 image, manifest_list, arch
             )
@@ -889,11 +905,17 @@ class RegistryClient(object):
                 )
             manifest = arch_manifests[0]
 
-        if manifest["mediaType"] != MEDIA_TYPE_DOCKER_V2_SCHEMA2:
-            raise RuntimeError(f"Image {image}: v2 schema 1 in manifest list")
+        if (manifest["mediaType"] != MEDIA_TYPE_DOCKER_V2_SCHEMA2 and
+                manifest["mediaType"] != MEDIA_TYPE_OCI_V1):
+            raise RuntimeError(f"Image {image}: v2 schema 1 in manifest list, "
+                               f"oci in image index is missing")
 
-        v2_digest = manifest["digest"]
-        return self.get_config_and_id_from_registry(image, v2_digest, version='v2')
+        image_digest = manifest["digest"]
+
+        if manifest["mediaType"] == MEDIA_TYPE_DOCKER_V2_SCHEMA2:
+            return self.get_config_and_id_from_registry(image, image_digest, version='v2')
+        else:
+            return self.get_config_and_id_from_registry(image, image_digest, version='oci')
 
     def get_config_and_id_from_registry(self, image, digest: str, version='v2') -> Tuple[Dict, str]:
         """Return image config by digest
@@ -1115,7 +1137,7 @@ def get_manifest_list(image, registry, insecure=False, dockercfg_path=None):
 
 
 def get_all_manifests(image, registry, insecure=False, dockercfg_path=None,
-                      versions=('v1', 'v2', 'v2_list')):
+                      versions=('v1', 'v2', 'v2_list', 'oci_index')):
     """Return manifest digests for image.
 
     :param image: ImageName, the remote image to inspect

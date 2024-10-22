@@ -497,9 +497,9 @@
         "type": "string"
     },
     "skip_koji_check_for_base_image": {
-        "description": "Allow base image without a related koji build (insecure) when there are no NVR labels set on the base image. If the NVR labels are set on the base image, the check is performed regardless",
+        "description": "Allow base image without a related koji build (insecure)",
         "type": "boolean",
-        "default": false
+        "default": true
     },
     "deep_manifest_list_inspection": {
         "description": "If manifest list digest check fails, inspect the manifest list contents",

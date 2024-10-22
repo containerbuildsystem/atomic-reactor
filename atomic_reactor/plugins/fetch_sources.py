@@ -683,9 +683,11 @@ class FetchSourcesPlugin(Plugin):
             self.log.debug('Resolving SRPM for RPM ID: %s', rpm_id)
 
             if rpm['external_repo_name'] != 'INTERNAL':
-                msg = ('RPM comes from an external repo (RPM ID: {}). '
-                       'External RPMs are currently not supported.').format(rpm_id)
-                raise RuntimeError(msg)
+                msg = ('RPM comes from an external repo (RPM ID: {}; NVR: {}). '
+                       'External RPMs are currently not supported, '
+                       'skipping').format(rpm_id, rpm['nvr'])
+                self.log.warning(msg)
+                continue
 
             rpm_hdr = self.session.getRPMHeaders(rpm_id, headers=['SOURCERPM'])
             if 'SOURCERPM' not in rpm_hdr:
