@@ -28,6 +28,11 @@ import pytest
         id="pkg_rubygems_to_bundler",
     ),
     pytest.param(
+        {},
+        {"flags": [], "packages": [{"path": ".", "type": "gomod"}]},
+        id="pkg_manager_missing",
+    ),
+    pytest.param(
         {"pkg_managers": ["gomod"], "packages": {"gomod": [{"path": "operator"}]}},
         {"flags": [], "packages": [{"path": "operator", "type": "gomod"}]},
         id="pkg_manager_single_path"
