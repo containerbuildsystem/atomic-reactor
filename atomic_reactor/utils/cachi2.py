@@ -40,7 +40,12 @@ def remote_source_to_cachi2(remote_source: Dict[str, Any]) -> Dict[str, Any]:
     )
     cachi2_packages = []
 
-    for pkg_manager in remote_source["pkg_managers"]:
+    pkg_managers = remote_source.get("pkg_managers")
+    if pkg_managers is None:
+        # Cachito behavior, missing pkg_managers means to use gomod
+        pkg_managers = ["gomod"]
+
+    for pkg_manager in pkg_managers:
         if pkg_manager in removed_pkg_managers:
             continue
 
