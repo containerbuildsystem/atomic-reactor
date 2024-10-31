@@ -23,6 +23,11 @@ import pytest
         id="pkg_manager_plain",
     ),
     pytest.param(
+        {"pkg_managers": ["rubygems"]},
+        {"flags": [], "packages": [{"path": ".", "type": "bundler"}]},
+        id="pkg_rubygems_to_bundler",
+    ),
+    pytest.param(
         {"pkg_managers": ["gomod"], "packages": {"gomod": [{"path": "operator"}]}},
         {"flags": [], "packages": [{"path": "operator", "type": "gomod"}]},
         id="pkg_manager_single_path"

@@ -28,6 +28,10 @@ def remote_source_to_cachi2(remote_source: Dict[str, Any]) -> Dict[str, Any]:
     * git-submodule
 
     """
+    pkg_managers_map = {
+        "rubygems": "bundler"  # renamed in cachi2
+    }
+
     removed_flags = {"include-git-dir", "remove-unsafe-symlinks"}
     removed_pkg_managers = {"git-submodule"}
 
@@ -39,6 +43,9 @@ def remote_source_to_cachi2(remote_source: Dict[str, Any]) -> Dict[str, Any]:
     for pkg_manager in remote_source["pkg_managers"]:
         if pkg_manager in removed_pkg_managers:
             continue
+
+        # if pkg manager has different name in cachi2 update it
+        pkg_manager = pkg_managers_map.get(pkg_manager, pkg_manager)
 
         packages = remote_source.get("packages", {}).get(pkg_manager, [])
         packages = packages or [{"path": "."}]
