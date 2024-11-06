@@ -16,8 +16,10 @@ from osbs.utils import Labels
 
 from atomic_reactor.constants import (IMAGE_BUILD_INFO_DIR, INSPECT_ROOTFS,
                                       INSPECT_ROOTFS_LAYERS,
+                                      CACHI2_BUILD_DIR,
                                       PLUGIN_ADD_IMAGE_CONTENT_MANIFEST,
                                       PLUGIN_FETCH_MAVEN_KEY,
+                                      PLUGIN_CACHI2_POSTPROCESS,
                                       PLUGIN_RESOLVE_REMOTE_SOURCE)
 from atomic_reactor.config import get_cachito_session
 from atomic_reactor.dirs import BuildDir
@@ -25,6 +27,7 @@ from atomic_reactor.plugin import Plugin
 from atomic_reactor.util import (validate_with_schema, read_content_sets, map_to_user_params,
                                  allow_path_in_dockerignore)
 from atomic_reactor.utils.pnc import PNCUtil
+from atomic_reactor.utils.cachi2 import convert_SBOM_to_ICM
 
 
 class AddImageContentManifestPlugin(Plugin):
@@ -100,6 +103,8 @@ class AddImageContentManifestPlugin(Plugin):
         remote_source_results = wf_data.plugins_results.get(PLUGIN_RESOLVE_REMOTE_SOURCE) or []
         self.remote_source_ids = [remote_source['id'] for remote_source in remote_source_results]
 
+        self.cachi2_remote_sources = wf_data.plugins_results.get(PLUGIN_CACHI2_POSTPROCESS) or []
+
         fetch_maven_results = wf_data.plugins_results.get(PLUGIN_FETCH_MAVEN_KEY) or {}
         self.pnc_artifact_ids = fetch_maven_results.get('pnc_artifact_ids') or []
 
@@ -130,6 +135,12 @@ class AddImageContentManifestPlugin(Plugin):
 
         return len(inspect[INSPECT_ROOTFS][INSPECT_ROOTFS_LAYERS])
 
+    def _get_cachi2_icm(self) -> dict:
+        global_sbom_path = self.workflow.build_dir.path/CACHI2_BUILD_DIR/"bom.json"
+        with open(global_sbom_path, "r") as f:
+            sbom = json.load(f)
+        return convert_SBOM_to_ICM(sbom)
+
     @functools.cached_property
     def _icm_base(self) -> dict:
         """Create the platform-independent skeleton of the ICM document.
@@ -140,6 +151,8 @@ class AddImageContentManifestPlugin(Plugin):
 
         if self.remote_source_ids:
             icm = self.cachito_session.get_image_content_manifest(self.remote_source_ids)
+        elif self.cachi2_remote_sources:  # we doesn't support Cachito and Cachi2 together
+            icm = self._get_cachi2_icm()
 
         if self.pnc_artifact_ids:
             purl_specs = self.pnc_util.get_artifact_purl_specs(self.pnc_artifact_ids)
