@@ -36,6 +36,7 @@ from atomic_reactor.utils.koji import (
 from atomic_reactor.plugins.fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 
 from atomic_reactor.constants import (
+    PLUGIN_CACHI2_POSTPROCESS,
     PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY,
     PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
     PLUGIN_KOJI_IMPORT_SOURCE_CONTAINER_PLUGIN_KEY,
@@ -303,41 +304,76 @@ class KojiImportBase(Plugin):
         if pnc_build_metadata:
             extra['image']['pnc'] = pnc_build_metadata
 
-    def set_remote_sources_metadata(self, extra):
-        remote_source_result = self.workflow.data.plugins_results.get(
-            PLUGIN_RESOLVE_REMOTE_SOURCE
-        )
-        if remote_source_result:
-            if self.workflow.conf.allow_multiple_remote_sources:
-                remote_sources_image_metadata = [
-                    {"name": remote_source["name"], "url": remote_source["url"].rstrip('/download')}
-                    for remote_source in remote_source_result
-                ]
-                extra["image"]["remote_sources"] = remote_sources_image_metadata
+    def set_remote_sources_metadata_cachito(self, remote_source_result, extra):
+        if self.workflow.conf.allow_multiple_remote_sources:
+            remote_sources_image_metadata = [
+                {"name": remote_source["name"], "url": remote_source["url"].rstrip('/download')}
+                for remote_source in remote_source_result
+            ]
+            extra["image"]["remote_sources"] = remote_sources_image_metadata
 
-                remote_sources_typeinfo_metadata = [
-                    {
-                        "name": remote_source["name"],
-                        "url": remote_source["url"].rstrip('/download'),
-                        "archives": [
-                            remote_source["remote_source_json"]["filename"],
-                            remote_source["remote_source_tarball"]["filename"],
-                            remote_source["remote_source_json_env"]["filename"],
-                            remote_source["remote_source_json_config"]["filename"],
-                        ],
-                    }
-                    for remote_source in remote_source_result
-                ]
-            else:
-                extra["image"]["remote_source_url"] = remote_source_result[0]["url"]
-                remote_sources_typeinfo_metadata = {
-                    "remote_source_url": remote_source_result[0]["url"]
+            remote_sources_typeinfo_metadata = [
+                {
+                    "name": remote_source["name"],
+                    "url": remote_source["url"].rstrip('/download'),
+                    "archives": [
+                        remote_source["remote_source_json"]["filename"],
+                        remote_source["remote_source_tarball"]["filename"],
+                        remote_source["remote_source_json_env"]["filename"],
+                        remote_source["remote_source_json_config"]["filename"],
+                    ],
                 }
-
-            remote_source_typeinfo = {
-                KOJI_BTYPE_REMOTE_SOURCES: remote_sources_typeinfo_metadata,
+                for remote_source in remote_source_result
+            ]
+        else:
+            extra["image"]["remote_source_url"] = remote_source_result[0]["url"]
+            remote_sources_typeinfo_metadata = {
+                "remote_source_url": remote_source_result[0]["url"]
             }
-            extra.setdefault("typeinfo", {}).update(remote_source_typeinfo)
+
+        remote_source_typeinfo = {
+            KOJI_BTYPE_REMOTE_SOURCES: remote_sources_typeinfo_metadata,
+        }
+        extra.setdefault("typeinfo", {}).update(remote_source_typeinfo)
+
+    def set_remote_sources_metadata_cachi2(self, remote_source_result, extra):
+        remote_sources_typeinfo_metadata = []
+        if self.workflow.conf.allow_multiple_remote_sources:
+            remote_sources_image_metadata = [
+                {"name": remote_source["name"]}
+                for remote_source in remote_source_result
+            ]
+            extra["image"]["remote_sources"] = remote_sources_image_metadata
+
+            remote_sources_typeinfo_metadata = [
+                {
+                    "name": remote_source["name"],
+                    "archives": [
+                        remote_source["remote_source_json"]["filename"],
+                        remote_source["remote_source_tarball"]["filename"],
+                        remote_source["remote_source_json_env"]["filename"],
+                    ],
+                }
+                for remote_source in remote_source_result
+            ]
+
+        remote_source_typeinfo = {
+            KOJI_BTYPE_REMOTE_SOURCES: remote_sources_typeinfo_metadata,
+        }
+        extra.setdefault("typeinfo", {}).update(remote_source_typeinfo)
+
+    def set_remote_sources_metadata(self, extra):
+        func_map = {
+            PLUGIN_RESOLVE_REMOTE_SOURCE: self.set_remote_sources_metadata_cachito,
+            PLUGIN_CACHI2_POSTPROCESS: self.set_remote_sources_metadata_cachi2,
+        }
+        for plugin_name, func in func_map.items():
+            remote_source_result = self.workflow.data.plugins_results.get(
+                plugin_name
+            )
+            if remote_source_result:
+                func(remote_source_result, extra)
+                break
 
     def set_remote_source_file_metadata(self, extra):
         maven_url_sources_metadata_results = self.workflow.data.plugins_results.get(
@@ -613,9 +649,21 @@ class KojiImportPlugin(KojiImportBase):
 
     def _collect_remote_sources(self) -> Iterable[ArtifactOutputInfo]:
         wf_data = self.workflow.data
+
+        remote_source_keys = [
+            "remote_source_json", "remote_source_json_env", "remote_source_json_config",
+        ]
+
         # a list of metadata describing the remote sources.
         plugin_results: List[Dict[str, Any]]
         plugin_results = wf_data.plugins_results.get(PLUGIN_RESOLVE_REMOTE_SOURCE) or []
+        if not plugin_results:
+            # Cachi2
+            plugin_results = wf_data.plugins_results.get(PLUGIN_CACHI2_POSTPROCESS) or []
+            remote_source_keys = [
+                "remote_source_json", "remote_source_json_env",
+            ]
+
         tmpdir = tempfile.mkdtemp()
 
         for remote_source in plugin_results:
@@ -624,9 +672,7 @@ class KojiImportPlugin(KojiImportBase):
             dest_filename = remote_source_tarball['filename']
             yield local_filename, dest_filename, KOJI_BTYPE_REMOTE_SOURCES, None
 
-            for source_key in (
-                "remote_source_json", "remote_source_json_env", "remote_source_json_config",
-            ):
+            for source_key in remote_source_keys:
                 data_json = remote_source[source_key]
                 data_json_filename = data_json['filename']
                 file_path = os.path.join(tmpdir, data_json_filename)

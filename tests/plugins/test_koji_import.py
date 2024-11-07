@@ -7,6 +7,7 @@ of the BSD license. See the LICENSE file for details.
 """
 
 from collections import namedtuple
+from enum import Enum
 import json
 from pathlib import Path
 from typing import Any, Dict
@@ -37,6 +38,7 @@ from atomic_reactor.util import (ManifestDigest, DockerfileImages,
 from atomic_reactor.source import GitSource, PathSource
 from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, KOJI_BTYPE_OPERATOR_MANIFESTS,
                                       PLUGIN_ADD_FILESYSTEM_KEY,
+                                      PLUGIN_CACHI2_POSTPROCESS,
                                       PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY,
                                       PLUGIN_MAVEN_URL_SOURCES_METADATA_KEY,
                                       PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_KOJI_PARENT_KEY,
@@ -185,6 +187,12 @@ FAKE_OS_OUTPUT = 'fedora-22'
 REGISTRY = 'docker.example.com'
 
 
+class RemoteSourceKind(Enum):
+    NONE = 1
+    CACHITO = 2
+    CACHI2 = 3
+
+
 def fake_subprocess_output(cmd):
     if cmd.startswith('/bin/rpm'):
         return FAKE_RPM_OUTPUT
@@ -268,7 +276,8 @@ def mock_environment(workflow: DockerBuildWorkflow, source_dir: Path,
                      has_op_appregistry_manifests=False,
                      has_op_bundle_manifests=False,
                      push_operator_manifests_enabled=False, source_build=False,
-                     has_remote_source=False, has_remote_source_file=False,
+                     has_remote_source: RemoteSourceKind = RemoteSourceKind.NONE,
+                     has_remote_source_file=False,
                      has_pnc_build_metadata=False, scratch=False):
     if session is None:
         session = MockedClientSession('')
@@ -524,7 +533,7 @@ def mock_environment(workflow: DockerBuildWorkflow, source_dir: Path,
         results = workflow.data.plugins_results
         results[PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY] = str(archive_file)
 
-    if has_remote_source:
+    if has_remote_source == RemoteSourceKind.CACHITO:
         source_path = build_dir_path / REMOTE_SOURCE_TARBALL_FILENAME
         source_path.write_text('dummy file', 'utf-8')
         remote_source_result = [
@@ -550,6 +559,28 @@ def mock_environment(workflow: DockerBuildWorkflow, source_dir: Path,
             }
         ]
         workflow.data.plugins_results[PLUGIN_RESOLVE_REMOTE_SOURCE] = remote_source_result
+    elif has_remote_source == RemoteSourceKind.CACHI2:
+        source_path = build_dir_path / REMOTE_SOURCE_TARBALL_FILENAME
+        source_path.write_text('dummy file', 'utf-8')
+        remote_source_result = [
+            {
+                "name": None,
+                "url": "https://cachito.com/api/v1/requests/21048/download",
+                "remote_source_json": {
+                    "filename": REMOTE_SOURCE_JSON_FILENAME,
+                    "json": {"stub": "data"},
+                },
+                "remote_source_json_env": {
+                    "filename": REMOTE_SOURCE_JSON_ENV_FILENAME,
+                    "json": {"var": {"stub": "data"}},
+                },
+                "remote_source_tarball": {
+                    "filename": REMOTE_SOURCE_TARBALL_FILENAME,
+                    "path": str(source_path),
+                },
+            }
+        ]
+        workflow.data.plugins_results[PLUGIN_CACHI2_POSTPROCESS] = remote_source_result
     else:
         workflow.data.plugins_results[PLUGIN_RESOLVE_REMOTE_SOURCE] = None
 
@@ -1977,7 +2008,7 @@ class TestKojiImport(object):
 
         assert extra['image']['operator_manifests'] == expected
 
-    @pytest.mark.parametrize('has_remote_source', [True, False])
+    @pytest.mark.parametrize('has_remote_source', list(RemoteSourceKind))
     @pytest.mark.parametrize('allow_multiple_remote_sources', [True, False])
     def test_remote_sources(self, workflow, source_dir,
                             has_remote_source, allow_multiple_remote_sources):
@@ -2000,7 +2031,7 @@ class TestKojiImport(object):
         assert isinstance(extra, dict)
         # https://github.com/PyCQA/pylint/issues/2186
         # pylint: disable=W1655
-        if has_remote_source:
+        if has_remote_source == RemoteSourceKind.CACHITO:
             if allow_multiple_remote_sources:
                 assert extra['image']['remote_sources'] == [
                     {
@@ -2031,7 +2062,28 @@ class TestKojiImport(object):
                 }
                 assert REMOTE_SOURCE_TARBALL_FILENAME in session.uploaded_files.keys()
                 assert REMOTE_SOURCE_JSON_FILENAME in session.uploaded_files.keys()
-
+        elif has_remote_source == RemoteSourceKind.CACHI2:
+            if allow_multiple_remote_sources:
+                assert extra['image']['remote_sources'] == [
+                    {
+                        'name': None,
+                    }
+                ]
+                assert 'remote-sources' in extra['typeinfo']
+                assert extra['typeinfo']['remote-sources'] == [
+                    {
+                        'name': None,
+                        'archives': [
+                            'remote-source.json', 'remote-source.tar.gz',
+                            'remote-source.env.json'
+                        ],
+                    }
+                ]
+                assert REMOTE_SOURCE_TARBALL_FILENAME in session.uploaded_files.keys()
+                assert REMOTE_SOURCE_JSON_FILENAME in session.uploaded_files.keys()
+            else:
+                assert REMOTE_SOURCE_TARBALL_FILENAME in session.uploaded_files.keys()
+                assert REMOTE_SOURCE_JSON_FILENAME in session.uploaded_files.keys()
         else:
             assert 'remote_source_url' not in extra['image']
             assert REMOTE_SOURCE_TARBALL_FILENAME not in session.uploaded_files.keys()
