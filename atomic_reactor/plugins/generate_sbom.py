@@ -13,13 +13,15 @@ from copy import deepcopy
 from typing import Any, Dict, List, Optional
 
 from atomic_reactor.constants import (PLUGIN_GENERATE_SBOM,
+                                      PLUGIN_CACHI2_POSTPROCESS,
                                       PLUGIN_RPMQA,
                                       PLUGIN_RESOLVE_REMOTE_SOURCE,
                                       SBOM_SCHEMA_PATH,
                                       PLUGIN_FETCH_MAVEN_KEY,
                                       INSPECT_CONFIG,
                                       KOJI_BTYPE_ICM,
-                                      ICM_JSON_FILENAME)
+                                      ICM_JSON_FILENAME,
+                                      CACHI2_BUILD_DIR)
 from atomic_reactor.config import get_cachito_session, get_koji_session
 from atomic_reactor.utils import retries
 from atomic_reactor.utils.cachito import CachitoAPI
@@ -92,6 +94,8 @@ class GenerateSbomPlugin(Plugin):
         remote_source_results = wf_data.plugins_results.get(PLUGIN_RESOLVE_REMOTE_SOURCE) or []
         self.remote_source_ids = [remote_source['id'] for remote_source in remote_source_results]
 
+        self.cachi2_remote_sources = wf_data.plugins_results.get(PLUGIN_CACHI2_POSTPROCESS) or []
+
         self.rpm_components = wf_data.plugins_results.get(PLUGIN_RPMQA) or {}
 
         fetch_maven_results = wf_data.plugins_results.get(PLUGIN_FETCH_MAVEN_KEY) or {}
@@ -130,6 +134,12 @@ class GenerateSbomPlugin(Plugin):
 
         if read_fetch_artifacts_url(self.workflow):
             self.incompleteness_reasons.add("fetch url is used")
+
+    def get_cachi2_sbom(self) -> dict:
+        """Get SBOM from cachi2 results"""
+        global_sbom_path = self.workflow.build_dir.path/CACHI2_BUILD_DIR/"bom.json"
+        with open(global_sbom_path, "r") as f:
+            return json.load(f)
 
     def add_parent_missing_sbom_reason(self, nvr: str) -> None:
         self.incompleteness_reasons.add(f"parent build '{nvr}' is missing SBOM")
@@ -331,6 +341,8 @@ class GenerateSbomPlugin(Plugin):
         if self.remote_source_ids:
             remote_sources_sbom = self.cachito_session.get_sbom(self.remote_source_ids)
             remote_souces_components = remote_sources_sbom['components']
+        elif self.cachi2_remote_sources:  # Cachi2 and Cachito are not supported to be used together
+            remote_souces_components = self.get_cachi2_sbom()['components']
 
         # add components from cachito, rpms, pnc
         for platform in self.all_platforms:
