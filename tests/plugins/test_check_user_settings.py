@@ -11,6 +11,7 @@ from textwrap import dedent
 
 import pytest
 from flexmock import flexmock
+import yaml
 
 from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.check_user_settings import CheckUserSettingsPlugin
@@ -57,6 +58,11 @@ def mock_dockerfile_multistage(source_dir: Path, labels, from_scratch=False):
     source_dir.joinpath(DOCKERFILE_FILENAME).write_text(
         data.format(data_from=data_from, extra_labels=extra_labels), "utf-8"
     )
+
+
+def mock_reactor_config(workflow, data=None):
+    config = yaml.safe_load(data)
+    workflow.conf.conf = config
 
 
 class FakeSource(StubSource):
@@ -278,3 +284,68 @@ class TestValidateUserConfigFiles(object):
         runner = mock_env(workflow, source_dir)
         with pytest.raises(PluginFailedException, match="validating 'pattern' has failed"):
             runner.run()
+
+
+class TestRemoteSourceVersion(object):
+    """Test resolve_remote_sources_version"""
+
+    def test_return_default_version_unconfigured(self, workflow, source_dir, tmpdir):
+        """Nothing in reactor config nor container yaml"""
+        result_file = tmpdir / "result.txt"
+        runner = mock_env(workflow, source_dir)
+
+        workflow.remote_sources_version_result = str(result_file)
+        runner.run()
+
+        with open(result_file, "r") as f:
+            assert f.read() == "1"
+
+    def test_return_default_version_configured(self, workflow, source_dir, tmpdir):
+        """Default version configured in reactor config"""
+        result_file = tmpdir / "result.txt"
+        runner = mock_env(workflow, source_dir)
+
+        workflow.remote_sources_version_result = str(result_file)
+
+        mock_reactor_config(
+            workflow,
+            dedent("""
+            ---
+            # 30 not valid version, for testing purposes
+            remote_sources_default_version: 30
+            """))
+        runner.run()
+
+        with open(result_file, "r") as f:
+            assert f.read() == "30"
+
+    def test_return_container_yaml_version(self, workflow, source_dir, tmpdir):
+        """Version explicitly specified by user"""
+        result_file = tmpdir / "result.txt"
+        runner = mock_env(workflow, source_dir)
+
+        workflow.source.config.remote_sources_version = 40  # invalid version, for testing purposes
+        workflow.remote_sources_version_result = str(result_file)
+        runner.run()
+
+        with open(result_file, "r") as f:
+            assert f.read() == "40"
+
+    def test_return_container_yaml_version_priority(self, workflow, source_dir, tmpdir):
+        """Version explicitly specified by user has priority over reactor config"""
+        result_file = tmpdir / "result.txt"
+        runner = mock_env(workflow, source_dir)
+
+        mock_reactor_config(
+            workflow,
+            dedent("""
+            ---
+            # 50 not valid version, for testing purposes
+            remote_sources_default_version: 50
+            """))
+        workflow.source.config.remote_sources_version = 51  # invalid version, for testing purposes
+        workflow.remote_sources_version_result = str(result_file)
+        runner.run()
+
+        with open(result_file, "r") as f:
+            assert f.read() == "51"

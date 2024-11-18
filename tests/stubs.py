@@ -12,6 +12,7 @@ of the BSD license. See the LICENSE file for details.
 class StubConfig(object):
     image_build_method = None
     release_env_var = None
+    remote_sources_version = None
 
 
 class StubSource(object):
