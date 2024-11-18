@@ -27,6 +27,7 @@ spec:
 
   results:
     - name: platforms_result
+    - name: remote_sources_version_result
 
   stepTemplate:
     env:
@@ -46,4 +47,13 @@ spec:
           cpu: 395m
       script: |
         set -x
-        atomic-reactor -v task --user-params='$(params.user-params)' --build-dir=$(workspaces.ws-build-dir.path) --context-dir=$(workspaces.ws-context-dir.path) --config-file=$(workspaces.ws-reactor-config-map.path)/config.yaml --namespace=$(context.taskRun.namespace) --pipeline-run-name="$(params.pipeline-run-name)" binary-container-init --platforms-result=$(results.platforms_result.path)
+        atomic-reactor -v task \
+          --user-params='$(params.user-params)' \
+          --build-dir=$(workspaces.ws-build-dir.path) \
+          --context-dir=$(workspaces.ws-context-dir.path) \
+          --config-file=$(workspaces.ws-reactor-config-map.path)/config.yaml \
+          --namespace=$(context.taskRun.namespace) \
+          --pipeline-run-name="$(params.pipeline-run-name)" \
+          binary-container-init \
+          --platforms-result=$(results.platforms_result.path) \
+          --remote-sources-version-result="$(results.remote_sources_version_result.path)"

@@ -86,6 +86,9 @@ def parse_args(args: Optional[Sequence[str]] = None) -> dict:
     binary_container_init.set_defaults(func=task.binary_container_init)
     binary_container_init.add_argument("--platforms-result", metavar="FILE", default=None,
                                        help="file to write final platforms result")
+    binary_container_init.add_argument("--remote-sources-version-result", metavar="FILE",
+                                       default=None,
+                                       help="file to write final remote-sources version result")
 
     binary_container_cachito = tasks.add_parser(
         "binary-container-cachito",

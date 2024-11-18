@@ -111,7 +111,7 @@ opentelemetry-semantic-conventions==0.41b0
     #   opentelemetry-sdk
 opentelemetry-util-http==0.41b0
     # via opentelemetry-instrumentation-requests
-osbs-client @ git+https://github.com/containerbuildsystem/osbs-client@628b0707b5f3ebb40399ff8f622db22e4799b8fb
+osbs-client @ git+https://github.com/containerbuildsystem/osbs-client@541387019135f2bb6fc8054a453641f0e9feb3d7
     # via -r requirements.in
 otel-extensions==0.2.5
     # via -r otel-requirements.in

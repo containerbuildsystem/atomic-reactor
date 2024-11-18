@@ -462,6 +462,7 @@ class DockerBuildWorkflow(object):
         plugin_files: Optional[List[str]] = None,
         keep_plugins_running: bool = False,
         platforms_result: Optional[str] = None,
+        remote_sources_version_result: Optional[str] = None,
         annotations_result: Optional[str] = None,
     ):
         """
@@ -483,6 +484,7 @@ class DockerBuildWorkflow(object):
         :param bool keep_plugins_running: keep plugins running even if error is
             raised from previous one. This is passed to ``PluginsRunner`` directly.
         :param platforms_result: path to platform results for prebuild task
+        :param remote_sources_version_result: path to remote_sources_version result
         :param annotations_result: path to annotations result for exit task
         """
         self.context_dir = context_dir
@@ -493,6 +495,7 @@ class DockerBuildWorkflow(object):
         self.source = source or DummySource(None, None)
         self.user_params = user_params or self._default_user_params.copy()
         self.platforms_result = platforms_result
+        self.remote_sources_version_result = remote_sources_version_result
         self.annotations_result = annotations_result
 
         self.keep_plugins_running = keep_plugins_running

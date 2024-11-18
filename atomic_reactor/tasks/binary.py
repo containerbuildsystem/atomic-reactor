@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 class InitTaskParams(TaskParams):
     """Binary container init task parameters"""
     platforms_result: Optional[str]
+    remote_sources_version_result: Optional[str]
 
 
 @dataclass(frozen=True)
@@ -68,6 +69,7 @@ class BinaryInitTask(plugin_based.PluginBasedTask[InitTaskParams]):
             plugins_conf=self.plugins_conf,
             keep_plugins_running=self.keep_plugins_running,
             platforms_result=self._params.platforms_result,
+            remote_sources_version_result=self._params.remote_sources_version_result,
         )
         return workflow
 

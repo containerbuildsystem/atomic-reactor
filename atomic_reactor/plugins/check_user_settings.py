@@ -109,9 +109,26 @@ class CheckUserSettingsPlugin(Plugin):
         read_fetch_artifacts_url(self.workflow)
         read_content_sets(self.workflow)
 
+    def resolve_remote_sources_version(self):
+        """Resolve which version of remote sources should be used"""
+        version = self.workflow.source.config.remote_sources_version
+        if not version:
+            version = self.workflow.conf.remote_sources_default_version
+
+        self.log.info("Remote sources version to be used: %d", version)
+
+        if self.workflow.remote_sources_version_result:
+            with open(self.workflow.remote_sources_version_result, 'w') as f:
+                f.write(f"{version}")
+                f.flush()
+        else:
+            self.log.warning("remote_sources_version_result path is not specified, "
+                             "result won't be written")
+
     def run(self):
         """
         run the plugin
         """
         self.dockerfile_checks()
         self.validate_user_config_files()
+        self.resolve_remote_sources_version()
