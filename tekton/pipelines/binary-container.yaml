@@ -153,7 +153,14 @@ spec:
       runAfter:
         - binary-container-init
       taskRef:
-        name: binary-container-cachi2-0-1
+        resolver: git
+        params:
+        - name: url
+          value: https://github.com/containerbuildsystem/atomic-reactor.git
+        - name: revision
+          value: feature_cachi2
+        - name: pathInRepo
+          value: tekton/tasks/binary-container-cachi2.yaml
       workspaces:
         - name: ws-build-dir
           workspace: ws-container
