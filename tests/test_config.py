@@ -1469,6 +1469,19 @@ operator_manifests:
         else:
             assert not dockerfile_images
 
+    @pytest.mark.parametrize('param', [
+        ("", 1),  # default
+        ("remote_sources_default_version: 2", 2),
+    ])
+    def test_remote_sources_default_version(self, param):
+        config, expected = param
+        config += "\n" + REQUIRED_CONFIG
+
+        config_json = read_yaml(config, 'schemas/config.json')
+        conf = Configuration(raw_config=config_json)
+
+        assert conf.remote_sources_default_version == expected
+
 
 def test_ensure_odcsconfig_does_not_modify_original_signing_intents():
     signing_intents = [{'name': 'release', 'keys': ['R123', 'R234']}]

@@ -208,7 +208,9 @@ def test_ensure_workflow_data_is_saved_init_task(
                             pipeline_run_name='test-pipeline-run',
                             user_params={},
                             task_result='results',
-                            platforms_result='platforms_result')
+                            platforms_result='platforms_result',
+                            remote_sources_version_result='version_result',
+                            )
     (flexmock(params)
      .should_receive("source")
      .and_return(dummy_source))

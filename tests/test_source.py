@@ -256,6 +256,11 @@ class TestSourceConfigSchemaValidation(object):
                                      {'path': 'proxy'}]},
             }}
         ), (
+            """\
+            remote_sources_version: 2
+            """,
+            {"remote_sources_version": 2}
+        ), (
           """\
           operator_manifests:
             manifests_dir: path/to/manifests
@@ -387,6 +392,10 @@ class TestSourceConfigSchemaValidation(object):
         go:
           modules:
             - module: example.com/go/package
+        """,
+
+        """\
+        remote_sources_version: 500  # no such version
         """,
 
         """\

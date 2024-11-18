@@ -708,6 +708,12 @@
         }
       },
       "additionalProperties": false
+    },
+    "remote_sources_default_version": {
+        "description": "Default version of remote sources resolving which will be used when user doesn't explicitly specify it",
+        "type": "number",
+        "minimum": 1,
+        "maximum": 2
     }
   },
   "definitions": {

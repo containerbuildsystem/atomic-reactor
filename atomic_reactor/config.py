@@ -187,6 +187,7 @@ class ReactorConfigKeys(object):
     OPERATOR_MANIFESTS_KEY = 'operator_manifests'
     IMAGE_SIZE_LIMIT_KEY = 'image_size_limit'
     BUILDER_CA_BUNDLE_KEY = 'builder_ca_bundle'
+    REMOTE_SOURCES_DEFAULT_VERSION = 'remote_sources_default_version'
 
 
 class ODCSConfig(object):
@@ -511,3 +512,7 @@ class Configuration(object):
     @property
     def builder_ca_bundle(self):
         return self._get_value(ReactorConfigKeys.BUILDER_CA_BUNDLE_KEY, fallback=None)
+
+    @property
+    def remote_sources_default_version(self):
+        return self._get_value(ReactorConfigKeys.REMOTE_SOURCES_DEFAULT_VERSION, fallback=1)
