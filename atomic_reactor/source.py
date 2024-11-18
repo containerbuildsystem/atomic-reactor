@@ -72,6 +72,7 @@ class SourceConfig(object):
             self.compose.pop('inherit', None)
         self.remote_source = self.data.get('remote_source')
         self.remote_sources = self.data.get('remote_sources')
+        self.remote_sources_version = self.data.get('remote_sources_version', 1)
         self.operator_manifests = self.data.get('operator_manifests')
 
         self.platforms = self.data.get('platforms') or {'not': [], 'only': []}

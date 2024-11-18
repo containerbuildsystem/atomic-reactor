@@ -44,6 +44,7 @@ EXPECTED_ARGS_BINARY_CONTAINER_BUILD = {
 EXPECTED_ARGS_CONTAINER_INIT = {
     **EXPECTED_ARGS,
     "platforms_result": None,
+    "remote_sources_version_result": None,
 }
 EXPECTED_ARGS_JOB = {
     "quiet": False,
@@ -162,7 +163,13 @@ def test_parse_args_version(capsys):
         (
             ["task", *REQUIRED_COMMON_ARGS, "binary-container-init",
              "--platforms-result=platforms_file"],
-            {**EXPECTED_ARGS, "platforms_result": "platforms_file",
+            {**EXPECTED_ARGS_CONTAINER_INIT, "platforms_result": "platforms_file",
+             "func": task.binary_container_init},
+        ),
+        (
+            ["task", *REQUIRED_COMMON_ARGS, "binary-container-init",
+             "--remote-sources-version-result=version_file"],
+            {**EXPECTED_ARGS_CONTAINER_INIT, "remote_sources_version_result": "version_file",
              "func": task.binary_container_init},
         ),
         (
