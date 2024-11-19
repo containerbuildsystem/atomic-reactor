@@ -602,9 +602,17 @@ class PullspecReplacer(object):
         if image.tag.startswith("sha256:"):
             self.log.debug("%s looks like a digest, skipping query", image.tag)
             return image
-        self.log.debug("Querying %s for manifest list digest", image.registry)
+
         registry_client = self._get_registry_client(image.registry)
-        digest = registry_client.get_manifest_list_digest(image)
+
+        self.log.debug("Querying %s for manifest list digest", image.registry)
+        try:
+            digest = registry_client.get_manifest_list_digest(image)
+        except RuntimeError:
+            self.log.debug("manifest list not found trying image index")
+            self.log.debug("Querying %s for manifest index digest", image.registry)
+            digest = registry_client.get_manifest_index_digest(image)
+
         return self._replace(image, tag=digest)
 
     def replace_registry(self, image):

@@ -209,7 +209,7 @@ def mock_package_mapping_files(repo_replacements):
     return repo_replacements
 
 
-def mock_digest_query(image_digest_map):
+def mock_digest_query(image_digest_map, manifest_list_raises=False, manifest_index_raises=False):
 
     updated_map = {
         ImageName.parse(pullspec).to_str(): digest
@@ -219,9 +219,23 @@ def mock_digest_query(image_digest_map):
     def mocked_get_manifest_list_digest(image):
         return updated_map[image.to_str()]
 
-    (flexmock(atomic_reactor.util.RegistryClient)
-        .should_receive('get_manifest_list_digest')
-        .replace_with(mocked_get_manifest_list_digest))
+    if manifest_list_raises:
+        (flexmock(atomic_reactor.util.RegistryClient)
+            .should_receive('get_manifest_list_digest')
+            .and_raise(RuntimeError, "Unable to fetch v2.manifest_list for"))
+    else:
+        (flexmock(atomic_reactor.util.RegistryClient)
+            .should_receive('get_manifest_list_digest')
+            .replace_with(mocked_get_manifest_list_digest))
+
+    if manifest_index_raises:
+        (flexmock(atomic_reactor.util.RegistryClient)
+            .should_receive('get_manifest_index_digest')
+            .and_raise(RuntimeError, "Unable to fetch oci.index for {}"))
+    else:
+        (flexmock(atomic_reactor.util.RegistryClient)
+            .should_receive('get_manifest_index_digest')
+            .replace_with(mocked_get_manifest_list_digest))
 
 
 def mock_inspect_query(pullspec, labels, times=1):
@@ -424,9 +438,46 @@ class TestPinOperatorDigest(object):
         )
         assert expected in str(exc_info.value)
 
-    @pytest.mark.parametrize('ocp_44', [True, False])
     @responses.activate
-    def test_pin_operator_digest(self, ocp_44, workflow, repo_dir, caplog):
+    def test_raise_when_manifest_list_and_index_not_found(self, workflow, repo_dir):
+        pullspecs = [
+            'old-registry/ns/spam@sha256:4',  # -> new-registry/new-ns/new-spam@sha256:4
+            'old-registry/ns/spam:1',  # -> new-registry/new-ns/new-spam@sha256:4
+        ]
+        replacement_pullspecs = {
+            'old-registry/ns/spam@sha256:4': 'new-registry/new-ns/new-spam@sha256:4',
+            'old-registry/ns/spam:1': 'new-registry/new-ns/new-spam@sha256:4',
+        }
+
+        mock_digest_query({
+            'old-registry/ns/spam:1': 'sha256:4',
+        }, manifest_list_raises=True, manifest_index_raises=True)
+
+        manifests_dir = repo_dir.joinpath(OPERATOR_MANIFESTS_DIR)
+        manifests_dir.mkdir()
+        mock_operator_csv(manifests_dir, 'csv.yaml', pullspecs)
+
+        user_config = get_user_config(OPERATOR_MANIFESTS_DIR)
+        site_config = get_site_config()
+
+        pull_registries = {'pull_registries': [
+            {'url': 'https://old-registry'},
+        ]}
+
+        runner = mock_env(workflow, repo_dir, site_config=site_config,
+                          add_to_config=pull_registries, user_config=user_config,
+                          replacement_pullspecs=replacement_pullspecs)
+
+        with pytest.raises(PluginFailedException) as exc_info:
+            runner.run()
+
+        expected_error = "Unable to fetch oci.index for"
+        assert expected_error in str(exc_info.value)
+
+    @pytest.mark.parametrize('ocp_44', [True, False])
+    @pytest.mark.parametrize('manifest_list_raises', [True, False])
+    @responses.activate
+    def test_pin_operator_digest(self, ocp_44, manifest_list_raises, workflow, repo_dir, caplog):
         pullspecs = [
             # registry.private.example.com: do not replace registry or repos
             'registry.private.example.com/ns/foo@sha256:1',  # -> no change
@@ -485,7 +536,7 @@ class TestPinOperatorDigest(object):
             'weird-registry/ns/bar:1': 'sha256:2',
             'private-registry/ns/baz:1': 'sha256:3',
             'old-registry/ns/spam:1': 'sha256:4',
-        })
+        }, manifest_list_raises=manifest_list_raises)
         # there should be no queries for the pullspecs which already contain a digest
 
         # images should be inspected after their digests are pinned
