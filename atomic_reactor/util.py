@@ -785,6 +785,18 @@ class RegistryClient(object):
         digest_dict = get_checksums(io.BytesIO(response.content), ['sha256'])
         return 'sha256:{}'.format(digest_dict['sha256sum'])
 
+    def get_manifest_index_digest(self, image):
+        """Return manifest index digest for image
+
+        :param image:
+        :return:
+        """
+        response = self.get_manifest_index(image)
+        if response is None:
+            raise RuntimeError('Unable to fetch oci.index for {}'.format(image.to_str()))
+        digest_dict = get_checksums(io.BytesIO(response.content), ['sha256'])
+        return 'sha256:{}'.format(digest_dict['sha256sum'])
+
     def get_all_manifests(
         self, image: ImageName, versions: Sequence[str] = ('v1', 'v2', 'v2_list', 'oci_index')
     ) -> Dict[str, requests.Response]:
