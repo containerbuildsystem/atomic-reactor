@@ -21,6 +21,8 @@ from atomic_reactor.constants import (
     CACHI2_BUILD_APP_DIR,
     CACHI2_FOR_OUTPUT_DIR_OPT_FILE,
     CACHI2_PKG_OPTIONS_FILE,
+    CACHI2_ENV_JSON,
+    CACHI2_SBOM_JSON,
 )
 
 from atomic_reactor.inner import DockerBuildWorkflow
@@ -141,6 +143,53 @@ def test_single_remote_source_initialization(workflow, mocked_cachi2_init):
             "ref": REMOTE_SOURCE_REF,
         }
     }]
+
+
+def test_empty_list_pkg_managers(workflow, mocked_cachi2_init):
+    """Test if when empty_list of pkg managers is specified,
+    sbom and env-var are generated and cachi2 config skipped"""
+    first_remote_source_name = "first"
+
+    remote_source_config = dedent(
+        f"""\
+        remote_sources:
+        - name: {first_remote_source_name}
+          remote_source:
+            repo: {REMOTE_SOURCE_REPO}
+            ref: {REMOTE_SOURCE_REF}
+            pkg_managers: []
+        """
+    )
+
+    mock_repo_config(workflow, remote_source_config)
+
+    reactor_config = dedent("""\
+        allow_multiple_remote_sources: True
+        """)
+    mock_reactor_config(workflow, reactor_config)
+
+    result = mocked_cachi2_init(workflow).run()
+    assert result == [{
+        "name": first_remote_source_name,
+        "source_path": str(workflow.build_dir.path / CACHI2_BUILD_DIR / first_remote_source_name),
+        "remote_source": {
+            "repo": REMOTE_SOURCE_REPO,
+            "ref": REMOTE_SOURCE_REF,
+            "pkg_managers": [],
+        }
+    }]
+
+    source_path = workflow.build_dir.path / CACHI2_BUILD_DIR / first_remote_source_name
+
+    # test if bom and env have been created
+    assert (source_path / CACHI2_SBOM_JSON).is_file()
+    assert (source_path / CACHI2_ENV_JSON).is_file()
+
+    # test if clone happened
+    assert (source_path / CACHI2_BUILD_APP_DIR / MOCKED_CLONE_FILE).is_file()
+
+    # test that cachi2 pkg config file hasn't been generated
+    assert not (source_path / CACHI2_PKG_OPTIONS_FILE).is_file()
 
 
 def test_multi_remote_source_initialization(workflow, mocked_cachi2_init):

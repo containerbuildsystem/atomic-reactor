@@ -19,11 +19,13 @@ from atomic_reactor.constants import (
     CACHI2_PKG_OPTIONS_FILE,
     CACHI2_FOR_OUTPUT_DIR_OPT_FILE,
     CACHI2_SINGLE_REMOTE_SOURCE_NAME,
+    CACHI2_SBOM_JSON,
+    CACHI2_ENV_JSON,
     REMOTE_SOURCE_DIR,
 )
 from atomic_reactor.plugin import Plugin
 from atomic_reactor.util import map_to_user_params
-from atomic_reactor.utils.cachi2 import remote_source_to_cachi2
+from atomic_reactor.utils.cachi2 import remote_source_to_cachi2, clone_only
 
 
 class Cachi2InitPlugin(Plugin):
@@ -72,6 +74,27 @@ class Cachi2InitPlugin(Plugin):
 
         return processed_remote_sources
 
+    def write_metadata(self, remote_source_path: Path):
+        """Step when OSBS only is doing resolution without cachi2.
+
+        Generate and write SBOM and env file for next plugins
+        """
+        # generate empty SBOM
+        sbom_path = remote_source_path / CACHI2_SBOM_JSON
+        with open(sbom_path, "w") as f:
+            json.dump(
+                {
+                    "bomFormat": "CycloneDX",
+                    "components": [],
+                },
+                f
+            )
+
+        # generate empty envs
+        env_path = remote_source_path / CACHI2_ENV_JSON
+        with open(env_path, "w") as f:
+            json.dump([], f)
+
     def process_remote_sources(self) -> List[Dict[str, Any]]:
         """Process remote source requests and return information about the processed sources."""
 
@@ -97,13 +120,6 @@ class Cachi2InitPlugin(Plugin):
 
             remote_source_data = remote_source["remote_source"]
 
-            self.write_cachi2_pkg_options(
-                remote_source_data,
-                source_path / CACHI2_PKG_OPTIONS_FILE)
-            self.write_cachi2_for_output_dir(
-                source_name,
-                source_path / CACHI2_FOR_OUTPUT_DIR_OPT_FILE)
-
             source_path_app = source_path / CACHI2_BUILD_APP_DIR
             source_path_app.mkdir()
 
@@ -112,6 +128,18 @@ class Cachi2InitPlugin(Plugin):
                 source_path_app,
                 remote_source_data["ref"]
             )
+
+            if clone_only(remote_source_data):
+                # OSBS is doing all work here
+                self.write_metadata(source_path)
+            else:
+                # write cachi2 files only when cachi2 should run
+                self.write_cachi2_pkg_options(
+                    remote_source_data,
+                    source_path / CACHI2_PKG_OPTIONS_FILE)
+                self.write_cachi2_for_output_dir(
+                    source_name,
+                    source_path / CACHI2_FOR_OUTPUT_DIR_OPT_FILE)
 
             processed_remote_sources.append({
                 "source_path": str(source_path),
