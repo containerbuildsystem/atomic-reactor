@@ -11,6 +11,7 @@ from atomic_reactor.utils.cachi2 import (
     remote_source_to_cachi2,
     gen_dependency_from_sbom_component,
     generate_request_json,
+    clone_only,
 )
 
 import pytest
@@ -436,3 +437,36 @@ def test_generate_request_json():
     assert generate_request_json(
         remote_source, remote_source_sbom, remote_source_env_json
     ) == expected
+
+
+@pytest.mark.parametrize('remote_source,expected', [
+    pytest.param(
+        {
+            "pkg_managers": []
+        },
+        True,
+        id="empty_list"
+    ),
+    pytest.param(
+        {
+            "pkg_managers": ["gomod"]
+        },
+        False,
+        id="gomod"
+    ),
+    pytest.param(
+        {},
+        False,
+        id="undefined"
+    ),
+    pytest.param(
+        {
+            "pkg_managers": None
+        },
+        False,
+        id="explicit_none"
+    ),
+])
+def test_clone_only(remote_source, expected):
+    """Test if clone_only is evaluate correctly only from empty list of pkg_managers"""
+    assert clone_only(remote_source) == expected

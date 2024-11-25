@@ -161,3 +161,14 @@ def generate_request_json(
         "packages": [],  # this will be always empty cachi2 doesn't provide nested deps
     }
     return res
+
+
+def clone_only(remote_source: Dict[str, Any]) -> bool:
+    """Determine if only cloning is required without cachi2 run"""
+
+    pkg_managers = remote_source.get("pkg_managers")
+
+    if pkg_managers is not None and len(pkg_managers) == 0:
+        return True
+
+    return False
