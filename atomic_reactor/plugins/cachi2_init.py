@@ -78,7 +78,7 @@ class Cachi2InitPlugin(Plugin):
         remote_sources = self.multiple_remote_sources_params
         if self.single_remote_source_params:
             remote_sources = [{
-                "name": "",  # name single remote source with generic name
+                "name": None,
                 "remote_source": self.single_remote_source_params}]
 
         processed_remote_sources = []
