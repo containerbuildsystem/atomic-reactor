@@ -133,7 +133,7 @@ def test_single_remote_source_initialization(workflow, mocked_cachi2_init):
         '/remote-source')
 
     assert result == [{
-        "name": "",
+        "name": None,
         "source_path": str(
             workflow.build_dir.path / CACHI2_BUILD_DIR / CACHI2_SINGLE_REMOTE_SOURCE_NAME),
         "remote_source": {
