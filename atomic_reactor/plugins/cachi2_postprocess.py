@@ -186,11 +186,8 @@ class Cachi2PostprocessPlugin(Plugin):
                 "copy method used for cachi2 build_dir_injecting: %s", copy_method.__name__)
 
             copytree(
-                remote_source.sources_path/'app', dest_dir/'app',
-                symlinks=True, copy_function=copy_method)
-            copytree(
-                remote_source.sources_path/'deps', dest_dir/'deps',
-                symlinks=True, copy_function=copy_method)
+                remote_source.sources_path, dest_dir,
+                symlinks=True, copy_function=copy_method, dirs_exist_ok=True)
 
             # Create cachito.env file with environment variables received from cachito request
             self.generate_cachito_env_file(dest_dir, remote_source.build_args)
