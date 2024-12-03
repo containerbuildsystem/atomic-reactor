@@ -110,17 +110,24 @@ def gen_dependency_from_sbom_component(sbom_dep: Dict[str, Any]) -> Dict[str, Op
             heuristic_type = request_type
             break
 
+    pkg_dot_path = ("golang", "gem")
+
     version = (
         # for non-registry dependencies cachito uses URL as version
         purl.qualifiers.get("vcs_url") or
         purl.qualifiers.get("download_url") or
         # for local dependencies Cachito uses path as version
-        (f"./{purl.subpath}" if purl.subpath and purl.type == "golang" else None) or
-        (f"file:{purl.subpath}" if purl.subpath and purl.type != "golang" else None) or
+        (f"./{purl.subpath}" if purl.subpath and purl.type in pkg_dot_path else None) or
+        (f"file:{purl.subpath}" if purl.subpath and purl.type not in pkg_dot_path else None) or
         # version is mainly for dependencies from pkg registries
         sbom_dep.get("version")
         # returns None if version cannot be determined
     )
+
+    if version and purl.subpath and not version.endswith(purl.subpath):
+        # include subpath into vcs or download url to get exact location of dependency
+        # used mainly for vendored deps
+        version = f"{version}#{purl.subpath}"
 
     res = {
         "name": sbom_dep["name"],
