@@ -291,7 +291,7 @@ def test_convert_SBOM_to_ICM(sbom, expected_icm):
             "type": "npm",
             "version": (
                 "git+https://github.com/cachito-testing/cachito-npm-without-deps.git@"
-                "2f0ce1d7b1f8b35572d919428b965285a69583f6"),
+                "2f0ce1d7b1f8b35572d919428b965285a69583f6#path"),
         },
         id="version_vsc_url"
     ),
@@ -308,7 +308,7 @@ def test_convert_SBOM_to_ICM(sbom, expected_icm):
             "name": "cachito-npm-without-deps",
             "replaces": None,
             "type": "npm",
-            "version": "https://example.com/pkg",
+            "version": "https://example.com/pkg#path",
         },
         id="version_download_url"
     ),
@@ -377,6 +377,21 @@ def test_convert_SBOM_to_ICM(sbom, expected_icm):
             "dev": True,
         },
         id="npm_dev"
+    ),
+    pytest.param(
+        {
+            "name": "validate_url",
+            "version": "1.0.5",
+            "purl": "pkg:gem/validate_url#subpath",
+            "type": "library"
+        },
+        {
+            "name": "validate_url",
+            "replaces": None,
+            "type": "rubygems",
+            "version": "./subpath"
+        },
+        id="type_rubygem_subpath_only"
     ),
 ])
 def test_gen_dependency_from_sbom_component(sbom_comp, expected):
