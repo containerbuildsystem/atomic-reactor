@@ -6,12 +6,15 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
+from pathlib import Path
+
 from atomic_reactor.utils.cachi2 import (
     convert_SBOM_to_ICM,
     remote_source_to_cachi2,
     gen_dependency_from_sbom_component,
     generate_request_json,
     clone_only,
+    validate_paths,
 )
 
 import pytest
@@ -104,6 +107,98 @@ def test_remote_source_to_cachi2_conversion(input_remote_source, expected_cachi2
     """Test conversion of remote_source (cachito) configuration from container yaml
     into cachi2 params"""
     assert remote_source_to_cachi2(input_remote_source) == expected_cachi2
+
+
+@pytest.mark.parametrize("remote_source_packages,expected_err", [
+    pytest.param(
+        {"gomod": [{"path": "/path/to/secret"}]},
+        "gomod:path: path '/path/to/secret' must be relative within remote source repository",
+        id="absolute_path"
+    ),
+    pytest.param(
+        {"gomod": [{"unknown": "/path/to/secret"}]},
+        "unexpected key 'unknown' in 'gomod' config",
+        id="unknown_option"
+    ),
+    pytest.param(
+        {"gomod": [{"path": "path/../../../to/secret"}]},
+        (
+            "gomod:path: path 'path/../../../to/secret' must be relative "
+            "within remote source repository"
+        ),
+        id="path_traversal"
+    ),
+    pytest.param(
+        {
+            "pip": [{
+                "path": "/src/web",
+            }]
+        },
+        "pip:path: path '/src/web' must be relative within remote source repository",
+        id="pip_absolute_path"
+    ),
+    pytest.param(
+        {
+            "pip": [{
+                "requirements_files": ["requirements.txt", "/requirements-extras.txt"],
+            }]
+        },
+        (
+            "pip:requirements_files: path '/requirements-extras.txt' "
+            "must be relative within remote source repository"
+        ),
+        id="pip_requirements_files_absolute_path"
+    ),
+    pytest.param(
+        {
+            "pip": [{
+                "requirements_build_files": [
+                    "requirements-build.txt", "/requirements-build-extras.txt"
+                ]
+            }]
+        },
+        (
+            "pip:requirements_build_files: path '/requirements-build-extras.txt' "
+            "must be relative within remote source repository"
+        ),
+        id="pip_requirements_build_files_absolute_path"
+    )
+])
+def test_remote_source_invalid_paths(tmpdir, remote_source_packages, expected_err):
+    """Test conversion of remote_source (cachito) configuration from container yaml
+    into cachi2 params"""
+    with pytest.raises(ValueError) as exc_info:
+        validate_paths(Path(tmpdir), remote_source_packages)
+
+    assert str(exc_info.value) == expected_err
+
+
+def test_remote_source_path_to_symlink_out_of_repo(tmpdir):
+    """If cloned repo contains symlink that points out fo repo,
+    path in packages shouldn't be allowed"""
+    tmpdir_path = Path(tmpdir)
+
+    symlink_target = tmpdir_path/"dir_outside"
+    symlink_target.mkdir()
+
+    cloned = tmpdir_path/'app'
+    cloned.mkdir()
+
+    symlink = cloned/"symlink"
+    symlink.symlink_to(symlink_target, target_is_directory=True)
+
+    remote_source_packages = {
+        "pip": [{
+            "path": "symlink",
+        }]
+    }
+
+    expected_err = "pip:path: path 'symlink' must be relative within remote source repository"
+
+    with pytest.raises(ValueError) as exc_info:
+        validate_paths(cloned, remote_source_packages)
+
+    assert str(exc_info.value) == expected_err
 
 
 @pytest.mark.parametrize(('sbom', 'expected_icm'), [

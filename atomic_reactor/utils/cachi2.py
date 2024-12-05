@@ -9,8 +9,52 @@ Utils to help to integrate with cachi2 CLI tool
 """
 
 from typing import Any, Callable, Dict, Optional, Tuple, List
+from pathlib import Path
+import os.path
 
 from packageurl import PackageURL
+
+
+def validate_paths(repo_path: Path, remote_sources_packages: dict) -> None:
+    """Paths must be relative and within cloned repo"""
+    def is_path_ok(path_string):
+        path = Path(path_string)
+        if path.is_absolute():
+            return False
+
+        # using real repo to properly resolve and block bad symlinks
+        full_path = (repo_path/path).resolve()
+
+        # using commonpath to be compatible with py3.8
+        if os.path.commonpath((full_path, repo_path)) != str(repo_path):
+            return False
+
+        return True
+
+    for pkg_mgr, options in remote_sources_packages.items():
+        if not options:
+            continue
+
+        for option in options:
+            for key, val in option.items():
+                if key == "path":
+                    if not is_path_ok(val):
+                        raise ValueError(
+                            f"{pkg_mgr}:{key}: path '{val}' must be relative "
+                            "within remote source repository"
+                        )
+                elif (
+                    pkg_mgr == "pip" and
+                    key in ("requirements_files", "requirements_build_files")
+                ):
+                    for v in val:
+                        if not is_path_ok(v):
+                            raise ValueError(
+                                f"{pkg_mgr}:{key}: path '{v}' must be relative "
+                                "within remote source repository"
+                            )
+                else:
+                    raise ValueError(f"unexpected key '{key}' in '{pkg_mgr}' config")
 
 
 def remote_source_to_cachi2(remote_source: Dict[str, Any]) -> Dict[str, Any]:
