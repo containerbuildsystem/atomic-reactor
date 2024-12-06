@@ -335,6 +335,34 @@ def test_multiple_remote_sources_non_unique_names(workflow):
     assert result is None
 
 
+def test_path_out_of_repo(workflow, mocked_cachi2_init):
+    """Should fail when path is outside of repository"""
+    container_yaml_config = dedent("""\
+            remote_sources:
+            - name: bit-different
+              remote_source:
+                repo: https://git.example.com/team/repo.git
+                ref: a55c00f45ec3dfee0c766cea3d395d6e21cc2e5a
+                packages:
+                  gomod:
+                  - path: "/out/of/repo"
+            """)
+    mock_repo_config(workflow, data=container_yaml_config)
+
+    reactor_config = dedent("""\
+        allow_multiple_remote_sources: True
+        """)
+    mock_reactor_config(workflow, reactor_config)
+
+    err_msg = (
+        "gomod:path: path '/out/of/repo' must be relative within remote source repository"
+    )
+    with pytest.raises(ValueError) as exc_info:
+        mocked_cachi2_init(workflow).run()
+
+    assert err_msg in str(exc_info)
+
+
 def test_dependency_replacements(workflow):
     run_plugin_with_args(workflow, dependency_replacements={"dep": "something"},
                          expect_error="Dependency replacements are not supported by Cachi2")

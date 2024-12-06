@@ -25,7 +25,7 @@ from atomic_reactor.constants import (
 )
 from atomic_reactor.plugin import Plugin
 from atomic_reactor.util import map_to_user_params
-from atomic_reactor.utils.cachi2 import remote_source_to_cachi2, clone_only
+from atomic_reactor.utils.cachi2 import remote_source_to_cachi2, clone_only, validate_paths
 
 
 class Cachi2InitPlugin(Plugin):
@@ -128,6 +128,8 @@ class Cachi2InitPlugin(Plugin):
                 source_path_app,
                 remote_source_data["ref"]
             )
+
+            validate_paths(source_path_app, remote_source_data.get("packages", {}))
 
             if clone_only(remote_source_data):
                 # OSBS is doing all work here
