@@ -141,6 +141,7 @@ def test_single_remote_source_initialization(workflow, mocked_cachi2_init):
         "remote_source": {
             "repo": REMOTE_SOURCE_REPO,
             "ref": REMOTE_SOURCE_REF,
+            "pkg_managers": ["gomod"],
         }
     }]
 
@@ -254,6 +255,7 @@ def test_multi_remote_source_initialization(workflow, mocked_cachi2_init):
         "remote_source": {
             "repo": SECOND_REMOTE_SOURCE_REPO,
             "ref": SECOND_REMOTE_SOURCE_REF,
+            "pkg_managers": ["gomod"],
         }
     }]
 
