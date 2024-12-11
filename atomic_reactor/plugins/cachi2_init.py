@@ -25,7 +25,10 @@ from atomic_reactor.constants import (
 )
 from atomic_reactor.plugin import Plugin
 from atomic_reactor.util import map_to_user_params
-from atomic_reactor.utils.cachi2 import remote_source_to_cachi2, clone_only, validate_paths
+from atomic_reactor.utils.cachi2 import (
+    remote_source_to_cachi2, clone_only, validate_paths,
+    normalize_gomod_pkg_manager
+)
 
 
 class Cachi2InitPlugin(Plugin):
@@ -114,6 +117,9 @@ class Cachi2InitPlugin(Plugin):
                 remote_source["name"] if self.multiple_remote_sources_params
                 else CACHI2_SINGLE_REMOTE_SOURCE_NAME
             )
+
+            normalize_gomod_pkg_manager(remote_source['remote_source'])
+
             self.log.info("Initializing remote source %s", source_name)
             source_path = self.remote_sources_root_path / source_name
             source_path.mkdir()
