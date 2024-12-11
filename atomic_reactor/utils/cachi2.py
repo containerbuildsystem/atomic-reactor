@@ -57,6 +57,19 @@ def validate_paths(repo_path: Path, remote_sources_packages: dict) -> None:
                     raise ValueError(f"unexpected key '{key}' in '{pkg_mgr}' config")
 
 
+def normalize_gomod_pkg_manager(remote_source: Dict[str, Any]):
+    """Cachito compatibility, empty/undefined pkg_managers means gomod.
+    Replace it to explicitly use gomod
+
+    Function does in-place change.
+    """
+    pkg_managers = remote_source.get("pkg_managers")
+    if pkg_managers is None:
+        # Cachito behavior, missing pkg_managers means to use gomod
+        pkg_managers = ["gomod"]
+    remote_source["pkg_managers"] = pkg_managers
+
+
 def remote_source_to_cachi2(remote_source: Dict[str, Any]) -> Dict[str, Any]:
     """Converts remote source into cachi2 expected params.
 
@@ -84,10 +97,9 @@ def remote_source_to_cachi2(remote_source: Dict[str, Any]) -> Dict[str, Any]:
     )
     cachi2_packages = []
 
-    pkg_managers = remote_source.get("pkg_managers")
-    if pkg_managers is None:
-        # Cachito behavior, missing pkg_managers means to use gomod
-        pkg_managers = ["gomod"]
+    normalize_gomod_pkg_manager(remote_source)
+
+    pkg_managers = remote_source["pkg_managers"]
 
     for pkg_manager in pkg_managers:
         if pkg_manager in removed_pkg_managers:
