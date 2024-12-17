@@ -8,11 +8,63 @@
 Utils to help to integrate with cachi2 CLI tool
 """
 
+import logging
+
 from typing import Any, Callable, Dict, Optional, Tuple, List
 from pathlib import Path
 import os.path
 
 from packageurl import PackageURL
+
+logger = logging.getLogger(__name__)
+
+
+class SymlinkSandboxError(Exception):
+    """Found symlink(s) pointing outside the sandbox."""
+
+
+def enforce_sandbox(repo_root: Path, remove_unsafe_symlinks: bool) -> None:
+    """
+    Check that there are no symlinks that try to leave the cloned repository.
+
+    :param (str | Path) repo_root: absolute path to root of cloned repository
+    :raises OsbsValidationException: if any symlink points outside of cloned repository
+    """
+    for path_to_dir, subdirs, files in os.walk(repo_root):
+        dirpath = Path(path_to_dir)
+
+        for entry in subdirs + files:
+            # the logic in here actually *requires* f-strings with `!r`. using
+            # `%r` DOES NOT WORK (tested)
+            # pylint: disable=logging-fstring-interpolation
+
+            # apparently pylint doesn't understand Path
+            full_path = dirpath / entry  # pylint: disable=old-division
+
+            try:
+                real_path = full_path.resolve()
+            except RuntimeError as e:
+                if "Symlink loop from " in str(e):
+                    logger.info(f"Symlink loop from {full_path!r}")
+                    continue
+                logger.exception("RuntimeError encountered")
+                raise
+
+            try:
+                real_path.relative_to(repo_root)
+            except ValueError as exc:
+                # Unlike the real path, the full path is always relative to the root
+                relative_path = str(full_path.relative_to(repo_root))
+                if remove_unsafe_symlinks:
+                    full_path.unlink()
+                    logger.warning(
+                        f"The destination of {relative_path!r} is outside of cloned repository. "
+                        "Removing...",
+                    )
+                else:
+                    raise SymlinkSandboxError(
+                        f"The destination of {relative_path!r} is outside of cloned repository",
+                    ) from exc
 
 
 def validate_paths(repo_path: Path, remote_sources_packages: dict) -> None:

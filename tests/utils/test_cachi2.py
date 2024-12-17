@@ -6,10 +6,14 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
+import os
 from pathlib import Path
+from typing import Union
 
 from atomic_reactor.utils.cachi2 import (
+    SymlinkSandboxError,
     convert_SBOM_to_ICM,
+    enforce_sandbox,
     remote_source_to_cachi2,
     gen_dependency_from_sbom_component,
     generate_request_json,
@@ -18,6 +22,8 @@ from atomic_reactor.utils.cachi2 import (
 )
 
 import pytest
+
+from unittest import mock
 
 
 @pytest.mark.parametrize(('input_remote_source', 'expected_cachi2'), [
@@ -580,3 +586,98 @@ def test_generate_request_json():
 def test_clone_only(remote_source, expected):
     """Test if clone_only is evaluate correctly only from empty list of pkg_managers"""
     assert clone_only(remote_source) == expected
+
+
+class Symlink(str):
+    """
+    Use this to create symlinks via write_file_tree().
+
+    The value of a Symlink instance is the target path (path to make a symlink to).
+    """
+
+
+def write_file_tree(tree_def: dict, rooted_at: Union[str, Path], *, exist_dirs_ok: bool = False):
+    """
+    Write a file tree to disk.
+
+    :param tree_def: Definition of file tree, see usage for intuitive examples
+    :param rooted_at: Root of file tree, must be an existing directory
+    :param exist_dirs_ok: If True, existing directories will not cause this function to fail
+    """
+    root = Path(rooted_at)
+    for entry, value in tree_def.items():
+        entry_path = root / entry
+        if isinstance(value, Symlink):
+            os.symlink(value, entry_path)
+        elif isinstance(value, str):
+            entry_path.write_text(value)
+        else:
+            entry_path.mkdir(exist_ok=exist_dirs_ok)
+            write_file_tree(value, entry_path)
+
+
+@pytest.mark.parametrize(
+    "file_tree,bad_symlink",
+    [
+        # good
+        pytest.param({}, None, id="empty-no-symlink"),
+        pytest.param({"symlink_to_self": Symlink(".")}, None, id="self-symlink-ok"),
+        pytest.param(
+            {"subdir": {"symlink_to_parent": Symlink("..")}}, None, id="parent-symlink-ok"
+        ),
+        pytest.param(
+            {"symlink_to_subdir": Symlink("subdir/some_file"), "subdir": {"some_file": "foo"}},
+            None,
+            id="subdir-symlink-ok",
+        ),
+        # bad
+        pytest.param(
+            {"symlink_to_parent": Symlink("..")}, "symlink_to_parent", id="parent-symlink-bad"
+        ),
+        pytest.param({"symlink_to_root": Symlink("/")}, "symlink_to_root", id="root-symlink-bad"),
+        pytest.param(
+            {"subdir": {"symlink_to_parent_parent": Symlink("../..")}},
+            "subdir/symlink_to_parent_parent",
+            id="parent-parent-symlink-bad",
+        ),
+        pytest.param(
+            {"subdir": {"symlink_to_root": Symlink("/")}},
+            "subdir/symlink_to_root",
+            id="subdir-root-symlink-bad",
+        ),
+    ],
+)
+def test_enforce_sandbox(file_tree, bad_symlink, tmp_path):
+    write_file_tree(file_tree, tmp_path)
+    if bad_symlink:
+        error = f"The destination of {bad_symlink!r} is outside of cloned repository"
+        with pytest.raises(SymlinkSandboxError, match=error):
+            enforce_sandbox(tmp_path, remove_unsafe_symlinks=False)
+        assert Path(tmp_path / bad_symlink).exists()
+        enforce_sandbox(tmp_path, remove_unsafe_symlinks=True)
+        assert not Path(tmp_path / bad_symlink).exists()
+    else:
+        enforce_sandbox(tmp_path, remove_unsafe_symlinks=False)
+        enforce_sandbox(tmp_path, remove_unsafe_symlinks=True)
+
+
+def test_enforce_sandbox_symlink_loop(tmp_path, caplog):
+    file_tree = {"foo_b": Symlink("foo_a"), "foo_a": Symlink("foo_b")}
+    write_file_tree(file_tree, tmp_path)
+    enforce_sandbox(tmp_path, remove_unsafe_symlinks=True)
+    assert "Symlink loop from " in caplog.text
+
+
+@mock.patch("pathlib.Path.resolve")
+def test_enforce_sandbox_runtime_error(mock_resolve, tmp_path):
+    error = "RuntimeError is triggered"
+
+    def side_effect():
+        raise RuntimeError(error)
+
+    mock_resolve.side_effect = side_effect
+
+    file_tree = {"foo_b": Symlink("foo_a"), "foo_a": Symlink("foo_b")}
+    write_file_tree(file_tree, tmp_path)
+    with pytest.raises(RuntimeError, match=error):
+        enforce_sandbox(tmp_path, remove_unsafe_symlinks=True)
