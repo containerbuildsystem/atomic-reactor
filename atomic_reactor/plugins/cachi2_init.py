@@ -27,7 +27,7 @@ from atomic_reactor.plugin import Plugin
 from atomic_reactor.util import map_to_user_params
 from atomic_reactor.utils.cachi2 import (
     remote_source_to_cachi2, clone_only, validate_paths,
-    normalize_gomod_pkg_manager
+    normalize_gomod_pkg_manager, enforce_sandbox,
 )
 
 
@@ -135,6 +135,7 @@ class Cachi2InitPlugin(Plugin):
                 remote_source_data["ref"]
             )
 
+            enforce_sandbox(source_path_app, remove_unsafe_symlinks=False)
             validate_paths(source_path_app, remote_source_data.get("packages", {}))
 
             if clone_only(remote_source_data):
