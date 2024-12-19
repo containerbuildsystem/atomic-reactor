@@ -35,6 +35,11 @@
       "description": "Pulp content sets available during the current image build",
       "type": "array",
       "items": { "$ref": "#/definitions/content_set" }
+    },
+    "from_dnf_hint": {
+      "description": "A hint indicating if scanners should ignore this file and use the dnf database instead for more precise content_sets",
+      "type": "boolean",
+      "default": false
     }
   },
   "required": ["metadata"],
