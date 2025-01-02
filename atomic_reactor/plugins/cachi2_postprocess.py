@@ -20,6 +20,7 @@ import reflink
 from atomic_reactor.constants import (
     CACHITO_ENV_ARG_ALIAS,
     CACHITO_ENV_FILENAME,
+    CACHI2_BUILD_DIR,
     PLUGIN_CACHI2_INIT,
     PLUGIN_CACHI2_POSTPROCESS,
     REMOTE_SOURCE_DIR,
@@ -110,12 +111,35 @@ class Cachi2PostprocessPlugin(Plugin):
             return None
 
         processed_remote_sources = self.postprocess_remote_sources()
+        self.postprocess_git_submodules_global_sbom()
         self.inject_remote_sources(processed_remote_sources)
 
         return [
             self.remote_source_to_output(remote_source)
             for remote_source in processed_remote_sources
         ]
+
+    def postprocess_git_submodules_global_sbom(self):
+        """atomic-reactor is responsbile for handling git-submodules. Global SBOM must be updated"""
+        all_sbom_components = []
+        for remote_source in self.init_plugin_data:
+            git_submodules = remote_source.get('git_submodules')
+            if not git_submodules:
+                continue
+
+            all_sbom_components.extend(git_submodules['sbom_components'])
+
+        if not all_sbom_components:
+            return
+
+        global_sbom_path = self.workflow.build_dir.path/CACHI2_BUILD_DIR/"bom.json"
+        with open(global_sbom_path, 'r') as global_sbom_f:
+            global_sbom_data = json.load(global_sbom_f)
+        global_sbom_data['components'].extend(all_sbom_components)
+
+        with open(global_sbom_path, 'w') as global_sbom_f:
+            json.dump(global_sbom_data, global_sbom_f)
+            global_sbom_f.flush()
 
     def postprocess_remote_sources(self) -> List[Cachi2RemoteSource]:
         """Process remote source requests and return information about the processed sources."""
@@ -132,12 +156,26 @@ class Cachi2PostprocessPlugin(Plugin):
             with open(sbom_path, 'r') as sbom_f:
                 sbom_data = json.load(sbom_f)
 
+            # request_json must be generated before modifications to sboms are done
+            request_json = generate_request_json(
+                    remote_source['remote_source'], sbom_data, json_env_data)
+
+            # update metadata with submodules info
+            git_submodules = remote_source.get('git_submodules')
+            if git_submodules:
+                sbom_data['components'].extend(git_submodules['sbom_components'])
+
+                with open(sbom_path, 'w') as sbom_f:
+                    json.dump(sbom_data, sbom_f)
+                    sbom_f.flush()
+
+                request_json['dependencies'].extend(git_submodules['request_json_dependencies'])
+
             remote_source_obj = Cachi2RemoteSource(
                 name=remote_source['name'],
                 tarball_path=Path(remote_source['source_path'], 'remote-source.tar.gz'),
                 sources_path=Path(remote_source['source_path']),
-                json_data=generate_request_json(
-                    remote_source['remote_source'], sbom_data, json_env_data),
+                json_data=request_json,
                 json_env_data=json_env_data,
             )
             processed_remote_sources.append(remote_source_obj)
