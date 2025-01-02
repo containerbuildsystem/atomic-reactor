@@ -9,6 +9,7 @@ of the BSD license. See the LICENSE file for details.
 import json
 import io
 import tarfile
+import copy
 from collections import namedtuple
 from pathlib import Path
 from textwrap import dedent
@@ -59,6 +60,9 @@ def mock_cachi2_init_and_run_plugin(
 
     plugin_result = []
 
+    global_sbom = copy.deepcopy(args[0].sbom)
+    global_sbom["components"] = []
+
     for arg in args:
         plugin_result.append(arg.result)
 
@@ -81,11 +85,19 @@ def mock_cachi2_init_and_run_plugin(
 
         with open(source_root_path / "cachi2.env.json", "w") as f:
             json.dump(arg.env_vars, f)
+            f.flush()
 
         with open(source_root_path / "bom.json", "w") as f:
             json.dump(arg.sbom, f)
+            f.flush()
 
         mock_cachi2_output_tarball(source_root_path / "remote-source.tar.gz")
+
+        global_sbom["components"].extend(arg.sbom["components"])
+
+    with open(workflow.build_dir.path / CACHI2_BUILD_DIR / "bom.json", "w") as f:
+        json.dump(global_sbom, f)
+        f.flush()
 
     workflow.data.plugins_results[PLUGIN_CACHI2_INIT] = plugin_result
 
@@ -425,6 +437,272 @@ def test_multiple_remote_sources(workflow):
             },
         )
     )
+
+    assert workflow.data.buildargs == {
+        "REMOTE_SOURCES": Cachi2PostprocessPlugin.REMOTE_SOURCE,
+        "REMOTE_SOURCES_DIR": REMOTE_SOURCE_DIR,
+    }
+
+
+def test_multiple_remote_sources_with_git_submodules(workflow):
+
+    container_yaml_config = dedent(
+        f"""\
+                remote_sources:
+                - name: {FIRST_REMOTE_SOURCE_NAME}
+                  remote_source:
+                    repo: {REMOTE_SOURCE_REPO}
+                    ref: {REMOTE_SOURCE_REF}
+                - name: {SECOND_REMOTE_SOURCE_NAME}
+                  remote_source:
+                    repo: {REMOTE_SOURCE_REPO}
+                    ref: {REMOTE_SOURCE_REF}
+                """
+    )
+
+    reactor_config = dedent("""\
+                version: 1
+                allow_multiple_remote_sources: true
+                """)
+
+    first_remote_source_sbom = {
+        "bomFormat": "CycloneDX",
+        "components": [
+            {
+                "name": "bytes",
+                "purl": "pkg:golang/bytes?type=package",
+                "properties": [
+                    {
+                        "name": "cachi2:found_by",
+                        "value": "cachi2"
+                    }
+                ],
+                "type": "library"
+            },
+        ],
+    }
+
+    second_remote_source_sbom = {
+        "bomFormat": "CycloneDX",
+        "components": [
+            {
+                "name": "bytes",
+                "purl": "pkg:pip/bytes?type=package",
+                "properties": [
+                    {
+                        "name": "cachi2:found_by",
+                        "value": "cachi2"
+                    }
+                ],
+                "type": "library"
+            },
+        ],
+    }
+
+    first_remote_source_env_json = [
+        {
+          "name": "GOCACHE",
+          "value": "/remote-source/deps/gomod",
+        },
+    ]
+
+    second_remote_source_env_json = [
+        {
+          "name": "PIP_INDEX",
+          "value": "/remote-source/deps/somewhere-here",
+        },
+    ]
+
+    first_source_submodules_sbom_components = [
+        {
+            "type": "library",
+            "name": "example-repo-1",
+            "version": "https://example.com/repo1.git#cfca2ef03694123dcbe511e14865bc96d46d7817",
+            "purl": "pkg:generic/example.com/repo1@cfca2ef03694123dcbe511e14865bc96d46d7817"
+        }
+    ]
+    first_source = {
+        "name": FIRST_REMOTE_SOURCE_NAME,
+        "source_path": str(workflow.build_dir.path / CACHI2_BUILD_DIR / FIRST_REMOTE_SOURCE_NAME),
+        "remote_source": {
+            "repo": REMOTE_SOURCE_REPO,
+            "ref": REMOTE_SOURCE_REF,
+            "pkg_managers": ["gomod", "git-submodule"],
+            "flags": ["gomod-vendor"],
+        },
+        "git_submodules": {
+            "sbom_components": first_source_submodules_sbom_components,
+            "request_json_dependencies": [{
+                "type": "git-submodule",
+                "name": "example-repo-1",
+                "path": "example-repo-1",
+                "version": "https://example.com/repo1.git#cfca2ef03694123dcbe511e14865bc96d46d7817",
+            }]
+        }
+    }
+
+    second_source_submodules_sbom_components = [
+        {
+            "type": "library",
+            "name": "example-repo-2",
+            "version": "https://example.com/repo2.git#cfca2ef03694123dcbe511e14865bc96d46d7817",
+            "purl": "pkg:generic/example.com/repo2@cfca2ef03694123dcbe511e14865bc96d46d7817"
+        }
+    ]
+    second_source = {
+        "name": SECOND_REMOTE_SOURCE_NAME,
+        "source_path": str(workflow.build_dir.path / CACHI2_BUILD_DIR / SECOND_REMOTE_SOURCE_NAME),
+        "remote_source": {
+            "repo": SECOND_REMOTE_SOURCE_REPO,
+            "ref": SECOND_REMOTE_SOURCE_REF,
+            "pkg_managers": ["git-submodule"],
+        },
+        "git_submodules": {
+            "sbom_components": second_source_submodules_sbom_components,
+            "request_json_dependencies": [{
+                "type": "git-submodule",
+                "name": "example-repo-2",
+                "path": "example-repo-2",
+                "version": "https://example.com/repo2.git#cfca2ef03694123dcbe511e14865bc96d46d7817",
+            }]
+        }
+    }
+
+    mock_repo_config(workflow, data=container_yaml_config)
+    mock_reactor_config(workflow, reactor_config)
+    mock_cachi2_init_and_run_plugin(
+        workflow,
+        RemoteSourceInitResult(
+            first_source, first_remote_source_env_json, first_remote_source_sbom),
+        RemoteSourceInitResult(
+            second_source, second_remote_source_env_json, second_remote_source_sbom),
+    )
+
+    expected_request_json_first = {
+        'dependencies': [
+            {
+                'name': 'bytes',
+                'replaces': None,
+                'type': 'go-package',
+                'version': None
+            }, {
+                'name': 'example-repo-1',
+                'path': 'example-repo-1',
+                'type': 'git-submodule',
+                'version': 'https://example.com/repo1.git#cfca2ef03694123dcbe511e14865bc96d46d7817'
+            }
+        ],
+        'environment_variables': {'GOCACHE': '/remote-source/deps/gomod'},
+        'flags': ['gomod-vendor'],
+        'packages': [],
+        'pkg_managers': ['gomod', 'git-submodule'],
+        'ref': 'b55c00f45ec3dfee0c766cea3d395d6e21cc2e5a',
+        'repo': 'https://git.example.com/team/repo.git'
+    }
+
+    expected_request_json_second = {
+        'dependencies': [
+            {
+                'name': 'bytes',
+                'replaces': None,
+                'type': 'pip',
+                'version': None
+            }, {
+                'name': 'example-repo-2',
+                'path': 'example-repo-2',
+                'type': 'git-submodule',
+                'version': 'https://example.com/repo2.git#cfca2ef03694123dcbe511e14865bc96d46d7817'
+            }
+        ],
+        'environment_variables': {'PIP_INDEX': '/remote-source/deps/somewhere-here'},
+        'flags': [],
+        'packages': [],
+        'pkg_managers': ['git-submodule'],
+        'ref': 'd55c00f45ec3dfee0c766cea3d395d6e21cc2e5c',
+        'repo': 'https://git.example.com/other-team/other-repo.git'
+    }
+
+    expected_plugin_results = [
+        {
+            "name": FIRST_REMOTE_SOURCE_NAME,
+            "remote_source_json": {
+                "json": expected_request_json_first,
+                "filename": "remote-source-first.json",
+            },
+            "remote_source_json_env": {
+                "json": first_remote_source_env_json,
+                "filename": "remote-source-first.env.json",
+            },
+            "remote_source_tarball": {
+                "filename": "remote-source-first.tar.gz",
+                "path": str(Path(first_source["source_path"]) / "remote-source.tar.gz"),
+            },
+        },
+        {
+            "name": SECOND_REMOTE_SOURCE_NAME,
+            "remote_source_json": {
+                "json": expected_request_json_second,
+                "filename": "remote-source-second.json",
+            },
+            "remote_source_json_env": {
+                "json": second_remote_source_env_json,
+                "filename": "remote-source-second.env.json",
+            },
+            "remote_source_tarball": {
+                "filename": "remote-source-second.tar.gz",
+                "path": str(Path(second_source["source_path"]) / "remote-source.tar.gz"),
+            },
+        },
+    ]
+
+    run_plugin_with_args(workflow, expected_plugin_results=expected_plugin_results)
+
+    first_cachito_env = dedent(
+        """\
+        #!/bin/bash
+        export GOCACHE=/remote-source/deps/gomod
+        """
+    )
+    second_cachito_env = dedent(
+        """\
+        #!/bin/bash
+        export PIP_INDEX=/remote-source/deps/somewhere-here
+        """
+    )
+
+    final_first_source_sbom = copy.deepcopy(first_remote_source_sbom)
+    final_first_source_sbom["components"].extend(first_source_submodules_sbom_components)
+    first_cachito_expected_sbom_str = json.dumps(final_first_source_sbom)
+
+    second_first_source_sbom = copy.deepcopy(second_remote_source_sbom)
+    second_first_source_sbom["components"].extend(second_source_submodules_sbom_components)
+    second_cachito_expected_sbom_str = json.dumps(second_first_source_sbom)
+
+    workflow.build_dir.for_each_platform(
+        check_injected_files(
+            {
+                f"{FIRST_REMOTE_SOURCE_NAME}/bom.json": first_cachito_expected_sbom_str,
+                f"{FIRST_REMOTE_SOURCE_NAME}/cachito.env": first_cachito_env,
+                f"{FIRST_REMOTE_SOURCE_NAME}/app/app.txt": f"test app {FIRST_REMOTE_SOURCE_NAME}",
+                f"{FIRST_REMOTE_SOURCE_NAME}/deps/dep.txt": (
+                    f"dependency for {FIRST_REMOTE_SOURCE_NAME}"),
+                f"{SECOND_REMOTE_SOURCE_NAME}/bom.json": second_cachito_expected_sbom_str,
+                f"{SECOND_REMOTE_SOURCE_NAME}/cachito.env": second_cachito_env,
+                f"{SECOND_REMOTE_SOURCE_NAME}/app/app.txt": f"test app {SECOND_REMOTE_SOURCE_NAME}",
+                f"{SECOND_REMOTE_SOURCE_NAME}/deps/dep.txt": (
+                    f"dependency for {SECOND_REMOTE_SOURCE_NAME}"),
+            },
+        )
+    )
+
+    # global json contains all components, including submodules
+    expected_global_sbom = copy.deepcopy(first_remote_source_sbom)
+    expected_global_sbom["components"].extend(second_remote_source_sbom["components"])
+    expected_global_sbom["components"].extend(first_source_submodules_sbom_components)
+    expected_global_sbom["components"].extend(second_source_submodules_sbom_components)
+
+    with open(workflow.build_dir.path / CACHI2_BUILD_DIR / "bom.json", 'r') as f:
+        assert json.load(f) == expected_global_sbom
 
     assert workflow.data.buildargs == {
         "REMOTE_SOURCES": Cachi2PostprocessPlugin.REMOTE_SOURCE,

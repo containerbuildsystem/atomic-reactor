@@ -10,6 +10,8 @@ import os
 from pathlib import Path
 from typing import Union
 
+from flexmock import flexmock
+
 from atomic_reactor.utils.cachi2 import (
     SymlinkSandboxError,
     convert_SBOM_to_ICM,
@@ -19,11 +21,29 @@ from atomic_reactor.utils.cachi2 import (
     generate_request_json,
     clone_only,
     validate_paths,
+    has_git_submodule_manager,
+    get_submodules_request_json_deps,
+    get_submodules_sbom_components,
 )
 
 import pytest
 
 from unittest import mock
+
+
+def mock_repo_submodules(name, url, hexsha):
+    submodule = flexmock(name=name, url=url, hexsha=hexsha)
+    return flexmock(submodules=[submodule])
+
+
+@pytest.fixture
+def mocked_repo_submodules():
+    """Mock submodules repo"""
+    return mock_repo_submodules(
+        "example-repo",
+        "https://example.com/repo.git",
+        "a816faea7b2a62f26dd0ae763fb657149ca36a1c"
+    )
 
 
 @pytest.mark.parametrize(('input_remote_source', 'expected_cachi2'), [
@@ -565,10 +585,24 @@ def test_generate_request_json():
     ),
     pytest.param(
         {
+            "pkg_managers": ["git-submodule"]
+        },
+        True,
+        id="git_submodule"
+    ),
+    pytest.param(
+        {
             "pkg_managers": ["gomod"]
         },
         False,
         id="gomod"
+    ),
+    pytest.param(
+        {
+            "pkg_managers": ["gomod", "git-submodule"]
+        },
+        False,
+        id="gomod_and_git_submodule"
     ),
     pytest.param(
         {},
@@ -586,6 +620,53 @@ def test_generate_request_json():
 def test_clone_only(remote_source, expected):
     """Test if clone_only is evaluate correctly only from empty list of pkg_managers"""
     assert clone_only(remote_source) == expected
+
+
+@pytest.mark.parametrize('remote_source,expected', [
+    pytest.param(
+        {
+            "pkg_managers": []
+        },
+        False,
+        id="empty_list"
+    ),
+    pytest.param(
+        {
+            "pkg_managers": ["git-submodule"]
+        },
+        True,
+        id="git_submodule"
+    ),
+    pytest.param(
+        {
+            "pkg_managers": ["gomod"]
+        },
+        False,
+        id="gomod"
+    ),
+    pytest.param(
+        {
+            "pkg_managers": ["gomod", "git-submodule"]
+        },
+        True,
+        id="gomod_and_git_submodule"
+    ),
+    pytest.param(
+        {},
+        False,
+        id="undefined"
+    ),
+    pytest.param(
+        {
+            "pkg_managers": None
+        },
+        False,
+        id="explicit_none"
+    ),
+])
+def test_has_git_submodule_manager(remote_source, expected):
+    """Test if has_git_submodule_manager correctly detects git-submodule"""
+    assert has_git_submodule_manager(remote_source) == expected
 
 
 class Symlink(str):
@@ -681,3 +762,28 @@ def test_enforce_sandbox_runtime_error(mock_resolve, tmp_path):
     write_file_tree(file_tree, tmp_path)
     with pytest.raises(RuntimeError, match=error):
         enforce_sandbox(tmp_path, remove_unsafe_symlinks=True)
+
+
+def test_get_submodules_sbom_components(mocked_repo_submodules):
+    assert get_submodules_sbom_components(mocked_repo_submodules) == [
+        {
+            "type": "library",
+            "name": "example-repo",
+            "version": "https://example.com/repo.git#a816faea7b2a62f26dd0ae763fb657149ca36a1c",
+            "purl": (
+                "pkg:generic/example-repo?vcs_url=https%3A%2F%2Fexample.com%2Frepo.git%"
+                "40a816faea7b2a62f26dd0ae763fb657149ca36a1c"
+            ),
+        }
+    ]
+
+
+def test_submodules_request_json_deps(mocked_repo_submodules):
+    assert get_submodules_request_json_deps(mocked_repo_submodules) == [
+        {
+            "type": "git-submodule",
+            "name": "example-repo",
+            "path": "example-repo",
+            "version": "https://example.com/repo.git#a816faea7b2a62f26dd0ae763fb657149ca36a1c",
+        }
+    ]

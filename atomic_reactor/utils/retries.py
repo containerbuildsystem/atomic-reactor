@@ -89,7 +89,7 @@ def get_retrying_requests_session(client_statuses=HTTP_CLIENT_STATUS_RETRY,
     max_tries=SUBPROCESS_MAX_RETRIES + 1,  # total tries is N retries + 1 initial attempt
     jitter=None,  # use deterministic backoff, do not apply random jitter
 )
-def run_cmd(cmd: List[str], cleanup_cmd: List[str] = None) -> bytes:
+def run_cmd(cmd: List[str], cleanup_cmd: List[str] = None, **params) -> bytes:
     """Run a subprocess command, retry on any non-zero exit status.
 
     Whenever an attempt fails, the stdout and stderr of the failed command will be logged.
@@ -98,12 +98,14 @@ def run_cmd(cmd: List[str], cleanup_cmd: List[str] = None) -> bytes:
 
     If a cleanup command is specified it'll be run on exception before retry.
 
+    :param params: optional params to be passed to subprocess.run function
+
     :return: bytes, the combined stdout and stderr (if any) of the command
     """
     logger.debug("Running %s", " ".join(cmd))
 
     try:
-        process = subprocess.run(cmd, check=True, capture_output=True)
+        process = subprocess.run(cmd, check=True, capture_output=True, **params)
     except subprocess.CalledProcessError as e:
         logger.warning(
             "%s failed:\nSTDOUT:\n%s\nSTDERR:\n%s",
@@ -114,7 +116,7 @@ def run_cmd(cmd: List[str], cleanup_cmd: List[str] = None) -> bytes:
         if cleanup_cmd:
             try:
                 logger.debug("Running %s", " ".join(cleanup_cmd))
-                subprocess.run(cleanup_cmd, check=True, capture_output=True)
+                subprocess.run(cleanup_cmd, check=True, capture_output=True, **params)
             except subprocess.CalledProcessError as c_e:
                 logger.warning(
                     "Cleanup command: %s failed:\nSTDOUT:\n%s\nSTDERR:\n%s",
