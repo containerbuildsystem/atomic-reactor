@@ -180,7 +180,7 @@ def test_remote_source_invalid_paths(tmpdir, remote_source_packages, expected_er
 
 
 def test_remote_source_path_to_symlink_out_of_repo(tmpdir):
-    """If cloned repo contains symlink that points out fo repo,
+    """If cloned repo contains symlink that points out of repo,
     path in packages shouldn't be allowed"""
     tmpdir_path = Path(tmpdir)
 

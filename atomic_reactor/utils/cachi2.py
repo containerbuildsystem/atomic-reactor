@@ -23,11 +23,12 @@ class SymlinkSandboxError(Exception):
     """Found symlink(s) pointing outside the sandbox."""
 
 
-def enforce_sandbox(repo_root: Path, remove_unsafe_symlinks: bool) -> None:
+def enforce_sandbox(repo_root: Path, remove_unsafe_symlinks: bool = False) -> None:
     """
     Check that there are no symlinks that try to leave the cloned repository.
 
     :param (str | Path) repo_root: absolute path to root of cloned repository
+    :param bool remove_unsafe_symlinks: remove unsafe symlinks if any are found
     :raises OsbsValidationException: if any symlink points outside of cloned repository
     """
     for path_to_dir, subdirs, files in os.walk(repo_root):
