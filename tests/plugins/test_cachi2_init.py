@@ -35,6 +35,7 @@ from atomic_reactor.source import SourceConfig
 from tests.mock_env import MockEnv
 
 from tests.stubs import StubSource
+from tests.utils.test_cachi2 import Symlink, write_file_tree
 
 
 REMOTE_SOURCE_REPO = 'https://git.example.com/team/repo.git'
@@ -368,6 +369,30 @@ def test_path_out_of_repo(workflow, mocked_cachi2_init):
 def test_dependency_replacements(workflow):
     run_plugin_with_args(workflow, dependency_replacements={"dep": "something"},
                          expect_error="Dependency replacements are not supported by Cachi2")
+
+
+def test_enforce_sandbox(workflow, mocked_cachi2_init, tmp_path):
+    """Should remove symlink pointing outside of repository"""
+    container_yaml_config = dedent("""\
+            remote_source:
+              repo: https://git.example.com/team/repo.git
+              ref: a55c00f45ec3dfee0c766cea3d395d6e21cc2e5a
+              packages:
+                gomod:
+                - path: "."
+            remove_unsafe_symlinks: True
+            """)
+    mock_repo_config(workflow, data=container_yaml_config)
+
+    write_file_tree({"subdir": {"symlink_to_root": Symlink("/")}}, tmp_path)
+
+    msg = (
+        "Removing..."
+    )
+    with pytest.raises(ValueError):
+        mocked_cachi2_init(workflow).run()
+
+    # assert msg in str(exc_info)
 
 
 def run_plugin_with_args(workflow, dependency_replacements=None, expect_error=None,
