@@ -6,6 +6,7 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
+from pathlib import Path
 from textwrap import dedent
 import os.path
 import json
@@ -35,6 +36,7 @@ from atomic_reactor.source import SourceConfig
 from tests.mock_env import MockEnv
 
 from tests.stubs import StubSource
+from tests.utils.test_cachi2 import Symlink, write_file_tree
 
 
 REMOTE_SOURCE_REPO = 'https://git.example.com/team/repo.git'
@@ -368,6 +370,35 @@ def test_path_out_of_repo(workflow, mocked_cachi2_init):
 def test_dependency_replacements(workflow):
     run_plugin_with_args(workflow, dependency_replacements={"dep": "something"},
                          expect_error="Dependency replacements are not supported by Cachi2")
+
+
+def test_enforce_sandbox(workflow: DockerBuildWorkflow) -> None:
+    """Should remove symlink pointing outside of repository"""
+    container_yaml_config = dedent(f"""\
+            remote_source:
+              flags:
+                - remove-unsafe-symlinks
+              repo: {REMOTE_SOURCE_REPO}
+              ref: {REMOTE_SOURCE_REF}
+              pkg_managers: []
+            """)
+
+    mock_repo_config(workflow, data=container_yaml_config)
+
+    def clone_f(repo, target_dir, ref):
+        bad_symlink = Path(target_dir / 'symlink_to_root')
+        with open(target_dir / "clone.txt", "w") as f:
+            f.write(f"{repo}:{ref}")
+            f.flush()
+        write_file_tree({bad_symlink: Symlink("/")}, target_dir)
+        assert Path(target_dir / bad_symlink).exists()
+
+    mocked = flexmock(Cachi2InitPlugin)
+    mocked.should_receive('clone_remote_source').replace_with(clone_f)
+    Cachi2InitPlugin(workflow).run()
+
+    assert not Path(workflow.build_dir.path / CACHI2_BUILD_DIR / "remote-source"
+                    / CACHI2_BUILD_APP_DIR / "symlink_to_root").exists()
 
 
 def run_plugin_with_args(workflow, dependency_replacements=None, expect_error=None,
