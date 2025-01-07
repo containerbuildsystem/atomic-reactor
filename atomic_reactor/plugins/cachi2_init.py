@@ -135,7 +135,15 @@ class Cachi2InitPlugin(Plugin):
                 remote_source_data["ref"]
             )
 
-            enforce_sandbox(source_path_app, remove_unsafe_symlinks=False)
+            remove_unsafe_symlinks = False
+            flags = remote_source_data.get("flags", [])
+            if "remove-unsafe-symlinks" in flags:
+                remove_unsafe_symlinks = True
+
+            enforce_sandbox(
+                source_path_app,
+                remove_unsafe_symlinks,
+            )
             validate_paths(source_path_app, remote_source_data.get("packages", {}))
 
             if clone_only(remote_source_data):
