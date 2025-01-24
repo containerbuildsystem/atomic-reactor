@@ -10,6 +10,7 @@ from collections import Counter
 from typing import Any, Optional, List, Dict
 from pathlib import Path
 
+import git
 from osbs.utils import clone_git_repo
 
 from atomic_reactor.constants import (
@@ -28,6 +29,8 @@ from atomic_reactor.util import map_to_user_params
 from atomic_reactor.utils.cachi2 import (
     remote_source_to_cachi2, clone_only, validate_paths,
     normalize_gomod_pkg_manager, enforce_sandbox,
+    has_git_submodule_manager, update_submodules,
+    get_submodules_sbom_components, get_submodules_request_json_deps,
 )
 
 
@@ -135,6 +138,15 @@ class Cachi2InitPlugin(Plugin):
                 remote_source_data["ref"]
             )
 
+            if has_git_submodule_manager(remote_source_data):
+                update_submodules(source_path_app)
+                repo = git.Repo(str(source_path_app))
+                git_submodules = {
+                    "sbom_components": get_submodules_sbom_components(repo),
+                    "request_json_dependencies": get_submodules_request_json_deps(repo)
+                }
+                remote_source["git_submodules"] = git_submodules
+
             remove_unsafe_symlinks = False
             flags = remote_source_data.get("flags", [])
             if "remove-unsafe-symlinks" in flags:
@@ -144,6 +156,7 @@ class Cachi2InitPlugin(Plugin):
                 source_path_app,
                 remove_unsafe_symlinks,
             )
+
             validate_paths(source_path_app, remote_source_data.get("packages", {}))
 
             if clone_only(remote_source_data):

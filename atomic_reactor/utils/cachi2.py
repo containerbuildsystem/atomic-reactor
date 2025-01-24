@@ -13,8 +13,13 @@ import logging
 from typing import Any, Callable, Dict, Optional, Tuple, List
 from pathlib import Path
 import os.path
+import urllib
 
+import git
 from packageurl import PackageURL
+
+from atomic_reactor import constants
+from atomic_reactor.utils import retries
 
 logger = logging.getLogger(__name__)
 
@@ -287,4 +292,89 @@ def clone_only(remote_source: Dict[str, Any]) -> bool:
     if pkg_managers is not None and len(pkg_managers) == 0:
         return True
 
+    # only git-submodule
+    if pkg_managers is not None and pkg_managers == ['git-submodule']:
+        return True
+
     return False
+
+
+def has_git_submodule_manager(remote_source: Dict[str, Any]) -> bool:
+    """Returns true when for specific remote source git-submodule manager is requested"""
+    pkg_managers = remote_source.get("pkg_managers") or []
+    return 'git-submodule' in pkg_managers
+
+
+def update_submodules(repopath: Path):
+    """Update submodules in the given repo"""
+    cmd = ["git", "submodule", "update", "--init", "--filter=blob:none"]
+    params = {
+        "cwd": str(repopath),
+        "timeout": constants.GIT_CMD_TIMEOUT,
+    }
+    retries.run_cmd(cmd, **params)
+
+
+def get_submodules_sbom_components(repo: git.Repo) -> List[Dict]:
+    """Get SBOM components of submodules in the specified repository"""
+
+    def to_vcs_purl(pkg_name, repo_url, ref):
+        """
+        Generate the vcs purl representation of the package.
+
+        Use the most specific purl type possible, e.g. pkg:github if repo comes from
+        github.com. Fall back to using pkg:generic with a ?vcs_url qualifier.
+
+        :param str pkg_name: name of package
+        :param str repo_url: url of git repository for package
+        :param str ref: git ref of package
+        :return: the PURL string of the Package object
+        :rtype: str
+        """
+        repo_url = repo_url.rstrip("/")
+        parsed_url = urllib.parse.urlparse(repo_url)
+
+        pkg_type_for_hostname = {
+            "github.com": "github",
+            "bitbucket.org": "bitbucket",
+        }
+        pkg_type = pkg_type_for_hostname.get(parsed_url.hostname, "generic")
+
+        if pkg_type == "generic":
+            vcs_url = urllib.parse.quote(f"{repo_url}@{ref}", safe="")
+            purl = f"pkg:generic/{pkg_name}?vcs_url={vcs_url}"
+        else:
+            # pkg:github and pkg:bitbucket use the same format
+            namespace, repo = parsed_url.path.lstrip("/").rsplit("/", 1)
+            if repo.endswith(".git"):
+                repo = repo[: -len(".git")]
+            purl = f"pkg:{pkg_type}/{namespace.lower()}/{repo.lower()}@{ref}"
+
+        return purl
+
+    submodules_sbom_components = [
+        {
+            "type": "library",
+            "name": sm.name,
+            "version": f"{sm.url}#{sm.hexsha}",
+            "purl": to_vcs_purl(sm.name, sm.url, sm.hexsha)
+        }
+        for sm in repo.submodules
+    ]
+
+    return submodules_sbom_components
+
+
+def get_submodules_request_json_deps(repo: git.Repo) -> List[Dict]:
+    """Get dependencies for request.json from submodule"""
+    submodules_request_json_dependencies = [
+        {
+            "type": "git-submodule",
+            "name": sm.name,
+            "path": sm.name,
+            "version": f"{sm.url}#{sm.hexsha}",
+        }
+        for sm in repo.submodules
+    ]
+
+    return submodules_request_json_dependencies

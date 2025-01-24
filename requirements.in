@@ -2,6 +2,7 @@
 backoff
 dockerfile-parse>=0.0.13
 flatpak-module-tools>=0.14
+gitpython
 jsonschema
 paramiko>=3.4.0
 PyYAML
