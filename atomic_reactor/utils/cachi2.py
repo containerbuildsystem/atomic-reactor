@@ -251,8 +251,9 @@ def gen_dependency_from_sbom_component(sbom_dep: Dict[str, Any]) -> Dict[str, Op
     }
 
     # dev package definition
-    # currently only NPM
-    if any(p["name"] == "cdx:npm:package:development" and p["value"] == "true"
+    # currently only NPM and Pip
+    if any(p["name"] == "cdx:npm:package:development" and p["value"] == "true" or
+           p["name"] == "cdx:pip:package:build-dependency" and p["value"] == "true"
            for p in sbom_dep.get("properties", [])):
         res["dev"] = True
 

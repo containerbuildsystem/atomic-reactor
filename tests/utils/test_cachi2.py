@@ -501,6 +501,28 @@ def test_convert_SBOM_to_ICM(sbom, expected_icm):
     ),
     pytest.param(
         {
+            "name": "flit-core",
+            "purl": "pkg:pip/flit-core@3.10.1",
+            "type": "library",
+            "version": "3.10.1",
+            "properties": [
+                {
+                    "name": "cdx:pip:package:build-dependency",
+                    "value": "true"
+                }
+            ],
+        },
+        {
+            "name": "flit-core",
+            "replaces": None,
+            "type": "pip",
+            "version": "3.10.1",
+            "dev": True,
+        },
+        id="pip_dev"
+    ),
+    pytest.param(
+        {
             "name": "validate_url",
             "version": "1.0.5",
             "purl": "pkg:gem/validate_url#subpath",
