@@ -6,6 +6,7 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
+import base64
 import json
 import io
 import tarfile
@@ -26,10 +27,12 @@ from atomic_reactor.constants import (
     CACHI2_SINGLE_REMOTE_SOURCE_NAME,
     CACHITO_ENV_ARG_ALIAS,
     CACHITO_ENV_FILENAME,
+    CACHI2_BUILD_CONFIG_JSON,
     REMOTE_SOURCE_DIR,
     REMOTE_SOURCE_TARBALL_FILENAME,
     REMOTE_SOURCE_JSON_FILENAME,
     REMOTE_SOURCE_JSON_ENV_FILENAME,
+    REMOTE_SOURCE_JSON_CONFIG_FILENAME,
     PLUGIN_CACHI2_INIT,
 )
 from atomic_reactor.plugin import PluginFailedException
@@ -51,6 +54,15 @@ REMOTE_SOURCE_REF = 'b55c00f45ec3dfee0c766cea3d395d6e21cc2e5a'
 SECOND_REMOTE_SOURCE_REPO = 'https://git.example.com/other-team/other-repo.git'
 SECOND_REMOTE_SOURCE_REF = 'd55c00f45ec3dfee0c766cea3d395d6e21cc2e5c'
 
+TEST_CONFIG_TXT_CONTENT = b"test content"
+
+EXPECTED_REMOTE_SOURCE_CONFIG_JSON = [
+    {
+        'content': base64.b64encode(TEST_CONFIG_TXT_CONTENT).decode(),
+        'path': 'app/config.txt',
+        'type': 'base64'
+    }
+]
 
 RemoteSourceInitResult = namedtuple('RemoteSourceInitResult', ['result', 'env_vars', 'sbom'])
 
@@ -75,6 +87,23 @@ def mock_cachi2_init_and_run_plugin(
         name = arg.result["name"] or "single source"
         with open(app_dir / "app.txt", "w") as f:
             f.write(f"test app {name}")
+            f.flush()
+
+        # fake file pretending to be a pkg_manager config updated by cachi2
+        config_txt_path = app_dir / "config.txt"
+        with open(config_txt_path, 'wb') as f:
+            f.write(TEST_CONFIG_TXT_CONTENT)
+            f.flush()
+
+        with open(source_root_path / CACHI2_BUILD_CONFIG_JSON, "w") as f:
+            json.dump({
+                "project_files": [
+                    {
+                        "abspath": str(config_txt_path),
+                        "template": "something, not important for testing"
+                    }
+                ]
+            }, f)
             f.flush()
 
         deps_dir = source_root_path / "deps"
@@ -236,6 +265,10 @@ def test_resolve_remote_source_single(workflow):
                 "json": remote_source_env_json,
                 "filename": REMOTE_SOURCE_JSON_ENV_FILENAME,
             },
+            "remote_source_json_config": {
+                "json": EXPECTED_REMOTE_SOURCE_CONFIG_JSON,
+                "filename": REMOTE_SOURCE_JSON_CONFIG_FILENAME,
+            },
             "remote_source_tarball": {
                 "filename": REMOTE_SOURCE_TARBALL_FILENAME,
                 "path": str(Path(single_source["source_path"]) / "remote-source.tar.gz"),
@@ -384,6 +417,10 @@ def test_multiple_remote_sources(workflow):
                 "json": first_remote_source_env_json,
                 "filename": "remote-source-first.env.json",
             },
+            "remote_source_json_config": {
+                "json": EXPECTED_REMOTE_SOURCE_CONFIG_JSON,
+                "filename": "remote-source-first.config.json",
+            },
             "remote_source_tarball": {
                 "filename": "remote-source-first.tar.gz",
                 "path": str(Path(first_source["source_path"]) / "remote-source.tar.gz"),
@@ -400,6 +437,10 @@ def test_multiple_remote_sources(workflow):
             "remote_source_json_env": {
                 "json": second_remote_source_env_json,
                 "filename": "remote-source-second.env.json",
+            },
+            "remote_source_json_config": {
+                "json": EXPECTED_REMOTE_SOURCE_CONFIG_JSON,
+                "filename": "remote-source-second.config.json",
             },
             "remote_source_tarball": {
                 "filename": "remote-source-second.tar.gz",
@@ -633,6 +674,10 @@ def test_multiple_remote_sources_with_git_submodules(workflow):
                 "json": first_remote_source_env_json,
                 "filename": "remote-source-first.env.json",
             },
+            "remote_source_json_config": {
+                "json": EXPECTED_REMOTE_SOURCE_CONFIG_JSON,
+                "filename": "remote-source-first.config.json",
+            },
             "remote_source_tarball": {
                 "filename": "remote-source-first.tar.gz",
                 "path": str(Path(first_source["source_path"]) / "remote-source.tar.gz"),
@@ -647,6 +692,10 @@ def test_multiple_remote_sources_with_git_submodules(workflow):
             "remote_source_json_env": {
                 "json": second_remote_source_env_json,
                 "filename": "remote-source-second.env.json",
+            },
+            "remote_source_json_config": {
+                "json": EXPECTED_REMOTE_SOURCE_CONFIG_JSON,
+                "filename": "remote-source-second.config.json",
             },
             "remote_source_tarball": {
                 "filename": "remote-source-second.tar.gz",
@@ -737,6 +786,7 @@ def test_inject_remote_sources_dest_already_exists(workflow):
             name=None,
             json_data={},
             json_env_data={},
+            json_config_data=[],
             tarball_path=Path("/does/not/matter"),
             sources_path="/"
         ),

@@ -204,6 +204,7 @@ ICM_JSON_FILENAME = 'icm-{}.json'
 # Cachi2 constants
 CACHI2_BUILD_DIR = "_cachi2_remote_sources"
 CACHI2_BUILD_APP_DIR = "app"
+CACHI2_BUILD_CONFIG_JSON = ".build-config.json"
 CACHI2_ENV_JSON = "cachi2.env.json"
 CACHI2_PKG_OPTIONS_FILE = "cachi2_pkg_options.json"
 CACHI2_FOR_OUTPUT_DIR_OPT_FILE = "cachi2_for_output_dir_opt.txt"

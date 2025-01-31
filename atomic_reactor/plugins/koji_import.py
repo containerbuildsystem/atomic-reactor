@@ -352,6 +352,7 @@ class KojiImportBase(Plugin):
                         remote_source["remote_source_json"]["filename"],
                         remote_source["remote_source_tarball"]["filename"],
                         remote_source["remote_source_json_env"]["filename"],
+                        remote_source["remote_source_json_config"]["filename"],
                     ],
                 }
                 for remote_source in remote_source_result
@@ -660,9 +661,6 @@ class KojiImportPlugin(KojiImportBase):
         if not plugin_results:
             # Cachi2
             plugin_results = wf_data.plugins_results.get(PLUGIN_CACHI2_POSTPROCESS) or []
-            remote_source_keys = [
-                "remote_source_json", "remote_source_json_env",
-            ]
 
         tmpdir = tempfile.mkdtemp()
 
