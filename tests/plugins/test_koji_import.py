@@ -533,54 +533,33 @@ def mock_environment(workflow: DockerBuildWorkflow, source_dir: Path,
         results = workflow.data.plugins_results
         results[PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY] = str(archive_file)
 
-    if has_remote_source == RemoteSourceKind.CACHITO:
+    if has_remote_source in [RemoteSourceKind.CACHITO, RemoteSourceKind.CACHI2]:
         source_path = build_dir_path / REMOTE_SOURCE_TARBALL_FILENAME
         source_path.write_text('dummy file', 'utf-8')
-        remote_source_result = [
-            {
-                "name": None,
-                "url": "https://cachito.com/api/v1/requests/21048/download",
-                "remote_source_json": {
-                    "filename": REMOTE_SOURCE_JSON_FILENAME,
-                    "json": {"stub": "data"},
-                },
-                "remote_source_json_config": {
-                    "filename": REMOTE_SOURCE_JSON_CONFIG_FILENAME,
-                    "json": [{"stub": "data"}],
-                },
-                "remote_source_json_env": {
-                    "filename": REMOTE_SOURCE_JSON_ENV_FILENAME,
-                    "json": {"var": {"stub": "data"}},
-                },
-                "remote_source_tarball": {
-                    "filename": REMOTE_SOURCE_TARBALL_FILENAME,
-                    "path": str(source_path),
-                },
-            }
-        ]
-        workflow.data.plugins_results[PLUGIN_RESOLVE_REMOTE_SOURCE] = remote_source_result
-    elif has_remote_source == RemoteSourceKind.CACHI2:
-        source_path = build_dir_path / REMOTE_SOURCE_TARBALL_FILENAME
-        source_path.write_text('dummy file', 'utf-8')
-        remote_source_result = [
-            {
-                "name": None,
-                "url": "https://cachito.com/api/v1/requests/21048/download",
-                "remote_source_json": {
-                    "filename": REMOTE_SOURCE_JSON_FILENAME,
-                    "json": {"stub": "data"},
-                },
-                "remote_source_json_env": {
-                    "filename": REMOTE_SOURCE_JSON_ENV_FILENAME,
-                    "json": {"var": {"stub": "data"}},
-                },
-                "remote_source_tarball": {
-                    "filename": REMOTE_SOURCE_TARBALL_FILENAME,
-                    "path": str(source_path),
-                },
-            }
-        ]
-        workflow.data.plugins_results[PLUGIN_CACHI2_POSTPROCESS] = remote_source_result
+        remote_source_result = {
+            "name": None,
+            "remote_source_json": {
+                "filename": REMOTE_SOURCE_JSON_FILENAME,
+                "json": {"stub": "data"},
+            },
+            "remote_source_json_config": {
+                "filename": REMOTE_SOURCE_JSON_CONFIG_FILENAME,
+                "json": [{"stub": "data"}],
+            },
+            "remote_source_json_env": {
+                "filename": REMOTE_SOURCE_JSON_ENV_FILENAME,
+                "json": {"var": {"stub": "data"}},
+            },
+            "remote_source_tarball": {
+                "filename": REMOTE_SOURCE_TARBALL_FILENAME,
+                "path": str(source_path),
+            },
+        }
+        if has_remote_source == RemoteSourceKind.CACHITO:
+            remote_source_result["url"] = "https://cachito.com/api/v1/requests/21048/download"
+            workflow.data.plugins_results[PLUGIN_RESOLVE_REMOTE_SOURCE] = [remote_source_result]
+        else:
+            workflow.data.plugins_results[PLUGIN_CACHI2_POSTPROCESS] = [remote_source_result]
     else:
         workflow.data.plugins_results[PLUGIN_RESOLVE_REMOTE_SOURCE] = None
 
@@ -2075,7 +2054,7 @@ class TestKojiImport(object):
                         'name': None,
                         'archives': [
                             'remote-source.json', 'remote-source.tar.gz',
-                            'remote-source.env.json'
+                            'remote-source.env.json', 'remote-source.config.json'
                         ],
                     }
                 ]
