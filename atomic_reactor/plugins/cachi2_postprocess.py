@@ -5,6 +5,7 @@ All rights reserved.
 This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
+import base64
 import functools
 import json
 import os.path
@@ -23,9 +24,11 @@ from atomic_reactor.constants import (
     CACHI2_BUILD_DIR,
     PLUGIN_CACHI2_INIT,
     PLUGIN_CACHI2_POSTPROCESS,
+    CACHI2_BUILD_CONFIG_JSON,
     REMOTE_SOURCE_DIR,
     REMOTE_SOURCE_JSON_FILENAME,
     REMOTE_SOURCE_TARBALL_FILENAME,
+    REMOTE_SOURCE_JSON_CONFIG_FILENAME,
     REMOTE_SOURCE_JSON_ENV_FILENAME,
 )
 from atomic_reactor.dirs import BuildDir, reflink_copy
@@ -47,6 +50,7 @@ class Cachi2RemoteSource:
     name: Optional[str]
     json_data: dict
     json_env_data: List[Dict[str, str]]
+    json_config_data: List[Dict[str, str]]
     tarball_path: Path
     sources_path: Path
 
@@ -63,6 +67,13 @@ class Cachi2RemoteSource:
             return f"remote-source-{name}.json"
         else:
             return REMOTE_SOURCE_JSON_FILENAME
+
+    @classmethod
+    def json_config_filename(cls, name: Optional[str]):
+        if name:
+            return f"remote-source-{name}.config.json"
+        else:
+            return REMOTE_SOURCE_JSON_CONFIG_FILENAME
 
     @classmethod
     def json_env_filename(cls, name: Optional[str]):
@@ -141,6 +152,49 @@ class Cachi2PostprocessPlugin(Plugin):
             json.dump(global_sbom_data, global_sbom_f)
             global_sbom_f.flush()
 
+    def get_remote_source_json_config(self, remote_source_path: str):
+        """Process injected remote source and returns
+
+        Cachi2 is injecting config updates into app dir,
+        we don't want them in source archive, however
+        we need them for later rebuild and analysis, to mirror
+        Cachito behavior.
+        Cachi2 creates .build-config.json file that contains paths
+        and templates how to modify files.
+        Instead of replicating cachi2 templating logic, just use path
+        and load already patched file.
+        This is internal logic of cachi2, this may explode violently when
+        format of .build-config.json changes. Make sure that cachi2 image
+        is tested before promoted to prod.
+        """
+
+        json_config: List[Dict] = []
+        cachi2_build_config_path = os.path.join(
+            remote_source_path, CACHI2_BUILD_CONFIG_JSON)
+        if not os.path.exists(cachi2_build_config_path):
+            return json_config
+
+        with open(cachi2_build_config_path, 'r') as f:
+            cachi2_build_config = json.load(f)
+
+        injected_files = cachi2_build_config.get("project_files", [])
+        for injected_file in injected_files:
+            path = injected_file["abspath"]  # fail horribly if this is missing
+
+            with open(path, 'rb') as f:
+                encoded_data = base64.b64encode(f.read()).decode()  # must be str for JSON
+
+            relpath = os.path.relpath(path, remote_source_path)
+
+            json_config.append(
+                {
+                    "content": encoded_data,
+                    "path": relpath,
+                    "type": "base64",
+                }
+            )
+        return json_config
+
     def postprocess_remote_sources(self) -> List[Cachi2RemoteSource]:
         """Process remote source requests and return information about the processed sources."""
 
@@ -177,6 +231,7 @@ class Cachi2PostprocessPlugin(Plugin):
                 sources_path=Path(remote_source['source_path']),
                 json_data=request_json,
                 json_env_data=json_env_data,
+                json_config_data=self.get_remote_source_json_config(remote_source['source_path'])
             )
             processed_remote_sources.append(remote_source_obj)
         return processed_remote_sources
@@ -244,6 +299,10 @@ class Cachi2PostprocessPlugin(Plugin):
             "remote_source_json_env": {
                 "json": remote_source.json_env_data,
                 "filename": Cachi2RemoteSource.json_env_filename(remote_source.name),
+            },
+            "remote_source_json_config": {
+                "json": remote_source.json_config_data,
+                "filename": Cachi2RemoteSource.json_config_filename(remote_source.name),
             },
             "remote_source_tarball": {
                 "filename": Cachi2RemoteSource.tarball_filename(remote_source.name),
