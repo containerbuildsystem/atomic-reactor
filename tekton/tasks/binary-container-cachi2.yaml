@@ -78,6 +78,7 @@ spec:
         set -eux
         CACHI2_DIR="$(workspaces.ws-build-dir.path)/_cachi2_remote_sources"
         CACHI2_PKG_OPT_PATH="cachi2_pkg_options.json"
+        CACHI2_INCLUDE_GIT_DIR_FILE="cachi2_include_git_dir.txt"
 
         if [ ! -d "$CACHI2_DIR" ]; then
           echo "Skipping step: remote sources not found"
@@ -113,7 +114,11 @@ spec:
           # we can rely on presence of this file
           SBOMS+=("${REMOTE_SOURCE_PATH}/bom.json")
 
-          rm -fr app/.git/   # remove git directory
+          if [ -f "${CACHI2_INCLUDE_GIT_DIR_FILE}" ]; then
+            echo "flag 'include-git-dir' used, keeping git directory present"
+          else
+            rm -fr app/.git/   # remove git directory by default
+          fi
 
           # create source archive before injecting files
           tar -czf remote-source.tar.gz app/ deps/
