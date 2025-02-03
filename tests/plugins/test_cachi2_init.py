@@ -21,6 +21,7 @@ from atomic_reactor.constants import (
     CACHI2_SINGLE_REMOTE_SOURCE_NAME,
     CACHI2_BUILD_APP_DIR,
     CACHI2_FOR_OUTPUT_DIR_OPT_FILE,
+    CACHI2_INCLUDE_GIT_DIR_FILE,
     CACHI2_PKG_OPTIONS_FILE,
     CACHI2_ENV_JSON,
     CACHI2_SBOM_JSON,
@@ -193,6 +194,48 @@ def test_empty_list_pkg_managers(workflow, mocked_cachi2_init):
 
     # test that cachi2 pkg config file hasn't been generated
     assert not (source_path / CACHI2_PKG_OPTIONS_FILE).is_file()
+
+
+def test_include_git_dir_flag(workflow, mocked_cachi2_init):
+    """Test if git directory flag is processed correctly by creating a flag file"""
+    first_remote_source_name = "first"
+
+    remote_source_config = dedent(
+        f"""\
+        remote_sources:
+        - name: {first_remote_source_name}
+          remote_source:
+            repo: {REMOTE_SOURCE_REPO}
+            ref: {REMOTE_SOURCE_REF}
+            pkg_managers: []
+            flags:
+              - include-git-dir
+        """
+    )
+
+    mock_repo_config(workflow, remote_source_config)
+
+    reactor_config = dedent("""\
+        allow_multiple_remote_sources: True
+        """)
+    mock_reactor_config(workflow, reactor_config)
+
+    result = mocked_cachi2_init(workflow).run()
+    assert result == [{
+        "name": first_remote_source_name,
+        "source_path": str(workflow.build_dir.path / CACHI2_BUILD_DIR / first_remote_source_name),
+        "remote_source": {
+            "repo": REMOTE_SOURCE_REPO,
+            "ref": REMOTE_SOURCE_REF,
+            "pkg_managers": [],
+            "flags": ["include-git-dir"]
+        }
+    }]
+
+    source_path = workflow.build_dir.path / CACHI2_BUILD_DIR / first_remote_source_name
+
+    # test if include-git-dir flag file is created
+    assert (source_path / CACHI2_INCLUDE_GIT_DIR_FILE).is_file()
 
 
 def test_multi_remote_source_initialization(workflow, mocked_cachi2_init):
