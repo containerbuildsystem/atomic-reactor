@@ -19,6 +19,7 @@ from atomic_reactor.constants import (
     CACHI2_BUILD_APP_DIR,
     CACHI2_PKG_OPTIONS_FILE,
     CACHI2_FOR_OUTPUT_DIR_OPT_FILE,
+    CACHI2_INCLUDE_GIT_DIR_FILE,
     CACHI2_SINGLE_REMOTE_SOURCE_NAME,
     CACHI2_SBOM_JSON,
     CACHI2_ENV_JSON,
@@ -101,6 +102,16 @@ class Cachi2InitPlugin(Plugin):
         with open(env_path, "w") as f:
             json.dump([], f)
 
+    def process_include_git_dir_flag(self, remote_source: Dict, source_path: Path):
+        """Process remote source include-git-dir flag
+
+        Cachi2 needs git metadata, so git dir must be removed after in tekton run step.
+
+        If include-git-dir is specified, let know to cachi2 run step that git should be kept
+        """
+        if "include-git-dir" in (remote_source.get("flags") or []):
+            (source_path/CACHI2_INCLUDE_GIT_DIR_FILE).touch()
+
     def process_remote_sources(self) -> List[Dict[str, Any]]:
         """Process remote source requests and return information about the processed sources."""
 
@@ -170,6 +181,8 @@ class Cachi2InitPlugin(Plugin):
                 self.write_cachi2_for_output_dir(
                     source_name,
                     source_path / CACHI2_FOR_OUTPUT_DIR_OPT_FILE)
+
+            self.process_include_git_dir_flag(remote_source_data, source_path)
 
             processed_remote_sources.append({
                 "source_path": str(source_path),
