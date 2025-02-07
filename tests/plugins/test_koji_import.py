@@ -2011,6 +2011,7 @@ class TestKojiImport(object):
         # https://github.com/PyCQA/pylint/issues/2186
         # pylint: disable=W1655
         if has_remote_source == RemoteSourceKind.CACHITO:
+            assert extra['image']['remote_sources_version'] == 1
             if allow_multiple_remote_sources:
                 assert extra['image']['remote_sources'] == [
                     {
@@ -2042,6 +2043,7 @@ class TestKojiImport(object):
                 assert REMOTE_SOURCE_TARBALL_FILENAME in session.uploaded_files.keys()
                 assert REMOTE_SOURCE_JSON_FILENAME in session.uploaded_files.keys()
         elif has_remote_source == RemoteSourceKind.CACHI2:
+            assert extra['image']['remote_sources_version'] == 2
             if allow_multiple_remote_sources:
                 assert extra['image']['remote_sources'] == [
                     {

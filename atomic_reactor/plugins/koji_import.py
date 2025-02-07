@@ -331,6 +331,7 @@ class KojiImportBase(Plugin):
                 "remote_source_url": remote_source_result[0]["url"]
             }
 
+        extra["image"]["remote_sources_version"] = 1
         remote_source_typeinfo = {
             KOJI_BTYPE_REMOTE_SOURCES: remote_sources_typeinfo_metadata,
         }
@@ -358,6 +359,7 @@ class KojiImportBase(Plugin):
                 for remote_source in remote_source_result
             ]
 
+        extra["image"]["remote_sources_version"] = 2
         remote_source_typeinfo = {
             KOJI_BTYPE_REMOTE_SOURCES: remote_sources_typeinfo_metadata,
         }
