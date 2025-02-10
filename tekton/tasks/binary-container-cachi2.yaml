@@ -21,6 +21,14 @@ spec:
     - name: log-level
       description: Set cachi2 log level (debug, info, warning, error)
       default: "info"
+    - name: ca-trust-config-map-name
+      type: string
+      description: The name of the ConfigMap to read CA bundle data from.
+      default: trusted-ca
+    - name: ca-trust-config-map-key
+      type: string
+      description: The name of the key in the ConfigMap that contains the CA bundle data.
+      default: ca-bundle.crt
 
   workspaces:
     - name: ws-build-dir
@@ -35,6 +43,15 @@ spec:
         Workspace containing a .netrc file. OSBS and Cachi2 will use the credentials in this file when
         performing git/http(s) requests.
       optional: true
+
+  volumes:
+    - name: trusted-ca
+      configMap:
+        name: $(params.ca-trust-config-map-name)
+        items:
+          - key: $(params.ca-trust-config-map-key)
+            path: ca-bundle.crt
+        optional: true
 
   stepTemplate:
     env:
@@ -83,6 +100,11 @@ spec:
         - name: WORKSPACE_NETRC_PATH
           value: $(workspaces.netrc.path)
       workingDir: $(workspaces.ws-home-dir.path)
+      volumeMounts:
+        - name: trusted-ca
+          mountPath: /etc/pki/tls/certs/ca-bundle.crt
+          subPath: ca-bundle.crt
+          readOnly: true
       resources:
         requests:
           memory: 512Mi
