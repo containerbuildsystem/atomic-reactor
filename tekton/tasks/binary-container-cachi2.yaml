@@ -30,6 +30,11 @@ spec:
     - name: ws-koji-secret  # access with $(workspaces.ws-koji-secret.path)/token
     - name: ws-reactor-config-map
     - name: ws-autobot-keytab
+    - name: netrc
+      description: |
+        Workspace containing a .netrc file. OSBS and Cachi2 will use the credentials in this file when
+        performing git/http(s) requests.
+      optional: true
 
   stepTemplate:
     env:
@@ -43,6 +48,10 @@ spec:
       env:
         - name: USER_PARAMS
           value: $(params.user-params)
+        - name: WORKSPACE_NETRC_BOUND
+          value: $(workspaces.netrc.bound)
+        - name: WORKSPACE_NETRC_PATH
+          value: $(workspaces.netrc.path)
       resources:
         requests:
           memory: 512Mi
@@ -52,6 +61,10 @@ spec:
           cpu: 395m
       script: |
         set -x
+        if [ "${WORKSPACE_NETRC_BOUND}" = "true" ]; then
+          cp "${WORKSPACE_NETRC_PATH}/.netrc" "${HOME}/.netrc"
+        fi
+
         atomic-reactor -v task \
           --user-params="${USER_PARAMS}" \
           --build-dir="$(workspaces.ws-build-dir.path)" \
@@ -65,6 +78,10 @@ spec:
       env:
         - name: LOG_LEVEL
           value: $(params.log-level)
+        - name: WORKSPACE_NETRC_BOUND
+          value: $(workspaces.netrc.bound)
+        - name: WORKSPACE_NETRC_PATH
+          value: $(workspaces.netrc.path)
       workingDir: $(workspaces.ws-home-dir.path)
       resources:
         requests:
@@ -83,6 +100,10 @@ spec:
         if [ ! -d "$CACHI2_DIR" ]; then
           echo "Skipping step: remote sources not found"
           exit 0
+        fi
+
+        if [ "${WORKSPACE_NETRC_BOUND}" = "true" ]; then
+          cp "${WORKSPACE_NETRC_PATH}/.netrc" "${HOME}/.netrc"
         fi
 
         SBOMS=()
