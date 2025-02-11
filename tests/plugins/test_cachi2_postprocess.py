@@ -252,6 +252,14 @@ def test_resolve_remote_source_single(workflow):
             single_source, remote_source_env_json, remote_source_sbom
         )
     )
+
+    expected_remote_source_env_json = {
+        "GOCACHE": {
+          "kind": "literal",
+          "value": "/remote-source/deps/gomod",
+        },
+    }
+
     expected_plugin_results = [
         {
             "name": None,
@@ -262,7 +270,7 @@ def test_resolve_remote_source_single(workflow):
                 "filename": REMOTE_SOURCE_JSON_FILENAME,
             },
             "remote_source_json_env": {
-                "json": remote_source_env_json,
+                "json": expected_remote_source_env_json,
                 "filename": REMOTE_SOURCE_JSON_ENV_FILENAME,
             },
             "remote_source_json_config": {
@@ -404,6 +412,21 @@ def test_multiple_remote_sources(workflow):
         RemoteSourceInitResult(
             second_source, second_remote_source_env_json, second_remote_source_sbom),
     )
+
+    expected_first_remote_source_env_json = {
+        "GOCACHE": {
+          "kind": "literal",
+          "value": "/remote-source/deps/gomod",
+        },
+    }
+
+    expected_second_remote_source_env_json = {
+        "PIP_INDEX": {
+          "kind": "literal",
+          "value": "/remote-source/deps/somewhere-here",
+        },
+    }
+
     expected_plugin_results = [
         {
             "name": FIRST_REMOTE_SOURCE_NAME,
@@ -414,7 +437,7 @@ def test_multiple_remote_sources(workflow):
                 "filename": "remote-source-first.json",
             },
             "remote_source_json_env": {
-                "json": first_remote_source_env_json,
+                "json": expected_first_remote_source_env_json,
                 "filename": "remote-source-first.env.json",
             },
             "remote_source_json_config": {
@@ -435,7 +458,7 @@ def test_multiple_remote_sources(workflow):
                 "filename": "remote-source-second.json",
             },
             "remote_source_json_env": {
-                "json": second_remote_source_env_json,
+                "json": expected_second_remote_source_env_json,
                 "filename": "remote-source-second.env.json",
             },
             "remote_source_json_config": {
@@ -619,6 +642,20 @@ def test_multiple_remote_sources_with_git_submodules(workflow):
             second_source, second_remote_source_env_json, second_remote_source_sbom),
     )
 
+    expected_first_remote_source_env_json = {
+        "GOCACHE": {
+          "kind": "literal",
+          "value": "/remote-source/deps/gomod",
+        },
+    }
+
+    expected_second_remote_source_env_json = {
+        "PIP_INDEX": {
+          "kind": "literal",
+          "value": "/remote-source/deps/somewhere-here",
+        },
+    }
+
     expected_request_json_first = {
         'dependencies': [
             {
@@ -671,7 +708,7 @@ def test_multiple_remote_sources_with_git_submodules(workflow):
                 "filename": "remote-source-first.json",
             },
             "remote_source_json_env": {
-                "json": first_remote_source_env_json,
+                "json": expected_first_remote_source_env_json,
                 "filename": "remote-source-first.env.json",
             },
             "remote_source_json_config": {
@@ -690,7 +727,7 @@ def test_multiple_remote_sources_with_git_submodules(workflow):
                 "filename": "remote-source-second.json",
             },
             "remote_source_json_env": {
-                "json": second_remote_source_env_json,
+                "json": expected_second_remote_source_env_json,
                 "filename": "remote-source-second.env.json",
             },
             "remote_source_json_config": {

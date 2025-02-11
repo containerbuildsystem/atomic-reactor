@@ -290,6 +290,15 @@ class Cachi2PostprocessPlugin(Plugin):
     def remote_source_to_output(self, remote_source: Cachi2RemoteSource) -> Dict[str, Any]:
         """Convert a processed remote source to a dict to be used as output of this plugin."""
 
+        compat_json = {
+            # cachito return data in this format, keep compatibility for koji metadata
+            env_var['name']: {
+                "value": env_var['value'],
+                "kind": "literal",
+            }
+            for env_var in remote_source.json_env_data
+        }
+
         return {
             "name": remote_source.name,
             "remote_source_json": {
@@ -297,7 +306,7 @@ class Cachi2PostprocessPlugin(Plugin):
                 "filename": Cachi2RemoteSource.json_filename(remote_source.name),
             },
             "remote_source_json_env": {
-                "json": remote_source.json_env_data,
+                "json": compat_json,
                 "filename": Cachi2RemoteSource.json_env_filename(remote_source.name),
             },
             "remote_source_json_config": {
