@@ -22,6 +22,11 @@ spec:
     - name: ws-reactor-config-map
     - name: ws-remote-host-auth
     - name: ws-autobot-keytab
+    - name: netrc
+      description: |
+        Workspace containing a .netrc file. OSBS and Cachi2 will use the credentials in this file when
+        performing git/http(s) requests.
+      optional: true
 
   results:
     - name: repositories
@@ -178,6 +183,8 @@ spec:
           workspace: ws-reactor-config-map
         - name: ws-autobot-keytab
           workspace: ws-autobot-keytab
+        - name: netrc
+          workspace: netrc
       params:
         - name: osbs-image
           value: "$(params.osbs-image)"
