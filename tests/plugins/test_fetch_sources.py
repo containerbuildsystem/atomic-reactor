@@ -543,6 +543,7 @@ def get_remote_file_url(koji_build, file_name=REMOTE_SOURCE_FILE_FILENAME):
 def mock_koji_manifest_download(source_dir: Path, requests_mock,
                                 retries=0, dirs_in_remote=('app', 'deps'),
                                 files_in_remote=(), cachito_package_names=None,
+                                cachi2_package_names=None,
                                 change_package_names=True):
     class MockBytesIO(io.BytesIO):
         reads = 0
@@ -610,13 +611,19 @@ def mock_koji_manifest_download(source_dir: Path, requests_mock,
     test_tar.unlink()
 
     def body_remote_json_callback(request, context):
-        remote_json = {'packages': []}
+        remote_json = {'packages': [], 'dependencies': []}
         if cachito_package_names:
             for pkg in cachito_package_names:
                 if change_package_names:
                     remote_json['packages'].append({'name': os.path.join('github.com', pkg)})
                 else:
                     remote_json['packages'].append({'name': pkg})
+        if cachi2_package_names:
+            for pkg in cachi2_package_names:
+                if change_package_names:
+                    remote_json['dependencies'].append({'name': os.path.join('github.com', pkg)})
+                else:
+                    remote_json['dependencies'].append({'name': pkg})
         remote_cont = json.dumps(remote_json)
 
         remote_bytes = bytes(remote_cont, 'ascii')
@@ -1378,10 +1385,11 @@ class TestFetchSources(object):
         (1, 0, 'remote source json missing'),
         (2, 1, 'There can be just one remote sources archive'),
     ])
+    @pytest.mark.parametrize('remote_source_version', ['cachito', 'cachi2'])
     def test_exclude_closed_sources(self, requests_mock, koji_session, workflow, source_dir,
                                     caplog, excludelist, excludelist_json, cachito_pkg_names,
                                     exclude_messages, exc_str, vendor_exists, source_archives,
-                                    source_json, raise_early):
+                                    source_json, raise_early, remote_source_version):
         list_archives = []
         for n in range(source_archives):
             list_archives.append({'id': n, 'type_name': 'tar',
@@ -1443,12 +1451,18 @@ class TestFetchSources(object):
             requests_mock.register_uri('GET', excludelist['denylist_sources'],
                                        json=excludelist_json, status_code=200)
 
+        kwargs = {}
+        if remote_source_version == 'cachito':
+            kwargs["cachito_package_names"] = cachito_pkg_names
+        elif remote_source_version == 'cachi2':
+            kwargs["cachi2_package_names"] = cachito_pkg_names
+
         mock_koji_manifest_download(source_dir,
                                     requests_mock,
                                     dirs_in_remote=dirs_to_create,
                                     files_in_remote=files_to_create,
-                                    cachito_package_names=cachito_pkg_names,
-                                    change_package_names=False)
+                                    change_package_names=False,
+                                    **kwargs)
         runner = mock_env(workflow, source_dir, koji_build_id=1,
                           config_map=yaml.safe_dump(rcm_json))
 

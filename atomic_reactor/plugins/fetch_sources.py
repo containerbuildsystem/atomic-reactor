@@ -828,7 +828,13 @@ class FetchSourcesPlugin(Plugin):
         # py2 glob.glob doesn't support recursive, hence os.walk & fnmatch
         # py3 can use: glob.glob(os.path.join(unpack_dir, '**', exclude), recursive=True)
         for root, dirnames, filenames in os.walk(unpack_dir):
-            for entry in dirnames + filenames:
+
+            # Cachi2 saves dependencies without nested dir, it's only archive name-version.ext
+            # add this heuristic to match only package name
+            filenames_modified = {filename.rsplit('-', 1)[0] for filename in filenames}
+            filenames_modified.update(filenames)  # add original and deduplicate
+
+            for entry in dirnames + list(filenames_modified):
                 full_path = os.path.join(root, entry)
 
                 for exclude in denylist_sources:
@@ -875,8 +881,15 @@ class FetchSourcesPlugin(Plugin):
             with tarfile.open(remote_archive) as tar:
                 safe_extractall(tar, unpack_dir)
 
-            delete_app = self._check_if_package_excluded(remote_json['packages'], denylist_sources,
-                                                         remote_archive)
+            delete_app = (
+                # Cachito provides packages
+                self._check_if_package_excluded(
+                    remote_json['packages'], denylist_sources, remote_archive)
+                or
+                # Cachi2 provides only dependencies, packages are listed as dependencies
+                self._check_if_package_excluded(remote_json.get(
+                    'dependencies', []), denylist_sources, remote_archive)
+            )
 
             # if any package in cachito json matched excluded entry,
             # remove 'app' from sources, except 'app/vendor' when exists
