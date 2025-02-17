@@ -809,6 +809,20 @@ class FetchSourcesPlugin(Plugin):
                     return True
         return False
 
+    def _check_if_repo_excluded(self, repo, denylist_sources, remote_archive):
+        """if repo matches denylisted source returns True"""
+        if repo.endswith('.git'):
+            repo = repo[:-4]
+
+        denylist_packages = {k.lstrip(os.sep) for k in denylist_sources}
+
+        for exclude_path in denylist_packages:
+            if repo.endswith(exclude_path):
+                self.log.debug('Repo excluded: "%s" from "%s"', repo,
+                               remote_archive)
+                return True
+        return False
+
     def _delete_app_directory(self, remote_source_dir, unpack_dir, remote_archive):
         vendor_dir = os.path.join(unpack_dir, 'app', 'vendor')
 
@@ -828,7 +842,13 @@ class FetchSourcesPlugin(Plugin):
         # py2 glob.glob doesn't support recursive, hence os.walk & fnmatch
         # py3 can use: glob.glob(os.path.join(unpack_dir, '**', exclude), recursive=True)
         for root, dirnames, filenames in os.walk(unpack_dir):
-            for entry in dirnames + filenames:
+
+            # Hermeto saves dependencies without nested dir, it's only archive name-version.ext
+            # add this heuristic to match only package name
+            filenames_modified = {filename.rsplit('-', 1)[0] for filename in filenames}
+            filenames_modified.update(filenames)  # add original and deduplicate
+
+            for entry in dirnames + list(filenames_modified):
                 full_path = os.path.join(root, entry)
 
                 for exclude in denylist_sources:
@@ -875,8 +895,15 @@ class FetchSourcesPlugin(Plugin):
             with tarfile.open(remote_archive) as tar:
                 safe_extractall(tar, unpack_dir)
 
-            delete_app = self._check_if_package_excluded(remote_json['packages'], denylist_sources,
-                                                         remote_archive)
+            # Cachito provides packages, Hermeto doesn't
+            # with Hermeto we can detect application only
+            # from repo name
+            delete_app = (
+                self._check_if_package_excluded(
+                    remote_json['packages'], denylist_sources, remote_archive)
+                or self._check_if_repo_excluded(
+                    remote_json['repo'], denylist_sources, remote_archive)
+            )
 
             # if any package in cachito json matched excluded entry,
             # remove 'app' from sources, except 'app/vendor' when exists
