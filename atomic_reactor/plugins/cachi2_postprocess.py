@@ -258,6 +258,7 @@ class Cachi2PostprocessPlugin(Plugin):
         Return a list of the newly created directories.
         """
         created_dirs = []
+        copy_paths = [Path('app'), Path('deps'), Path('bundler')]
 
         for remote_source in remote_sources:
             dest_dir = build_dir.path.joinpath(self.REMOTE_SOURCE, remote_source.name or "")
@@ -278,9 +279,11 @@ class Cachi2PostprocessPlugin(Plugin):
             self.log.debug(
                 "copy method used for cachi2 build_dir_injecting: %s", copy_method.__name__)
 
-            copytree(
-                remote_source.sources_path, dest_dir,
-                symlinks=True, copy_function=copy_method, dirs_exist_ok=True)
+            for pth in copy_paths:
+                if (remote_source.sources_path/pth).exists():
+                    copytree(
+                        remote_source.sources_path/pth, dest_dir/pth,
+                        symlinks=True, copy_function=copy_method, dirs_exist_ok=True)
 
             # Create cachito.env file with environment variables received from cachito request
             self.generate_cachito_env_file(dest_dir, remote_source.build_args)
