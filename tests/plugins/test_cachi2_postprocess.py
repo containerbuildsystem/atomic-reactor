@@ -756,23 +756,13 @@ def test_multiple_remote_sources_with_git_submodules(workflow):
         """
     )
 
-    final_first_source_sbom = copy.deepcopy(first_remote_source_sbom)
-    final_first_source_sbom["components"].extend(first_source_submodules_sbom_components)
-    first_cachito_expected_sbom_str = json.dumps(final_first_source_sbom)
-
-    second_first_source_sbom = copy.deepcopy(second_remote_source_sbom)
-    second_first_source_sbom["components"].extend(second_source_submodules_sbom_components)
-    second_cachito_expected_sbom_str = json.dumps(second_first_source_sbom)
-
     workflow.build_dir.for_each_platform(
         check_injected_files(
             {
-                f"{FIRST_REMOTE_SOURCE_NAME}/bom.json": first_cachito_expected_sbom_str,
                 f"{FIRST_REMOTE_SOURCE_NAME}/cachito.env": first_cachito_env,
                 f"{FIRST_REMOTE_SOURCE_NAME}/app/app.txt": f"test app {FIRST_REMOTE_SOURCE_NAME}",
                 f"{FIRST_REMOTE_SOURCE_NAME}/deps/dep.txt": (
                     f"dependency for {FIRST_REMOTE_SOURCE_NAME}"),
-                f"{SECOND_REMOTE_SOURCE_NAME}/bom.json": second_cachito_expected_sbom_str,
                 f"{SECOND_REMOTE_SOURCE_NAME}/cachito.env": second_cachito_env,
                 f"{SECOND_REMOTE_SOURCE_NAME}/app/app.txt": f"test app {SECOND_REMOTE_SOURCE_NAME}",
                 f"{SECOND_REMOTE_SOURCE_NAME}/deps/dep.txt": (
@@ -781,14 +771,28 @@ def test_multiple_remote_sources_with_git_submodules(workflow):
         )
     )
 
+    final_first_source_sbom = copy.deepcopy(first_remote_source_sbom)
+    final_first_source_sbom["components"].extend(first_source_submodules_sbom_components)
+
+    final_second_source_sbom = copy.deepcopy(second_remote_source_sbom)
+    final_second_source_sbom["components"].extend(second_source_submodules_sbom_components)
+
     # global json contains all components, including submodules
     expected_global_sbom = copy.deepcopy(first_remote_source_sbom)
     expected_global_sbom["components"].extend(second_remote_source_sbom["components"])
     expected_global_sbom["components"].extend(first_source_submodules_sbom_components)
     expected_global_sbom["components"].extend(second_source_submodules_sbom_components)
 
-    with open(workflow.build_dir.path / CACHI2_BUILD_DIR / "bom.json", 'r') as f:
-        assert json.load(f) == expected_global_sbom
+    # test sboms
+    for path, expected in (
+        (workflow.build_dir.path / CACHI2_BUILD_DIR / FIRST_REMOTE_SOURCE_NAME / "bom.json",
+         final_first_source_sbom),
+        (workflow.build_dir.path / CACHI2_BUILD_DIR / SECOND_REMOTE_SOURCE_NAME / "bom.json",
+         final_second_source_sbom),
+        (workflow.build_dir.path / CACHI2_BUILD_DIR / "bom.json", expected_global_sbom),
+    ):
+        with open(path, 'r') as f:
+            assert json.load(f) == expected
 
     assert workflow.data.buildargs == {
         "REMOTE_SOURCES": Cachi2PostprocessPlugin.REMOTE_SOURCE,
