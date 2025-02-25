@@ -110,8 +110,8 @@ spec:
           memory: 512Mi
           cpu: 250m
         limits:
-          memory: 1Gi
-          cpu: 395m
+          memory: 2500Mi
+          cpu: 1500m
       script: |
         #!/usr/bin/bash
         set -eux
