@@ -12,11 +12,11 @@ from typing import Union
 
 from flexmock import flexmock
 
-from atomic_reactor.utils.cachi2 import (
+from atomic_reactor.utils.hermeto import (
     SymlinkSandboxError,
     convert_SBOM_to_ICM,
     enforce_sandbox,
-    remote_source_to_cachi2,
+    remote_source_to_hermeto,
     gen_dependency_from_sbom_component,
     generate_request_json,
     clone_only,
@@ -46,7 +46,7 @@ def mocked_repo_submodules():
     )
 
 
-@pytest.mark.parametrize(('input_remote_source', 'expected_cachi2'), [
+@pytest.mark.parametrize(('input_remote_source', 'expected_hermeto'), [
     pytest.param(
         {"pkg_managers": ["gomod"]},
         {"flags": [], "packages": [{"path": ".", "type": "gomod"}]},
@@ -129,10 +129,10 @@ def mocked_repo_submodules():
         id="empty_package_managers",
     ),
 ])
-def test_remote_source_to_cachi2_conversion(input_remote_source, expected_cachi2):
+def test_remote_source_to_hermeto_conversion(input_remote_source, expected_hermeto):
     """Test conversion of remote_source (cachito) configuration from container yaml
-    into cachi2 params"""
-    assert remote_source_to_cachi2(input_remote_source) == expected_cachi2
+    into Hermeto params"""
+    assert remote_source_to_hermeto(input_remote_source) == expected_hermeto
 
 
 @pytest.mark.parametrize("remote_source_packages,expected_err", [
@@ -192,7 +192,7 @@ def test_remote_source_to_cachi2_conversion(input_remote_source, expected_cachi2
 ])
 def test_remote_source_invalid_paths(tmpdir, remote_source_packages, expected_err):
     """Test conversion of remote_source (cachito) configuration from container yaml
-    into cachi2 params"""
+    into Hermeto params"""
     with pytest.raises(ValueError) as exc_info:
         validate_paths(Path(tmpdir), remote_source_packages)
 
@@ -235,15 +235,15 @@ def test_remote_source_path_to_symlink_out_of_repo(tmpdir):
                 "name": "unsafe",
                 "purl": "pkg:golang/unsafe?type=package",
                 "properties": [{
-                    "name": "cachi2:found_by",
-                    "value": "cachi2",
+                    "name": "hermeto:found_by",
+                    "value": "hermeto",
                 }],
                 "type": "library",
             }],
             "metadata": {
                 "tools": [{
                     "vendor": "red hat",
-                    "name": "cachi2"
+                    "name": "hermeto"
                 }]
             },
             "specVersion": "1.4",
@@ -267,7 +267,7 @@ def test_remote_source_path_to_symlink_out_of_repo(tmpdir):
     ),
 ])
 def test_convert_SBOM_to_ICM(sbom, expected_icm):
-    """Test conversion from cachi2 SBOM into ICM format"""
+    """Test conversion from Hermeto SBOM into ICM format"""
     assert convert_SBOM_to_ICM(sbom) == expected_icm
 
 
@@ -543,7 +543,7 @@ def test_gen_dependency_from_sbom_component(sbom_comp, expected):
 
 
 def test_generate_request_json():
-    """Test generating request.json from cachi2 SBOM and OSBS metadata"""
+    """Test generating request.json from Hermeto SBOM and OSBS metadata"""
     remote_source = {
         "repo": "https://example.com/org/repo.git",
         "ref": "7d669deedc3fd0e9199213e1f66056bb9f388394",
@@ -559,8 +559,8 @@ def test_generate_request_json():
                 "purl": "pkg:golang/bytes?type=package",
                 "properties": [
                     {
-                        "name": "cachi2:found_by",
-                        "value": "cachi2"
+                        "name": "hermeto:found_by",
+                        "value": "hermeto"
                     }
                 ],
                 "type": "library"

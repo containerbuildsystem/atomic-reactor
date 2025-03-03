@@ -19,7 +19,7 @@ from atomic_reactor.plugin import TaskCanceledException, PluginFailedException
 from atomic_reactor.tasks.common import TaskParams
 from atomic_reactor.tasks.binary import (
     InitTaskParams, BinaryPreBuildTask, BinaryInitTask, BinaryCachitoTask,
-    BinaryCachi2InitTask
+    BinaryHermetoInitTask
 )
 from atomic_reactor.util import DockerfileImages
 
@@ -233,7 +233,7 @@ def test_ensure_workflow_data_is_saved_init_task(
     assert {} == wf_data.plugins_results
 
 
-@pytest.mark.parametrize("taskfunc", [BinaryCachitoTask, BinaryCachi2InitTask, BinaryPreBuildTask])
+@pytest.mark.parametrize("taskfunc", [BinaryCachitoTask, BinaryHermetoInitTask, BinaryPreBuildTask])
 def test_ensure_workflow_data_is_saved_standard_task(
     build_dir, dummy_source, tmpdir, taskfunc
 ):

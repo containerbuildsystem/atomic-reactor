@@ -17,27 +17,27 @@ import yaml
 from flexmock import flexmock
 
 from atomic_reactor.constants import (
-    CACHI2_BUILD_DIR,
-    CACHI2_SINGLE_REMOTE_SOURCE_NAME,
-    CACHI2_BUILD_APP_DIR,
-    CACHI2_FOR_OUTPUT_DIR_OPT_FILE,
-    CACHI2_INCLUDE_GIT_DIR_FILE,
-    CACHI2_PKG_OPTIONS_FILE,
-    CACHI2_ENV_JSON,
-    CACHI2_SBOM_JSON,
+    HERMETO_BUILD_DIR,
+    HERMETO_SINGLE_REMOTE_SOURCE_NAME,
+    HERMETO_BUILD_APP_DIR,
+    HERMETO_FOR_OUTPUT_DIR_OPT_FILE,
+    HERMETO_INCLUDE_GIT_DIR_FILE,
+    HERMETO_PKG_OPTIONS_FILE,
+    HERMETO_ENV_JSON,
+    HERMETO_SBOM_JSON,
 )
 
 from atomic_reactor.inner import DockerBuildWorkflow
 
 from atomic_reactor.plugin import PluginFailedException
-from atomic_reactor.plugins.cachi2_init import (
-    Cachi2InitPlugin,
+from atomic_reactor.plugins.hermeto_init import (
+    HermetoInitPlugin,
 )
 from atomic_reactor.source import SourceConfig
 from tests.mock_env import MockEnv
 
 from tests.stubs import StubSource
-from tests.utils.test_cachi2 import Symlink, write_file_tree
+from tests.utils.test_hermeto import Symlink, write_file_tree
 
 
 REMOTE_SOURCE_REPO = 'https://git.example.com/team/repo.git'
@@ -69,15 +69,15 @@ def mock_repo_config(workflow, data=None):
 
 
 @pytest.fixture
-def mocked_cachi2_init():
+def mocked_hermeto_init():
     def clone_f(repo, target_dir, ref):
         with open(target_dir / "clone.txt", "w") as f:
             f.write(f"{repo}:{ref}")
             f.flush()
 
-    mocked = flexmock(Cachi2InitPlugin)
+    mocked = flexmock(HermetoInitPlugin)
     mocked.should_receive('clone_remote_source').replace_with(clone_f)
-    return Cachi2InitPlugin
+    return HermetoInitPlugin
 
 
 @pytest.fixture
@@ -101,46 +101,46 @@ def workflow(workflow: DockerBuildWorkflow, source_dir):
     return workflow
 
 
-def assert_cachi2_init_files(
+def assert_hermeto_init_files(
         workflow,
         remote_source_name: str,
         expected_pkg_opt: Dict,
         expected_for_output: str):
 
-    cachi2_build_path = workflow.build_dir.path / CACHI2_BUILD_DIR
-    assert os.path.exists(cachi2_build_path)
+    hermeto_build_path = workflow.build_dir.path / HERMETO_BUILD_DIR
+    assert os.path.exists(hermeto_build_path)
 
-    remote_source_path = cachi2_build_path / remote_source_name
+    remote_source_path = hermeto_build_path / remote_source_name
     assert os.path.exists(remote_source_path)
 
-    clone_path = remote_source_path / CACHI2_BUILD_APP_DIR / MOCKED_CLONE_FILE
+    clone_path = remote_source_path / HERMETO_BUILD_APP_DIR / MOCKED_CLONE_FILE
     assert os.path.exists(clone_path)
 
-    cachi2_pkg_opt_path = remote_source_path / CACHI2_PKG_OPTIONS_FILE
-    assert os.path.exists(cachi2_pkg_opt_path)
-    with open(cachi2_pkg_opt_path, "r") as f:
+    hermeto_pkg_opt_path = remote_source_path / HERMETO_PKG_OPTIONS_FILE
+    assert os.path.exists(hermeto_pkg_opt_path)
+    with open(hermeto_pkg_opt_path, "r") as f:
         assert json.load(f) == expected_pkg_opt
 
-    cachi2_for_output_opt_path = remote_source_path / CACHI2_FOR_OUTPUT_DIR_OPT_FILE
-    assert os.path.exists(cachi2_for_output_opt_path)
-    with open(cachi2_for_output_opt_path, "r") as f:
+    hermeto_for_output_opt_path = remote_source_path / HERMETO_FOR_OUTPUT_DIR_OPT_FILE
+    assert os.path.exists(hermeto_for_output_opt_path)
+    with open(hermeto_for_output_opt_path, "r") as f:
         assert f.read() == expected_for_output
 
 
-def test_single_remote_source_initialization(workflow, mocked_cachi2_init):
+def test_single_remote_source_initialization(workflow, mocked_hermeto_init):
     """Tests initialization or repos for single remote source"""
-    result = mocked_cachi2_init(workflow).run()
+    result = mocked_hermeto_init(workflow).run()
 
-    assert_cachi2_init_files(
+    assert_hermeto_init_files(
         workflow,
-        CACHI2_SINGLE_REMOTE_SOURCE_NAME,
+        HERMETO_SINGLE_REMOTE_SOURCE_NAME,
         {"packages": [{"path": ".", "type": "gomod"}], "flags": []},
         '/remote-source')
 
     assert result == [{
         "name": None,
         "source_path": str(
-            workflow.build_dir.path / CACHI2_BUILD_DIR / CACHI2_SINGLE_REMOTE_SOURCE_NAME),
+            workflow.build_dir.path / HERMETO_BUILD_DIR / HERMETO_SINGLE_REMOTE_SOURCE_NAME),
         "remote_source": {
             "repo": REMOTE_SOURCE_REPO,
             "ref": REMOTE_SOURCE_REF,
@@ -149,9 +149,9 @@ def test_single_remote_source_initialization(workflow, mocked_cachi2_init):
     }]
 
 
-def test_empty_list_pkg_managers(workflow, mocked_cachi2_init):
+def test_empty_list_pkg_managers(workflow, mocked_hermeto_init):
     """Test if when empty_list of pkg managers is specified,
-    sbom and env-var are generated and cachi2 config skipped"""
+    sbom and env-var are generated and Hermeto config skipped"""
     first_remote_source_name = "first"
 
     remote_source_config = dedent(
@@ -172,10 +172,10 @@ def test_empty_list_pkg_managers(workflow, mocked_cachi2_init):
         """)
     mock_reactor_config(workflow, reactor_config)
 
-    result = mocked_cachi2_init(workflow).run()
+    result = mocked_hermeto_init(workflow).run()
     assert result == [{
         "name": first_remote_source_name,
-        "source_path": str(workflow.build_dir.path / CACHI2_BUILD_DIR / first_remote_source_name),
+        "source_path": str(workflow.build_dir.path / HERMETO_BUILD_DIR / first_remote_source_name),
         "remote_source": {
             "repo": REMOTE_SOURCE_REPO,
             "ref": REMOTE_SOURCE_REF,
@@ -183,20 +183,20 @@ def test_empty_list_pkg_managers(workflow, mocked_cachi2_init):
         }
     }]
 
-    source_path = workflow.build_dir.path / CACHI2_BUILD_DIR / first_remote_source_name
+    source_path = workflow.build_dir.path / HERMETO_BUILD_DIR / first_remote_source_name
 
     # test if bom and env have been created
-    assert (source_path / CACHI2_SBOM_JSON).is_file()
-    assert (source_path / CACHI2_ENV_JSON).is_file()
+    assert (source_path / HERMETO_SBOM_JSON).is_file()
+    assert (source_path / HERMETO_ENV_JSON).is_file()
 
     # test if clone happened
-    assert (source_path / CACHI2_BUILD_APP_DIR / MOCKED_CLONE_FILE).is_file()
+    assert (source_path / HERMETO_BUILD_APP_DIR / MOCKED_CLONE_FILE).is_file()
 
-    # test that cachi2 pkg config file hasn't been generated
-    assert not (source_path / CACHI2_PKG_OPTIONS_FILE).is_file()
+    # test that Hermeto pkg config file hasn't been generated
+    assert not (source_path / HERMETO_PKG_OPTIONS_FILE).is_file()
 
 
-def test_include_git_dir_flag(workflow, mocked_cachi2_init):
+def test_include_git_dir_flag(workflow, mocked_hermeto_init):
     """Test if git directory flag is processed correctly by creating a flag file"""
     first_remote_source_name = "first"
 
@@ -220,10 +220,10 @@ def test_include_git_dir_flag(workflow, mocked_cachi2_init):
         """)
     mock_reactor_config(workflow, reactor_config)
 
-    result = mocked_cachi2_init(workflow).run()
+    result = mocked_hermeto_init(workflow).run()
     assert result == [{
         "name": first_remote_source_name,
-        "source_path": str(workflow.build_dir.path / CACHI2_BUILD_DIR / first_remote_source_name),
+        "source_path": str(workflow.build_dir.path / HERMETO_BUILD_DIR / first_remote_source_name),
         "remote_source": {
             "repo": REMOTE_SOURCE_REPO,
             "ref": REMOTE_SOURCE_REF,
@@ -232,13 +232,13 @@ def test_include_git_dir_flag(workflow, mocked_cachi2_init):
         }
     }]
 
-    source_path = workflow.build_dir.path / CACHI2_BUILD_DIR / first_remote_source_name
+    source_path = workflow.build_dir.path / HERMETO_BUILD_DIR / first_remote_source_name
 
     # test if include-git-dir flag file is created
-    assert (source_path / CACHI2_INCLUDE_GIT_DIR_FILE).is_file()
+    assert (source_path / HERMETO_INCLUDE_GIT_DIR_FILE).is_file()
 
 
-def test_multi_remote_source_initialization(workflow, mocked_cachi2_init):
+def test_multi_remote_source_initialization(workflow, mocked_hermeto_init):
     """Tests initialization or repos for multiple remote sources"""
 
     first_remote_source_name = "first"
@@ -269,9 +269,9 @@ def test_multi_remote_source_initialization(workflow, mocked_cachi2_init):
         """)
     mock_reactor_config(workflow, reactor_config)
 
-    result = mocked_cachi2_init(workflow).run()
+    result = mocked_hermeto_init(workflow).run()
 
-    assert_cachi2_init_files(
+    assert_hermeto_init_files(
         workflow,
         first_remote_source_name,
         {
@@ -279,7 +279,7 @@ def test_multi_remote_source_initialization(workflow, mocked_cachi2_init):
             "flags": ["gomod-vendor"]
         },
         f'/remote-source/{first_remote_source_name}')
-    assert_cachi2_init_files(
+    assert_hermeto_init_files(
         workflow,
         second_remote_source_name,
         {"packages": [{"path": ".", "type": "gomod"}], "flags": []},
@@ -287,7 +287,7 @@ def test_multi_remote_source_initialization(workflow, mocked_cachi2_init):
 
     assert result == [{
         "name": first_remote_source_name,
-        "source_path": str(workflow.build_dir.path / CACHI2_BUILD_DIR / first_remote_source_name),
+        "source_path": str(workflow.build_dir.path / HERMETO_BUILD_DIR / first_remote_source_name),
         "remote_source": {
             "repo": REMOTE_SOURCE_REPO,
             "ref": REMOTE_SOURCE_REF,
@@ -296,7 +296,7 @@ def test_multi_remote_source_initialization(workflow, mocked_cachi2_init):
         }
     }, {
         "name": second_remote_source_name,
-        "source_path": str(workflow.build_dir.path / CACHI2_BUILD_DIR / second_remote_source_name),
+        "source_path": str(workflow.build_dir.path / HERMETO_BUILD_DIR / second_remote_source_name),
         "remote_source": {
             "repo": SECOND_REMOTE_SOURCE_REPO,
             "ref": SECOND_REMOTE_SOURCE_REF,
@@ -305,22 +305,22 @@ def test_multi_remote_source_initialization(workflow, mocked_cachi2_init):
     }]
 
 
-def test_no_fail_when_missing_cachito_config(workflow, mocked_cachi2_init):
-    """Cachi2 is not dependent on cachito config"""
+def test_no_fail_when_missing_cachito_config(workflow, mocked_hermeto_init):
+    """Hermeto is not dependent on cachito config"""
     reactor_config = dedent("""\
         version: 1
         """)
     mock_reactor_config(workflow, reactor_config)
 
-    result = mocked_cachi2_init(workflow).run()
+    result = mocked_hermeto_init(workflow).run()
     assert result
 
 
-def test_ignore_when_missing_remote_source_config(workflow, mocked_cachi2_init):
+def test_ignore_when_missing_remote_source_config(workflow, mocked_hermeto_init):
     """Plugin should just skip when remote source is not configured"""
     remote_source_config = dedent("""---""")
     mock_repo_config(workflow, remote_source_config)
-    result = mocked_cachi2_init(workflow).run()
+    result = mocked_hermeto_init(workflow).run()
     assert result is None
 
 
@@ -382,7 +382,7 @@ def test_multiple_remote_sources_non_unique_names(workflow):
     assert result is None
 
 
-def test_path_out_of_repo(workflow, mocked_cachi2_init):
+def test_path_out_of_repo(workflow, mocked_hermeto_init):
     """Should fail when path is outside of repository"""
     container_yaml_config = dedent("""\
             remote_sources:
@@ -405,14 +405,14 @@ def test_path_out_of_repo(workflow, mocked_cachi2_init):
         "gomod:path: path '/out/of/repo' must be relative within remote source repository"
     )
     with pytest.raises(ValueError) as exc_info:
-        mocked_cachi2_init(workflow).run()
+        mocked_hermeto_init(workflow).run()
 
     assert err_msg in str(exc_info)
 
 
 def test_dependency_replacements(workflow):
     run_plugin_with_args(workflow, dependency_replacements={"dep": "something"},
-                         expect_error="Dependency replacements are not supported by Cachi2")
+                         expect_error="Dependency replacements are not supported by Hermeto")
 
 
 def test_enforce_sandbox(workflow: DockerBuildWorkflow) -> None:
@@ -436,18 +436,18 @@ def test_enforce_sandbox(workflow: DockerBuildWorkflow) -> None:
         write_file_tree({bad_symlink: Symlink("/")}, target_dir)
         assert Path(target_dir / bad_symlink).exists()
 
-    mocked = flexmock(Cachi2InitPlugin)
+    mocked = flexmock(HermetoInitPlugin)
     mocked.should_receive('clone_remote_source').replace_with(clone_f)
-    Cachi2InitPlugin(workflow).run()
+    HermetoInitPlugin(workflow).run()
 
-    assert not Path(workflow.build_dir.path / CACHI2_BUILD_DIR / "remote-source"
-                    / CACHI2_BUILD_APP_DIR / "symlink_to_root").exists()
+    assert not Path(workflow.build_dir.path / HERMETO_BUILD_DIR / "remote-source"
+                    / HERMETO_BUILD_APP_DIR / "symlink_to_root").exists()
 
 
 def run_plugin_with_args(workflow, dependency_replacements=None, expect_error=None,
                          expect_result=True, expected_plugin_results=None):
     runner = (MockEnv(workflow)
-              .for_plugin(Cachi2InitPlugin.key)
+              .for_plugin(HermetoInitPlugin.key)
               .set_plugin_args({"dependency_replacements": dependency_replacements})
               .create_runner())
 
@@ -456,7 +456,7 @@ def run_plugin_with_args(workflow, dependency_replacements=None, expect_error=No
             runner.run()
         return
 
-    results = runner.run()[Cachi2InitPlugin.key]
+    results = runner.run()[HermetoInitPlugin.key]
 
     if expect_result:
         assert results == expected_plugin_results

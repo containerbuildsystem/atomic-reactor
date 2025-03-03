@@ -89,12 +89,12 @@ def test_parse_args_version(capsys):
             {**EXPECTED_ARGS, "func": task.binary_container_cachito},
         ),
         (
-            ["task", *REQUIRED_COMMON_ARGS, "binary-container-cachi2-init"],
-            {**EXPECTED_ARGS, "func": task.binary_container_cachi2_init},
+            ["task", *REQUIRED_COMMON_ARGS, "binary-container-hermeto-init"],
+            {**EXPECTED_ARGS, "func": task.binary_container_hermeto_init},
         ),
         (
-            ["task", *REQUIRED_COMMON_ARGS, "binary-container-cachi2-postprocess"],
-            {**EXPECTED_ARGS, "func": task.binary_container_cachi2_postprocess},
+            ["task", *REQUIRED_COMMON_ARGS, "binary-container-hermeto-postprocess"],
+            {**EXPECTED_ARGS, "func": task.binary_container_hermeto_postprocess},
         ),
         (
             ["task", *REQUIRED_COMMON_ARGS, "binary-container-prebuild"],

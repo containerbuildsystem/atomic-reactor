@@ -38,7 +38,7 @@ from atomic_reactor.util import (ManifestDigest, DockerfileImages,
 from atomic_reactor.source import GitSource, PathSource
 from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, KOJI_BTYPE_OPERATOR_MANIFESTS,
                                       PLUGIN_ADD_FILESYSTEM_KEY,
-                                      PLUGIN_CACHI2_POSTPROCESS,
+                                      PLUGIN_HERMETO_POSTPROCESS,
                                       PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY,
                                       PLUGIN_MAVEN_URL_SOURCES_METADATA_KEY,
                                       PLUGIN_GROUP_MANIFESTS_KEY, PLUGIN_KOJI_PARENT_KEY,
@@ -190,7 +190,7 @@ REGISTRY = 'docker.example.com'
 class RemoteSourceKind(Enum):
     NONE = 1
     CACHITO = 2
-    CACHI2 = 3
+    HERMETO = 3
 
 
 def fake_subprocess_output(cmd):
@@ -533,7 +533,7 @@ def mock_environment(workflow: DockerBuildWorkflow, source_dir: Path,
         results = workflow.data.plugins_results
         results[PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY] = str(archive_file)
 
-    if has_remote_source in [RemoteSourceKind.CACHITO, RemoteSourceKind.CACHI2]:
+    if has_remote_source in [RemoteSourceKind.CACHITO, RemoteSourceKind.HERMETO]:
         source_path = build_dir_path / REMOTE_SOURCE_TARBALL_FILENAME
         source_path.write_text('dummy file', 'utf-8')
         remote_source_result = {
@@ -559,7 +559,7 @@ def mock_environment(workflow: DockerBuildWorkflow, source_dir: Path,
             remote_source_result["url"] = "https://cachito.com/api/v1/requests/21048/download"
             workflow.data.plugins_results[PLUGIN_RESOLVE_REMOTE_SOURCE] = [remote_source_result]
         else:
-            workflow.data.plugins_results[PLUGIN_CACHI2_POSTPROCESS] = [remote_source_result]
+            workflow.data.plugins_results[PLUGIN_HERMETO_POSTPROCESS] = [remote_source_result]
     else:
         workflow.data.plugins_results[PLUGIN_RESOLVE_REMOTE_SOURCE] = None
 
@@ -2042,7 +2042,7 @@ class TestKojiImport(object):
                 }
                 assert REMOTE_SOURCE_TARBALL_FILENAME in session.uploaded_files.keys()
                 assert REMOTE_SOURCE_JSON_FILENAME in session.uploaded_files.keys()
-        elif has_remote_source == RemoteSourceKind.CACHI2:
+        elif has_remote_source == RemoteSourceKind.HERMETO:
             assert extra['image']['remote_sources_version'] == 2
             if allow_multiple_remote_sources:
                 assert extra['image']['remote_sources'] == [

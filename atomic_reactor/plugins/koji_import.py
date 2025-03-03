@@ -36,7 +36,7 @@ from atomic_reactor.utils.koji import (
 from atomic_reactor.plugins.fetch_sources import PLUGIN_FETCH_SOURCES_KEY
 
 from atomic_reactor.constants import (
-    PLUGIN_CACHI2_POSTPROCESS,
+    PLUGIN_HERMETO_POSTPROCESS,
     PLUGIN_EXPORT_OPERATOR_MANIFESTS_KEY,
     PLUGIN_KOJI_IMPORT_PLUGIN_KEY,
     PLUGIN_KOJI_IMPORT_SOURCE_CONTAINER_PLUGIN_KEY,
@@ -337,7 +337,7 @@ class KojiImportBase(Plugin):
         }
         extra.setdefault("typeinfo", {}).update(remote_source_typeinfo)
 
-    def set_remote_sources_metadata_cachi2(self, remote_source_result, extra):
+    def set_remote_sources_metadata_hermeto(self, remote_source_result, extra):
         remote_sources_typeinfo_metadata = []
         if self.workflow.conf.allow_multiple_remote_sources:
             remote_sources_image_metadata = [
@@ -368,7 +368,7 @@ class KojiImportBase(Plugin):
     def set_remote_sources_metadata(self, extra):
         func_map = {
             PLUGIN_RESOLVE_REMOTE_SOURCE: self.set_remote_sources_metadata_cachito,
-            PLUGIN_CACHI2_POSTPROCESS: self.set_remote_sources_metadata_cachi2,
+            PLUGIN_HERMETO_POSTPROCESS: self.set_remote_sources_metadata_hermeto,
         }
         for plugin_name, func in func_map.items():
             remote_source_result = self.workflow.data.plugins_results.get(
@@ -661,8 +661,8 @@ class KojiImportPlugin(KojiImportBase):
         plugin_results: List[Dict[str, Any]]
         plugin_results = wf_data.plugins_results.get(PLUGIN_RESOLVE_REMOTE_SOURCE) or []
         if not plugin_results:
-            # Cachi2
-            plugin_results = wf_data.plugins_results.get(PLUGIN_CACHI2_POSTPROCESS) or []
+            # Hermeto
+            plugin_results = wf_data.plugins_results.get(PLUGIN_HERMETO_POSTPROCESS) or []
 
         tmpdir = tempfile.mkdtemp()
 
