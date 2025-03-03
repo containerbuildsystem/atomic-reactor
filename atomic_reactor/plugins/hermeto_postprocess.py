@@ -21,10 +21,11 @@ import reflink
 from atomic_reactor.constants import (
     CACHITO_ENV_ARG_ALIAS,
     CACHITO_ENV_FILENAME,
-    CACHI2_BUILD_DIR,
-    PLUGIN_CACHI2_INIT,
-    PLUGIN_CACHI2_POSTPROCESS,
-    CACHI2_BUILD_CONFIG_JSON,
+    HERMETO_BUILD_DIR,
+    HERMETO_ENV_JSON,
+    PLUGIN_HERMETO_INIT,
+    PLUGIN_HERMETO_POSTPROCESS,
+    HERMETO_BUILD_CONFIG_JSON,
     REMOTE_SOURCE_DIR,
     REMOTE_SOURCE_JSON_FILENAME,
     REMOTE_SOURCE_TARBALL_FILENAME,
@@ -34,11 +35,11 @@ from atomic_reactor.constants import (
 from atomic_reactor.dirs import BuildDir, reflink_copy
 from atomic_reactor.plugin import Plugin
 
-from atomic_reactor.utils.cachi2 import generate_request_json
+from atomic_reactor.utils.hermeto import generate_request_json
 
 
 @dataclass(frozen=True)
-class Cachi2RemoteSource:
+class HermetoRemoteSource:
     """Represents a processed remote source.
 
     name: the name that identifies this remote source (if multiple remote sources were used)
@@ -91,13 +92,13 @@ class Cachi2RemoteSource:
         }
 
 
-class Cachi2PostprocessPlugin(Plugin):
-    """Postprocess cachi2 results
+class HermetoPostprocessPlugin(Plugin):
+    """Postprocess Hermeto results
 
-    This plugin will postprocess cachi2 results and provide required metadata
+    This plugin will postprocess Hermeto results and provide required metadata
     """
 
-    key = PLUGIN_CACHI2_POSTPROCESS
+    key = PLUGIN_HERMETO_POSTPROCESS
     is_allowed_to_fail = False
     REMOTE_SOURCE = "unpacked_remote_sources"
 
@@ -106,15 +107,15 @@ class Cachi2PostprocessPlugin(Plugin):
         :param workflow: DockerBuildWorkflow instance
 
         """
-        super(Cachi2PostprocessPlugin, self).__init__(workflow)
+        super(HermetoPostprocessPlugin, self).__init__(workflow)
         self._osbs = None
         self.single_remote_source_params = self.workflow.source.config.remote_source
         self.multiple_remote_sources_params = self.workflow.source.config.remote_sources
-        self.init_plugin_data = self.workflow.data.plugins_results.get(PLUGIN_CACHI2_INIT)
+        self.init_plugin_data = self.workflow.data.plugins_results.get(PLUGIN_HERMETO_INIT)
 
     def run(self) -> Optional[List[Dict[str, Any]]]:
         if not self.init_plugin_data:
-            self.log.info('Aborting plugin execution: no cachi2 data provided')
+            self.log.info('Aborting plugin execution: no Hermeto data provided')
             return None
 
         if not (self.single_remote_source_params or self.multiple_remote_sources_params):
@@ -143,7 +144,7 @@ class Cachi2PostprocessPlugin(Plugin):
         if not all_sbom_components:
             return
 
-        global_sbom_path = self.workflow.build_dir.path/CACHI2_BUILD_DIR/"bom.json"
+        global_sbom_path = self.workflow.build_dir.path/HERMETO_BUILD_DIR/"bom.json"
         with open(global_sbom_path, 'r') as global_sbom_f:
             global_sbom_data = json.load(global_sbom_f)
         global_sbom_data['components'].extend(all_sbom_components)
@@ -155,29 +156,29 @@ class Cachi2PostprocessPlugin(Plugin):
     def get_remote_source_json_config(self, remote_source_path: str):
         """Process injected remote source and returns
 
-        Cachi2 is injecting config updates into app dir,
+        Hermeto is injecting config updates into app dir,
         we don't want them in source archive, however
         we need them for later rebuild and analysis, to mirror
         Cachito behavior.
-        Cachi2 creates .build-config.json file that contains paths
+        Hermeto creates .build-config.json file that contains paths
         and templates how to modify files.
-        Instead of replicating cachi2 templating logic, just use path
+        Instead of replicating Hermeto templating logic, just use path
         and load already patched file.
-        This is internal logic of cachi2, this may explode violently when
-        format of .build-config.json changes. Make sure that cachi2 image
+        This is internal logic of Hermeto, this may explode violently when
+        format of .build-config.json changes. Make sure that Hermeto image
         is tested before promoted to prod.
         """
 
         json_config: List[Dict] = []
-        cachi2_build_config_path = os.path.join(
-            remote_source_path, CACHI2_BUILD_CONFIG_JSON)
-        if not os.path.exists(cachi2_build_config_path):
+        hermeto_build_config_path = os.path.join(
+            remote_source_path, HERMETO_BUILD_CONFIG_JSON)
+        if not os.path.exists(hermeto_build_config_path):
             return json_config
 
-        with open(cachi2_build_config_path, 'r') as f:
-            cachi2_build_config = json.load(f)
+        with open(hermeto_build_config_path, 'r') as f:
+            hermeto_build_config = json.load(f)
 
-        injected_files = cachi2_build_config.get("project_files", [])
+        injected_files = hermeto_build_config.get("project_files", [])
         for injected_file in injected_files:
             path = injected_file["abspath"]  # fail horribly if this is missing
 
@@ -195,14 +196,14 @@ class Cachi2PostprocessPlugin(Plugin):
             )
         return json_config
 
-    def postprocess_remote_sources(self) -> List[Cachi2RemoteSource]:
+    def postprocess_remote_sources(self) -> List[HermetoRemoteSource]:
         """Process remote source requests and return information about the processed sources."""
 
         processed_remote_sources = []
 
         for remote_source in self.init_plugin_data:
 
-            json_env_path = os.path.join(remote_source['source_path'], 'cachi2.env.json')
+            json_env_path = os.path.join(remote_source['source_path'], HERMETO_ENV_JSON)
             with open(json_env_path, 'r') as json_f:
                 json_env_data = json.load(json_f)
 
@@ -225,7 +226,7 @@ class Cachi2PostprocessPlugin(Plugin):
 
                 request_json['dependencies'].extend(git_submodules['request_json_dependencies'])
 
-            remote_source_obj = Cachi2RemoteSource(
+            remote_source_obj = HermetoRemoteSource(
                 name=remote_source['name'],
                 tarball_path=Path(remote_source['source_path'], 'remote-source.tar.gz'),
                 sources_path=Path(remote_source['source_path']),
@@ -236,7 +237,7 @@ class Cachi2PostprocessPlugin(Plugin):
             processed_remote_sources.append(remote_source_obj)
         return processed_remote_sources
 
-    def inject_remote_sources(self, remote_sources: List[Cachi2RemoteSource]) -> None:
+    def inject_remote_sources(self, remote_sources: List[HermetoRemoteSource]) -> None:
         """Inject processed remote sources into build dirs and add build args to workflow."""
         inject_sources = functools.partial(self.inject_into_build_dir, remote_sources)
         self.workflow.build_dir.for_all_platforms_copy(inject_sources)
@@ -248,7 +249,7 @@ class Cachi2PostprocessPlugin(Plugin):
         self.add_general_buildargs()
 
     def inject_into_build_dir(
-        self, remote_sources: List[Cachi2RemoteSource], build_dir: BuildDir,
+        self, remote_sources: List[HermetoRemoteSource], build_dir: BuildDir,
     ) -> List[Path]:
         """Inject processed remote sources into a build directory.
 
@@ -277,7 +278,7 @@ class Cachi2PostprocessPlugin(Plugin):
             if reflink.supported_at(dest_dir):
                 copy_method = reflink_copy
             self.log.debug(
-                "copy method used for cachi2 build_dir_injecting: %s", copy_method.__name__)
+                "copy method used for Hermeto build_dir_injecting: %s", copy_method.__name__)
 
             for pth in copy_paths:
                 if (remote_source.sources_path/pth).exists():
@@ -290,7 +291,7 @@ class Cachi2PostprocessPlugin(Plugin):
 
         return created_dirs
 
-    def remote_source_to_output(self, remote_source: Cachi2RemoteSource) -> Dict[str, Any]:
+    def remote_source_to_output(self, remote_source: HermetoRemoteSource) -> Dict[str, Any]:
         """Convert a processed remote source to a dict to be used as output of this plugin."""
 
         compat_json = {
@@ -306,18 +307,18 @@ class Cachi2PostprocessPlugin(Plugin):
             "name": remote_source.name,
             "remote_source_json": {
                 "json": remote_source.json_data,
-                "filename": Cachi2RemoteSource.json_filename(remote_source.name),
+                "filename": HermetoRemoteSource.json_filename(remote_source.name),
             },
             "remote_source_json_env": {
                 "json": compat_json,
-                "filename": Cachi2RemoteSource.json_env_filename(remote_source.name),
+                "filename": HermetoRemoteSource.json_env_filename(remote_source.name),
             },
             "remote_source_json_config": {
                 "json": remote_source.json_config_data,
-                "filename": Cachi2RemoteSource.json_config_filename(remote_source.name),
+                "filename": HermetoRemoteSource.json_config_filename(remote_source.name),
             },
             "remote_source_tarball": {
-                "filename": Cachi2RemoteSource.tarball_filename(remote_source.name),
+                "filename": HermetoRemoteSource.tarball_filename(remote_source.name),
                 "path": str(remote_source.tarball_path),
             },
         }
@@ -331,7 +332,7 @@ class Cachi2PostprocessPlugin(Plugin):
         :param build_args: build arguments to set
         """
         self.log.info('Creating %s file with environment variables '
-                      'received from cachi2', CACHITO_ENV_FILENAME)
+                      'received from Hermeto', CACHITO_ENV_FILENAME)
 
         # Use dedicated dir in container build workdir for cachito.env
         abs_path = dest_dir / CACHITO_ENV_FILENAME

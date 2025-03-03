@@ -21,10 +21,10 @@ from tests.mock_env import MockEnv
 from tests.utils.test_cachito import CACHITO_URL, CACHITO_REQUEST_ID
 
 from atomic_reactor.constants import (
-    CACHI2_BUILD_DIR,
+    HERMETO_BUILD_DIR,
     INSPECT_ROOTFS,
     INSPECT_ROOTFS_LAYERS,
-    PLUGIN_CACHI2_POSTPROCESS,
+    PLUGIN_HERMETO_POSTPROCESS,
     PLUGIN_FETCH_MAVEN_KEY,
     PLUGIN_RESOLVE_REMOTE_SOURCE,
     DOCKERIGNORE,
@@ -42,21 +42,21 @@ CONTENT_SETS = {
 CACHITO_ICM_URL = '{}/api/v1/content-manifest?requests={}'.format(CACHITO_URL,
                                                                   CACHITO_REQUEST_ID)
 
-CACHI2_SBOM = {
+HERMETO_SBOM = {
     "bomFormat": "CycloneDX",
     "components": [{
         "name": "retrodep",
         "purl": "pkg:golang/github.com%2Frelease-engineering%2Fretrodep%2Fv2@v2.0.2",
         "properties": [{
-            "name": "cachi2:found_by",
-            "value": "cachi2",
+            "name": "hermeto:found_by",
+            "value": "hermeto",
         }],
         "type": "library",
     }],
     "metadata": {
         "tools": [{
             "vendor": "red hat",
-            "name": "cachi2"
+            "name": "hermeto"
         }]
     },
     "specVersion": "1.4",
@@ -113,7 +113,7 @@ ICM_DICT = {
     ]
 }
 
-CACHI2_ICM_DICT = {
+HERMETO_ICM_DICT = {
     'metadata': {
         'icm_version': 1,
         'icm_spec': (
@@ -204,7 +204,7 @@ def mock_get_icm(requests_mock):
 
 def mock_env(workflow, df_content, base_layers=0, remote_sources=None,
              r_c_m_override=None, pnc_artifacts=True, dockerignore=False,
-             cachi2_sbom=None):
+             hermeto_sbom=None):
 
     if base_layers > 0:
         inspection_data = {
@@ -253,17 +253,17 @@ def mock_env(workflow, df_content, base_layers=0, remote_sources=None,
     platforms = list(CONTENT_SETS.keys())
     workflow.build_dir.init_build_dirs(platforms, workflow.source)
 
-    if cachi2_sbom:
+    if hermeto_sbom:
         env.set_plugin_result(
-            PLUGIN_CACHI2_POSTPROCESS,
+            PLUGIN_HERMETO_POSTPROCESS,
             {"plugin": "did run, real value doesn't matter"}
         )
 
-        # save cachi2 SBOM which is source for ICM
-        path = workflow.build_dir.path/CACHI2_BUILD_DIR/"bom.json"
+        # save Hermeto SBOM which is source for ICM
+        path = workflow.build_dir.path/HERMETO_BUILD_DIR/"bom.json"
         path.parent.mkdir()
         with open(path, "w") as f:
-            json.dump(cachi2_sbom, f)
+            json.dump(hermeto_sbom, f)
             f.flush()
 
     return env.create_runner()
@@ -299,7 +299,7 @@ def check_dockerignore(icm_file: str):
 
 @pytest.mark.parametrize('manifest_file_exists', [True, False])
 @pytest.mark.parametrize('content_sets', [True, False])
-@pytest.mark.parametrize('cachi2', [True, False])
+@pytest.mark.parametrize('hermeto', [True, False])
 @pytest.mark.parametrize(
     ('df_content, expected_df, base_layers, manifest_file'), [
         (
@@ -349,14 +349,14 @@ def check_dockerignore(icm_file: str):
         ),
     ])
 def test_add_image_content_manifest(workflow, requests_mock,
-                                    manifest_file_exists, content_sets, cachi2,
+                                    manifest_file_exists, content_sets, hermeto,
                                     df_content, expected_df, base_layers, manifest_file,
                                     ):
     mock_get_icm(requests_mock)
     mock_content_sets_config(workflow.source.path, empty=(not content_sets))
 
-    if cachi2:
-        runner_opts = {"cachi2_sbom": CACHI2_SBOM}
+    if hermeto:
+        runner_opts = {"hermeto_sbom": HERMETO_SBOM}
     else:
         runner_opts = {"remote_sources": REMOTE_SOURCES}
 
@@ -370,7 +370,7 @@ def test_add_image_content_manifest(workflow, requests_mock,
             runner.run()
         return
 
-    expected_output = deepcopy(CACHI2_ICM_DICT if cachi2 else ICM_DICT)
+    expected_output = deepcopy(HERMETO_ICM_DICT if hermeto else ICM_DICT)
     expected_output['metadata']['image_layer_index'] = base_layers if base_layers else 0
 
     runner.run()

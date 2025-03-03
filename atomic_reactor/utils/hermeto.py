@@ -5,7 +5,7 @@
 # of the BSD license. See the LICENSE file for details.
 
 """
-Utils to help to integrate with cachi2 CLI tool
+Utils to help to integrate with Hermeto CLI tool
 """
 
 import logging
@@ -128,12 +128,12 @@ def normalize_gomod_pkg_manager(remote_source: Dict[str, Any]):
     remote_source["pkg_managers"] = pkg_managers
 
 
-def remote_source_to_cachi2(remote_source: Dict[str, Any]) -> Dict[str, Any]:
-    """Converts remote source into cachi2 expected params.
+def remote_source_to_hermeto(remote_source: Dict[str, Any]) -> Dict[str, Any]:
+    """Converts remote source into Hermeto expected params.
 
-    Remote sources were orignally designed for cachito. Cachi2 is not a direct
+    Remote sources were orignally designed for cachito. Hermeto is not a direct
     fork but has lot of similarities.
-    However, some parameters must be updated to be compatible with cachi2.
+    However, some parameters must be updated to be compatible with Hermeto.
 
     Removed flags (OSBS process them):
     * include-git-dir
@@ -144,16 +144,16 @@ def remote_source_to_cachi2(remote_source: Dict[str, Any]) -> Dict[str, Any]:
 
     """
     pkg_managers_map = {
-        "rubygems": "bundler"  # renamed in cachi2
+        "rubygems": "bundler"  # renamed in Hermeto
     }
 
     removed_flags = {"include-git-dir", "remove-unsafe-symlinks"}
     removed_pkg_managers = {"git-submodule"}
 
-    cachi2_flags = sorted(
+    hermeto_flags = sorted(
         set(remote_source.get("flags", [])) - removed_flags
     )
-    cachi2_packages = []
+    hermeto_packages = []
 
     normalize_gomod_pkg_manager(remote_source)
 
@@ -163,21 +163,21 @@ def remote_source_to_cachi2(remote_source: Dict[str, Any]) -> Dict[str, Any]:
         if pkg_manager in removed_pkg_managers:
             continue
 
-        # if pkg manager has different name in cachi2 update it
+        # if pkg manager has different name in Hermeto update it
         pkg_manager = pkg_managers_map.get(pkg_manager, pkg_manager)
 
         packages = remote_source.get("packages", {}).get(pkg_manager, [])
         packages = packages or [{"path": "."}]
         for pkg in packages:
-            cachi2_packages.append({"type": pkg_manager, **pkg})
+            hermeto_packages.append({"type": pkg_manager, **pkg})
 
-    return {"packages": cachi2_packages, "flags": cachi2_flags}
+    return {"packages": hermeto_packages, "flags": hermeto_flags}
 
 
 def convert_SBOM_to_ICM(sbom: Dict[str, Any]) -> Dict[str, Any]:
-    """Function converts cachi2 SBOM into ICM
+    """Function converts Hermeto SBOM into ICM
 
-    Unfortunately cachi2 doesn't provide all details about dependencies
+    Unfortunately Hermeto doesn't provide all details about dependencies
     and sources, so the ICM can contain only flat structure of everything
     """
     icm = {
@@ -208,7 +208,7 @@ def gen_dependency_from_sbom_component(sbom_dep: Dict[str, Any]) -> Dict[str, Op
     # we cannot reliably construct type from purl
     purl = PackageURL.from_string(sbom_dep["purl"])
     heuristic_type = purl.type or "unknown"  # for unknown types, reuse what's in purl type
-    # types supported by cachito/cachi2
+    # types supported by cachito/Hermeto
     purl_type_matchers: Tuple[Tuple[Callable[[PackageURL], bool], str], ...] = (
         (lambda p: p.type == "golang" and p.qualifiers.get("type", "") == "module", "gomod"),
         (lambda p: p.type == "golang", "go-package"),
@@ -245,7 +245,7 @@ def gen_dependency_from_sbom_component(sbom_dep: Dict[str, Any]) -> Dict[str, Op
 
     res = {
         "name": sbom_dep["name"],
-        "replaces": None,  # it's always None, replacements aren't supported by cachi2
+        "replaces": None,  # it's always None, replacements aren't supported by Hermeto
         "type": heuristic_type,
         "version": version,
     }
@@ -267,7 +267,7 @@ def generate_request_json(
     """Generates Cachito like request.json
 
     Cachito does provide request.json, for backward compatibility
-    as some tools are depending on it, we have to generate also request.json from cachi2
+    as some tools are depending on it, we have to generate also request.json from Hermeto
     """
 
     res = {
@@ -280,13 +280,13 @@ def generate_request_json(
         "repo": remote_source["repo"],
         "environment_variables": {env['name']: env["value"] for env in remote_source_env_json},
         "flags": remote_source.get("flags", []),
-        "packages": [],  # this will be always empty cachi2 doesn't provide nested deps
+        "packages": [],  # this will be always empty Hermeto doesn't provide nested deps
     }
     return res
 
 
 def clone_only(remote_source: Dict[str, Any]) -> bool:
-    """Determine if only cloning is required without cachi2 run"""
+    """Determine if only cloning is required without Hermeto run"""
 
     pkg_managers = remote_source.get("pkg_managers")
 

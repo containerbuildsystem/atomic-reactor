@@ -7,8 +7,8 @@ spec:
     - name: osbs-image
       description: The location of the OSBS builder image (FQDN pullspec)
       type: string
-    - name: cachi2-image
-      description: The location of the Cachi2 image (FQDN pullspec)
+    - name: hermeto-image
+      description: The location of the Hermeto image (FQDN pullspec)
       type: string
     - name: user-params
       type: string
@@ -24,7 +24,7 @@ spec:
     - name: ws-autobot-keytab
     - name: netrc
       description: |
-        Workspace containing a .netrc file. OSBS and Cachi2 will use the credentials in this file when
+        Workspace containing a .netrc file. OSBS and Hermeto will use the credentials in this file when
         performing git/http(s) requests.
       optional: true
 
@@ -140,11 +140,11 @@ spec:
           values: ["1"]
       timeout: "0"
 
-    - name: binary-container-cachi2
+    - name: binary-container-hermeto
       runAfter:
         - binary-container-init
       taskRef:
-        name: binary-container-cachi2-0-1
+        name: binary-container-hermeto-0-1
       workspaces:
         - name: ws-build-dir
           workspace: ws-container
@@ -167,8 +167,8 @@ spec:
       params:
         - name: osbs-image
           value: "$(params.osbs-image)"
-        - name: cachi2-image
-          value: "$(params.cachi2-image)"
+        - name: hermeto-image
+          value: "$(params.hermeto-image)"
         - name: pipeline-run-name
           value: "$(context.pipelineRun.name)"
         - name: user-params
@@ -182,7 +182,7 @@ spec:
     - name: binary-container-prebuild
       runAfter:
         - binary-container-cachito
-        - binary-container-cachi2
+        - binary-container-hermeto
       taskRef:
         name: binary-container-prebuild-0-2
       workspaces:

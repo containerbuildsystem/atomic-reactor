@@ -7,7 +7,7 @@ of the BSD license. See the LICENSE file for details.
 """
 from atomic_reactor.tasks.binary import (BinaryExitTask, BinaryPostBuildTask, BinaryPreBuildTask,
                                          BinaryInitTask, BinaryCachitoTask,
-                                         BinaryCachi2InitTask, BinaryCachi2PostprocessTask,
+                                         BinaryHermetoInitTask, BinaryHermetoPostprocessTask,
                                          InitTaskParams, BinaryExitTaskParams)
 from atomic_reactor.tasks.binary_container_build import BinaryBuildTask, BinaryBuildTaskParams
 from atomic_reactor.tasks.clone import CloneTask
@@ -66,23 +66,23 @@ def binary_container_cachito(task_args: dict):
     return task.run(init_build_dirs=True)
 
 
-def binary_container_cachi2_init(task_args: dict):
-    """Run binary container Cachi2 init step.
+def binary_container_hermeto_init(task_args: dict):
+    """Run binary container Hermeto init step.
 
-    :param task_args: CLI arguments for a binary-container-cachi2-init task
+    :param task_args: CLI arguments for a binary-container-hermeto-init task
     """
     params = TaskParams.from_cli_args(task_args)
-    task = BinaryCachi2InitTask(params)
+    task = BinaryHermetoInitTask(params)
     return task.run(init_build_dirs=True)
 
 
-def binary_container_cachi2_postprocess(task_args: dict):
-    """Run binary container Cachi2 postprocess step.
+def binary_container_hermeto_postprocess(task_args: dict):
+    """Run binary container Hermeto postprocess step.
 
-    :param task_args: CLI arguments for a binary-container-cachi2-postprocess task
+    :param task_args: CLI arguments for a binary-container-hermeto-postprocess task
     """
     params = TaskParams.from_cli_args(task_args)
-    task = BinaryCachi2PostprocessTask(params)
+    task = BinaryHermetoPostprocessTask(params)
     return task.run(init_build_dirs=True)
 
 
