@@ -112,8 +112,8 @@ PLUGIN_CANCEL_BUILD_RESERVATION = 'cancel_build_reservation'
 PLUGIN_FLATPAK_CREATE_OCI = 'flatpak_create_oci'
 PLUGIN_GENERATE_SBOM = 'generate_sbom'
 PLUGIN_RPMQA = 'all_rpm_packages'
-PLUGIN_CACHI2_INIT = "cachi2_init"
-PLUGIN_CACHI2_POSTPROCESS = "cachi2_postprocess"
+PLUGIN_HERMETO_INIT = "hermeto_init"
+PLUGIN_HERMETO_POSTPROCESS = "hermeto_postprocess"
 
 # some shared dict keys for build metadata that gets recorded with koji.
 # for consistency of metadata in historical builds, these values basically cannot change.
@@ -201,16 +201,16 @@ REMOTE_SOURCE_JSON_CONFIG_FILENAME = 'remote-source.config.json'
 REMOTE_SOURCE_JSON_ENV_FILENAME = 'remote-source.env.json'
 ICM_JSON_FILENAME = 'icm-{}.json'
 
-# Cachi2 constants
-CACHI2_BUILD_DIR = "_cachi2_remote_sources"
-CACHI2_BUILD_APP_DIR = "app"
-CACHI2_BUILD_CONFIG_JSON = ".build-config.json"
-CACHI2_ENV_JSON = "cachi2.env.json"
-CACHI2_PKG_OPTIONS_FILE = "cachi2_pkg_options.json"
-CACHI2_FOR_OUTPUT_DIR_OPT_FILE = "cachi2_for_output_dir_opt.txt"
-CACHI2_INCLUDE_GIT_DIR_FILE = "cachi2_include_git_dir.txt"
-CACHI2_SINGLE_REMOTE_SOURCE_NAME = "remote-source"
-CACHI2_SBOM_JSON = "bom.json"
+# Hermeto constants
+HERMETO_BUILD_DIR = "_hermeto_remote_sources"
+HERMETO_BUILD_APP_DIR = "app"
+HERMETO_BUILD_CONFIG_JSON = ".build-config.json"
+HERMETO_ENV_JSON = "hermeto.env.json"
+HERMETO_PKG_OPTIONS_FILE = "hermeto_pkg_options.json"
+HERMETO_FOR_OUTPUT_DIR_OPT_FILE = "hermeto_for_output_dir_opt.txt"
+HERMETO_INCLUDE_GIT_DIR_FILE = "hermeto_include_git_dir.txt"
+HERMETO_SINGLE_REMOTE_SOURCE_NAME = "remote-source"
+HERMETO_SBOM_JSON = "bom.json"
 
 # koji osbs_build metadata
 KOJI_KIND_IMAGE_BUILD = 'container_build'

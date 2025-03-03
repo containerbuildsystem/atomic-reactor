@@ -32,8 +32,8 @@ from atomic_reactor.constants import (
     REPO_FETCH_ARTIFACTS_KOJI,
     REPO_FETCH_ARTIFACTS_URL,
     PLUGIN_CHECK_AND_SET_PLATFORMS_KEY,
-    PLUGIN_CACHI2_POSTPROCESS,
-    CACHI2_BUILD_DIR,
+    PLUGIN_HERMETO_POSTPROCESS,
+    HERMETO_BUILD_DIR,
 )
 from atomic_reactor.plugin import PluginFailedException
 from atomic_reactor.plugins.generate_sbom import GenerateSbomPlugin
@@ -1067,7 +1067,7 @@ def teardown_function(*args):
     sys.modules.pop(GenerateSbomPlugin.key, None)
 
 
-def mock_env(workflow, df_images, cachi2=False):
+def mock_env(workflow, df_images, hermeto=False):
     tmp_dir = tempfile.mkdtemp()
     dockerconfig_contents = {"auths": {LOCALHOST_REGISTRY: {"username": "user",
                                                             "email": "test@example.com",
@@ -1106,12 +1106,12 @@ def mock_env(workflow, df_images, cachi2=False):
            .set_plugin_result(PLUGIN_RPMQA, deepcopy(RPM_SBOM_COMPONENTS))
            )
 
-    if cachi2:
+    if hermeto:
         # Note: using CACHITO_SBOM_JSON here, as the fields are almost the same as
-        # for Cachi2; I don't want to die from mocking everything again, just to
-        # make test pass for extra property "found_by: cachi2" added by cachi2
+        # for Hermeto; I don't want to die from mocking everything again, just to
+        # make test pass for extra property "found_by: hermeto" added by Hermeto
         # this provides good tests
-        mock_cachi2_sbom(workflow, deepcopy(CACHITO_SBOM_JSON))
+        mock_hermeto_sbom(workflow, deepcopy(CACHITO_SBOM_JSON))
     else:
         env.set_plugin_result(PLUGIN_RESOLVE_REMOTE_SOURCE, deepcopy(REMOTE_SOURCES))
 
@@ -1141,16 +1141,16 @@ def mock_get_sbom_cachito(requests_mock):
     requests_mock.register_uri('GET', CACHITO_SBOM_URL, json=CACHITO_SBOM_JSON)
 
 
-def mock_cachi2_sbom(workflow, cachi2_sbom: dict):
-    workflow.data.plugins_results[PLUGIN_CACHI2_POSTPROCESS] = {
+def mock_hermeto_sbom(workflow, hermeto_sbom: dict):
+    workflow.data.plugins_results[PLUGIN_HERMETO_POSTPROCESS] = {
         "plugin": "did run, real value doesn't matter"
     }
 
-    # save cachi2 SBOM which is source for ICM
-    path = workflow.build_dir.path/CACHI2_BUILD_DIR/"bom.json"
+    # save Hermeto SBOM which is source for ICM
+    path = workflow.build_dir.path/HERMETO_BUILD_DIR/"bom.json"
     path.parent.mkdir()
     with open(path, "w") as f:
-        json.dump(cachi2_sbom, f)
+        json.dump(hermeto_sbom, f)
         f.flush()
 
 
@@ -1334,16 +1334,16 @@ def koji_session():
             INCOMPLETE_CACHE_URL_KOJI,
         ),
     ])
-@pytest.mark.parametrize('cachi2', [True, False])
+@pytest.mark.parametrize('hermeto', [True, False])
 def test_sbom(workflow, requests_mock, koji_session, df_images, use_cache, use_fetch_url,
-              use_fetch_koji, expected_components, expected_incomplete, cachi2):
+              use_fetch_koji, expected_components, expected_incomplete, hermeto):
 
-    if not cachi2:
+    if not hermeto:
         mock_get_sbom_cachito(requests_mock)
 
     mock_build_icm_urls(requests_mock)
 
-    runner = mock_env(workflow, df_images, cachi2=cachi2)
+    runner = mock_env(workflow, df_images, hermeto=hermeto)
     workflow.data.tag_conf.add_unique_image(UNIQUE_IMAGE)
 
     def check_cosign_run(args):

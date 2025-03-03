@@ -22,26 +22,27 @@ import yaml
 from atomic_reactor.dirs import BuildDir
 from atomic_reactor.inner import DockerBuildWorkflow
 from atomic_reactor.constants import (
-    CACHI2_BUILD_DIR,
-    CACHI2_BUILD_APP_DIR,
-    CACHI2_SINGLE_REMOTE_SOURCE_NAME,
+    HERMETO_BUILD_DIR,
+    HERMETO_BUILD_APP_DIR,
+    HERMETO_ENV_JSON,
+    HERMETO_SINGLE_REMOTE_SOURCE_NAME,
     CACHITO_ENV_ARG_ALIAS,
     CACHITO_ENV_FILENAME,
-    CACHI2_BUILD_CONFIG_JSON,
+    HERMETO_BUILD_CONFIG_JSON,
     REMOTE_SOURCE_DIR,
     REMOTE_SOURCE_TARBALL_FILENAME,
     REMOTE_SOURCE_JSON_FILENAME,
     REMOTE_SOURCE_JSON_ENV_FILENAME,
     REMOTE_SOURCE_JSON_CONFIG_FILENAME,
-    PLUGIN_CACHI2_INIT,
+    PLUGIN_HERMETO_INIT,
 )
 from atomic_reactor.plugin import PluginFailedException
-from atomic_reactor.plugins.cachi2_postprocess import (
-    Cachi2PostprocessPlugin,
-    Cachi2RemoteSource,
+from atomic_reactor.plugins.hermeto_postprocess import (
+    HermetoPostprocessPlugin,
+    HermetoRemoteSource,
 )
 from atomic_reactor.source import SourceConfig
-from atomic_reactor.utils.cachi2 import generate_request_json
+from atomic_reactor.utils.hermeto import generate_request_json
 
 from tests.mock_env import MockEnv
 from tests.stubs import StubSource
@@ -67,7 +68,7 @@ EXPECTED_REMOTE_SOURCE_CONFIG_JSON = [
 RemoteSourceInitResult = namedtuple('RemoteSourceInitResult', ['result', 'env_vars', 'sbom'])
 
 
-def mock_cachi2_init_and_run_plugin(
+def mock_hermeto_init_and_run_plugin(
         workflow, *args: RemoteSourceInitResult):
 
     plugin_result = []
@@ -81,7 +82,7 @@ def mock_cachi2_init_and_run_plugin(
         source_root_path = Path(arg.result["source_path"])
         source_root_path.mkdir(parents=True)
 
-        app_dir = source_root_path / CACHI2_BUILD_APP_DIR
+        app_dir = source_root_path / HERMETO_BUILD_APP_DIR
         app_dir.mkdir()
 
         name = arg.result["name"] or "single source"
@@ -89,13 +90,13 @@ def mock_cachi2_init_and_run_plugin(
             f.write(f"test app {name}")
             f.flush()
 
-        # fake file pretending to be a pkg_manager config updated by cachi2
+        # fake file pretending to be a pkg_manager config updated by Hermeto
         config_txt_path = app_dir / "config.txt"
         with open(config_txt_path, 'wb') as f:
             f.write(TEST_CONFIG_TXT_CONTENT)
             f.flush()
 
-        with open(source_root_path / CACHI2_BUILD_CONFIG_JSON, "w") as f:
+        with open(source_root_path / HERMETO_BUILD_CONFIG_JSON, "w") as f:
             json.dump({
                 "project_files": [
                     {
@@ -112,7 +113,7 @@ def mock_cachi2_init_and_run_plugin(
             f.write(f"dependency for {name}")
             f.flush()
 
-        with open(source_root_path / "cachi2.env.json", "w") as f:
+        with open(source_root_path / HERMETO_ENV_JSON, "w") as f:
             json.dump(arg.env_vars, f)
             f.flush()
 
@@ -120,15 +121,15 @@ def mock_cachi2_init_and_run_plugin(
             json.dump(arg.sbom, f)
             f.flush()
 
-        mock_cachi2_output_tarball(source_root_path / "remote-source.tar.gz")
+        mock_hermeto_output_tarball(source_root_path / "remote-source.tar.gz")
 
         global_sbom["components"].extend(arg.sbom["components"])
 
-    with open(workflow.build_dir.path / CACHI2_BUILD_DIR / "bom.json", "w") as f:
+    with open(workflow.build_dir.path / HERMETO_BUILD_DIR / "bom.json", "w") as f:
         json.dump(global_sbom, f)
         f.flush()
 
-    workflow.data.plugins_results[PLUGIN_CACHI2_INIT] = plugin_result
+    workflow.data.plugins_results[PLUGIN_HERMETO_INIT] = plugin_result
 
 
 def mock_reactor_config(workflow, data=None):
@@ -177,7 +178,7 @@ def expected_build_dir(workflow) -> str:
     return str(workflow.build_dir.any_platform.path)
 
 
-def mock_cachi2_output_tarball(create_at_path) -> str:
+def mock_hermeto_output_tarball(create_at_path) -> str:
     """Create a mocked tarball for a remote source at the specified path."""
     create_at_path = Path(create_at_path)
     file_content = f"Content of {create_at_path.name}".encode("utf-8")
@@ -196,7 +197,7 @@ def check_injected_files(expected_files: Dict[str, str]) -> Callable[[BuildDir],
 
     def check_files(build_dir: BuildDir) -> None:
         """Check the presence and content of files in the unpacked_remote_sources directory."""
-        unpacked_remote_sources = build_dir.path / Cachi2PostprocessPlugin.REMOTE_SOURCE
+        unpacked_remote_sources = build_dir.path / HermetoPostprocessPlugin.REMOTE_SOURCE
 
         for path, expected_content in expected_files.items():
             abspath = unpacked_remote_sources / path
@@ -206,7 +207,7 @@ def check_injected_files(expected_files: Dict[str, str]) -> Callable[[BuildDir],
 
 
 def test_skip_when_no_results_from_init(workflow):
-    """Plugin should skip if there are no results from cachi2_init plugin"""
+    """Plugin should skip if there are no results from hermeto_init plugin"""
     assert run_plugin_with_args(workflow) is None
 
 
@@ -220,8 +221,8 @@ def test_resolve_remote_source_single(workflow):
                 "purl": "pkg:golang/bytes?type=package",
                 "properties": [
                     {
-                        "name": "cachi2:found_by",
-                        "value": "cachi2"
+                        "name": "hermeto:found_by",
+                        "value": "hermeto"
                     }
                 ],
                 "type": "library"
@@ -239,14 +240,14 @@ def test_resolve_remote_source_single(workflow):
     single_source = {
         "name": None,
         "source_path": str(
-            workflow.build_dir.path / CACHI2_BUILD_DIR / CACHI2_SINGLE_REMOTE_SOURCE_NAME),
+            workflow.build_dir.path / HERMETO_BUILD_DIR / HERMETO_SINGLE_REMOTE_SOURCE_NAME),
         "remote_source": {
             "repo": REMOTE_SOURCE_REPO,
             "ref": REMOTE_SOURCE_REF,
         }
     }
 
-    mock_cachi2_init_and_run_plugin(
+    mock_hermeto_init_and_run_plugin(
         workflow,
         RemoteSourceInitResult(
             single_source, remote_source_env_json, remote_source_sbom
@@ -308,7 +309,7 @@ def test_resolve_remote_source_single(workflow):
 
     assert workflow.data.buildargs == {
         "GOCACHE": "/remote-source/deps/gomod",
-        "REMOTE_SOURCE": Cachi2PostprocessPlugin.REMOTE_SOURCE,
+        "REMOTE_SOURCE": HermetoPostprocessPlugin.REMOTE_SOURCE,
         "REMOTE_SOURCE_DIR": REMOTE_SOURCE_DIR,
         CACHITO_ENV_ARG_ALIAS: str(Path(REMOTE_SOURCE_DIR, CACHITO_ENV_FILENAME)),
     }
@@ -343,8 +344,8 @@ def test_multiple_remote_sources(workflow):
                 "purl": "pkg:golang/bytes?type=package",
                 "properties": [
                     {
-                        "name": "cachi2:found_by",
-                        "value": "cachi2"
+                        "name": "hermeto:found_by",
+                        "value": "hermeto"
                     }
                 ],
                 "type": "library"
@@ -360,8 +361,8 @@ def test_multiple_remote_sources(workflow):
                 "purl": "pkg:pip/bytes?type=package",
                 "properties": [
                     {
-                        "name": "cachi2:found_by",
-                        "value": "cachi2"
+                        "name": "hermeto:found_by",
+                        "value": "hermeto"
                     }
                 ],
                 "type": "library"
@@ -385,7 +386,7 @@ def test_multiple_remote_sources(workflow):
 
     first_source = {
         "name": FIRST_REMOTE_SOURCE_NAME,
-        "source_path": str(workflow.build_dir.path / CACHI2_BUILD_DIR / FIRST_REMOTE_SOURCE_NAME),
+        "source_path": str(workflow.build_dir.path / HERMETO_BUILD_DIR / FIRST_REMOTE_SOURCE_NAME),
         "remote_source": {
             "repo": REMOTE_SOURCE_REPO,
             "ref": REMOTE_SOURCE_REF,
@@ -396,7 +397,7 @@ def test_multiple_remote_sources(workflow):
 
     second_source = {
         "name": SECOND_REMOTE_SOURCE_NAME,
-        "source_path": str(workflow.build_dir.path / CACHI2_BUILD_DIR / SECOND_REMOTE_SOURCE_NAME),
+        "source_path": str(workflow.build_dir.path / HERMETO_BUILD_DIR / SECOND_REMOTE_SOURCE_NAME),
         "remote_source": {
             "repo": SECOND_REMOTE_SOURCE_REPO,
             "ref": SECOND_REMOTE_SOURCE_REF,
@@ -405,7 +406,7 @@ def test_multiple_remote_sources(workflow):
 
     mock_repo_config(workflow, data=container_yaml_config)
     mock_reactor_config(workflow, reactor_config)
-    mock_cachi2_init_and_run_plugin(
+    mock_hermeto_init_and_run_plugin(
         workflow,
         RemoteSourceInitResult(
             first_source, first_remote_source_env_json, first_remote_source_sbom),
@@ -503,7 +504,7 @@ def test_multiple_remote_sources(workflow):
     )
 
     assert workflow.data.buildargs == {
-        "REMOTE_SOURCES": Cachi2PostprocessPlugin.REMOTE_SOURCE,
+        "REMOTE_SOURCES": HermetoPostprocessPlugin.REMOTE_SOURCE,
         "REMOTE_SOURCES_DIR": REMOTE_SOURCE_DIR,
     }
 
@@ -537,8 +538,8 @@ def test_multiple_remote_sources_with_git_submodules(workflow):
                 "purl": "pkg:golang/bytes?type=package",
                 "properties": [
                     {
-                        "name": "cachi2:found_by",
-                        "value": "cachi2"
+                        "name": "hermeto:found_by",
+                        "value": "hermeto"
                     }
                 ],
                 "type": "library"
@@ -554,8 +555,8 @@ def test_multiple_remote_sources_with_git_submodules(workflow):
                 "purl": "pkg:pip/bytes?type=package",
                 "properties": [
                     {
-                        "name": "cachi2:found_by",
-                        "value": "cachi2"
+                        "name": "hermeto:found_by",
+                        "value": "hermeto"
                     }
                 ],
                 "type": "library"
@@ -587,7 +588,7 @@ def test_multiple_remote_sources_with_git_submodules(workflow):
     ]
     first_source = {
         "name": FIRST_REMOTE_SOURCE_NAME,
-        "source_path": str(workflow.build_dir.path / CACHI2_BUILD_DIR / FIRST_REMOTE_SOURCE_NAME),
+        "source_path": str(workflow.build_dir.path / HERMETO_BUILD_DIR / FIRST_REMOTE_SOURCE_NAME),
         "remote_source": {
             "repo": REMOTE_SOURCE_REPO,
             "ref": REMOTE_SOURCE_REF,
@@ -615,7 +616,7 @@ def test_multiple_remote_sources_with_git_submodules(workflow):
     ]
     second_source = {
         "name": SECOND_REMOTE_SOURCE_NAME,
-        "source_path": str(workflow.build_dir.path / CACHI2_BUILD_DIR / SECOND_REMOTE_SOURCE_NAME),
+        "source_path": str(workflow.build_dir.path / HERMETO_BUILD_DIR / SECOND_REMOTE_SOURCE_NAME),
         "remote_source": {
             "repo": SECOND_REMOTE_SOURCE_REPO,
             "ref": SECOND_REMOTE_SOURCE_REF,
@@ -634,7 +635,7 @@ def test_multiple_remote_sources_with_git_submodules(workflow):
 
     mock_repo_config(workflow, data=container_yaml_config)
     mock_reactor_config(workflow, reactor_config)
-    mock_cachi2_init_and_run_plugin(
+    mock_hermeto_init_and_run_plugin(
         workflow,
         RemoteSourceInitResult(
             first_source, first_remote_source_env_json, first_remote_source_sbom),
@@ -785,17 +786,17 @@ def test_multiple_remote_sources_with_git_submodules(workflow):
 
     # test sboms
     for path, expected in (
-        (workflow.build_dir.path / CACHI2_BUILD_DIR / FIRST_REMOTE_SOURCE_NAME / "bom.json",
+        (workflow.build_dir.path / HERMETO_BUILD_DIR / FIRST_REMOTE_SOURCE_NAME / "bom.json",
          final_first_source_sbom),
-        (workflow.build_dir.path / CACHI2_BUILD_DIR / SECOND_REMOTE_SOURCE_NAME / "bom.json",
+        (workflow.build_dir.path / HERMETO_BUILD_DIR / SECOND_REMOTE_SOURCE_NAME / "bom.json",
          final_second_source_sbom),
-        (workflow.build_dir.path / CACHI2_BUILD_DIR / "bom.json", expected_global_sbom),
+        (workflow.build_dir.path / HERMETO_BUILD_DIR / "bom.json", expected_global_sbom),
     ):
         with open(path, 'r') as f:
             assert json.load(f) == expected
 
     assert workflow.data.buildargs == {
-        "REMOTE_SOURCES": Cachi2PostprocessPlugin.REMOTE_SOURCE,
+        "REMOTE_SOURCES": HermetoPostprocessPlugin.REMOTE_SOURCE,
         "REMOTE_SOURCES_DIR": REMOTE_SOURCE_DIR,
     }
 
@@ -803,7 +804,7 @@ def test_multiple_remote_sources_with_git_submodules(workflow):
 def run_plugin_with_args(workflow, expect_error=None,
                          expect_result=True, expected_plugin_results=None):
     runner = (MockEnv(workflow)
-              .for_plugin(Cachi2PostprocessPlugin.key)
+              .for_plugin(HermetoPostprocessPlugin.key)
               .create_runner())
 
     if expect_error:
@@ -811,7 +812,7 @@ def run_plugin_with_args(workflow, expect_error=None,
             runner.run()
         return
 
-    results = runner.run()[Cachi2PostprocessPlugin.key]
+    results = runner.run()[HermetoPostprocessPlugin.key]
 
     if expect_result:
         assert results == expected_plugin_results
@@ -820,10 +821,10 @@ def run_plugin_with_args(workflow, expect_error=None,
 
 
 def test_inject_remote_sources_dest_already_exists(workflow):
-    plugin = Cachi2PostprocessPlugin(workflow)
+    plugin = HermetoPostprocessPlugin(workflow)
 
     processed_remote_sources = [
-        Cachi2RemoteSource(
+        HermetoRemoteSource(
             name=None,
             json_data={},
             json_env_data={},
@@ -834,7 +835,7 @@ def test_inject_remote_sources_dest_already_exists(workflow):
     ]
 
     builddir_path = Path(expected_build_dir(workflow))
-    builddir_path.joinpath(Cachi2PostprocessPlugin.REMOTE_SOURCE).mkdir()
+    builddir_path.joinpath(HermetoPostprocessPlugin.REMOTE_SOURCE).mkdir()
 
     err_msg = "Conflicting path unpacked_remote_sources already exists"
     with pytest.raises(RuntimeError, match=err_msg):
@@ -842,7 +843,7 @@ def test_inject_remote_sources_dest_already_exists(workflow):
 
 
 def test_generate_cachito_env_file_shell_quoting(workflow):
-    plugin = Cachi2PostprocessPlugin(workflow)
+    plugin = HermetoPostprocessPlugin(workflow)
 
     dest_dir = Path(expected_build_dir(workflow))
     plugin.generate_cachito_env_file(dest_dir, {"foo": "somefile; rm -rf ~"})

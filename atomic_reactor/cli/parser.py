@@ -97,19 +97,20 @@ def parse_args(args: Optional[Sequence[str]] = None) -> dict:
     )
     binary_container_cachito.set_defaults(func=task.binary_container_cachito)
 
-    binary_container_cachi2_init = tasks.add_parser(
-        "binary-container-cachi2-init",
-        help="binary container cachi2 init step",
-        description="Execute binary container cachi2 init step.",
+    binary_container_hermeto_init = tasks.add_parser(
+        "binary-container-hermeto-init",
+        help="binary container Hermeto init step",
+        description="Execute binary container Hermeto init step.",
     )
-    binary_container_cachi2_init.set_defaults(func=task.binary_container_cachi2_init)
+    binary_container_hermeto_init.set_defaults(func=task.binary_container_hermeto_init)
 
-    binary_container_cachi2_postprocess = tasks.add_parser(
-        "binary-container-cachi2-postprocess",
-        help="binary container cachi2 init step",
-        description="Execute binary container cachi2 postprocess step.",
+    binary_container_hermeto_postprocess = tasks.add_parser(
+        "binary-container-hermeto-postprocess",
+        help="binary container Hermeto postprocess step",
+        description="Execute binary container Hermeto postprocess step.",
     )
-    binary_container_cachi2_postprocess.set_defaults(func=task.binary_container_cachi2_postprocess)
+    binary_container_hermeto_postprocess.set_defaults(
+        func=task.binary_container_hermeto_postprocess)
 
     binary_container_prebuild = tasks.add_parser(
         "binary-container-prebuild",
