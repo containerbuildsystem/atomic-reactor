@@ -34,6 +34,9 @@ spec:
     - name: binary-container-cachito
       image: $(params.osbs-image)
       workingDir: $(workspaces.ws-home-dir.path)
+      env:
+        - name: USER_PARAMS
+          value: $(params.user-params)
       resources:
         requests:
           memory: 512Mi
@@ -43,4 +46,11 @@ spec:
           cpu: 395m
       script: |
         set -x
-        atomic-reactor -v task --user-params='$(params.user-params)' --build-dir=$(workspaces.ws-build-dir.path) --context-dir=$(workspaces.ws-context-dir.path) --config-file=$(workspaces.ws-reactor-config-map.path)/config.yaml --namespace=$(context.taskRun.namespace) --pipeline-run-name="$(params.pipeline-run-name)" binary-container-cachito
+        atomic-reactor -v task \
+          --user-params="${USER_PARAMS}" \
+          --build-dir="$(workspaces.ws-build-dir.path)" \
+          --context-dir="$(workspaces.ws-context-dir.path)" \
+          --config-file="$(workspaces.ws-reactor-config-map.path)/config.yaml" \
+          --namespace="$(context.taskRun.namespace)" \
+          --pipeline-run-name="$(params.pipeline-run-name)"
+           binary-container-cachito
