@@ -191,6 +191,9 @@ KOJI_BTYPE_REMOTE_SOURCES = 'remote-sources'
 KOJI_BTYPE_REMOTE_SOURCE_FILE = 'remote-source-file'
 KOJI_BTYPE_ICM = 'icm'
 
+
+REMOTE_SOURCE_VERSION_SKIP = 0
+
 # Path to where the remote source bundle is copied to during the build process
 REMOTE_SOURCE_DIR = '/remote-source'
 

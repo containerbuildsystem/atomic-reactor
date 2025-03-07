@@ -21,6 +21,7 @@ from atomic_reactor.constants import (
     REPO_CONTENT_SETS_CONFIG,
     REPO_FETCH_ARTIFACTS_KOJI,
     REPO_FETCH_ARTIFACTS_URL,
+    REMOTE_SOURCE_VERSION_SKIP,
 )
 
 from tests.mock_env import MockEnv
@@ -294,6 +295,7 @@ class TestRemoteSourceVersion(object):
         result_file = tmpdir / "result.txt"
         runner = mock_env(workflow, source_dir)
 
+        workflow.source.config.remote_sources = {"something": "must be non-empty"}
         workflow.remote_sources_version_result = str(result_file)
         runner.run()
 
@@ -305,6 +307,7 @@ class TestRemoteSourceVersion(object):
         result_file = tmpdir / "result.txt"
         runner = mock_env(workflow, source_dir)
 
+        workflow.source.config.remote_source = {"something": "must be non-empty"}
         workflow.remote_sources_version_result = str(result_file)
 
         mock_reactor_config(
@@ -324,6 +327,7 @@ class TestRemoteSourceVersion(object):
         result_file = tmpdir / "result.txt"
         runner = mock_env(workflow, source_dir)
 
+        workflow.source.config.remote_sources = {"something": "must be non-empty"}
         workflow.source.config.remote_sources_version = 40  # invalid version, for testing purposes
         workflow.remote_sources_version_result = str(result_file)
         runner.run()
@@ -343,9 +347,41 @@ class TestRemoteSourceVersion(object):
             # 50 not valid version, for testing purposes
             remote_sources_default_version: 50
             """))
+        workflow.source.config.remote_source = {"something": "must be non-empty"}
         workflow.source.config.remote_sources_version = 51  # invalid version, for testing purposes
         workflow.remote_sources_version_result = str(result_file)
         runner.run()
 
         with open(result_file, "r") as f:
             assert f.read() == "51"
+
+    def test_return_skip_container_yaml_version(self, workflow, source_dir, tmpdir):
+        """Version explicitly specified by user but remote sources are missing"""
+        result_file = tmpdir / "result.txt"
+        runner = mock_env(workflow, source_dir)
+
+        workflow.source.config.remote_sources_version = 40  # invalid version, for testing purposes
+        workflow.remote_sources_version_result = str(result_file)
+        runner.run()
+
+        with open(result_file, "r") as f:
+            assert f.read() == str(REMOTE_SOURCE_VERSION_SKIP)
+
+    def test_return_skip_when_default_version_configured(self, workflow, source_dir, tmpdir):
+        """Default version configured in reactor config but remote sources are missing"""
+        result_file = tmpdir / "result.txt"
+        runner = mock_env(workflow, source_dir)
+
+        workflow.remote_sources_version_result = str(result_file)
+
+        mock_reactor_config(
+            workflow,
+            dedent("""
+            ---
+            # 30 not valid version, for testing purposes
+            remote_sources_default_version: 30
+            """))
+        runner.run()
+
+        with open(result_file, "r") as f:
+            assert f.read() == str(REMOTE_SOURCE_VERSION_SKIP)
