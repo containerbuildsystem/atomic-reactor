@@ -243,6 +243,10 @@ spec:
         - name: platform
           value: x86_64
       timeout: "0"
+      when:
+        - input: "x86_64"
+          operator: in
+          values: ["$(tasks.binary-container-init.results.platforms_array[*])"]
 
     - name: binary-container-build-s390x
       runAfter:
@@ -276,6 +280,10 @@ spec:
         - name: platform
           value: s390x
       timeout: "0"
+      when:
+        - input: "s390x"
+          operator: in
+          values: ["$(tasks.binary-container-init.results.platforms_array[*])"]
 
     - name: binary-container-build-ppc64le
       runAfter:
@@ -309,6 +317,10 @@ spec:
         - name: platform
           value: ppc64le
       timeout: "0"
+      when:
+        - input: "ppc64le"
+          operator: in
+          values: ["$(tasks.binary-container-init.results.platforms_array[*])"]
 
     - name: binary-container-build-aarch64
       runAfter:
@@ -342,6 +354,10 @@ spec:
         - name: platform
           value: aarch64
       timeout: "0"
+      when:
+        - input: "aarch64"
+          operator: in
+          values: ["$(tasks.binary-container-init.results.platforms_array[*])"]
 
     - name: binary-container-postbuild
       runAfter:
