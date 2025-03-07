@@ -6,7 +6,10 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
-from atomic_reactor.constants import PLUGIN_CHECK_USER_SETTINGS
+from atomic_reactor.constants import (
+    PLUGIN_CHECK_USER_SETTINGS,
+    REMOTE_SOURCE_VERSION_SKIP,
+)
 from atomic_reactor.plugin import Plugin
 from atomic_reactor.util import (
     has_operator_appregistry_manifest,
@@ -114,6 +117,13 @@ class CheckUserSettingsPlugin(Plugin):
         version = self.workflow.source.config.remote_sources_version
         if not version:
             version = self.workflow.conf.remote_sources_default_version
+
+        if not (
+            self.workflow.source.config.remote_source
+            or self.workflow.source.config.remote_sources
+        ):
+            self.log.info('No remote source configuration')
+            version = REMOTE_SOURCE_VERSION_SKIP  # undefined remote sources, skip
 
         self.log.info("Remote sources version to be used: %d", version)
 

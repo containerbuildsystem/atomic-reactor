@@ -13,6 +13,8 @@ class StubConfig(object):
     image_build_method = None
     release_env_var = None
     remote_sources_version = None
+    remote_source = None
+    remote_sources = None
 
 
 class StubSource(object):
