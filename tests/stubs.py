@@ -10,15 +10,21 @@ of the BSD license. See the LICENSE file for details.
 
 # Stubs for commonly-mocked classes
 class StubConfig(object):
-    image_build_method = None
-    release_env_var = None
-    remote_sources_version = None
+
+    def __init__(self):
+        self.image_build_method = None
+        self.release_env_var = None
+        self.remote_sources_version = None
+        self.remote_source = None
+        self.remote_sources = None
 
 
 class StubSource(object):
-    dockerfile_path = None
-    path = ''
-    config = StubConfig()
+
+    def __init__(self):
+        self.dockerfile_path = None
+        self.path = ''
+        self.config = StubConfig()
 
     def get_vcs_info(self):
         return None
