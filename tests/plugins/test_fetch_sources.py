@@ -543,6 +543,7 @@ def get_remote_file_url(koji_build, file_name=REMOTE_SOURCE_FILE_FILENAME):
 def mock_koji_manifest_download(source_dir: Path, requests_mock,
                                 retries=0, dirs_in_remote=('app', 'deps'),
                                 files_in_remote=(), cachito_package_names=None,
+                                hermeto_repo_name=None,
                                 change_package_names=True):
     class MockBytesIO(io.BytesIO):
         reads = 0
@@ -610,13 +611,20 @@ def mock_koji_manifest_download(source_dir: Path, requests_mock,
     test_tar.unlink()
 
     def body_remote_json_callback(request, context):
-        remote_json = {'packages': []}
+        remote_json = {'packages': [], 'dependencies': []}
         if cachito_package_names:
             for pkg in cachito_package_names:
                 if change_package_names:
                     remote_json['packages'].append({'name': os.path.join('github.com', pkg)})
                 else:
                     remote_json['packages'].append({'name': pkg})
+        if hermeto_repo_name:
+            if change_package_names:
+                remote_json['repo'] = os.path.join('github.com', hermeto_repo_name)
+            else:
+                remote_json['repo'] = hermeto_repo_name
+        else:
+            remote_json['repo'] = "example.com"
         remote_cont = json.dumps(remote_json)
 
         remote_bytes = bytes(remote_cont, 'ascii')
@@ -1443,12 +1451,15 @@ class TestFetchSources(object):
             requests_mock.register_uri('GET', excludelist['denylist_sources'],
                                        json=excludelist_json, status_code=200)
 
+        kwargs = {}
+        kwargs["cachito_package_names"] = cachito_pkg_names
+
         mock_koji_manifest_download(source_dir,
                                     requests_mock,
                                     dirs_in_remote=dirs_to_create,
                                     files_in_remote=files_to_create,
-                                    cachito_package_names=cachito_pkg_names,
-                                    change_package_names=False)
+                                    change_package_names=False,
+                                    **kwargs)
         runner = mock_env(workflow, source_dir, koji_build_id=1,
                           config_map=yaml.safe_dump(rcm_json))
 
