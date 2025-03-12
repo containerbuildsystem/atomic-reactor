@@ -143,6 +143,7 @@ spec:
             cachi2 --log-level="$LOG_LEVEL" fetch-deps \
               --source="${REMOTE_SOURCE_PATH}/app/" \
               --output="${REMOTE_SOURCE_PATH}" \
+              --sbom-output-type=cyclonedx \
               "$(cat "${HERMETO_PKG_OPT_PATH}")"
 
             cachi2 --log-level="$LOG_LEVEL" generate-env "${REMOTE_SOURCE_PATH}" \
