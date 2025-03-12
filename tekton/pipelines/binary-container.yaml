@@ -27,6 +27,11 @@ spec:
         Workspace containing a .netrc file. OSBS and Hermeto will use the credentials in this file when
         performing git/http(s) requests.
       optional: true
+    - name: git-ssh-privkey
+      description: |
+        Workspace containing an id_rsa file. OSBS and Hermeto will use the credentials in this file when
+        performing ssh git requests.
+      optional: true
 
   results:
     - name: repositories
@@ -144,7 +149,14 @@ spec:
       runAfter:
         - binary-container-init
       taskRef:
-        name: binary-container-hermeto-0-1
+        resolver: git
+        params:
+        - name: url
+          value: https://github.com/MartinBasti/atomic-reactor.git
+        - name: revision
+          value: hermeto_git_ssh
+        - name: pathInRepo
+          value: tekton/tasks/binary-container-hermeto.yaml
       workspaces:
         - name: ws-build-dir
           workspace: ws-container
@@ -164,6 +176,8 @@ spec:
           workspace: ws-autobot-keytab
         - name: netrc
           workspace: netrc
+        - name: git-ssh-privkey
+          workspace: git-ssh-privkey
       params:
         - name: osbs-image
           value: "$(params.osbs-image)"
