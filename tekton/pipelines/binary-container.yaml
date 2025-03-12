@@ -149,7 +149,14 @@ spec:
       runAfter:
         - binary-container-init
       taskRef:
-        name: binary-container-hermeto-0-1
+        resolver: git
+        params:
+        - name: url
+          value: https://github.com/MartinBasti/atomic-reactor.git
+        - name: revision
+          value: hermeto_git_ssh
+        - name: pathInRepo
+          value: tekton/tasks/binary-container-hermeto.yaml
       workspaces:
         - name: ws-build-dir
           workspace: ws-container
