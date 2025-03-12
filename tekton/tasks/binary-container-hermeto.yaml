@@ -94,8 +94,8 @@ spec:
         fi
 
         if [ "${WORKSPACE_GIT_SSH_PRIVKEY_BOUND}" = "true" ]; then
-          cp "${WORKSPACE_GIT_SSH_PRIVKEY_PATH}/id_rsa" "${HOME}/id_rsa"
-          chmod 0400 "${HOME}/id_rsa"
+          cp "${WORKSPACE_GIT_SSH_PRIVKEY_PATH}/id_rsa" "${HOME}/.ssh/id_rsa"
+          chmod 0400 "${HOME}/.ssh/id_rsa"
         fi
 
         atomic-reactor -v task \
@@ -149,8 +149,8 @@ spec:
         fi
 
         if [ "${WORKSPACE_GIT_SSH_PRIVKEY_BOUND}" = "true" ]; then
-          cp "${WORKSPACE_GIT_SSH_PRIVKEY_PATH}/id_rsa" "${HOME}/id_rsa"
-          chmod 0400 "${HOME}/id_rsa"
+          cp "${WORKSPACE_GIT_SSH_PRIVKEY_PATH}/id_rsa" "${HOME}/.ssh/id_rsa"
+          chmod 0400 "${HOME}/.ssh/id_rsa"
         fi
 
         SBOMS=()
