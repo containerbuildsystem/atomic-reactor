@@ -94,6 +94,7 @@ spec:
         fi
 
         if [ "${WORKSPACE_GIT_SSH_PRIVKEY_BOUND}" = "true" ]; then
+          mkdir -p ${HOME}/.ssh
           cp "${WORKSPACE_GIT_SSH_PRIVKEY_PATH}/id_rsa" "${HOME}/.ssh/id_rsa"
           chmod 0400 "${HOME}/.ssh/id_rsa"
         fi
@@ -149,6 +150,7 @@ spec:
         fi
 
         if [ "${WORKSPACE_GIT_SSH_PRIVKEY_BOUND}" = "true" ]; then
+          mkdir -p ${HOME}/.ssh
           cp "${WORKSPACE_GIT_SSH_PRIVKEY_PATH}/id_rsa" "${HOME}/.ssh/id_rsa"
           chmod 0400 "${HOME}/.ssh/id_rsa"
         fi
