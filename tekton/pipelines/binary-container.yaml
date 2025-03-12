@@ -27,6 +27,11 @@ spec:
         Workspace containing a .netrc file. OSBS and Hermeto will use the credentials in this file when
         performing git/http(s) requests.
       optional: true
+    - name: git-ssh-privkey
+      description: |
+        Workspace containing an id_rsa file. OSBS and Hermeto will use the credentials in this file when
+        performing ssh git requests.
+      optional: true
 
   results:
     - name: repositories
@@ -164,6 +169,8 @@ spec:
           workspace: ws-autobot-keytab
         - name: netrc
           workspace: netrc
+        - name: git-ssh-privkey
+          workspace: git-ssh-privkey
       params:
         - name: osbs-image
           value: "$(params.osbs-image)"

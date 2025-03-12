@@ -43,6 +43,11 @@ spec:
         Workspace containing a .netrc file. OSBS and Hermeto will use the credentials in this file when
         performing git/http(s) requests.
       optional: true
+    - name: git-ssh-privkey
+      description: |
+        Workspace containing an id_rsa file. OSBS and Hermeto will use the credentials in this file when
+        performing ssh git requests.
+      optional: true
 
   volumes:
     - name: trusted-ca
@@ -69,6 +74,10 @@ spec:
           value: $(workspaces.netrc.bound)
         - name: WORKSPACE_NETRC_PATH
           value: $(workspaces.netrc.path)
+        - name: WORKSPACE_GIT_SSH_PRIVKEY_BOUND
+          value: $(workspaces.git-ssh-privkey.bound)
+        - name: WORKSPACE_GIT_SSH_PRIVKEY_PATH
+          value: $(workspaces.git-ssh-privkey.path)
       resources:
         requests:
           memory: 512Mi
@@ -78,8 +87,15 @@ spec:
           cpu: 395m
       script: |
         set -x
+        set -e
+
         if [ "${WORKSPACE_NETRC_BOUND}" = "true" ]; then
           cp "${WORKSPACE_NETRC_PATH}/.netrc" "${HOME}/.netrc"
+        fi
+
+        if [ "${WORKSPACE_GIT_SSH_PRIVKEY_BOUND}" = "true" ]; then
+          cp "${WORKSPACE_GIT_SSH_PRIVKEY_PATH}/id_rsa" "${HOME}/id_rsa"
+          chmod 0400 "${HOME}/id_rsa"
         fi
 
         atomic-reactor -v task \
@@ -99,6 +115,10 @@ spec:
           value: $(workspaces.netrc.bound)
         - name: WORKSPACE_NETRC_PATH
           value: $(workspaces.netrc.path)
+        - name: WORKSPACE_GIT_SSH_PRIVKEY_BOUND
+          value: $(workspaces.git-ssh-privkey.bound)
+        - name: WORKSPACE_GIT_SSH_PRIVKEY_PATH
+          value: $(workspaces.git-ssh-privkey.path)
       workingDir: $(workspaces.ws-home-dir.path)
       volumeMounts:
         - name: trusted-ca
@@ -126,6 +146,11 @@ spec:
 
         if [ "${WORKSPACE_NETRC_BOUND}" = "true" ]; then
           cp "${WORKSPACE_NETRC_PATH}/.netrc" "${HOME}/.netrc"
+        fi
+
+        if [ "${WORKSPACE_GIT_SSH_PRIVKEY_BOUND}" = "true" ]; then
+          cp "${WORKSPACE_GIT_SSH_PRIVKEY_PATH}/id_rsa" "${HOME}/id_rsa"
+          chmod 0400 "${HOME}/id_rsa"
         fi
 
         SBOMS=()
