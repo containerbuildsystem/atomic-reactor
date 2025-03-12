@@ -543,6 +543,7 @@ def get_remote_file_url(koji_build, file_name=REMOTE_SOURCE_FILE_FILENAME):
 def mock_koji_manifest_download(source_dir: Path, requests_mock,
                                 retries=0, dirs_in_remote=('app', 'deps'),
                                 files_in_remote=(), cachito_package_names=None,
+                                hermeto_repo_name=None,
                                 change_package_names=True):
     class MockBytesIO(io.BytesIO):
         reads = 0
@@ -610,13 +611,20 @@ def mock_koji_manifest_download(source_dir: Path, requests_mock,
     test_tar.unlink()
 
     def body_remote_json_callback(request, context):
-        remote_json = {'packages': []}
+        remote_json = {'packages': [], 'dependencies': []}
         if cachito_package_names:
             for pkg in cachito_package_names:
                 if change_package_names:
                     remote_json['packages'].append({'name': os.path.join('github.com', pkg)})
                 else:
                     remote_json['packages'].append({'name': pkg})
+        if hermeto_repo_name:
+            if change_package_names:
+                remote_json['repo'] = os.path.join('github.com', hermeto_repo_name)
+            else:
+                remote_json['repo'] = hermeto_repo_name
+        else:
+            remote_json['repo'] = "example.com"
         remote_cont = json.dumps(remote_json)
 
         remote_bytes = bytes(remote_cont, 'ascii')
@@ -1272,11 +1280,13 @@ class TestFetchSources(object):
 
         assert 'No srpms or remote sources or maven sources found' in str(exc_info.value)
 
-    @pytest.mark.parametrize(('excludelist', 'excludelist_json', 'cachito_pkg_names',
+    @pytest.mark.parametrize(('excludelist', 'excludelist_json',
+                              'cachito_pkg_names', 'hermeto_repo',
                               'exclude_messages', 'exc_str'), [
         # test exclude list doesn't exist
-        (None, None, None, [], None),
+        (None, None, None, None, [], None),
         ({'denylist_sources': 'http://excludelist_url'},
+         None,
          None,
          None,
          [],
@@ -1286,6 +1296,7 @@ class TestFetchSources(object):
         ({'denylist_sources': 'http://excludelist_url'},
          {'dir1': ['none1', 'none2']},
          None,
+         None,
          [],
          None),
 
@@ -1293,11 +1304,13 @@ class TestFetchSources(object):
         ({'denylist_sources': 'http://excludelist_url'},
          {'dir1': ['toremovefile']},
          None,
+         None,
          ['Removing excluded file'],
          None),
 
         ({'denylist_sources': 'http://excludelist_url'},
          {'dir2': ['toremovefile']},
+         None,
          None,
          [],
          None),
@@ -1306,11 +1319,13 @@ class TestFetchSources(object):
         ({'denylist_sources': 'http://excludelist_url'},
          {'dir1': ['toremovedir']},
          None,
+         None,
          ['Removing excluded directory'],
          None),
 
         ({'denylist_sources': 'http://excludelist_url'},
          {'dir2': ['toremovedir']},
+         None,
          None,
          [],
          None),
@@ -1319,13 +1334,23 @@ class TestFetchSources(object):
         ({'denylist_sources': 'http://excludelist_url'},
          {'dir1': ['appname']},
          [os.path.join('dir1', 'appname')],
+         None,
          ['Removing app', 'Keeping vendor in app',
           'Package excluded: "{}"'.format(os.path.join('dir1', 'appname'))],
          None),
 
         ({'denylist_sources': 'http://excludelist_url'},
          {'dir1': ['appname']},
+         [],
+         "dir1/appname",  # hermeto only
+         ['Removing app', 'Keeping vendor in app',
+          'Repo excluded: "{}"'.format(os.path.join('dir1', 'appname'))],
+         None),
+
+        ({'denylist_sources': 'http://excludelist_url'},
+         {'dir1': ['appname']},
          [os.path.join('github.com', 'dir1', 'appname')],
+         None,
          ['Removing app', 'Keeping vendor in app',
           'Package excluded: "{}"'.format(os.path.join('github.com', 'dir1', 'appname'))],
          None),
@@ -1333,6 +1358,7 @@ class TestFetchSources(object):
         ({'denylist_sources': 'http://excludelist_url'},
          {'dir1': ['appname']},
          [os.path.join('@dir1', 'appname')],
+         None,
          ['Removing app', 'Keeping vendor in app',
           'Package excluded: "{}"'.format(os.path.join('@dir1', 'appname'))],
          None),
@@ -1340,6 +1366,7 @@ class TestFetchSources(object):
         ({'denylist_sources': 'http://excludelist_url'},
          {'dir1': ['appname', 'toremovefile']},
          [os.path.join('dir1', 'appname')],
+         None,
          ['Removing app', 'Removing excluded file', 'Keeping vendor in app',
           'Package excluded: "{}"'.format(os.path.join('dir1', 'appname'))],
          None),
@@ -1347,6 +1374,7 @@ class TestFetchSources(object):
         ({'denylist_sources': 'http://excludelist_url'},
          {'dir1': ['appname', 'toremovefile', 'toremovedir']},
          [os.path.join('dir1', 'appname')],
+         None,
          ['Removing app', 'Removing excluded file', 'Removing excluded directory',
           'Keeping vendor in app',
           'Package excluded: "{}"'.format(os.path.join('dir1', 'appname'))],
@@ -1355,18 +1383,21 @@ class TestFetchSources(object):
         ({'denylist_sources': 'http://excludelist_url'},
          {'dir1': ['appname']},
          [os.path.join('dir1', 'appnamepost')],
+         None,
          [],
          None),
 
         ({'denylist_sources': 'http://excludelist_url'},
          {'dir1': ['appname']},
          [os.path.join('dir1', 'preappname')],
+         None,
          [],
          None),
 
         ({'denylist_sources': 'http://excludelist_url'},
          {'dir1': ['appname']},
          [os.path.join('dir1', 'preappnamepost')],
+         None,
          [],
          None),
     ])
@@ -1379,7 +1410,8 @@ class TestFetchSources(object):
         (2, 1, 'There can be just one remote sources archive'),
     ])
     def test_exclude_closed_sources(self, requests_mock, koji_session, workflow, source_dir,
-                                    caplog, excludelist, excludelist_json, cachito_pkg_names,
+                                    caplog, excludelist, excludelist_json,
+                                    cachito_pkg_names, hermeto_repo,
                                     exclude_messages, exc_str, vendor_exists, source_archives,
                                     source_json, raise_early):
         list_archives = []
@@ -1447,8 +1479,9 @@ class TestFetchSources(object):
                                     requests_mock,
                                     dirs_in_remote=dirs_to_create,
                                     files_in_remote=files_to_create,
+                                    change_package_names=False,
                                     cachito_package_names=cachito_pkg_names,
-                                    change_package_names=False)
+                                    hermeto_repo_name=hermeto_repo)
         runner = mock_env(workflow, source_dir, koji_build_id=1,
                           config_map=yaml.safe_dump(rcm_json))
 
