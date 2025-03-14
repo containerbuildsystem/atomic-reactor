@@ -27,6 +27,8 @@ spec:
 
   results:
     - name: platforms_result
+    - name: platforms_array
+      type: array
     - name: remote_sources_version_result
 
   stepTemplate:
@@ -49,7 +51,7 @@ spec:
           memory: 1Gi
           cpu: 395m
       script: |
-        set -x
+        set -ex
         atomic-reactor -v task \
           --user-params="${USER_PARAMS}" \
           --build-dir="$(workspaces.ws-build-dir.path)" \
@@ -60,3 +62,5 @@ spec:
           binary-container-init \
           --platforms-result="$(results.platforms_result.path)" \
           --remote-sources-version-result="$(results.remote_sources_version_result.path)"
+
+        jq '.platforms' "$(results.platforms_result.path)" > "$(results.platforms_array.path)"
