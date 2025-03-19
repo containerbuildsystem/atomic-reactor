@@ -197,6 +197,25 @@ class HermetoPostprocessPlugin(Plugin):
             )
         return json_config
 
+    def _inject_extra_env(self, remote_source, json_env_data):
+        """Inject static env vars for specific pkg_managers into json_env_data
+        to emulate behavior of Cachito and keep compatibility"""
+        pkg_managers = remote_source.get("pkg_managers") or []
+        if not pkg_managers:
+            return
+
+        if any(manager in pkg_managers for manager in ['yarn', 'npm']):
+            envvars = {
+                'CHROMEDRIVER_SKIP_DOWNLOAD': 'true',
+                'CYPRESS_INSTALL_BINARY': '0',
+                'GECKODRIVER_SKIP_DOWNLOAD': 'true',
+                'SKIP_SASS_BINARY_DOWNLOAD_FOR_CI': 'true',
+            }
+            for name, value in envvars.items():
+                if all(name not in env['name'] for env in json_env_data):
+                    # don't overwrite envvar if exists
+                    json_env_data.append({'name': name, 'value': value})
+
     def postprocess_remote_sources(self) -> List[HermetoRemoteSource]:
         """Process remote source requests and return information about the processed sources."""
 
@@ -207,6 +226,8 @@ class HermetoPostprocessPlugin(Plugin):
             json_env_path = os.path.join(remote_source['source_path'], HERMETO_ENV_JSON)
             with open(json_env_path, 'r') as json_f:
                 json_env_data = json.load(json_f)
+
+            self._inject_extra_env(remote_source['remote_source'], json_env_data)
 
             sbom_path = os.path.join(remote_source['source_path'], 'bom.json')
             with open(sbom_path, 'r') as sbom_f:
