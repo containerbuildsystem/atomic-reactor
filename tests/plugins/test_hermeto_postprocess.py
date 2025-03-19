@@ -315,6 +315,155 @@ def test_resolve_remote_source_single(workflow):
     }
 
 
+@pytest.mark.parametrize('pkg_manager', ['yarn', 'npm'])
+def test_resolve_remote_source_inject_env_vars(workflow, pkg_manager):
+
+    remote_source_sbom = {
+        "bomFormat": "CycloneDX",
+        "components": [
+            {
+                "name": "bytes",
+                "purl": "pkg:golang/bytes?type=package",
+                "properties": [
+                    {
+                        "name": "hermeto:found_by",
+                        "value": "hermeto"
+                    }
+                ],
+                "type": "library"
+            },
+        ],
+    }
+
+    remote_source_env_json = [
+        {
+          "name": "GOCACHE",
+          "value": "/remote-source/deps/gomod",
+        },
+    ]
+
+    expected_remote_sources_extra_env_static = [
+        {
+            "name": "CHROMEDRIVER_SKIP_DOWNLOAD",
+            "value": "true",
+        },
+        {
+            "name": "CYPRESS_INSTALL_BINARY",
+            "value": "0",
+        },
+        {
+            "name": "GECKODRIVER_SKIP_DOWNLOAD",
+            "value": "true",
+        },
+        {
+            "name": "SKIP_SASS_BINARY_DOWNLOAD_FOR_CI",
+            "value": "true"
+        },
+    ]
+
+    single_source = {
+        "name": None,
+        "source_path": str(
+            workflow.build_dir.path / HERMETO_BUILD_DIR / HERMETO_SINGLE_REMOTE_SOURCE_NAME),
+        "remote_source": {
+            "repo": REMOTE_SOURCE_REPO,
+            "ref": REMOTE_SOURCE_REF,
+            "pkg_managers": ["gomod", pkg_manager]
+        }
+    }
+
+    mock_hermeto_init_and_run_plugin(
+        workflow,
+        RemoteSourceInitResult(
+            single_source, remote_source_env_json, remote_source_sbom
+        )
+    )
+
+    expected_remote_source_env_json = {
+        "GOCACHE": {
+          "kind": "literal",
+          "value": "/remote-source/deps/gomod",
+        },
+        "CHROMEDRIVER_SKIP_DOWNLOAD": {
+          "kind": "literal",
+          "value": "true"
+        },
+        "CYPRESS_INSTALL_BINARY": {
+          "kind": "literal",
+          "value": "0"
+        },
+        "GECKODRIVER_SKIP_DOWNLOAD": {
+          "kind": "literal",
+          "value": "true"
+        },
+        "SKIP_SASS_BINARY_DOWNLOAD_FOR_CI": {
+          "kind": "literal",
+          "value": "true"
+        },
+    }
+
+    expected_plugin_results = [
+        {
+            "name": None,
+            "remote_source_json": {
+                "json": generate_request_json(
+                    single_source["remote_source"], remote_source_sbom,
+                    remote_source_env_json + expected_remote_sources_extra_env_static),
+                "filename": REMOTE_SOURCE_JSON_FILENAME,
+            },
+            "remote_source_json_env": {
+                "json": expected_remote_source_env_json,
+                "filename": REMOTE_SOURCE_JSON_ENV_FILENAME,
+            },
+            "remote_source_json_config": {
+                "json": EXPECTED_REMOTE_SOURCE_CONFIG_JSON,
+                "filename": REMOTE_SOURCE_JSON_CONFIG_FILENAME,
+            },
+            "remote_source_tarball": {
+                "filename": REMOTE_SOURCE_TARBALL_FILENAME,
+                "path": str(Path(single_source["source_path"]) / "remote-source.tar.gz"),
+            },
+        },
+    ]
+
+    run_plugin_with_args(
+        workflow,
+        expected_plugin_results=expected_plugin_results,
+    )
+
+    cachito_env_content = dedent(
+        """\
+        #!/bin/bash
+        export GOCACHE=/remote-source/deps/gomod
+        export CHROMEDRIVER_SKIP_DOWNLOAD=true
+        export CYPRESS_INSTALL_BINARY=0
+        export GECKODRIVER_SKIP_DOWNLOAD=true
+        export SKIP_SASS_BINARY_DOWNLOAD_FOR_CI=true
+        """
+    )
+
+    workflow.build_dir.for_each_platform(
+        check_injected_files(
+            {
+                "cachito.env": cachito_env_content,
+                "app/app.txt": "test app single source",
+                "deps/dep.txt": "dependency for single source",
+            },
+        )
+    )
+
+    assert workflow.data.buildargs == {
+        "GOCACHE": "/remote-source/deps/gomod",
+        "REMOTE_SOURCE": HermetoPostprocessPlugin.REMOTE_SOURCE,
+        "REMOTE_SOURCE_DIR": REMOTE_SOURCE_DIR,
+        CACHITO_ENV_ARG_ALIAS: str(Path(REMOTE_SOURCE_DIR, CACHITO_ENV_FILENAME)),
+        "CHROMEDRIVER_SKIP_DOWNLOAD": "true",
+        "CYPRESS_INSTALL_BINARY": "0",
+        "GECKODRIVER_SKIP_DOWNLOAD": "true",
+        "SKIP_SASS_BINARY_DOWNLOAD_FOR_CI": "true",
+    }
+
+
 def test_multiple_remote_sources(workflow):
 
     container_yaml_config = dedent(
