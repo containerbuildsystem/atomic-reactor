@@ -68,6 +68,10 @@ from tempfile import NamedTemporaryFile
 from faulthandler import dump_traceback
 
 
+REMOTE_SOURCES_LOGNAME = 'remote-sources'
+REMOTE_SOURCES_TASKNAME = 'binary-container-hermeto'
+
+
 @dataclass
 class Output:
     filename: str
@@ -1436,13 +1440,32 @@ class OSBSLogs(object):
                 )
                 logfiles[task_platform] = log_file
 
+            remote_sources_log = None
+            if task_run_name == REMOTE_SOURCES_TASKNAME:
+                if REMOTE_SOURCES_LOGNAME in logfiles:
+                    remote_sources_log = logfiles[REMOTE_SOURCES_LOGNAME]
+                else:
+                    remote_sources_log = NamedTemporaryFile(
+                        prefix=REMOTE_SOURCES_LOGNAME,
+                        suffix='.log',
+                        mode='wb',
+                        delete=False,
+                    )
+                    logfiles[REMOTE_SOURCES_LOGNAME] = remote_sources_log
+
             for log_message in containers.values():
                 log_file.write((log_message + '\n').encode('utf-8'))
+                if remote_sources_log:
+                    remote_sources_log.write((log_message + '\n').encode('utf-8'))
             log_file.flush()
+            if remote_sources_log:
+                remote_sources_log.flush()
 
         for platform, logfile in logfiles.items():
             if platform == 'noarch':
                 log_filename = filename
+            elif platform == REMOTE_SOURCES_LOGNAME:
+                log_filename = REMOTE_SOURCES_LOGNAME
             else:
                 log_filename = platform
             metadata = self.get_log_metadata(logfile.name, f'{log_filename}.log')

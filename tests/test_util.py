@@ -33,7 +33,8 @@ import yaml
 from atomic_reactor.constants import (IMAGE_TYPE_DOCKER_ARCHIVE, IMAGE_TYPE_OCI, IMAGE_TYPE_OCI_TAR,
                                       MEDIA_TYPE_DOCKER_V2_SCHEMA1, MEDIA_TYPE_DOCKER_V2_SCHEMA2,
                                       MEDIA_TYPE_DOCKER_V2_MANIFEST_LIST,
-                                      DOCKERIGNORE, RELATIVE_REPOS_PATH)
+                                      DOCKERIGNORE, RELATIVE_REPOS_PATH,
+                                      )
 from atomic_reactor.util import (figure_out_build_file,
                                  render_yum_repo, process_substitutions,
                                  get_checksums, print_version_of_tools,
@@ -1129,7 +1130,7 @@ def test_osbs_logs_get_log_files(tmpdir, source_build):
                                'filesize': 14,
                                'type': 'log',
                                'arch': 'noarch',
-                               }
+                               },
                               ]
 
     logger = flexmock()
@@ -1147,6 +1148,40 @@ def test_osbs_logs_get_log_files(tmpdir, source_build):
         assert len(outputs) == 1
         output = outputs[0]
         assert output.metadata == osbs_logfiles_metadata[0]
+
+
+def test_osbs_logs_get_log_files_remote_source():
+    class OSBS(object):
+        def get_build_logs(self, pipeline_run_name):
+            logs = {
+                "taskRun1": {"containerA": "log message A", "containerB": "log message B"},
+                "binary-container-hermeto": {"containerH": "log message H"},
+            }
+            return logs
+
+    osbs_logfiles_metadata = [{'checksum': '5e65a3a57cb8240f3c1656bdbd533be4',
+                               'checksum_type': 'md5',
+                               'filename': 'osbs-build.log',
+                               'filesize': 42,
+                               'type': 'log',
+                               'arch': 'noarch',
+                               },
+                              {'checksum': 'a8c412013ebaa9958d58040826f6c824',
+                               'checksum_type': 'md5',
+                               'filename': 'remote-sources.log',
+                               'filesize': 14,
+                               'type': 'log',
+                               'arch': 'noarch',
+                               },
+                              ]
+
+    logger = flexmock()
+    flexmock(logger).should_receive('error')
+    osbs_logs = OSBSLogs(logger, [])
+    osbs = OSBS()
+    outputs = osbs_logs.get_log_files(osbs, 'test-pipeline-run')
+    for index, output in enumerate(outputs):
+        assert output.metadata == osbs_logfiles_metadata[index]
 
 
 @pytest.mark.parametrize('raise_error', [
