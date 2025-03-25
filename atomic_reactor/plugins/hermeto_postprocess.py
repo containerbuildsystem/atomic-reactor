@@ -31,6 +31,7 @@ from atomic_reactor.constants import (
     REMOTE_SOURCE_TARBALL_FILENAME,
     REMOTE_SOURCE_JSON_CONFIG_FILENAME,
     REMOTE_SOURCE_JSON_ENV_FILENAME,
+    REMOTE_SOURCE_ENV_FILENAME,
 )
 from atomic_reactor.dirs import BuildDir, reflink_copy
 from atomic_reactor.plugin import Plugin
@@ -287,7 +288,7 @@ class HermetoPostprocessPlugin(Plugin):
                         symlinks=True, copy_function=copy_method, dirs_exist_ok=True)
 
             # Create cachito.env file with environment variables received from cachito request
-            self.generate_cachito_env_file(dest_dir, remote_source.build_args)
+            self.generate_remote_source_env_file(dest_dir, remote_source.build_args)
 
         return created_dirs
 
@@ -323,19 +324,30 @@ class HermetoPostprocessPlugin(Plugin):
             },
         }
 
-    def generate_cachito_env_file(self, dest_dir: Path, build_args: Dict[str, str]) -> None:
+    def generate_remote_source_env_file(self, dest_dir: Path, build_args: Dict[str, str]) -> None:
         """
-        Generate cachito.env file with exported environment variables received from
+        Generate envfile with exported environment variables received from
         cachito request.
 
         :param dest_dir: destination directory for env file
         :param build_args: build arguments to set
         """
         self.log.info('Creating %s file with environment variables '
-                      'received from Hermeto', CACHITO_ENV_FILENAME)
+                      'received from Hermeto (for compatibility with '
+                      'Cachito workflows)', CACHITO_ENV_FILENAME)
 
         # Use dedicated dir in container build workdir for cachito.env
         abs_path = dest_dir / CACHITO_ENV_FILENAME
+        with open(abs_path, 'w') as f:
+            f.write('#!/bin/bash\n')
+            for env_var, value in build_args.items():
+                f.write('export {}={}\n'.format(env_var, shlex.quote(value)))
+
+        self.log.info('Creating %s file with environment variables '
+                      'received from Hermeto', REMOTE_SOURCE_ENV_FILENAME)
+
+        # Use dedicated dir in container build workdir for remote-source.env
+        abs_path = dest_dir / REMOTE_SOURCE_ENV_FILENAME
         with open(abs_path, 'w') as f:
             f.write('#!/bin/bash\n')
             for env_var, value in build_args.items():
