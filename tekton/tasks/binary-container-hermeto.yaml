@@ -114,7 +114,7 @@ spec:
           cpu: 1200m
       script: |
         #!/usr/bin/bash
-        set -eux
+        set -eu
         HERMETO_DIR="$(workspaces.ws-build-dir.path)/_hermeto_remote_sources"
         HERMETO_PKG_OPT_PATH="hermeto_pkg_options.json"
         HERMETO_INCLUDE_GIT_DIR_FILE="hermeto_include_git_dir.txt"
@@ -138,9 +138,15 @@ spec:
 
           pushd "${REMOTE_SOURCE_PATH}"
 
+          REMOTE_SOURCE_NAME=$(basename "${REMOTE_SOURCE_PATH}")
+
+          echo "Processing remote source: ${REMOTE_SOURCE_NAME}"
+
           if [ -f "${HERMETO_PKG_OPT_PATH}" ]; then
             # only presence of $HERMETO_PKG_OPT_PATH config file means that atomic-reactor wants to run Hermeto
             FOR_OUTPUT_DIR="$(cat hermeto_for_output_dir_opt.txt)"
+
+            echo "Fetching dependencies using Hermeto options: $(cat "${HERMETO_PKG_OPT_PATH}")"
 
             cachi2 --log-level="$LOG_LEVEL" fetch-deps \
               --source="${REMOTE_SOURCE_PATH}/app/" \
@@ -148,11 +154,14 @@ spec:
               --sbom-output-type=cyclonedx \
               "$(cat "${HERMETO_PKG_OPT_PATH}")"
 
+            echo "Generating envfile"
+
             cachi2 --log-level="$LOG_LEVEL" generate-env "${REMOTE_SOURCE_PATH}" \
               --format json \
               --for-output-dir="${FOR_OUTPUT_DIR}" \
               --output "${REMOTE_SOURCE_PATH}/hermeto.env.json"
           else
+            echo "Skipping Hermeto run, the remote source is processed only by OSBS"
             mkdir deps/  # create empty deps/ dir to emulate Hermeto run
           fi
 
@@ -161,29 +170,36 @@ spec:
           SBOMS+=("${REMOTE_SOURCE_PATH}/bom.json")
 
           if [ -f "${HERMETO_INCLUDE_GIT_DIR_FILE}" ]; then
-            echo "flag 'include-git-dir' used, keeping git directory present"
+            echo "Flag 'include-git-dir' used, keeping git directory present"
           else
             rm -fr app/.git/   # remove git directory by default
           fi
 
           # create source archive before injecting files
+          echo "Creating source archive"
           tar -czf remote-source.tar.gz app/ deps/
 
           if [ -f "${HERMETO_PKG_OPT_PATH}" ]; then
+            echo "Injecting Hermeto files into the remote source"
             cachi2 --log-level="$LOG_LEVEL" inject-files "${REMOTE_SOURCE_PATH}" \
               --for-output-dir="${FOR_OUTPUT_DIR}"
           fi
 
+          echo "Finished processing of remote source: ${REMOTE_SOURCE_NAME}"
+          echo ""
+
           popd
         done
 
+        GLOBAL_SBOM_FILE="${HERMETO_DIR}/bom.json"
         if [ "${#SBOMS[@]}" -gt 1 ]; then
           # merge multiple sboms into single one
+          echo "Merging multiple SBOMs into global SBOM: ${GLOBAL_SBOM_FILE}"
           cachi2 --log-level="$LOG_LEVEL" merge-sboms "${SBOMS[@]}" \
-            --output "${HERMETO_DIR}/bom.json"
+            --output "${GLOBAL_SBOM_FILE}"
         else
           # single SBOM is the final SBOM
-          cp "${SBOMS[0]}" "${HERMETO_DIR}/bom.json"
+          cp "${SBOMS[0]}" "${GLOBAL_SBOM_FILE}"
         fi
     - name: binary-container-hermeto-postprocess
       image: $(params.osbs-image)
