@@ -128,6 +128,8 @@ spec:
           cp "${WORKSPACE_NETRC_PATH}/.netrc" "${HOME}/.netrc"
         fi
 
+        echo "Using Hermeto version: $(cachi2 --version | head -n1)"
+
         SBOMS=()
 
         # Process each remote source
