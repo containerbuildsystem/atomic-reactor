@@ -846,10 +846,18 @@ def test_generate_cachito_env_file_shell_quoting(workflow):
     plugin = HermetoPostprocessPlugin(workflow)
 
     dest_dir = Path(expected_build_dir(workflow))
-    plugin.generate_cachito_env_file(dest_dir, {"foo": "somefile; rm -rf ~"})
+    plugin.generate_remote_source_env_file(dest_dir, {"foo": "somefile; rm -rf ~"})
 
     cachito_env = dest_dir / "cachito.env"
     assert cachito_env.read_text() == dedent(
+        """\
+        #!/bin/bash
+        export foo='somefile; rm -rf ~'
+        """
+    )
+
+    remote_source_env = dest_dir / "remote-source.env"
+    assert remote_source_env.read_text() == dedent(
         """\
         #!/bin/bash
         export foo='somefile; rm -rf ~'
