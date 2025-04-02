@@ -160,6 +160,10 @@ spec:
               --format json \
               --for-output-dir="${FOR_OUTPUT_DIR}" \
               --output "${REMOTE_SOURCE_PATH}/hermeto.env.json"
+
+            echo "Content of envfile:"
+            cat "${REMOTE_SOURCE_PATH}/hermeto.env.json"
+            echo ""
           else
             echo "Skipping Hermeto run, the remote source is processed only by OSBS"
             mkdir deps/  # create empty deps/ dir to emulate Hermeto run
