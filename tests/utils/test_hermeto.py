@@ -58,6 +58,11 @@ def mocked_repo_submodules():
         id="pkg_rubygems_to_bundler",
     ),
     pytest.param(
+        {"pkg_managers": ["rubygems"], "packages": {"rubygems": [{"path": "extra_path"}]}},
+        {"flags": [], "packages": [{"path": "extra_path", "type": "bundler"}]},
+        id="pkg_rubygems_to_bundler_with_extra",
+    ),
+    pytest.param(
         {},
         {"flags": [], "packages": [{"path": ".", "type": "gomod"}]},
         id="pkg_manager_missing",
