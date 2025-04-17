@@ -163,11 +163,12 @@ def remote_source_to_hermeto(remote_source: Dict[str, Any]) -> Dict[str, Any]:
         if pkg_manager in removed_pkg_managers:
             continue
 
+        packages = remote_source.get("packages", {}).get(pkg_manager, [])
+        packages = packages or [{"path": "."}]
+
         # if pkg manager has different name in Hermeto update it
         pkg_manager = pkg_managers_map.get(pkg_manager, pkg_manager)
 
-        packages = remote_source.get("packages", {}).get(pkg_manager, [])
-        packages = packages or [{"path": "."}]
         for pkg in packages:
             hermeto_packages.append({"type": pkg_manager, **pkg})
 
