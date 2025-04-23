@@ -128,7 +128,7 @@ spec:
           cp "${WORKSPACE_NETRC_PATH}/.netrc" "${HOME}/.netrc"
         fi
 
-        echo "Using Hermeto version: $(cachi2 --version | head -n1)"
+        echo "Using Hermeto version: $(hermeto --version | head -n1)"
 
         SBOMS=()
 
@@ -148,7 +148,7 @@ spec:
 
             echo "Fetching dependencies using Hermeto options: $(cat "${HERMETO_PKG_OPT_PATH}")"
 
-            cachi2 --log-level="$LOG_LEVEL" fetch-deps \
+            hermeto --log-level="$LOG_LEVEL" fetch-deps \
               --source="${REMOTE_SOURCE_PATH}/app/" \
               --output="${REMOTE_SOURCE_PATH}" \
               --sbom-output-type=cyclonedx \
@@ -156,7 +156,7 @@ spec:
 
             echo "Generating envfile"
 
-            cachi2 --log-level="$LOG_LEVEL" generate-env "${REMOTE_SOURCE_PATH}" \
+            hermeto --log-level="$LOG_LEVEL" generate-env "${REMOTE_SOURCE_PATH}" \
               --format json \
               --for-output-dir="${FOR_OUTPUT_DIR}" \
               --output "${REMOTE_SOURCE_PATH}/hermeto.env.json"
@@ -185,7 +185,7 @@ spec:
 
           if [ -f "${HERMETO_PKG_OPT_PATH}" ]; then
             echo "Injecting Hermeto files into the remote source"
-            cachi2 --log-level="$LOG_LEVEL" inject-files "${REMOTE_SOURCE_PATH}" \
+            hermeto --log-level="$LOG_LEVEL" inject-files "${REMOTE_SOURCE_PATH}" \
               --for-output-dir="${FOR_OUTPUT_DIR}"
           fi
 
@@ -199,7 +199,7 @@ spec:
         if [ "${#SBOMS[@]}" -gt 1 ]; then
           # merge multiple sboms into single one
           echo "Merging multiple SBOMs into global SBOM: ${GLOBAL_SBOM_FILE}"
-          cachi2 --log-level="$LOG_LEVEL" merge-sboms "${SBOMS[@]}" \
+          hermeto --log-level="$LOG_LEVEL" merge-sboms "${SBOMS[@]}" \
             --output "${GLOBAL_SBOM_FILE}"
         else
           # single SBOM is the final SBOM
