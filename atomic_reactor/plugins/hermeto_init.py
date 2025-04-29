@@ -159,7 +159,7 @@ class HermetoInitPlugin(Plugin):
                 remote_source["git_submodules"] = git_submodules
 
             remove_unsafe_symlinks = False
-            flags = remote_source_data.get("flags", [])
+            flags = remote_source_data.get("flags") or []
             if "remove-unsafe-symlinks" in flags:
                 remove_unsafe_symlinks = True
 

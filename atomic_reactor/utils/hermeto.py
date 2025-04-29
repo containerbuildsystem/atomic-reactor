@@ -151,7 +151,7 @@ def remote_source_to_hermeto(remote_source: Dict[str, Any]) -> Dict[str, Any]:
     removed_pkg_managers = {"git-submodule"}
 
     hermeto_flags = sorted(
-        set(remote_source.get("flags", [])) - removed_flags
+        set(remote_source.get("flags") or []) - removed_flags
     )
     hermeto_packages = []
 
@@ -280,7 +280,7 @@ def generate_request_json(
         "ref": remote_source["ref"],
         "repo": remote_source["repo"],
         "environment_variables": {env['name']: env["value"] for env in remote_source_env_json},
-        "flags": remote_source.get("flags", []),
+        "flags": remote_source.get("flags") or [],
         "packages": [],  # this will be always empty Hermeto doesn't provide nested deps
     }
     return res
