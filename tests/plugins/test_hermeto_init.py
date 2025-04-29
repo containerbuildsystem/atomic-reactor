@@ -259,6 +259,7 @@ def test_multi_remote_source_initialization(workflow, mocked_hermeto_init):
           remote_source:
             repo: {SECOND_REMOTE_SOURCE_REPO}
             ref: {SECOND_REMOTE_SOURCE_REF}
+            flags:  # Test case when flags are None to test handling
         """
     )
 
@@ -301,6 +302,7 @@ def test_multi_remote_source_initialization(workflow, mocked_hermeto_init):
             "repo": SECOND_REMOTE_SOURCE_REPO,
             "ref": SECOND_REMOTE_SOURCE_REF,
             "pkg_managers": ["gomod"],
+            "flags": None,
         }
     }]
 
