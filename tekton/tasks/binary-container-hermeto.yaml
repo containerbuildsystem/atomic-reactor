@@ -130,6 +130,15 @@ spec:
 
         echo "Using Hermeto version: $(hermeto --version | head -n1)"
 
+        # Default Hermeto conf file to keep compatibility with Cachito as much as possible
+        CONF_FILE="${HOME}/hermeto-conf.yaml"
+
+        cat <<EOF >"${CONF_FILE}"
+        ---
+        allow_yarnberry_processing: false
+        ignore_pip_dependencies_crates: true
+        EOF
+
         SBOMS=()
 
         # Process each remote source
@@ -148,7 +157,7 @@ spec:
 
             echo "Fetching dependencies using Hermeto options: $(cat "${HERMETO_PKG_OPT_PATH}")"
 
-            hermeto --log-level="$LOG_LEVEL" fetch-deps \
+            hermeto --log-level="$LOG_LEVEL" --config-file="${CONF_FILE}" fetch-deps \
               --source="${REMOTE_SOURCE_PATH}/app/" \
               --output="${REMOTE_SOURCE_PATH}" \
               --sbom-output-type=cyclonedx \
