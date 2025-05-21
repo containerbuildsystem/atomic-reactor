@@ -157,7 +157,7 @@ spec:
 
             echo "Fetching dependencies using Hermeto options: $(cat "${HERMETO_PKG_OPT_PATH}")"
 
-            hermeto --log-level="$LOG_LEVEL" --config-file="${CONF_FILE}" fetch-deps \
+            hermeto --log-level="$LOG_LEVEL" --config-file="${CONF_FILE}" --mode=permissive fetch-deps \
               --source="${REMOTE_SOURCE_PATH}/app/" \
               --output="${REMOTE_SOURCE_PATH}" \
               --sbom-output-type=cyclonedx \
