@@ -351,7 +351,7 @@ def test_parent_images_to_str(workflow, caplog):
 def test_no_base_image(context_dir, build_dir):
     source = DummySource("git", "https://git.host/")
     dfp = DockerfileParser(source.source_path)
-    dfp.content = "# no FROM\nADD spam /eggs"
+    dfp.content = "# no FROM\nCOPY spam /eggs"
     with pytest.raises(RuntimeError, match="no base image specified"):
         DockerBuildWorkflow(context_dir,
                             build_dir,

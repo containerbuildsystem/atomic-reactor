@@ -277,8 +277,8 @@ def test_no_base_image_in_dockerfile(workflow, build_dir, configure_ca_bundle, r
             '''),
             dedent(f'''\
             FROM fedora:33
-            ADD {CA_BUNDLE_PEM} /tmp/{CA_BUNDLE_PEM}
-            ADD atomic-reactor-repos/* /etc/yum.repos.d/
+            COPY {CA_BUNDLE_PEM} /tmp/{CA_BUNDLE_PEM}
+            COPY atomic-reactor-repos/* /etc/yum.repos.d/
             RUN dnf update -y
             RUN rm -f '/etc/yum.repos.d/custom-{{}}.repo'
             RUN rm -f /tmp/{CA_BUNDLE_PEM}
@@ -308,8 +308,8 @@ def test_no_base_image_in_dockerfile(workflow, build_dir, configure_ca_bundle, r
             '''),
             dedent(f'''\
             FROM fedora:33
-            ADD {CA_BUNDLE_PEM} /tmp/{CA_BUNDLE_PEM}
-            ADD atomic-reactor-repos/* /etc/yum.repos.d/
+            COPY {CA_BUNDLE_PEM} /tmp/{CA_BUNDLE_PEM}
+            COPY atomic-reactor-repos/* /etc/yum.repos.d/
             RUN dnf update -y
             RUN rm -f '/etc/yum.repos.d/target-bd4b1.repo' '/etc/yum.repos.d/custom-{{}}.repo'
             RUN rm -f /tmp/{CA_BUNDLE_PEM}
@@ -355,14 +355,14 @@ def test_no_base_image_in_dockerfile(workflow, build_dir, configure_ca_bundle, r
             '''),
             dedent(f'''\
             FROM fedora:33
-            ADD {CA_BUNDLE_PEM} /tmp/{CA_BUNDLE_PEM}
-            ADD atomic-reactor-repos/* /etc/yum.repos.d/
+            COPY {CA_BUNDLE_PEM} /tmp/{CA_BUNDLE_PEM}
+            COPY atomic-reactor-repos/* /etc/yum.repos.d/
             RUN dnf update -y
             FROM scratch
             RUN touch /tmp/hello.txt
             FROM fedora:33
-            ADD {CA_BUNDLE_PEM} /tmp/{CA_BUNDLE_PEM}
-            ADD atomic-reactor-repos/* /etc/yum.repos.d/
+            COPY {CA_BUNDLE_PEM} /tmp/{CA_BUNDLE_PEM}
+            COPY atomic-reactor-repos/* /etc/yum.repos.d/
             RUN echo hello
             RUN rm -f '/etc/yum.repos.d/odcs-1234-{{}}.repo'
             RUN rm -f /tmp/{CA_BUNDLE_PEM}
@@ -405,14 +405,14 @@ def test_no_base_image_in_dockerfile(workflow, build_dir, configure_ca_bundle, r
             '''),
             dedent(f'''\
             FROM fedora:33
-            ADD {CA_BUNDLE_PEM} /tmp/{CA_BUNDLE_PEM}
-            ADD atomic-reactor-repos/* /etc/yum.repos.d/
+            COPY {CA_BUNDLE_PEM} /tmp/{CA_BUNDLE_PEM}
+            COPY atomic-reactor-repos/* /etc/yum.repos.d/
             RUN dnf update -y
             FROM scratch
             RUN touch /tmp/hello.txt
             FROM fedora:33
-            ADD {CA_BUNDLE_PEM} /tmp/{CA_BUNDLE_PEM}
-            ADD atomic-reactor-repos/* /etc/yum.repos.d/
+            COPY {CA_BUNDLE_PEM} /tmp/{CA_BUNDLE_PEM}
+            COPY atomic-reactor-repos/* /etc/yum.repos.d/
             RUN echo hello
             RUN rm -f '/etc/yum.repos.d/target-bd4b1.repo' '/etc/yum.repos.d/odcs-1234-{{}}.repo'
             RUN rm -f /tmp/{CA_BUNDLE_PEM}
@@ -455,16 +455,16 @@ def test_no_base_image_in_dockerfile(workflow, build_dir, configure_ca_bundle, r
             """),
             dedent(f"""\
             FROM golang:1.9 AS builder1
-            ADD {CA_BUNDLE_PEM} /tmp/{CA_BUNDLE_PEM}
-            ADD atomic-reactor-repos/* /etc/yum.repos.d/
+            COPY {CA_BUNDLE_PEM} /tmp/{CA_BUNDLE_PEM}
+            COPY atomic-reactor-repos/* /etc/yum.repos.d/
             USER grahamchapman
             RUN build /spam/eggs
             FROM scratch
             USER somebody
             RUN build /somebody
             FROM jdk:1.8 AS builder2
-            ADD {CA_BUNDLE_PEM} /tmp/{CA_BUNDLE_PEM}
-            ADD atomic-reactor-repos/* /etc/yum.repos.d/
+            COPY {CA_BUNDLE_PEM} /tmp/{CA_BUNDLE_PEM}
+            COPY atomic-reactor-repos/* /etc/yum.repos.d/
             USER ericidle
             RUN yum -y update
             FROM scratch
@@ -506,16 +506,16 @@ def test_no_base_image_in_dockerfile(workflow, build_dir, configure_ca_bundle, r
             """),
             dedent(f"""\
             FROM golang:1.9 AS builder1
-            ADD {CA_BUNDLE_PEM} /tmp/{CA_BUNDLE_PEM}
-            ADD atomic-reactor-repos/* /etc/yum.repos.d/
+            COPY {CA_BUNDLE_PEM} /tmp/{CA_BUNDLE_PEM}
+            COPY atomic-reactor-repos/* /etc/yum.repos.d/
             USER grahamchapman
             RUN build /spam/eggs
             FROM scratch
             USER somebody
             RUN build /somebody
             FROM jdk:1.8 AS builder2
-            ADD {CA_BUNDLE_PEM} /tmp/{CA_BUNDLE_PEM}
-            ADD atomic-reactor-repos/* /etc/yum.repos.d/
+            COPY {CA_BUNDLE_PEM} /tmp/{CA_BUNDLE_PEM}
+            COPY atomic-reactor-repos/* /etc/yum.repos.d/
             USER ericidle
             RUN yum -y update
             FROM scratch
@@ -551,12 +551,12 @@ def test_no_base_image_in_dockerfile(workflow, build_dir, configure_ca_bundle, r
             """),
             dedent(f"""\
             FROM golang:1.9 AS builder1
-            ADD {CA_BUNDLE_PEM} /tmp/{CA_BUNDLE_PEM}
-            ADD atomic-reactor-repos/* /etc/yum.repos.d/
+            COPY {CA_BUNDLE_PEM} /tmp/{CA_BUNDLE_PEM}
+            COPY atomic-reactor-repos/* /etc/yum.repos.d/
             RUN build /spam/eggs
             FROM base
-            ADD {CA_BUNDLE_PEM} /tmp/{CA_BUNDLE_PEM}
-            ADD atomic-reactor-repos/* /etc/yum.repos.d/
+            COPY {CA_BUNDLE_PEM} /tmp/{CA_BUNDLE_PEM}
+            COPY atomic-reactor-repos/* /etc/yum.repos.d/
             COPY --from=builder1 /some/stuff /bin/spam
             USER root
             RUN rm -f '/etc/yum.repos.d/custom-{{}}.repo'
@@ -593,13 +593,13 @@ def test_no_base_image_in_dockerfile(workflow, build_dir, configure_ca_bundle, r
             """),
             dedent(f"""\
             FROM golang:1.9 AS builder1
-            ADD {CA_BUNDLE_PEM} /tmp/{CA_BUNDLE_PEM}
-            ADD atomic-reactor-repos/* /etc/yum.repos.d/
+            COPY {CA_BUNDLE_PEM} /tmp/{CA_BUNDLE_PEM}
+            COPY atomic-reactor-repos/* /etc/yum.repos.d/
             USER grahamchapman
             RUN build /spam/eggs
             FROM base
-            ADD {CA_BUNDLE_PEM} /tmp/{CA_BUNDLE_PEM}
-            ADD atomic-reactor-repos/* /etc/yum.repos.d/
+            COPY {CA_BUNDLE_PEM} /tmp/{CA_BUNDLE_PEM}
+            COPY atomic-reactor-repos/* /etc/yum.repos.d/
             COPY --from=builder1 /some/stuff /bin/spam
             USER root
             RUN rm -f '/etc/yum.repos.d/custom-{{}}.repo'
@@ -647,8 +647,8 @@ def test_no_base_image_in_dockerfile(workflow, build_dir, configure_ca_bundle, r
             '''),
             dedent(f'''\
             FROM fedora:33
-            ADD {CA_BUNDLE_PEM} /tmp/{CA_BUNDLE_PEM}
-            ADD atomic-reactor-repos/* /etc/yum.repos.d/
+            COPY {CA_BUNDLE_PEM} /tmp/{CA_BUNDLE_PEM}
+            COPY atomic-reactor-repos/* /etc/yum.repos.d/
             RUN dnf update -y
             RUN rm -f '/etc/yum.repos.d/custom-{{}}.repo' '/etc/yum.repos.d/custom-2-{{}}.repo'
             RUN rm -f /tmp/{CA_BUNDLE_PEM}
@@ -689,8 +689,8 @@ RUN yum install -y httpd \
 ''',
             dedent(f'''\
             FROM fedora
-            ADD {CA_BUNDLE_PEM} /tmp/{CA_BUNDLE_PEM}
-            ADD atomic-reactor-repos/* /etc/yum.repos.d/
+            COPY {CA_BUNDLE_PEM} /tmp/{CA_BUNDLE_PEM}
+            COPY atomic-reactor-repos/* /etc/yum.repos.d/
             RUN yum install -y httpd                    uwsgi
             RUN rm -f '/etc/yum.repos.d/custom-{{}}.repo'
             RUN rm -f /tmp/{CA_BUNDLE_PEM}
@@ -721,7 +721,7 @@ RUN yum install -y httpd \
             '''),
             dedent('''\
             FROM fedora:33
-            ADD atomic-reactor-repos/* /etc/yum.repos.d/
+            COPY atomic-reactor-repos/* /etc/yum.repos.d/
             RUN dnf update -y
             RUN rm -f '/etc/yum.repos.d/custom-{}.repo'
             '''),
@@ -757,12 +757,12 @@ RUN yum install -y httpd \
             '''),
             dedent(f'''\
             FROM base
-            ADD {CA_BUNDLE_PEM} /tmp/{CA_BUNDLE_PEM}
-            ADD atomic-reactor-repos/* /etc/yum.repos.d/
+            COPY {CA_BUNDLE_PEM} /tmp/{CA_BUNDLE_PEM}
+            COPY atomic-reactor-repos/* /etc/yum.repos.d/
             RUN gcc main.c
             FROM fedora:33
-            ADD {CA_BUNDLE_PEM} /tmp/{CA_BUNDLE_PEM}
-            ADD atomic-reactor-repos/* /etc/yum.repos.d/
+            COPY {CA_BUNDLE_PEM} /tmp/{CA_BUNDLE_PEM}
+            COPY atomic-reactor-repos/* /etc/yum.repos.d/
             USER 1001
             WORKDIR /src
             USER root
@@ -1018,10 +1018,10 @@ def test_some_platform_has_no_repos(workflow, build_dir, repourl, repo_filename,
     aarch64_dir = workflow.build_dir.platform_dir("aarch64")
 
     assert (x86_dir.path / RELATIVE_REPOS_PATH / repo_filename).exists()
-    assert "ADD atomic-reactor-repos/* /etc/yum.repos.d" in x86_dir.dockerfile.content
+    assert "COPY atomic-reactor-repos/* /etc/yum.repos.d" in x86_dir.dockerfile.content
 
     assert not (aarch64_dir.path / RELATIVE_REPOS_PATH).exists()
-    assert "ADD atomic-reactor-repos/* /etc/yum.repos.d" not in aarch64_dir.dockerfile.content
+    assert "COPY atomic-reactor-repos/* /etc/yum.repos.d" not in aarch64_dir.dockerfile.content
 
     assert "no repos to inject for aarch64 platform" in caplog.text
 

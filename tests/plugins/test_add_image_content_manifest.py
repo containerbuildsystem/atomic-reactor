@@ -311,7 +311,7 @@ def check_dockerignore(icm_file: str):
             dedent("""\
             FROM base_image
             CMD build /spam/eggs
-            ADD eggs-1.0-42.json /root/buildinfo/content_manifests/eggs-1.0-42.json
+            COPY eggs-1.0-42.json /root/buildinfo/content_manifests/eggs-1.0-42.json
             LABEL com.redhat.component=eggs version=1.0 release=42
         """),
             2,
@@ -326,7 +326,7 @@ def check_dockerignore(icm_file: str):
             dedent("""\
             FROM base_image
             CMD build /spam/eggs
-            ADD eggs-1.0-42.json /root/buildinfo/content_manifests/eggs-1.0-42.json
+            COPY eggs-1.0-42.json /root/buildinfo/content_manifests/eggs-1.0-42.json
             LABEL com.redhat.component=eggs version=1.0 release=42
         """),
             3,
@@ -341,7 +341,7 @@ def check_dockerignore(icm_file: str):
             dedent("""\
             FROM scratch
             CMD build /spam/eggs
-            ADD eggs-1.0-42.json /root/buildinfo/content_manifests/eggs-1.0-42.json
+            COPY eggs-1.0-42.json /root/buildinfo/content_manifests/eggs-1.0-42.json
             LABEL com.redhat.component=eggs version=1.0 release=42
         """),
             0,

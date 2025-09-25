@@ -188,11 +188,11 @@ class AddImageContentManifestPlugin(Plugin):
 
     def _add_to_dockerfile(self, build_dir: BuildDir) -> None:
         """
-        Put an ADD instruction into the Dockerfile (to include the ICM file
+        Put a COPY instruction into the Dockerfile (to include the ICM file
         into the container image to be built)
         """
         dest_file_path = os.path.join(self.content_manifests_dir, self.icm_file_name)
-        content = 'ADD {0} {1}'.format(self.icm_file_name, dest_file_path)
+        content = 'COPY {0} {1}'.format(self.icm_file_name, dest_file_path)
         lines = build_dir.dockerfile.lines
 
         # Put it before last instruction

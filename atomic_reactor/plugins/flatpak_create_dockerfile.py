@@ -42,9 +42,9 @@ LABEL version="{stream}"
 LABEL release="@RELEASE@"
 
 RUN rm -f {yum_repos_dir}*
-ADD {relative_repos_path}* {yum_repos_dir}
+COPY {relative_repos_path}* {yum_repos_dir}
 
-ADD {includepkgs} /tmp/
+COPY {includepkgs} /tmp/
 
 RUN cat /tmp/atomic-reactor-includepkgs >> /etc/dnf/dnf.conf && \\
     INSTALLDIR=/var/tmp/flatpak-build && \\
