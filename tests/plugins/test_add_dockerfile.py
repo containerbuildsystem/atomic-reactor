@@ -81,7 +81,7 @@ CMD blabla"""
     expected_df_content = """
 FROM fedora
 RUN yum install -y python-django
-ADD Dockerfile-rhel-server-docker-7.1-20 /root/buildinfo/Dockerfile-rhel-server-docker-7.1-20
+COPY Dockerfile-rhel-server-docker-7.1-20 /root/buildinfo/Dockerfile-rhel-server-docker-7.1-20
 CMD blabla"""
     # the copied Dockerfile should have the *original* content
     expected_df_copy = DockerfileCopy("Dockerfile-rhel-server-docker-7.1-20", df_content)
@@ -105,7 +105,7 @@ CMD blabla"""
     expected_df_content = """
 FROM fedora
 RUN yum install -y python-django
-ADD Dockerfile-jboss-eap-6-docker-6.4-77 /usr/share/doc/Dockerfile-jboss-eap-6-docker-6.4-77
+COPY Dockerfile-jboss-eap-6-docker-6.4-77 /usr/share/doc/Dockerfile-jboss-eap-6-docker-6.4-77
 CMD blabla"""
     expected_df_copy = DockerfileCopy("Dockerfile-jboss-eap-6-docker-6.4-77", df_content)
 
@@ -128,7 +128,7 @@ CMD blabla"""
 FROM fedora
 RUN yum install -y python-django
 LABEL Name="jboss-eap-6-docker" "Version"="6.4" "Release"=77
-ADD Dockerfile-jboss-eap-6-docker-6.4-77 /root/buildinfo/Dockerfile-jboss-eap-6-docker-6.4-77
+COPY Dockerfile-jboss-eap-6-docker-6.4-77 /root/buildinfo/Dockerfile-jboss-eap-6-docker-6.4-77
 CMD blabla"""
     expected_df_copy = DockerfileCopy("Dockerfile-jboss-eap-6-docker-6.4-77", df_content)
 
@@ -161,7 +161,7 @@ CMD blabla"""
     expected_df_content = """
 FROM fedora
 RUN yum install -y python-django
-ADD Dockerfile /root/buildinfo/Dockerfile-rhel-server-docker-7.1-20
+COPY Dockerfile /root/buildinfo/Dockerfile-rhel-server-docker-7.1-20
 CMD blabla"""
     workflow.build_dir.for_each_platform(check_outputs(expected_df_content))
 

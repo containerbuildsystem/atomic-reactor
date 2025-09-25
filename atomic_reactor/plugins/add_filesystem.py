@@ -331,6 +331,7 @@ class AddFilesystemPlugin(Plugin):
         """
         Put an ADD instruction into the Dockerfile (to include the filesystem
         into the container image to be built)
+        NOTE: this must be ADD instruction as it un-TARs the source
         """
         content = 'ADD {0} /\n'.format(file_name)
         lines = build_dir.dockerfile.lines

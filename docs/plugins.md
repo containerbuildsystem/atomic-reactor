@@ -177,7 +177,7 @@ containing the Dockerfile.
     and other metadata, and ADDs it to the built image
 - **add_dockerfile**
   - Status: Enabled
-  - The Dockerfile used to build the image has a line added to ADD itself into
+  - The Dockerfile used to build the image has a line added to COPY itself into
     the built image
 - **distgit_fetch_artefacts**
   - Status: Enabled

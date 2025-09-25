@@ -226,7 +226,7 @@ class InjectYumReposPlugin(Plugin):
 
     def _inject_into_dockerfile(self, build_dir: BuildDir):
         build_dir.dockerfile.add_lines(
-            "ADD %s* %s" % (RELATIVE_REPOS_PATH, YUM_REPOS_DIR),
+            "COPY %s* %s" % (RELATIVE_REPOS_PATH, YUM_REPOS_DIR),
             all_stages=True, at_start=True, skip_scratch=True
         )
 
@@ -236,7 +236,7 @@ class InjectYumReposPlugin(Plugin):
                 build_dir.path / self._ca_bundle_pem
             )
             build_dir.dockerfile.add_lines(
-                f'ADD {self._ca_bundle_pem} /tmp/{self._ca_bundle_pem}',
+                f'COPY {self._ca_bundle_pem} /tmp/{self._ca_bundle_pem}',
                 all_stages=True, at_start=True, skip_scratch=True
             )
             allow_path_in_dockerignore(build_dir.path, self._ca_bundle_pem)

@@ -8,7 +8,7 @@ of the BSD license. See the LICENSE file for details.
 
 Convert a help markdown file a man page and store it to /help.1 in the image
 so that 'atomic help' could display it.
-This is accomplished by appending an ADD command to it.
+This is accomplished by appending a COPY command to it.
 
 Example configuration:
 {
@@ -138,7 +138,7 @@ class AddHelpPlugin(Plugin):
         dockerfile = build_dir.dockerfile
         lines = dockerfile.lines
 
-        content = 'ADD {0} /{0}'.format(self.man_filename)
+        content = 'COPY {0} /{0}'.format(self.man_filename)
         # put it before last instruction
         lines.insert(-1, content + '\n')
 

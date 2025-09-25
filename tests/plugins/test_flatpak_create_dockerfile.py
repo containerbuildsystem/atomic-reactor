@@ -156,7 +156,7 @@ def test_flatpak_create_dockerfile(workflow, source_dir, config_name, override_b
             assert 'name="{}"'.format(config['name']) in df
             assert 'com.redhat.component="{}"'.format(config['component']) in df
             assert "RUN rm -f /etc/yum.repos.d/*" in df
-            assert "ADD atomic-reactor-repos/* /etc/yum.repos.d/" in df
+            assert "COPY atomic-reactor-repos/* /etc/yum.repos.d/" in df
 
 
 def test_skip_plugin(workflow, source_dir, caplog):

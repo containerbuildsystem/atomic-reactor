@@ -8,7 +8,7 @@ of the BSD license. See the LICENSE file for details.
 
 Include user-provided Dockerfile in the IMAGE_BUILD_INFO_DIR
 (or other if provided) directory in the built image.
-This is accomplished by appending an ADD command to it.
+This is accomplished by appending a COPY command to it.
 Name of the Dockerfile is changed to include N-V-R of the build.
 N-V-R is specified either by nvr argument OR from
 Name/Version/Release labels in Dockerfile.
@@ -98,12 +98,12 @@ class AddDockerfilePlugin(Plugin):
 
         if self.use_final_dockerfile:
             # when using final dockerfile, we should use DOCKERFILE_FILENAME
-            add_line = f'ADD {DOCKERFILE_FILENAME} {self.df_path}\n'
+            add_line = f'COPY {DOCKERFILE_FILENAME} {self.df_path}\n'
             allow_path_in_dockerignore(build_dir.path, DOCKERFILE_FILENAME)
         else:
             # otherwise we should copy current snapshot and use the copied version
             shutil.copy2(build_dir.dockerfile_path, build_dir.path / self.df_name)
-            add_line = f'ADD {self.df_name} {self.df_path}\n'
+            add_line = f'COPY {self.df_name} {self.df_path}\n'
             allow_path_in_dockerignore(build_dir.path, self.df_name)
 
         # put it before last instruction

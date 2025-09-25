@@ -170,7 +170,7 @@ def test_add_help_plugin(workflow, filename):
             f"""
             FROM fedora
             RUN yum install -y python-django
-            ADD {AddHelpPlugin.man_filename} /{AddHelpPlugin.man_filename}
+            COPY {AddHelpPlugin.man_filename} /{AddHelpPlugin.man_filename}
             CMD blabla
             """
         )
