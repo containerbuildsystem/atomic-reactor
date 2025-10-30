@@ -188,6 +188,7 @@ class ReactorConfigKeys(object):
     IMAGE_SIZE_LIMIT_KEY = 'image_size_limit'
     BUILDER_CA_BUNDLE_KEY = 'builder_ca_bundle'
     REMOTE_SOURCES_DEFAULT_VERSION = 'remote_sources_default_version'
+    ALLOWED_BUILD_TARGETS_KEY = 'allowed_build_targets'
 
 
 class ODCSConfig(object):
@@ -516,3 +517,7 @@ class Configuration(object):
     @property
     def remote_sources_default_version(self):
         return self._get_value(ReactorConfigKeys.REMOTE_SOURCES_DEFAULT_VERSION, fallback=1)
+
+    @property
+    def allowed_build_targets(self):
+        return self._get_value(ReactorConfigKeys.ALLOWED_BUILD_TARGETS_KEY, fallback=[])

@@ -6,6 +6,8 @@ This software may be modified and distributed under the terms
 of the BSD license. See the LICENSE file for details.
 """
 
+from fnmatch import fnmatch
+
 from atomic_reactor.constants import (
     PLUGIN_CHECK_USER_SETTINGS,
     REMOTE_SOURCE_VERSION_SKIP,
@@ -135,10 +137,41 @@ class CheckUserSettingsPlugin(Plugin):
             self.log.warning("remote_sources_version_result path is not specified, "
                              "result won't be written")
 
+    def check_build_target_allowed(self):
+        """Check if build target is in the allowed list"""
+        allowed_targets = self.workflow.conf.allowed_build_targets
+
+        # If not configured or empty, all build targets are allowed
+        if not allowed_targets:
+            self.log.debug("No build target restrictions configured, all targets allowed")
+            return
+
+        # Get build target from user params
+        build_target = self.workflow.user_params.get('koji_target')
+        if not build_target:
+            self.log.debug("No koji_target in user_params, skipping build target check")
+            return
+
+        self.log.info("Build target: %s", build_target)
+
+        # Check if build target matches any allowed pattern
+        for pattern in allowed_targets:
+            if fnmatch(build_target, pattern):
+                self.log.info("Build target '%s' matches allowed pattern '%s'",
+                              build_target, pattern)
+                return
+
+        # Build target is not allowed
+        raise RuntimeError(
+            f"Your build target '{build_target}' is not allow-listed for using OSBS, "
+            "please contact your OSBS maintainers."
+        )
+
     def run(self):
         """
         run the plugin
         """
+        self.check_build_target_allowed()
         self.dockerfile_checks()
         self.validate_user_config_files()
         self.resolve_remote_sources_version()

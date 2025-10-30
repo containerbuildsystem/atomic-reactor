@@ -714,6 +714,13 @@
         "type": "number",
         "minimum": 1,
         "maximum": 2
+    },
+    "allowed_build_targets": {
+        "description": "List of allowed build targets (supports glob pattern matching). If empty or not defined, all build targets are allowed",
+        "type": "array",
+        "items": {
+            "type": "string"
+        }
     }
   },
   "definitions": {

@@ -385,3 +385,115 @@ class TestRemoteSourceVersion(object):
 
         with open(result_file, "r") as f:
             assert f.read() == str(REMOTE_SOURCE_VERSION_SKIP)
+
+
+class TestCheckBuildTargetAllowed(object):
+    """Test the check_build_target_allowed method"""
+
+    def test_no_restrictions_configured(self, workflow, source_dir, caplog):
+        """All build targets allowed when no restrictions configured"""
+        runner = mock_env(workflow, source_dir)
+        workflow.user_params['koji_target'] = 'f40-container-candidate'
+        # Don't configure allowed_build_targets in reactor config
+        runner.run()
+
+        assert 'No build target restrictions configured' in caplog.text
+
+    def test_empty_restrictions_list(self, workflow, source_dir, caplog):
+        """All build targets allowed when restrictions list is empty"""
+        runner = mock_env(workflow, source_dir)
+        workflow.user_params['koji_target'] = 'f40-container-candidate'
+
+        mock_reactor_config(
+            workflow,
+            dedent("""
+            ---
+            allowed_build_targets: []
+            """))
+        runner.run()
+
+        assert 'No build target restrictions configured' in caplog.text
+
+    def test_no_koji_target_in_user_params(self, workflow, source_dir, caplog):
+        """Skip check when no koji_target in user_params"""
+        runner = mock_env(workflow, source_dir)
+
+        mock_reactor_config(
+            workflow,
+            dedent("""
+            ---
+            allowed_build_targets:
+              - "f40-*"
+            """))
+        runner.run()
+
+        assert 'No koji_target in user_params' in caplog.text
+
+    def test_build_target_matches_exact(self, workflow, source_dir, caplog):
+        """Build target matches exact allowed pattern"""
+        runner = mock_env(workflow, source_dir)
+        workflow.user_params['koji_target'] = 'f40-container-candidate'
+
+        mock_reactor_config(
+            workflow,
+            dedent("""
+            ---
+            allowed_build_targets:
+              - "f40-container-candidate"
+              - "f39-container-candidate"
+            """))
+        runner.run()
+
+        assert "matches allowed pattern 'f40-container-candidate'" in caplog.text
+
+    def test_build_target_matches_glob_pattern(self, workflow, source_dir, caplog):
+        """Build target matches glob pattern"""
+        runner = mock_env(workflow, source_dir)
+        workflow.user_params['koji_target'] = 'f40-container-candidate'
+
+        mock_reactor_config(
+            workflow,
+            dedent("""
+            ---
+            allowed_build_targets:
+              - "f*-container-candidate"
+              - "rhel-*-candidate"
+            """))
+        runner.run()
+
+        assert "matches allowed pattern 'f*-container-candidate'" in caplog.text
+
+    def test_build_target_not_allowed(self, workflow, source_dir):
+        """Build target does not match any allowed pattern"""
+        runner = mock_env(workflow, source_dir)
+        workflow.user_params['koji_target'] = 'unknown-target'
+
+        mock_reactor_config(
+            workflow,
+            dedent("""
+            ---
+            allowed_build_targets:
+              - "f*-container-candidate"
+              - "rhel-*-candidate"
+            """))
+
+        with pytest.raises(PluginFailedException) as e:
+            runner.run()
+        assert "Your build target 'unknown-target' is not allow-listed" in str(e.value)
+        assert "please contact your OSBS maintainers" in str(e.value)
+
+    def test_build_target_matches_wildcard(self, workflow, source_dir, caplog):
+        """Build target matches wildcard pattern"""
+        runner = mock_env(workflow, source_dir)
+        workflow.user_params['koji_target'] = 'my-special-target-v2'
+
+        mock_reactor_config(
+            workflow,
+            dedent("""
+            ---
+            allowed_build_targets:
+              - "*"
+            """))
+        runner.run()
+
+        assert "matches allowed pattern '*'" in caplog.text
