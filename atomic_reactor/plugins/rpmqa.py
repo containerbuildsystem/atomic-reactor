@@ -18,7 +18,12 @@ from atomic_reactor.utils.imageutil import NothingExtractedError
 from atomic_reactor.utils.rpm import parse_rpm_output
 from atomic_reactor.utils.rpm import rpm_qf_args
 
+# Where we look for the RPMDB in an image by default
 RPMDB_PATH = '/var/lib/rpm'
+
+# Additional locations if the default path above fails
+RPMDB_PATH_FALLBACKS = ['/usr/lib/sysimage/rpm', ]
+
 RPMDB_DIR_NAME = 'rpm'
 
 __all__ = ('RPMqaPlugin',)
@@ -53,13 +58,26 @@ class RPMqaPlugin(Plugin):
     def gather_output(self, build_dir: BuildDir) -> List[RpmComponent]:
         image = self.workflow.data.tag_conf.get_unique_images_with_platform(build_dir.platform)[0]
         with tempfile.TemporaryDirectory(dir=build_dir.path) as rpmdb_dir:
-            try:
-                self.workflow.imageutil.extract_file_from_image(image, RPMDB_PATH, rpmdb_dir)
-            except NothingExtractedError:
+            # note that we synthesize the series from the original path and fallbacks, allowing for
+            # mocking/patching of the original globals
+            for rpmdb_origin in [RPMDB_PATH, *RPMDB_PATH_FALLBACKS]:
+                try:
+                    self.workflow.imageutil.extract_file_from_image(image, rpmdb_origin, rpmdb_dir)
+                except NothingExtractedError:
+                    if self.workflow.data.dockerfile_images.base_from_scratch:
+                        self.log.info("scratch image doesn't contain or has empty rpmdb %s",
+                                      rpmdb_origin)
+                    else:
+                        self.log.info("image doesn't contain or has empty rpmdb %s",
+                                      rpmdb_origin)
+                else:
+                    self.log.info("found rpmdb at %s", rpmdb_origin)
+                    break
+            else:
                 if self.workflow.data.dockerfile_images.base_from_scratch:
-                    self.log.info("scratch image doesn't contain or has empty rpmdb %s", RPMDB_PATH)
+                    # this is allowed to not find any rpmdb, synthesize empty result
                     return []
-                raise
+                raise NothingExtractedError("Extraction failed")
 
             rpmdb_path = os.path.join(rpmdb_dir, RPMDB_DIR_NAME)
 
